@@ -1,0 +1,3037 @@
+{% if is_login %}
+{{ custom_login_html | safe }}
+{% else %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Luuv Fryxo">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" href="/icon.svg">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>POS | {{ restaurant.name if restaurant else "Luuv Fryxo" }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #F5F5F5;
+      color: #1F2937;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .pos-container {
+      display: flex; flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      height: -webkit-fill-available;
+    }
+    .pos-header {
+      background: #1F2937; color: #fff; padding: 10px 20px;
+      display: flex; align-items: center; gap: 16px; flex-shrink: 0; z-index: 20; flex-wrap: wrap;
+    }
+    .pos-header .brand { display: flex; align-items: center; gap: 8px; }
+    .pos-header .brand h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.5px; }
+    .pos-header .brand .badge { background: #FF6B35; color: #fff; font-size: 0.6rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+
+    .header-tabs { display: flex; gap: 4px; margin-left: 12px; }
+    .header-tabs .tab-btn {
+      padding: 6px 16px; border-radius: 6px; border: none; background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.6); font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: all 0.2s; white-space: nowrap;
+    }
+    .header-tabs .tab-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .header-tabs .tab-btn.active { background: #FF6B35; color: #fff; }
+    .header-tabs .tab-btn .count {
+      background: rgba(255,255,255,0.2); padding: 1px 7px; border-radius: 8px;
+      font-size: 0.65rem; margin-left: 4px;
+    }
+    .header-tabs .tab-btn.active .count { background: rgba(255,255,255,0.3); }
+
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .header-right .shift-badge {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06);
+      transition: all 0.2s;
+    }
+    .header-right .shift-badge:hover { background: rgba(255,255,255,0.12); }
+    .header-right .shift-badge .dot {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+    }
+    .header-right .shift-badge .dot.open { background: #22C55E; }
+    .header-right .shift-badge .dot.closed { background: #EF4444; }
+    .header-right .table-select {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 6px;
+    }
+    .header-right .table-select label { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+    .header-right .table-select select {
+      background: transparent; color: #fff; border: none; font-size: 0.85rem;
+      font-weight: 600; outline: none; cursor: pointer; font-family: inherit;
+    }
+    .header-right .table-select select option { background: #1F2937; color: #fff; }
+    .header-right .clock { font-size: 0.75rem; color: rgba(255,255,255,0.4); font-weight: 500; }
+    .rawbt-btn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.5); font-size:0.7rem; padding:4px 8px; border-radius:5px; cursor:pointer; font-family:inherit; transition:all 0.2s; white-space:nowrap; }
+    .rawbt-btn:hover { background:rgba(96,165,250,0.2); border-color:rgba(96,165,250,0.3); color:#60A5FA; }
+    .rawbt-btn.active { background:rgba(16,185,129,0.2); border-color:rgba(16,185,129,0.3); color:#10B981; }
+    .rawbt-setup { display:flex; gap:6px; align-items:center; margin-bottom:10px; }
+    .rawbt-setup input { flex:1; padding:7px 10px; border:1.5px solid #E5E7EB; border-radius:8px; font-size:0.82rem; font-family:inherit; outline:none; }
+    .rawbt-setup input:focus { border-color:#FF6B35; }
+    .rawbt-setup button { padding:7px 14px; border:none; border-radius:8px; background:#FF6B35; color:#fff; font-size:0.78rem; font-weight:600; cursor:pointer; font-family:inherit; }
+
+    .pos-body { display: flex; flex: 1; overflow: hidden; min-width: 0; }
+
+    .tab-content { display: none; flex: 1; height: 100%; min-width: 0; }
+    .tab-content.active { display: flex; }
+
+    #tab-pos .pos-left { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width:0; }
+    #tab-pos .pos-toolbar {
+      display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+      background: #fff; border-bottom: 1px solid #E5E7EB; flex-shrink: 0;
+    }
+    #tab-pos .pos-toolbar .search-box { flex: 1; position: relative; }
+    #tab-pos .pos-toolbar .search-box input {
+      width: 100%; padding: 9px 14px 9px 38px; border: 1.5px solid #E5E7EB;
+      border-radius: 10px; font-size: 0.85rem; font-family: inherit; outline: none;
+      transition: border 0.2s; background: #F9FAFB;
+    }
+    #tab-pos .pos-toolbar .search-box input:focus { border-color: #FF6B35; background: #fff; }
+    #tab-pos .pos-toolbar .search-box .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9CA3AF; font-size: 0.9rem; }
+
+    #tab-pos .pos-categories {
+      display: flex; gap: 6px; padding: 8px 20px; background: #fff;
+      border-bottom: 1px solid #E5E7EB; overflow-x: auto; flex-shrink: 0; scrollbar-width: none;
+    }
+    #tab-pos .pos-categories::-webkit-scrollbar { display: none; }
+    #tab-pos .pos-categories .cat-btn {
+      padding: 6px 16px; border-radius: 20px; border: 1.5px solid #E5E7EB;
+      background: #fff; font-size: 0.78rem; font-weight: 600; color: #6B7280;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap; font-family: inherit;
+    }
+    #tab-pos .pos-categories .cat-btn:hover { border-color: #FF6B35; color: #FF6B35; }
+    #tab-pos .pos-categories .cat-btn.active { background: #FF6B35; border-color: #FF6B35; color: #fff; }
+
+    #tab-pos .pos-items {
+      flex: 1; min-height: 0;
+      overflow-y: scroll; -webkit-overflow-scrolling: touch;
+      padding: 14px 20px;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px; align-content: start;
+    }
+    #tab-pos .pos-items .item-card {
+      background: #fff; border-radius: 14px; padding: 16px 10px 12px;
+      cursor: pointer; transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+      border: 2px solid transparent;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      position: relative;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 4px rgba(0,0,0,0.04);
+    }
+    #tab-pos .pos-items .item-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); transform: translateY(-1px); }
+    #tab-pos .pos-items .item-card:active { transform: scale(0.96); }
+    #tab-pos .pos-items .item-card.has-qty {
+      border-color: #FF6B35;
+      box-shadow: 0 0 0 1px #FF6B35, 0 4px 16px rgba(255,107,53,0.18);
+      background: #FFF8F5;
+    }
+    #tab-pos .pos-items .item-card .item-img {
+      width: 60px; height: 60px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.9rem; background: #FFF0E8; margin-bottom: 8px; overflow: hidden;
+      transition: transform 0.2s ease;
+    }
+    #tab-pos .pos-items .item-card:active .item-img { transform: scale(0.92); }
+    #tab-pos .pos-items .item-card .item-img img { width: 100%; height: 100%; object-fit: cover; }
+    #tab-pos .pos-items .item-card .item-name {
+      font-size: 0.8rem; font-weight: 600; color: #1F2937;
+      line-height: 1.25; margin-bottom: 3px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; max-height: 2.5em;
+    }
+    #tab-pos .pos-items .item-card .item-price { font-size: 0.95rem; font-weight: 700; color: #FF6B35; }
+    #tab-pos .pos-items .item-card .item-qty-badge {
+      position: absolute; top: 6px; right: 6px; background: #FF6B35; color: #fff;
+      font-size: 0.65rem; font-weight: 700; min-width: 22px; height: 22px;
+      border-radius: 11px; display: none; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(255,107,53,0.35);
+    }
+    #tab-pos .pos-items .item-card.has-qty .item-qty-badge { display: flex; }
+    #tab-pos .pos-items .item-card .item-img-placeholder {
+      width: 60px; height: 60px; border-radius: 14px; background: #FFF0E8;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.9rem; margin-bottom: 8px;
+    }
+    #tab-pos .pos-items .empty-items { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #9CA3AF; }
+
+    #tab-pos .pos-right {
+      width: 360px; flex-shrink: 0; background: #fff;
+      border-left: 1px solid #E5E7EB; display: flex; flex-direction: column; overflow: hidden;
+    }
+    #tab-pos .pos-right .cart-header {
+      padding: 14px 20px; border-bottom: 1px solid #E5E7EB;
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    #tab-pos .pos-right .cart-header h3 {
+      font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px;
+    }
+    #tab-pos .pos-right .cart-header h3 .count {
+      background: #FF6B35; color: #fff; font-size: 0.65rem; padding: 2px 8px;
+      border-radius: 10px; font-weight: 600;
+    }
+    #tab-pos .pos-right .cart-header .clear-btn {
+      background: none; border: none; color: #EF4444; font-size: 0.78rem;
+      font-weight: 600; cursor: pointer; display: none; font-family: inherit;
+    }
+    #tab-pos .pos-right .cart-header .clear-btn:hover { text-decoration: underline; }
+    .edit-banner {
+      background: #EEF2FF; border-bottom: 1px solid #C7D2FE; padding: 8px 20px;
+      display: none; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .edit-banner.show { display: flex; }
+    .edit-banner .eb-label { font-size: 0.78rem; font-weight: 600; color: #4338CA; display: flex; align-items: center; gap: 6px; }
+    .edit-banner .eb-cancel { background: none; border: 1px solid #C7D2FE; color: #4338CA; font-size: 0.72rem; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+    .edit-banner .eb-cancel:hover { background: #C7D2FE; }
+    #tab-pos .pos-right .cart-items { flex: 1; min-height: 0; overflow-y: scroll; -webkit-overflow-scrolling: touch; padding: 4px 0; }
+    #tab-pos .pos-right .cart-empty { padding: 50px 20px; text-align: center; color: #D1D5DB; }
+    #tab-pos .pos-right .cart-empty .icon { font-size: 2.5rem; margin-bottom: 6px; }
+    #tab-pos .pos-right .cart-empty p { font-size: 0.85rem; }
+
+    #tab-pos .pos-right .cart-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 20px; border-bottom: 1px solid #F3F4F6;
+    }
+    #tab-pos .pos-right .cart-item .ci-info { flex: 1; min-width: 0; }
+    #tab-pos .pos-right .cart-item .ci-name { font-size: 0.82rem; font-weight: 600; }
+    #tab-pos .pos-right .cart-item .ci-rate { font-size: 0.78rem; color: #FF6B35; font-weight: 600; }
+    #tab-pos .pos-right .cart-item .ci-qty { display: flex; align-items: center; gap: 5px; }
+    #tab-pos .pos-right .cart-item .ci-qty button {
+      width: 26px; height: 26px; border-radius: 50%; border: none;
+      font-size: 0.85rem; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    #tab-pos .pos-right .cart-item .ci-qty .ci-minus { background: #FFF0E8; color: #FF6B35; }
+    #tab-pos .pos-right .cart-item .ci-qty .ci-minus:hover { background: #FFE4D6; }
+    #tab-pos .pos-right .cart-item .ci-qty .ci-plus { background: #FF6B35; color: #fff; }
+    #tab-pos .pos-right .cart-item .ci-qty .ci-plus:hover { background: #E55A2B; }
+    #tab-pos .pos-right .cart-item .ci-qty span { font-size: 0.85rem; font-weight: 700; min-width: 16px; text-align: center; }
+    #tab-pos .pos-right .cart-item .ci-remove { background: none; border: none; color: #D1D5DB; cursor: pointer; font-size: 1rem; padding: 2px; line-height: 1; }
+    #tab-pos .pos-right .cart-item .ci-remove:hover { color: #EF4444; }
+
+    #tab-pos .pos-right .cart-footer { padding: 14px 20px; border-top: 1px solid #E5E7EB; flex-shrink: 0; }
+    #tab-pos .pos-right .cart-footer .total-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: #6B7280; margin-bottom: 3px; }
+    #tab-pos .pos-right .cart-footer .grand-total { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800; color: #1F2937; padding-top: 6px; margin-top: 6px; border-top: 2px solid #F3F4F6; }
+    .header-right .table-select { transition: opacity 0.2s ease; }
+    #tab-pos .pos-right .cart-footer .cart-actions { display: flex; gap: 8px; margin-top: 10px; }
+    #tab-pos .pos-right .cart-footer .cart-actions button {
+      flex: 1; border: none; padding: 12px; border-radius: 10px;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.3s;
+      font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    #tab-pos .pos-right .cart-footer .cart-actions .kitchen-btn {
+      background: linear-gradient(135deg, #F59E0B, #D97706); color: #fff;
+    }
+    #tab-pos .pos-right .cart-footer .cart-actions .kitchen-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245,158,11,0.3); }
+    #tab-pos .pos-right .cart-footer .cart-actions .kitchen-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+
+    /* ── Orders Tab ── */
+    .orders-tab { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .orders-tab .orders-header {
+      padding: 14px 24px; background: #fff; border-bottom: 1px solid #E5E7EB;
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .orders-tab .orders-header h2 { font-size: 1rem; font-weight: 700; }
+    .orders-tab .orders-header .refresh-btn {
+      background: #F3F4F6; border: none; padding: 6px 14px; border-radius: 8px;
+      font-size: 0.78rem; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+    }
+    .orders-tab .orders-header .refresh-btn:hover { background: #E5E7EB; }
+    .orders-tab .orders-body { flex: 1; overflow-y: auto; padding: 16px 24px; }
+    .orders-tab .orders-body .empty-state { text-align: center; padding: 60px 20px; color: #9CA3AF; }
+    .orders-tab .orders-body .empty-state .icon { font-size: 3rem; margin-bottom: 8px; }
+
+    .order-card {
+      background: #fff; border-radius: 12px; padding: 16px 20px;
+      margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      border: 1px solid #F3F4F6; display: flex; align-items: flex-start; gap: 20px;
+    }
+    .order-card .oc-left { flex: 1; min-width: 0; }
+    .order-card .oc-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    .order-card .oc-time { font-size: 0.75rem; color: #9CA3AF; white-space: nowrap; }
+    .order-card .oc-table {
+      background: #FFF0E8; color: #FF6B35; padding: 3px 10px; border-radius: 6px;
+      font-size: 0.78rem; font-weight: 700; text-align: center; white-space: nowrap;
+    }
+    .order-card .oc-customer { }
+    .order-card .oc-customer .name { font-size: 0.85rem; font-weight: 600; }
+    .order-card .oc-customer .phone { font-size: 0.72rem; color: #9CA3AF; }
+    .order-card .oc-items-list { margin: 6px 0; }
+    .order-card .oc-item {
+      display: flex; align-items: center; gap: 8px; padding: 2px 0;
+      font-size: 0.78rem; color: #4B5563;
+    }
+    .order-card .oc-item .oi-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .order-card .oc-item .oi-qty { color: #9CA3AF; font-weight: 500; min-width: 24px; text-align: center; }
+    .order-card .oc-item .oi-total { font-weight: 600; color: #1F2937; min-width: 70px; text-align: right; }
+    .order-card .oc-total-row {
+      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid #F3F4F6; padding-top: 6px; margin-top: 4px;
+    }
+    .order-card .oc-total { font-size: 1rem; font-weight: 700; color: #1F2937; }
+    .order-card .oc-invoice { font-size: 0.7rem; color: #9CA3AF; }
+    .order-card .oc-status {
+      padding: 3px 12px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+      text-align: center; white-space: nowrap;
+    }
+    .order-card .oc-status.ongoing { background: #FEF3C7; color: #D97706; }
+    .order-card .oc-status.served { background: #D1FAE5; color: #059669; }
+    .order-card .oc-action { flex-shrink: 0; }
+    .order-card .oc-action button {
+      background: #FF6B35; color: #fff; border: none; padding: 7px 16px;
+      border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: all 0.2s;
+    }
+    .order-card .oc-action button:hover { background: #E55A2B; }
+    .order-card .oc-action button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .order-card.ongoing { border-left: 3px solid #F59E0B; }
+    .order-card.served { border-left: 3px solid #10B981; }
+    .order-card.cancelled { border-left: 3px solid #EF4444; opacity:0.7; }
+
+    /* ── Payment Modal ── */
+    .pmode-select { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    #splitField { display:flex; gap:10px; margin-bottom:14px; }
+    .pmode-btn {
+      flex: 1; padding: 10px; border-radius: 10px; border: 2px solid #E5E7EB;
+      background: #fff; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; font-family: inherit; text-align: center;
+    }
+    .pmode-btn:hover { border-color: #FF6B35; }
+    .pmode-btn.active { border-color: #FF6B35; background: #FFF5F0; color: #FF6B35; }
+    .change-amount { font-size: 1.5rem; font-weight: 800; color: #22C55E; }
+    .change-row { display: none; }
+    .change-row.show { display: flex; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-overlay .modal {
+      background: #fff; border-radius: 16px; padding: 32px;
+      max-width: 460px; width: 90%; animation: popIn 0.25s ease;
+    }
+    @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .modal-overlay .modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .modal-overlay .modal .field { margin-bottom: 14px; }
+    .modal-overlay .modal .field label { font-size: 0.82rem; font-weight: 600; color: #6B7280; display: block; margin-bottom: 4px; }
+    .modal-overlay .modal .field input, .modal-overlay .modal .field select {
+      width: 100%; padding: 10px 14px; border: 1.5px solid #E5E7EB; border-radius: 10px;
+      font-size: 0.9rem; font-family: inherit; outline: none; transition: border 0.2s;
+    }
+    /* ── Tables Sidebar (always visible) ── */
+    #tab-pos { display:flex; flex-direction:row; min-width:0; }
+    .tables-sidebar { width:140px; flex-shrink:0; background:#fff; border-right:1px solid #E5E7EB; display:flex; flex-direction:column; overflow:hidden; }
+    .tables-sidebar .ts-header { display:flex; align-items:center; gap:4px; padding:10px 8px 6px; flex-shrink:0; }
+    .tables-sidebar .ts-header span { font-size:0.72rem; font-weight:700; color:#1F2937; display:flex; align-items:center; gap:4px; }
+    .tables-sidebar .ts-header .ts-count { font-size:0.55rem; font-weight:600; background:#FF6B35; color:#fff; padding:1px 5px; border-radius:5px; }
+    .tables-sidebar .ts-body { flex:1; overflow-y:auto; padding:2px 6px 6px; }
+    .tables-sidebar .ts-empty { text-align:center; padding:16px 6px; color:#D1D5DB; font-size:0.72rem; }
+    .ts-table-card { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:6px; margin-bottom:1px; cursor:pointer; transition:all 0.15s; border:1.5px solid transparent; }
+    .ts-table-card:hover { background:#F9FAFB; border-color:#E5E7EB; }
+    .ts-table-card:active { transform:scale(0.97); }
+    .ts-table-card .ts-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .ts-table-card .ts-dot.active { background:#10B981; box-shadow:0 0 0 2px rgba(16,185,129,0.2); }
+    .ts-table-card .ts-dot.inactive { background:#D1D5DB; }
+    .ts-table-card .ts-name { font-size:0.7rem; font-weight:600; color:#1F2937; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ts-table-card .ts-badge { font-size:0.52rem; font-weight:700; padding:1px 5px; border-radius:5px; flex-shrink:0; }
+    .ts-table-card .ts-badge.pending { background:#FEF3C7; color:#D97706; }
+    .ts-table-card .ts-badge.processing { background:#DBEAFE; color:#2563EB; }
+    .ts-table-card .ts-badge.ready { background:#D1FAE5; color:#059669; }
+    .ts-table-card.active-card { background:#FFF5F0; border-color:#FF6B35; }
+    .ts-table-card.active-card .ts-name { color:#FF6B35; }
+    /* ── Compare View ── */
+    .cmp-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .cmp-side { border:1px solid #F3F4F6; border-radius:12px; padding:14px; }
+    .cmp-side.cancelled { background:#FEF2F2; border-color:#FECACA; }
+    .cmp-side.new { background:#F0FDF4; border-color:#BBF7D0; }
+    .cmp-side h4 { font-size:0.82rem; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+    .cmp-side .cmp-label { font-size:0.68rem; color:#9CA3AF; margin-bottom:2px; }
+    .cmp-side .cmp-val { font-size:0.82rem; font-weight:600; color:#1F2937; margin-bottom:6px; }
+    .cmp-item { display:flex; justify-content:space-between; font-size:0.78rem; padding:3px 0; border-bottom:1px solid #F9FAFB; }
+    .cmp-item:last-child { border-bottom:none; }
+    .cmp-total { font-size:0.9rem; font-weight:800; margin-top:6px; padding-top:6px; border-top:2px solid #E5E7EB; display:flex; justify-content:space-between; }
+    .cmp-warn { background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; padding:10px 14px; margin-top:12px; font-size:0.78rem; color:#92400E; display:flex; align-items:center; gap:8px; }
+    .cmp-warn .icon { font-size:1.1rem; }
+    /* ── Table Orders (expanded) ── */
+    .ts-orders { display:none; }
+
+    .modal-overlay .modal .field input:focus { border-color: #FF6B35; }
+    .modal-overlay .modal .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-overlay .modal .modal-actions button {
+      flex: 1; padding: 11px; border-radius: 10px; font-size: 0.85rem;
+      font-weight: 600; cursor: pointer; font-family: inherit; border: none; transition: all 0.2s;
+    }
+    .modal-overlay .modal .modal-actions .btn-primary { background: #FF6B35; color: #fff; }
+    .modal-overlay .modal .modal-actions .btn-primary:hover { background: #E55A2B; }
+    .modal-overlay .modal .modal-actions .btn-secondary { background: #F3F4F6; color: #6B7280; }
+    .modal-overlay .modal .modal-actions .btn-secondary:hover { background: #E5E7EB; }
+    .modal-overlay .modal .modal-summary {
+      background: #F9FAFB; border-radius: 10px; padding: 16px; margin-bottom: 16px;
+    }
+    .modal-overlay .modal .modal-summary .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
+    .modal-overlay .modal .modal-summary .row.total { font-weight: 700; font-size: 1rem; border-top: 1px solid #E5E7EB; padding-top: 6px; margin-top: 6px; }
+    .modal-overlay .modal .modal-summary .row .label { color: #6B7280; }
+    .modal-overlay .modal .modal-summary .row .value { color: #1F2937; font-weight: 600; }
+
+    .order-success-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .order-success-overlay.show { display: flex; }
+    .order-success-overlay .modal {
+      background: #fff; border-radius: 16px; padding: 36px; text-align: center;
+      max-width: 400px; width: 90%; animation: popIn 0.25s ease;
+    }
+    .order-success-overlay .modal .check { font-size: 3.5rem; margin-bottom: 10px; }
+    .order-success-overlay .modal h3 { font-size: 1.2rem; margin-bottom: 6px; }
+    .order-success-overlay .modal p { color: #6B7280; font-size: 0.85rem; }
+    .order-success-overlay .modal .order-no {
+      font-weight: 700; color: #FF6B35; font-size: 1rem;
+      margin: 12px 0 4px; padding: 8px 16px; background: #FFF5F0;
+      border-radius: 8px; display: inline-block;
+    }
+    .order-success-overlay .modal .invoice-no {
+      font-size: 0.78rem; color: #9CA3AF; margin-bottom: 16px;
+    }
+    .order-success-overlay .modal .new-order-btn {
+      background: #FF6B35; color: #fff; border: none; padding: 11px 32px;
+      border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .order-success-overlay .modal .new-order-btn:hover { background: #E55A2B; }
+
+    @media (max-width: 900px) {
+      #tab-pos .pos-right { width: 300px; }
+      #tab-pos .pos-items { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; padding: 10px 14px; }
+    }
+    /* ── Mobile nav dropdown ── */
+    .mobile-menu-btn {
+      display: none; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 8px; border: none;
+      background: rgba(255,255,255,0.1); color: #fff; font-size: 1.1rem;
+      cursor: pointer; flex-shrink: 0; transition: background 0.2s;
+    }
+    .mobile-menu-btn:active { background: rgba(255,255,255,0.2); }
+    .mobile-current-tab-label { display: none; font-size: 0.8rem; font-weight: 700; color: #FF6B35; }
+
+    .mobile-nav-backdrop {
+      display: none; position: fixed; inset: 0; z-index: 150;
+      background: rgba(0,0,0,0.35);
+    }
+    .mobile-nav-backdrop.open { display: block; }
+
+    .mobile-nav-dropdown {
+      display: none; position: fixed; left: 0; right: 0;
+      top: 54px;
+      background: #1A2332; z-index: 200;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      animation: mobileNavIn 0.2s ease;
+    }
+    .mobile-nav-dropdown.open { display: block; }
+    @keyframes mobileNavIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .mobile-nav-dropdown .mnav-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 15px 20px; color: rgba(255,255,255,0.65);
+      font-size: 0.88rem; font-weight: 600; cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mobile-nav-dropdown .mnav-item:active { background: rgba(255,255,255,0.06); }
+    .mobile-nav-dropdown .mnav-item.active { color: #FF6B35; background: rgba(255,107,53,0.08); }
+    .mobile-nav-dropdown .mnav-item .mnav-icon { font-size: 1.15rem; width: 26px; text-align: center; flex-shrink: 0; }
+    .mobile-nav-dropdown .mnav-item .mnav-label { flex: 1; }
+    .mobile-nav-dropdown .mnav-item .mnav-count {
+      background: #FF6B35; color: #fff; font-size: 0.65rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 10px; min-width: 22px; text-align: center;
+    }
+    .mobile-nav-dropdown .mnav-item.active .mnav-count { background: rgba(255,107,53,0.3); color: #FF6B35; }
+    .mobile-nav-dropdown .mnav-item.mnav-logout { border-top: 1px solid rgba(255,255,255,0.12); color: rgba(255,100,100,0.8); margin-top: 4px; }
+    .mobile-nav-dropdown .mnav-item.mnav-logout:active { background: rgba(239,68,68,0.12); }
+
+    /* user chip */
+    .user-chip { display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);padding:5px 10px;border-radius:6px;flex-shrink:0; }
+    .user-chip .user-avatar-sm { width:28px;height:28px;border-radius:50%;background:#FF6B35;color:#fff;font-size:0.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+    .user-chip .user-chip-name { font-size:0.78rem;font-weight:600;color:rgba(255,255,255,0.85);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    .user-chip .logout-btn { background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.55);font-size:0.68rem;padding:3px 9px;border-radius:4px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.2s;text-decoration:none;display:inline-block; }
+    .user-chip .logout-btn:hover { background:rgba(239,68,68,0.35);color:#fff;border-color:transparent; }
+
+    @media (max-width: 640px) {
+      /* ── Core layout fix: prevent flex min-width expansion ── */
+      #tab-pos { flex-direction: column; min-width: 0; width: 100%; overflow: hidden; }
+      #tab-pos .pos-left { min-width: 0; width: 100%; min-height: 0; flex: 1; flex-shrink: 1; overflow: hidden; }
+      .tables-sidebar { width:100%; max-height:100px; border-right:none; border-bottom:1px solid #E5E7EB; }
+      .tables-sidebar .ts-body { display:flex; flex-wrap:wrap; gap:3px; padding:3px 6px; overflow-y:hidden; overflow-x:auto; }
+      .ts-table-card { flex-shrink:0; padding:4px 7px; }
+      .ts-orders { display:none !important; }
+      #tab-pos .pos-right { min-width: 0; width: 100%; border-left: none; border-top: 1px solid #E5E7EB; max-height: 38vh; flex-shrink: 0; overflow: hidden; }
+
+      /* ── Item grid: 2 columns, touch scroll ── */
+      #tab-pos .pos-items { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px 10px; touch-action: pan-y; }
+      #tab-pos .pos-items .item-card { padding: 14px 8px 10px; min-height: 100px; }
+      #tab-pos .pos-items .item-card .item-img { width: 50px; height: 50px; font-size: 1.7rem; margin-bottom: 6px; border-radius: 12px; }
+      #tab-pos .pos-items .item-card .item-name { font-size: 0.74rem; }
+      #tab-pos .pos-items .item-card .item-price { font-size: 0.85rem; }
+
+      /* ── Header: compact single row, no overflow ── */
+      .pos-header { padding: 0 10px; height: 52px; gap: 6px; flex-wrap: nowrap; overflow: hidden; min-height: 0; position: relative; align-items: center; }
+      .pos-header .brand { flex-shrink: 0; }
+      .pos-header .brand h1 { font-size: 0.82rem; white-space: nowrap; }
+      .pos-header .brand .badge { display: none; }
+      .header-tabs { display: none; }
+      .mobile-menu-btn { display: flex; flex-shrink: 0; }
+      .mobile-current-tab-label { display: none; }
+      .header-right { gap: 6px; margin-left: auto; flex-shrink: 0; }
+      .header-right .shift-badge { padding: 4px 8px; gap: 4px; flex-shrink: 0; }
+      .header-right .shift-badge span:last-child { display: none; }
+      .header-right .order-type-select { padding: 4px 6px; flex-shrink: 0; }
+      .header-right .order-type-select select { font-size: 0.72rem; max-width: 100px; background:rgba(255,255,255,0.1); color:#fff; border:none; padding:5px 6px; border-radius:6px; outline:none; cursor:pointer; font-family:inherit; font-weight:600; }
+      .header-right .order-type-select { display:inline-flex; align-items:center; }
+      .header-right .table-select { padding: 4px 6px; gap: 3px; flex-shrink: 0; }
+      .header-right .table-select label { display: none; }
+      .header-right .table-select select { font-size: 0.78rem; max-width: 90px; }
+      .header-right .clock { display: none; }
+      .user-chip { padding: 3px 4px; gap: 3px; background: none; flex-shrink: 0; }
+      .user-chip .user-chip-name { display: none; }
+      .user-chip .logout-btn { display: none; }
+
+      /* ── Toolbar & categories ── */
+      #tab-pos .pos-toolbar { padding: 6px 10px; }
+      #tab-pos .pos-categories { padding: 5px 10px; }
+      #tab-pos .pos-categories .cat-btn { padding: 4px 10px; font-size: 0.7rem; }
+
+      /* ── Cart items: touch scroll ── */
+      #tab-pos .pos-right .cart-items { touch-action: pan-y; }
+      #tab-pos .pos-right .cart-item { padding: 8px 12px; }
+      #tab-pos .pos-right .cart-item .ci-qty button { width: 30px; height: 30px; }
+      #tab-pos .pos-right .cart-footer { padding: 10px 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+      #tab-pos .pos-right .cart-footer .place-order-btn { padding: 14px; font-size: 1rem; }
+
+      /* ── Orders & modals ── */
+      .orders-tab .orders-body { padding: 10px 12px; }
+      .order-card { flex-direction: column; align-items: stretch; }
+      .modal-overlay .modal { padding: 20px 16px; max-width: 96vw; border-radius: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="pos-container">
+  <!-- ═══ Header ═══ -->
+  <!-- Mobile nav backdrop -->
+  <div class="mobile-nav-backdrop" id="mobileNavBackdrop" onclick="closeMobileNav()"></div>
+
+  <div class="pos-header">
+    <!-- Hamburger (mobile only) -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileNav()" aria-label="Menu">&#9776;</button>
+    <div class="brand">
+      <h1>Luuv Fryxo</h1>
+      <span class="badge">POS</span>
+    </div>
+    <span class="mobile-current-tab-label" id="mobileTabLabel">POS</span>
+    <div class="header-tabs">
+      <button class="tab-btn active" data-tab="pos" onclick="switchTab('pos')">POS</button>
+      <button class="tab-btn" data-tab="ongoing" onclick="switchTab('ongoing')">Ongoing <span class="count" id="ongoingTabCount">{{ ongoing_count }}</span></button>
+      <button class="tab-btn" data-tab="kiosk" onclick="switchTab('kiosk')">Kiosk <span class="count" id="kioskTabCount">0</span></button>
+      <button class="tab-btn" data-tab="completed" onclick="switchTab('completed')">Completed</button>
+      <button class="tab-btn" data-tab="changes" onclick="switchTab('changes')">Changes <span class="count" id="changesTabCount">0</span></button>
+      <button class="tab-btn" data-tab="pending" onclick="switchTab('pending')">&#x23F0; Pending <span class="count" id="pendingTabCount">0</span></button>
+    </div>
+
+    <!-- Mobile nav dropdown (injected below header via JS) -->
+    <div class="header-right">
+      <div class="shift-badge" id="shiftBadge" onclick="toggleShift()">
+        <span class="dot {{ 'open' if shift and shift.status == 'open' else 'closed' }}" id="shiftDot"></span>
+        <span id="shiftLabel">{{ 'Shift Open' if shift and shift.status == 'open' else 'Shift Closed' }}</span>
+      </div>
+      <div class="shift-info" id="shiftInfo" title="Current shift" style="display:none;flex-direction:column;line-height:1.15;font-size:0.62rem;color:rgba(255,255,255,0.85);max-width:160px;">
+        <span><b id="siCashier"></b> &middot; <span id="siSince"></span></span>
+        <span id="siSales" style="color:#FBBF24;font-weight:700;"></span>
+      </div>
+      <button class="rawbt-btn" id="reprintShiftBtn" onclick="reprintShift()" title="Re-print last shift summary" style="font-size:0.65rem;padding:3px 6px;">&#x1F5A8; Summary</button>
+      <div class="order-type-select">
+        <select id="orderTypeSelect" style="background:rgba(255,255,255,0.1);color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;font-family:inherit;outline:none;cursor:pointer;">
+          <option value="Dine In" style="background:#1F2937;color:#fff;">&#x1FA91; Dine In</option>
+          <option value="Take Away" style="background:#1F2937;color:#fff;">&#x1F6CD; Take Away</option>
+          <option value="Delivery" style="background:#1F2937;color:#fff;">&#x1F6F5; Delivery</option>
+        </select>
+      </div>
+      <div class="table-select" id="tableSelectWrap">
+        <label>Table</label>
+        <select id="tableSelect">
+          <option value="">&mdash; Select &mdash;</option>
+          {% for t in tables %}
+          <option value="{{ t.name }}">{{ t.short_name or t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="user-chip">
+        <div class="user-avatar-sm">{{ current_user_full[0]|upper if current_user_full else "U" }}</div>
+        <span class="user-chip-name">{{ current_user_full }}</span>
+        <a href="/api/method/logout" class="logout-btn" onclick="return confirm('Logout from POS?')">Logout</a>
+      </div>
+      <div class="shift-badge" id="offlineBadge" style="gap:4px;padding:4px 8px;flex-shrink:0;" title="Offline status">
+        <span class="dot open" id="offlineDot" style="background:#22C55E;"></span>
+        <span id="offlineLabel" style="font-size:0.72rem;">Online</span>
+      </div>
+      <button class="rawbt-btn" id="syncBtn" onclick="runSync()" style="display:none;background:rgba(245,158,11,0.2);border-color:rgba(245,158,11,0.3);color:#F59E0B;">&#x23F0; Sync</button>
+      <button class="rawbt-btn" id="rawbtBtn" onclick="toggleRawBT()" title="Bluetooth Printer (RawBT)">&#x1F5A8; BT</button>
+      <span class="clock" id="clock"></span>
+    </div>
+  </div>
+
+  <div class="pos-body">
+    <div class="tab-content active" id="tab-pos">
+      <!-- ═══ Tables Sidebar (always visible) ═══ -->
+      <div class="tables-sidebar" id="tablesSidebar">
+        <div class="ts-header">
+          <span>&#x1FAAE; Tables <span class="ts-count" id="tsActiveCount">0</span></span>
+        </div>
+        <div class="ts-body" id="tablesBody">
+          <div class="ts-empty">Loading...</div>
+        </div>
+      </div>
+      <div class="pos-left">
+        <div class="pos-toolbar">
+          <div class="search-box">
+            <span class="search-icon">&#x1F50D;</span>
+            <input type="text" id="searchInput" placeholder="Search items..." oninput="filterItems()">
+          </div>
+        </div>
+        <div class="pos-categories" id="categoryBar">
+          <button class="cat-btn active" data-cat="all" onclick="setCategory('all')">All</button>
+          {% for g in menu_groups %}
+          <button class="cat-btn" data-cat="{{ g.name|replace(' ', '-') }}" onclick="setCategory('{{ g.name|replace(' ', '-') }}')">{{ g.name }}</button>
+          {% endfor %}
+        </div>
+        <div class="pos-items" id="itemGrid">
+          {% for g in menu_groups %}
+            {% for item in g["items"] %}
+            <div class="item-card" data-code="{{ item.code }}" data-cat="{{ item.group|replace(' ', '-') }}" data-name="{{ item.name|lower }}" onclick="addItem('{{ item.code }}')">
+              <div class="item-qty-badge" id="qb-{{ item.code }}">0</div>
+              <div class="item-img">
+                {% if item.image %}
+                <img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">
+                {% else %}
+                {% set emoji_map = {'SPC-RICE':'&#x1F35A;','KOTTU':'&#x1F958;','CHK-FRICE':'&#x1F357;','DEV-CHK':'&#x1F35B;','MIX-SEAFOOD':'&#x1F990;','BEV':'&#x1F964;','F-JUICE':'&#x1F9C3;','ICE-CRM':'&#x1F368;'} %}
+                <span>{{ emoji_map.get(item.code, '&#x1F37D;') }}</span>
+                {% endif %}
+              </div>
+              <div class="item-name">{{ item.name }}</div>
+              <div class="item-price">LKR {{ '%.0f' % item.rate }}</div>
+            </div>
+            {% endfor %}
+          {% endfor %}
+          {% if not menu_groups %}
+          <div class="empty-items">No menu items available</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="pos-right">
+        <div class="cart-header">
+          <h3 id="cartHeaderTitle">Current Order <span class="count" id="itemCount">0</span></h3>
+          <button class="clear-btn" id="clearBtn" onclick="clearCart()">Clear</button>
+        </div>
+        <div class="edit-banner" id="editBanner">
+          <span class="eb-label">&#x270E; Editing <strong id="editBannerOrder">#—</strong></span>
+          <div style="display:flex;gap:6px;">
+            <button class="eb-cancel" onclick="cancelEdit()">Cancel Edit</button>
+          </div>
+        </div>
+        <div class="cart-items" id="cartList">
+          <div class="cart-empty" id="cartEmpty">
+            <div class="icon">&#x1F9FA;</div>
+            <p>Cart is empty</p>
+            <p style="font-size:0.78rem;color:#E5E7EB;margin-top:4px;">Tap items to add</p>
+          </div>
+        </div>
+        <div class="cart-footer" id="cartFooter" style="display:none;">
+          <div class="total-row"><span>Subtotal</span><span id="subtotal">LKR 0</span></div>
+          <div class="total-row" id="scRow" style="display:none;"><span>Service Charge (<span id="scRate">0</span>%)</span><span id="scAmount">LKR 0</span></div>
+          <div class="grand-total"><span>Total</span><span id="grandTotal">LKR 0</span></div>
+          <div class="cart-actions">
+            <button class="kitchen-btn" id="sendKitchenBtn" onclick="sendToKitchen()">
+              &#x1F373; Send to Kitchen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- ═══ Ongoing Orders Tab ═══ -->
+    <div class="tab-content" id="tab-ongoing">
+      <div class="orders-tab">
+        <div class="orders-header">
+          <h2>&#x23F3; Ongoing Orders</h2>
+          <button class="refresh-btn" onclick="loadOngoingOrders()">&#x21BB; Refresh</button>
+        </div>
+        <div class="orders-body" id="ongoingBody">
+          <div class="empty-state" id="ongoingEmpty">
+            <div class="icon">&#x2705;</div>
+            <p>No ongoing orders</p>
+          </div>
+          <div id="ongoingList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Kiosk Orders Tab ═══ -->
+    <div class="tab-content" id="tab-kiosk">
+      <div class="orders-tab">
+        <div class="orders-header">
+          <h2>&#x1F3E0; Kiosk Orders</h2>
+          <button class="refresh-btn" onclick="loadKioskOrders()">&#x21BB; Refresh</button>
+        </div>
+        <div class="orders-body" id="kioskBody">
+          <div class="empty-state" id="kioskEmpty">
+            <div class="icon">&#x1F4CB;</div>
+            <p>No kiosk orders</p>
+          </div>
+          <div id="kioskList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Completed Orders Tab ═══ -->
+    <div class="tab-content" id="tab-completed">
+      <div class="orders-tab">
+        <div class="orders-header">
+          <h2>&#x2705; Completed Orders</h2>
+          <button class="refresh-btn" onclick="loadCompletedOrders()">&#x21BB; Refresh</button>
+        </div>
+        <div class="orders-body" id="completedBody">
+          <div class="empty-state" id="completedEmpty">
+            <div class="icon">&#x1F4CB;</div>
+            <p>No completed orders</p>
+          </div>
+          <div id="completedList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Changes Tab ═══ -->
+    <div class="tab-content" id="tab-changes">
+      <div class="orders-tab">
+        <div class="orders-header">
+          <h2>&#x1F4CB; Order Changes</h2>
+          <button class="refresh-btn" onclick="loadChangelogs()">&#x21BB; Refresh</button>
+        </div>
+        <div class="orders-body" id="changesBody">
+          <div class="empty-state" id="changesEmpty">
+            <div class="icon">&#x1F4CB;</div>
+            <p>No changes yet</p>
+          </div>
+          <div id="changesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Pending Sync Tab ═══ -->
+    <div class="tab-content" id="tab-pending">
+      <div class="orders-tab">
+        <div class="orders-header">
+          <h2>&#x23F0; Pending Sync Orders</h2>
+          <button class="refresh-btn" onclick="loadPendingSync()">&#x21BB; Refresh</button>
+        </div>
+        <div class="orders-body" id="pendingBody">
+          <div class="empty-state" id="pendingEmpty">
+            <div class="icon">&#x2705;</div>
+            <p>No pending orders to sync</p>
+          </div>
+          <div id="pendingList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Toast Notification ═══ -->
+<div id="posToast" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;padding:14px 24px;border-radius:12px;font-size:0.88rem;font-weight:600;font-family:'Inter',sans-serif;color:#fff;box-shadow:0 8px 30px rgba(0,0,0,0.25);animation:toastFade 0.3s ease;max-width:90vw;text-align:center;pointer-events:none;"></div>
+<style>
+@keyframes toastFade { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+</style>
+
+<!-- ═══ Payment Modal ═══ -->
+<div class="modal-overlay" id="paymentModal">
+  <div class="modal">
+    <h3>&#x1F4B0; Payment</h3>
+    <div class="modal-summary">
+      <div class="row"><span class="label">Items</span><span class="value" id="pmItems">0</span></div>
+      <div class="row"><span class="label">Table</span><span class="value" id="pmTable">—</span></div>
+      <div class="row total"><span class="label">Total</span><span class="value" id="pmTotal">LKR 0</span></div>
+    </div>
+    <div class="field">
+      <label>Customer Name</label>
+      <input type="text" id="pmCustomerName" placeholder="Optional">
+    </div>
+    <div class="field" style="display:flex;gap:10px;">
+      <div style="flex:1;"><label>Phone</label><input type="tel" id="pmCustomerPhone" placeholder="07X XXXXXXX"></div>
+      <div style="flex:1;"><label>Notes</label><input type="text" id="pmNotes" placeholder="Kitchen notes..."></div>
+    </div>
+    <div class="pmode-select" id="pmodeSelect">
+      <button class="pmode-btn active" data-mode="Cash" onclick="selectPaymentMode('Cash')">&#x1F4B5; Cash</button>
+      <button class="pmode-btn" data-mode="Credit Card" onclick="selectPaymentMode('Credit Card')">&#x1F4B3; Card</button>
+      <button class="pmode-btn" data-mode="Cash+Card" onclick="selectPaymentMode('Cash+Card')">&#x1F4B5;&#x1F4B3; Cash+Card</button>
+    </div>
+    <div class="field" id="cashField">
+      <label>Amount Tendered (LKR)</label>
+      <input type="number" id="amountTendered" value="0" min="0" oninput="calcChange()">
+    </div>
+    <div id="splitField" style="display:none;">
+      <div class="field" style="flex:1;"><label>&#x1F4B5; Cash Amount</label><input type="number" id="cashAmount" value="0" min="0"></div>
+      <div class="field" style="flex:1;"><label>&#x1F4B3; Card Amount</label><input type="number" id="cardAmount" value="0" min="0" oninput="checkSplitTotal()"></div>
+    </div>
+    <div class="field change-row" id="changeField">
+      <label>Change Due</label>
+      <div class="change-amount" id="changeAmount">LKR 0</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closePaymentModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmPayment()">&#x2705; Confirm & Place Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Order Success Overlay ═══ -->
+<div class="order-success-overlay" id="successOverlay">
+  <div class="modal" style="position:relative;">
+    <button onclick="newOrder()" style="position:absolute;top:8px;right:12px;background:none;border:none;color:#9CA3AF;font-size:1.2rem;cursor:pointer;padding:4px;line-height:1;">&times;</button>
+    <div class="check">&#x2705;</div>
+    <h3>Order Placed!</h3>
+    <p>Order has been sent to the kitchen.</p>
+    <div class="order-no" id="orderNo"></div>
+    <div class="invoice-no" id="invoiceNo"></div>
+        <button class="new-order-btn" onclick="printReceipt()" style="background:#10B981;margin-top:8px;">&#x1F5A8; Print Receipt</button>
+        <button class="new-order-btn" onclick="printReceiptBrowser()" style="background:#374151;margin-top:4px;">&#x1F310; Browser Print</button>
+        <button class="new-order-btn" onclick="iminPrint()" id="iminPrintBtn" style="display:none;background:#E11D48;margin-top:4px;">&#x1F5A8; iMin Print</button>
+        <button class="new-order-btn" onclick="printKOT()" style="background:#F59E0B;margin-top:4px;">&#x1F373; Print KOT</button>
+        <button class="new-order-btn" onclick="flutterPrint()" id="flutterPrintBtn" style="display:none;background:#8B5CF6;margin-top:4px;">📱 Print App</button>
+        <button class="new-order-btn" onclick="blePrint()" id="blePrintBtn" style="display:none;background:#60A5FA;margin-top:4px;">📡 BLE Print</button>
+        <button class="new-order-btn" onclick="rawbtPrint()" id="rawbtPrintBtn" style="display:none;background:#8B5CF6;margin-top:4px;">📡 RawBT</button>
+        <button class="new-order-btn" onclick="downloadReceiptPDF()" style="background:#6366F1;margin-top:4px;">📄 Download PDF</button>
+        <button class="new-order-btn" onclick="sendWhatsApp()" style="background:#25D366;margin-top:4px;color:#fff;">📱 WhatsApp Customer</button>
+    <button class="new-order-btn" onclick="newOrder()">New Order</button>
+  </div>
+</div>
+
+<!-- ═══ Incoming Order Toast (shows on any tab) ═══ -->
+<div class="order-toast" id="orderToast" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:linear-gradient(135deg,#FF6B35,#E55A2B);color:#fff;padding:12px 20px;cursor:pointer;box-shadow:0 4px 20px rgba(255,107,53,0.4);animation:toastSlide 0.3s ease;font-family:'Inter',sans-serif;" onclick="dismissToast()">
+  <div style="display:flex;align-items:center;gap:12px;max-width:1200px;margin:0 auto;">
+    <span style="font-size:1.5rem;">🔔</span>
+    <div style="flex:1;">
+      <div style="font-weight:700;font-size:0.9rem;" id="toastTitle">New Order!</div>
+      <div style="font-size:0.78rem;opacity:0.9;" id="toastBody">—</div>
+    </div>
+    <span style="font-size:0.72rem;opacity:0.7;" id="toastTime">now</span>
+  </div>
+</div>
+<style>
+@keyframes toastSlide { from{transform:translateY(-100%)} to{transform:translateY(0)} }
+</style>
+
+<!-- ═══ Shift Open Modal ═══ -->
+<div class="modal-overlay" id="shiftOpenModal">
+  <div class="modal">
+    <h3>&#x1F4B0; Open Shift</h3>
+    <p id="shiftOpenHint" style="display:none;font-size:0.78rem;color:#6B7280;margin:-6px 0 14px;">Open a shift to start taking orders.</p>
+    <div class="field">
+      <label>Opening Balance (LKR)</label>
+      <input type="number" id="openingBalance" value="0" min="0" step="0.01">
+    </div>
+    <div class="shift-err" id="shiftOpenErr" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#DC2626;margin-bottom:12px;font-weight:500;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="shiftOpenCancel" onclick="closeModal('shiftOpenModal')">Cancel</button>
+      <button class="btn-primary" id="shiftOpenBtn" onclick="openShift()">Open Shift</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Table Orders Modal ═══ -->
+<div class="modal-overlay" id="tableOrdersModal">
+  <div class="modal" style="max-width:420px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <h3 style="font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px;" id="tomTitle">&#x1FAAE; Table —</h3>
+      <button onclick="closeModal('tableOrdersModal')" style="background:none;border:none;font-size:1.2rem;color:#9CA3AF;cursor:pointer;padding:2px 6px;">&times;</button>
+    </div>
+    <div style="max-height:50vh;overflow-y:auto;margin-bottom:12px;" id="tomBody">
+      <div style="text-align:center;padding:30px;color:#9CA3AF;font-size:0.85rem;">Loading...</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="tomNewOrder()" class="btn-primary" style="flex:1;padding:11px;border:none;border-radius:10px;background:#FF6B35;color:#fff;font-size:0.85rem;font-weight:700;cursor:pointer;font-family:inherit;">&#x2795; New Order</button>
+      <button onclick="closeModal('tableOrdersModal')" class="btn-secondary" style="flex:1;padding:11px;border:none;border-radius:10px;background:#F3F4F6;color:#6B7280;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:inherit;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Split Compare Modal (cancelled vs new order) ═══ -->
+<div class="modal-overlay" id="compareModal">
+  <div class="modal" style="max-width:640px;padding:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px;">&#x1F50D; Order Comparison</h3>
+      <button onclick="closeModal('compareModal')" style="background:none;border:none;font-size:1.2rem;color:#9CA3AF;cursor:pointer;padding:2px 6px;">&times;</button>
+    </div>
+    <div id="compareBody" style="max-height:60vh;overflow-y:auto;">
+      <div style="text-align:center;padding:30px;color:#9CA3AF;">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ BLE + RawBT Setup Modal ═══ -->
+<div class="modal-overlay" id="rawbtModal">
+  <div class="modal" style="max-width:380px;">
+    <h3>&#x1F5B6; Bluetooth Print Setup</h3>
+
+    <div style="margin-bottom:12px;display:flex;gap:8px;">
+      <button id="flutterTabBtn" class="pmode-btn" onclick="switchPrintTab('flutter')" style="flex:1;font-size:0.72rem;">📱 Print App</button>
+      <button id="bleTabBtn" class="pmode-btn" onclick="switchPrintTab('ble')" style="flex:1;font-size:0.78rem;">📡 BLE</button>
+      <button id="rawbtTabBtn" class="pmode-btn" onclick="switchPrintTab('rawbt')" style="flex:1;font-size:0.78rem;">📱 RawBT</button>
+      <button id="iminTabBtn" class="pmode-btn" onclick="switchPrintTab('imin')" style="flex:1;font-size:0.78rem;">&#x1F5A8; iMin</button>
+    </div>
+
+    <div id="bleConfig">
+      <p style="font-size:0.78rem;color:#6B7280;margin-bottom:10px;">Direct BLE printing via local <strong>BLE Print Service</strong>.</p>
+      <div class="field">
+        <label>Service URL</label>
+        <input type="text" id="bleURL" placeholder="http://localhost:9100" style="font-weight:600;">
+        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Run: <code>python ble_print_service.py</code> on this PC</div>
+      </div>
+      <div class="field">
+        <label>Printer BLE Address</label>
+        <input type="text" id="bleAddress" placeholder="00:11:22:33:44:55" style="font-weight:600;font-family:monospace;letter-spacing:1px;text-transform:uppercase;" maxlength="17">
+        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Run <code>--scan</code> to find printer address</div>
+      </div>
+    </div>
+
+    <div id="flutterConfig" style="display:none;">
+      <p style="font-size:0.78rem;color:#6B7280;margin-bottom:10px;">Print via the <strong>LuuvCRM Print App</strong> (Flutter utility) running on this PC.</p>
+      <div class="field">
+        <label>Print App URL</label>
+        <input type="text" id="flutterURL" placeholder="http://localhost:9200" style="font-weight:600;">
+        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Default port: 9200. Run the app then configure here.</div>
+      </div>
+      <div style="margin-top:10px;padding:10px;background:#1E3A5F;border-radius:8px;">
+        <div style="font-size:0.72rem;color:#93C5FD;margin-bottom:6px;">Don't have the app? Download below and install on your Android POS tablet.</div>
+        <a href="/assets/luuvcrm/luuvcrm-print.apk" style="display:block;padding:10px;background:#2563EB;color:#fff;border-radius:6px;text-align:center;text-decoration:none;font-size:0.8rem;font-weight:600;" download>
+          📥 Download LuuvCRM Print App (APK)
+        </a>
+      </div>
+    </div>
+
+    <div id="iminConfig" style="display:none;">
+      <p style="font-size:0.78rem;color:#6B7280;margin-bottom:10px;">Print to the built-in <strong>iMin</strong> thermal printer via the <strong>LuuvCRM Print App</strong>.</p>
+      <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="font-size:0.82rem;font-weight:600;color:#DC2626;margin-bottom:4px;">&#x1F5A8; iMin Printer <span id="iminStatus" style="font-weight:400;font-size:0.78rem;">via Print App</span></div>
+        <div style="font-size:0.72rem;color:#991B1B;">Uses the official iMin SDK inside the LuuvCRM Print App.</div>
+      </div>
+      <div class="field">
+        <label>Print App URL</label>
+        <input type="text" id="iminFlutterURL" placeholder="http://localhost:9200" style="font-weight:600;">
+        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Same URL as the Print App tab. Default port: 9200.</div>
+      </div>
+      <div style="margin-top:10px;padding:10px;background:#312E81;border-radius:8px;">
+        <div style="font-size:0.78rem;color:#E0E7FF;margin-bottom:6px;">📱 LuuvCRM Print Utility</div>
+        <div style="font-size:0.72rem;color:#A5B4FC;margin-bottom:8px;">Install the app on your iMin POS terminal for built-in printer support.</div>
+        <a href="/assets/luuvcrm/luuvcrm-print.apk" style="display:block;padding:10px;background:#E11D48;color:#fff;border-radius:6px;text-align:center;text-decoration:none;font-size:0.8rem;font-weight:600;" download>
+          📥 Download APK (v1.0)
+        </a>
+      </div>
+    </div>
+
+    <div id="rawbtConfig" style="display:none;">
+      <p style="font-size:0.78rem;color:#6B7280;margin-bottom:10px;">Install <strong>RawBT</strong> app on Android phone connected to Bluetooth printer.</p>
+      <div class="field">
+        <label>Phone IP Address (WiFi)</label>
+        <input type="text" id="rawbtIP" placeholder="192.168.1.100" style="font-weight:600;">
+        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Phone must be on same WiFi. Default port: 8081</div>
+      </div>
+      <div class="field">
+        <label>Printer Bluetooth MAC (optional)</label>
+        <input type="text" id="rawbtMAC" placeholder="00:11:22:33:44:55" style="font-weight:600;text-transform:uppercase;font-family:monospace;letter-spacing:1px;" maxlength="17">
+      </div>
+      <div style="font-size:0.7rem;color:#9CA3AF;">👉 RawBT → Settings → Network (Server) → Port 8081</div>
+    </div>
+
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #374151;">
+      <div onclick="toggleDebug()" style="cursor:pointer;font-size:0.78rem;color:#6B7280;margin-bottom:6px;">
+        🔧 <span id="debugToggleLabel">Show Debug</span>
+      </div>
+      <div id="debugSection" style="display:none;">
+        <div class="field" style="margin-top:6px;">
+          <label>Print App URL</label>
+          <input type="text" id="debugURL" placeholder="http://192.168.1.50:9200" style="font-weight:600;">
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button class="btn-secondary" onclick="fetchDebugLogs()" style="flex:1;font-size:0.72rem;">📋 Fetch Logs</button>
+          <button class="btn-secondary" onclick="copyDebugLogs()" style="flex:0.5;font-size:0.72rem;">Copy</button>
+        </div>
+        <div style="margin-top:6px;">
+          <textarea id="debugLogArea" readonly style="width:100%;height:120px;background:#0A0F1A;color:#4ADE80;border:1px solid #374151;border-radius:6px;padding:8px;font-size:0.72rem;font-family:monospace;resize:vertical;" placeholder="Click 'Fetch Logs' to get print logs from the tablet app..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn-secondary" onclick="closeModal('rawbtModal')">Cancel</button>
+      <button class="btn-primary" onclick="savePrintSetup()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Shift Close Modal ═══ -->
+<div class="modal-overlay" id="shiftCloseModal">
+  <div class="modal">
+    <h3>&#x1F4B5; Close Shift</h3>
+    <div class="modal-summary" id="shiftSummary">
+      <div class="row"><span class="label">Opening Balance</span><span class="value" id="soOpening">LKR 0</span></div>
+      <div id="shiftPaymentRows"></div>
+      <div class="row" style="border-top:1px dashed #E5E7EB;padding-top:8px;margin-top:4px;"><span class="label">Total Sales</span><span class="value" id="soSales">LKR 0</span></div>
+      <div class="row"><span class="label">Order Count</span><span class="value" id="soOrders">0</span></div>
+      <div class="row total"><span class="label">Expected Balance</span><span class="value" id="soExpected">LKR 0</span></div>
+    </div>
+    <div class="field">
+      <label>Closing Balance (LKR)</label>
+      <input type="number" id="closingBalance" value="0" min="0">
+    </div>
+    <div class="field">
+      <label>Cashier Name</label>
+      <input type="text" id="cashierName" placeholder="Enter cashier name" style="font-weight:600;">
+    </div>
+    <div class="shift-err" id="shiftCloseErr" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#DC2626;margin-bottom:12px;font-weight:500;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('shiftCloseModal')">Cancel</button>
+      <button class="btn-primary" id="shiftCloseBtn" onclick="closeShift()">Close Shift</button>
+    </div>
+  </div>
+</div>
+
+<script>window.frappe = window.frappe || {}; window.csrf_token = window.csrf_token || (typeof frappe !== 'undefined' ? frappe.csrf_token : '');</script>
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<script>
+  const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.csrf_token || '';
+  const SERVICE_CHARGE_RATE = {{ service_charge_rate or 0 }};
+  let cart = {};
+  let activeCat = 'all';
+  let searchQuery = '';
+  let currentTab = 'pos';
+
+  // ─── Auth Interceptor ──────────────────────────────────
+  async function _api(url, opts) {
+    if (!opts) opts = {};
+    opts.headers = opts.headers || {};
+    opts.headers['X-Frappe-CSRF-Token'] = CSRF_TOKEN;
+    opts.credentials = 'include';
+    try {
+      const res = await fetch(url, opts);
+      if (res.status === 403 || res.status === 401) {
+        window.location.href = '/login?redirect-to=/pos';
+        return null;
+      }
+      return res;
+    } catch (e) {
+      console.error('API fetch error:', url, e.message);
+      window._lastApiError = e.message;
+      return null;
+    }
+  }
+
+  async function _post(url, data) {
+    const fd = new URLSearchParams();
+    fd.set('csrf_token', CSRF_TOKEN);
+    for (const [k,v] of Object.entries(data)) fd.set(k, v);
+    return _api(url, { method: 'POST', body: fd });
+  }
+
+  // ─── Clock ──────────────────────────────────────────
+  function tick() {
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+  tick(); setInterval(tick, 30000);
+
+  // ─── Tab Switching ──────────────────────────────────
+  const TAB_LABELS = { pos: 'POS', ongoing: 'Ongoing Orders', kiosk: 'Kiosk Orders', completed: 'Completed', changes: 'Changes', pending: 'Pending Sync' };
+  const TAB_ICONS  = { pos: '🛒', ongoing: '⏳', kiosk: '🏪', completed: '✅', changes: '📋', pending: '⏫' };
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+    if (btn) btn.classList.add('active');
+
+    // Update mobile label + dropdown active state
+    const lbl = document.getElementById('mobileTabLabel');
+    if (lbl) lbl.textContent = TAB_LABELS[tab] || tab;
+    document.querySelectorAll('.mnav-item').forEach(i => i.classList.toggle('active', i.dataset.tab === tab));
+    closeMobileNav();
+
+    if (tab === 'ongoing') { loadOngoingOrders(); }
+    else if (tab === 'kiosk') { loadKioskOrders(); }
+    else if (tab === 'completed') { loadCompletedOrders(); }
+    else if (tab === 'changes') { loadChangelogs(); }
+    else if (tab === 'pending') { loadPendingSync(); }
+  }
+  // Always-on polling runs from Init
+
+  // ─── Mobile Nav ─────────────────────────────────────
+  let mobileNavOpen = false;
+  function _buildMobileNav() {
+    if (document.getElementById('mobileNavDropdown')) return;
+    const dd = document.createElement('div');
+    dd.className = 'mobile-nav-dropdown';
+    dd.id = 'mobileNavDropdown';
+    dd.innerHTML = `
+      <div class="mnav-item active" data-tab="pos" onclick="switchTab('pos')">
+        <span class="mnav-icon">🛒</span>
+        <span class="mnav-label">POS</span>
+      </div>
+      <div class="mnav-item" data-tab="ongoing" onclick="switchTab('ongoing')">
+        <span class="mnav-icon">⏳</span>
+        <span class="mnav-label">Ongoing Orders</span>
+        <span class="mnav-count" id="mobileOngoingCount">0</span>
+      </div>
+      <div class="mnav-item" data-tab="completed" onclick="switchTab('completed')">
+        <span class="mnav-icon">✅</span>
+        <span class="mnav-label">Completed</span>
+      </div>
+      <div class="mnav-item" data-tab="changes" onclick="switchTab('changes')">
+        <span class="mnav-icon">📋</span>
+        <span class="mnav-label">Changes</span>
+        <span class="mnav-count" id="mobileChangesCount">0</span>
+      </div>
+      <div class="mnav-item" data-tab="pending" onclick="switchTab('pending')">
+        <span class="mnav-icon">⏫</span>
+        <span class="mnav-label">Pending Sync</span>
+        <span class="mnav-count" id="mobilePendingCount">0</span>
+      </div>
+      <div class="mnav-item mnav-logout" onclick="if(confirm('Logout from POS?')) window.location='/api/method/logout'">
+        <span class="mnav-icon">🚪</span>
+        <span class="mnav-label">Logout</span>
+        <span style="font-size:0.7rem;color:rgba(255,255,255,0.3);">${document.querySelector('.user-chip-name')?.textContent || ''}</span>
+      </div>`;
+    document.querySelector('.pos-header').after(dd);
+  }
+  function toggleMobileNav() {
+    _buildMobileNav();
+    mobileNavOpen = !mobileNavOpen;
+    const dd = document.getElementById('mobileNavDropdown');
+    // Position below actual header height
+    const headerH = document.querySelector('.pos-header').getBoundingClientRect().bottom;
+    dd.style.top = headerH + 'px';
+    dd.classList.toggle('open', mobileNavOpen);
+    document.getElementById('mobileNavBackdrop').classList.toggle('open', mobileNavOpen);
+    document.getElementById('mobileMenuBtn').textContent = mobileNavOpen ? '✕' : '☰';
+  }
+  function closeMobileNav() {
+    if (!mobileNavOpen) return;
+    mobileNavOpen = false;
+    const dd = document.getElementById('mobileNavDropdown');
+    if (dd) dd.classList.remove('open');
+    document.getElementById('mobileNavBackdrop').classList.remove('open');
+    document.getElementById('mobileMenuBtn').textContent = '☰';
+  }
+
+  // ─── Category & Search ──────────────────────────────
+  function filterItems() {
+    searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+    applyFilters();
+  }
+  function setCategory(cat) {
+    activeCat = cat;
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+    applyFilters();
+  }
+  function applyFilters() {
+    document.querySelectorAll('.item-card').forEach(card => {
+      const cat = card.dataset.cat;
+      const name = card.dataset.name;
+      const code = card.dataset.code;
+      let show = true;
+      if (activeCat !== 'all' && cat !== activeCat) show = false;
+      if (searchQuery && !name.includes(searchQuery) && !code.toLowerCase().includes(searchQuery)) show = false;
+      card.style.display = show ? '' : 'none';
+    });
+  }
+
+  // ─── Cart ───────────────────────────────────────────
+  function addItem(code) {
+    if (!cart[code]) cart[code] = 0;
+    cart[code]++;
+    render();
+  }
+  function updateQty(code, delta) {
+    if (!cart[code]) return;
+    cart[code] += delta;
+    if (cart[code] <= 0) delete cart[code];
+    render();
+  }
+  function clearCart() {
+    if (Object.keys(cart).length === 0) return;
+    if (!confirm('Clear entire cart?')) return;
+    resetCartFooter();
+    cart = {}; render();
+  }
+  function render() {
+    const entries = Object.entries(cart);
+    const totalItems = entries.reduce((s, [, q]) => s + q, 0);
+
+    const ic = document.getElementById('itemCount');
+    if (ic) ic.textContent = totalItems;
+    const cb = document.getElementById('clearBtn');
+    if (cb) cb.style.display = totalItems > 0 ? 'inline' : 'none';
+
+    document.querySelectorAll('.item-card').forEach(card => {
+      const code = card.dataset.code;
+      const qty = cart[code] || 0;
+      card.classList.toggle('has-qty', qty > 0);
+      const badge = document.getElementById('qb-' + code);
+      if (badge) { badge.textContent = qty; badge.style.display = qty > 0 ? 'flex' : 'none'; }
+    });
+
+    const cartList = document.getElementById('cartList');
+    const cartFooter = document.getElementById('cartFooter');
+
+    if (totalItems === 0) {
+      cartList.innerHTML = `<div class="cart-empty"><div class="icon">&#x1F9FA;</div><p>Cart is empty</p><p style="font-size:0.78rem;color:#E5E7EB;margin-top:4px;">Tap items to add</p></div>`;
+      cartFooter.style.display = 'none';
+      return;
+    }
+    cartFooter.style.display = 'block';
+
+    let html = '';
+    let subtotal = 0;
+    const itemData = {};
+    document.querySelectorAll('.item-card').forEach(card => {
+      itemData[card.dataset.code] = {
+        name: card.querySelector('.item-name').textContent,
+        rate: parseFloat(card.querySelector('.item-price').textContent.replace(/[^0-9.]/g, ''))
+      };
+    });
+
+    entries.forEach(([code, qty]) => {
+      const d = itemData[code] || { name: code, rate: 0 };
+      const lineTotal = d.rate * qty;
+      subtotal += lineTotal;
+      html += `<div class="cart-item">
+        <div class="ci-info"><div class="ci-name">${d.name}</div><div class="ci-rate">LKR ${d.rate.toLocaleString()}</div></div>
+        <div class="ci-qty">
+          <button class="ci-minus" onclick="updateQty('${code}', -1)">−</button>
+          <span>${qty}</span>
+          <button class="ci-plus" onclick="updateQty('${code}', 1)">+</button>
+        </div>
+        <button class="ci-remove" onclick="updateQty('${code}', -${qty})">×</button>
+      </div>`;
+    });
+    cartList.innerHTML = html;
+    const scAmount = Math.round(subtotal * SERVICE_CHARGE_RATE) / 100;
+    const grandTotal = subtotal + scAmount;
+    const st = document.getElementById('subtotal');
+    if (st) st.textContent = 'LKR ' + subtotal.toLocaleString();
+    const scRow = document.getElementById('scRow');
+    const scAmt = document.getElementById('scAmount');
+    const scRate = document.getElementById('scRate');
+    if (scRow && SERVICE_CHARGE_RATE > 0) {
+      scRow.style.display = '';
+      scRate.textContent = SERVICE_CHARGE_RATE;
+      scAmt.textContent = 'LKR ' + scAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    } else if (scRow) {
+      scRow.style.display = 'none';
+    }
+    const gt = document.getElementById('grandTotal');
+    if (gt) gt.textContent = 'LKR ' + grandTotal.toLocaleString();
+  }
+
+  // ─── Send to Kitchen (no payment) ──────────────────
+  let _payingOrderName = null;
+  let _amendedOrderName = '';
+
+  async function sendToKitchen() {
+    if (Object.keys(cart).length === 0) { showToast('Cart is empty.', true); return; }
+    const orderType = document.getElementById('orderTypeSelect').value;
+    const table = document.getElementById('tableSelect').value;
+    if (orderType === 'Dine In' && !table) { showToast('Please select a table first.', true); document.getElementById('tableSelect').focus(); return; }
+
+    const rateMap = {};
+    document.querySelectorAll('.item-card').forEach(card => {
+      rateMap[card.dataset.code] = parseFloat(card.querySelector('.item-price').textContent.replace(/[^0-9.]/g, ''));
+    });
+    const items = Object.entries(cart).map(([code, qty]) => ({ item: code, qty, rate: rateMap[code] || 0 }));
+
+    const btn = document.getElementById('sendKitchenBtn');
+    btn.disabled = true; btn.textContent = '⏳ Sending...';
+
+    try {
+      const res = await _post('/api/method/luuvcrm.api.send_to_kitchen', {
+        items: JSON.stringify(items),
+        table,
+        customer_name: document.getElementById('pmCustomerName')?.value || '',
+        order_source: 'Walk-in',
+        order_type: orderType,
+        amended_from: _amendedOrderName || _editingOrderName || '',
+      });
+      if (!res) return;
+      const data = await res.json();
+      if (data.message && data.message.name) {
+        const wasAmend = !!(_amendedOrderName || _editingOrderName);
+        showToast('✅ Order #' + data.message.name + ' sent to kitchen!');
+        setTimeout(() => printKOT(data.message.name), 500);
+        cart = {};
+        _amendedOrderName = '';
+        _editingOrderName = null;
+        document.getElementById('editBanner').classList.remove('show');
+        resetCartFooter();
+        render();
+        document.getElementById('tableSelect').value = '';
+        loadOngoingOrders();
+        loadChangelogs();
+        if (wasAmend) switchTab('changes');
+      } else {
+        showToast('Error: ' + JSON.stringify(data), true);
+        btn.disabled = false; btn.textContent = '🍳 Send to Kitchen';
+      }
+    } catch (e) {
+      showToast('Error sending to kitchen', true);
+      btn.disabled = false; btn.textContent = '🍳 Send to Kitchen';
+    }
+  }
+
+  // Order type toggle — disable table for Take Away / Delivery
+  document.getElementById('orderTypeSelect')?.addEventListener('change', function() {
+    const isDineIn = this.value === 'Dine In';
+    const wrap = document.getElementById('tableSelectWrap');
+    const sel = document.getElementById('tableSelect');
+    wrap.style.opacity = isDineIn ? '1' : '0.4';
+    sel.disabled = !isDineIn;
+    if (!isDineIn) sel.value = '';
+  });
+
+  // ─── Pay existing order ─────────────────────────────
+  async function payExistingOrder(orderName) {
+    // Load order data into payment modal
+    const res = await _post('/api/method/luuvcrm.api.get_order_items', { order_name: orderName });
+    if (!res) return;
+    const data = await res.json();
+    const orderItems = data.message && data.message.items ? data.message.items : [];
+    if (orderItems.length === 0) { showToast('No items in this order', true); return; }
+
+    // Get order info from ongoing list
+    const orderCard = document.querySelector(`#ongoingList .order-card[data-order="${orderName}"]`);
+    const table = orderCard?.dataset?.table || '—';
+    const customerName = orderCard?.dataset?.customer || '';
+    const phone = orderCard?.dataset?.phone || '';
+    const grandTotal = parseFloat(orderCard?.dataset?.total) || 0;
+
+    document.getElementById('pmItems').textContent = orderItems.length;
+    document.getElementById('pmTable').textContent = table;
+    document.getElementById('pmTotal').textContent = 'LKR ' + grandTotal.toLocaleString();
+    document.getElementById('amountTendered').value = grandTotal;
+    document.getElementById('pmCustomerName').value = customerName;
+    document.getElementById('pmCustomerPhone').value = phone;
+    document.getElementById('pmNotes').value = '';
+
+    _payingOrderName = orderName;
+    selectPaymentMode('Cash');
+    openModal('paymentModal');
+  }
+
+  // ─── Payment Modal ──────────────────────────────────
+  function openPaymentModal() {
+    if (Object.keys(cart).length === 0) { showToast('Cart is empty.', true); return; }
+    const total = document.getElementById('grandTotal').textContent.replace(/[^0-9.]/g, '');
+    const parsedTotal = parseFloat(total) || 0;
+    document.getElementById('pmItems').textContent = Object.keys(cart).length;
+    document.getElementById('pmTable').textContent = document.getElementById('tableSelect').value || '—';
+    document.getElementById('pmTotal').textContent = 'LKR ' + parsedTotal.toLocaleString();
+    document.getElementById('amountTendered').value = parsedTotal;
+    openModal('paymentModal');
+    selectPaymentMode('Cash');
+    // Update button text for edit mode
+    const confirmBtn = document.querySelector('#paymentModal .btn-primary');
+    confirmBtn.textContent = _editingOrderName ? '✅ Save Changes' : '✅ Confirm & Place Order';
+    confirmBtn.dataset.origText = confirmBtn.textContent;
+    confirmBtn.disabled = false;
+  }
+
+  function selectPaymentMode(mode) {
+    document.querySelectorAll('.pmode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    const isCash = mode === 'Cash';
+    const isSplit = mode === 'Cash+Card';
+    document.getElementById('cashField').style.display = isCash ? '' : 'none';
+    document.getElementById('splitField').style.display = isSplit ? 'flex' : 'none';
+    document.getElementById('changeField').classList.remove('show');
+    if (isSplit) {
+      const total = parseFloat(document.getElementById('pmTotal').textContent.replace(/[^0-9.]/g, '')) || 0;
+      document.getElementById('cashAmount').value = Math.round(total / 2);
+      document.getElementById('cardAmount').value = total - Math.round(total / 2);
+    }
+    if (isCash) calcChange();
+  }
+
+  function checkSplitTotal() {
+    const total = parseFloat(document.getElementById('pmTotal').textContent.replace(/[^0-9.]/g, '')) || 0;
+    const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
+    const card = parseFloat(document.getElementById('cardAmount').value) || 0;
+    const sum = cash + card;
+    const btn = document.querySelector('#paymentModal .btn-primary');
+    if (sum < total) {
+      btn.textContent = `⚠️ Short LKR ${(total - sum).toLocaleString()}`;
+      btn.disabled = true;
+    } else {
+      btn.textContent = btn.dataset.origText || '✅ Confirm & Place Order';
+      btn.disabled = false;
+    }
+  }
+
+  function calcChange() {
+    const totalEl = document.getElementById('pmTotal');
+    const total = parseFloat(totalEl.textContent.replace(/[^0-9.]/g, '')) || 0;
+    const tendered = parseFloat(document.getElementById('amountTendered').value) || 0;
+    const change = tendered - total;
+    const field = document.getElementById('changeField');
+    const amt = document.getElementById('changeAmount');
+    if (tendered >= total) {
+      field.classList.add('show');
+      amt.textContent = 'LKR ' + change.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    } else {
+      field.classList.remove('show');
+    }
+  }
+
+  async function confirmPayment() {
+    const mode = document.querySelector('.pmode-btn.active')?.dataset.mode || 'Cash';
+    const total = parseFloat(document.getElementById('pmTotal').textContent.replace(/[^0-9.]/g, '')) || 0;
+    const isExistingPayment = !!_payingOrderName;
+
+    if (mode === 'Cash') {
+      const tendered = parseFloat(document.getElementById('amountTendered').value) || 0;
+      if (tendered < total) {
+        showToast('Amount tendered is less than total!', true);
+        return;
+      }
+    }
+    if (mode === 'Cash+Card') {
+      const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
+      const card = parseFloat(document.getElementById('cardAmount').value) || 0;
+      if (cash + card < total) {
+        showToast('Cash + Card total is less than the order total!', true);
+        return;
+      }
+    }
+
+    const isEditing = !!_editingOrderName;
+    const btn = document.querySelector('#paymentModal .btn-primary');
+    btn.disabled = true; btn.textContent = '⏳ Processing...';
+
+    try {
+      const rateMap = {};
+      document.querySelectorAll('.item-card').forEach(card => {
+        rateMap[card.dataset.code] = parseFloat(card.querySelector('.item-price').textContent.replace(/[^0-9.]/g, ''));
+      });
+      const items = Object.entries(cart).map(([code, qty]) => ({ item: code, qty, rate: rateMap[code] || 0 }));
+
+      let res;
+      if (isExistingPayment) {
+        const cashAmt = parseFloat(document.getElementById('cashAmount').value) || 0;
+        const cardAmt = parseFloat(document.getElementById('cardAmount').value) || 0;
+        res = await _post('/api/method/luuvcrm.api.process_payment', {
+          order_name: _payingOrderName,
+          payment_mode: mode,
+          cash_amount: mode === 'Cash+Card' ? cashAmt : (mode === 'Cash' ? total : 0),
+          card_amount: mode === 'Cash+Card' ? cardAmt : (mode === 'Credit Card' ? total : 0),
+        });
+      } else if (isEditing) {
+        res = await _post('/api/method/luuvcrm.api.update_order', {
+          order_name: _editingOrderName,
+          items: JSON.stringify(items),
+          customer_name: document.getElementById('pmCustomerName').value.trim(),
+          mobile: document.getElementById('pmCustomerPhone').value.trim(),
+          notes: document.getElementById('pmNotes').value.trim(),
+        });
+      } else {
+        const cashAmt = parseFloat(document.getElementById('cashAmount').value) || 0;
+        const cardAmt = parseFloat(document.getElementById('cardAmount').value) || 0;
+        res = await _post('/api/method/luuvcrm.api.place_order', {
+          items: JSON.stringify(items),
+          payment_mode: mode,
+          cash_amount: mode === 'Cash+Card' ? cashAmt : 0,
+          card_amount: mode === 'Cash+Card' ? cardAmt : 0,
+          table: document.getElementById('tableSelect').value,
+          order_source: 'Walk-in',
+          customer_name: document.getElementById('pmCustomerName').value.trim(),
+          mobile: document.getElementById('pmCustomerPhone').value.trim(),
+          notes: document.getElementById('pmNotes').value.trim()
+        });
+      }
+      if (!res) return;
+      const data = await res.json();
+      if (data.message && data.message.name) {
+        closeModal('paymentModal');
+        const label = isExistingPayment ? 'Paid' : isEditing ? 'Updated' : 'Placed';
+        document.getElementById('orderNo').textContent = isExistingPayment ? ('Order #' + data.message.name + ' — Paid') : ('Order #' + data.message.name);
+        document.getElementById('successOverlay').querySelector('p').textContent = isExistingPayment ? 'Payment processed successfully.' : 'Order has been sent to the kitchen.';
+        window._lastPrintedOrder = data.message.name;
+        window._lastInvoiceName = data.message.invoice_name || '';
+        window._lastCustomerPhone = data.message.mobile || data.message.customer_name || '';
+        window._lastCustomerName = data.message.customer_name || 'Walk-in';
+        document.getElementById('invoiceNo').textContent = 'Invoice: ' + (data.message.invoice_name || '—');
+        document.getElementById('successOverlay').classList.add('show');
+        if (isEditing) {
+          _editingOrderName = null;
+          document.getElementById('editBanner').classList.remove('show');
+        }
+        if (isExistingPayment) {
+          _payingOrderName = null;
+        }
+      } else {
+        showToast('Payment error: ' + JSON.stringify(data), true);
+      }
+    } catch (e) {
+      showToast('Error processing payment', true);
+    }
+    btn.disabled = false; btn.textContent = '✅ Confirm & Place Order';
+  }
+
+  // ─── Tables Sidebar ────────────────────────────────
+  async function loadTablesStatus() {
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_tables_with_status?_=' + Date.now(), {});
+      if (!res) return;
+      const data = await res.json();
+      const tables = (data.message && data.message.tables) || [];
+      const activeCount = tables.filter(t => t.active).length;
+      document.getElementById('tsActiveCount').textContent = activeCount;
+
+      const body = document.getElementById('tablesBody');
+      if (tables.length === 0) { body.innerHTML = '<div class="ts-empty">No tables</div>'; return; }
+      const selectedTable = document.getElementById('tableSelect').value;
+      body.innerHTML = tables.map(t => {
+        const dotClass = t.active ? 'active' : 'inactive';
+        const activeClass = t.active ? 'active-card' : '';
+        const selClass = t.name === selectedTable ? 'active-card' : '';
+        const badge = t.active ? `<span class="ts-badge ${(t.order_status||'pending').toLowerCase()}">${t.order_status || '⏳'}</span>` : '';
+        const short = _tableDisplayName(t.name);
+        return `<div class="ts-table-card ${activeClass} ${selClass}" onclick="openTableModal('${t.name}')">
+          <span class="ts-dot ${dotClass}"></span>
+          <span class="ts-name" title="${t.name}">${short}</span>
+          ${badge}
+        </div>`;
+      }).join('');
+    } catch (e) {}
+  }
+
+  function selectTableFromSidebar(name) {
+    document.getElementById('orderTypeSelect').value = 'Dine In';
+    document.getElementById('orderTypeSelect').dispatchEvent(new Event('change'));
+    document.getElementById('tableSelect').value = name;
+  }
+
+  let _tomTable = '';
+
+  async function openTableModal(table) {
+    _tomTable = table;
+    const short = _tableDisplayName(table);
+    selectTableFromSidebar(table);
+    // First fetch orders to decide: 1 order → direct load, many → show popup
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_table_orders', { table });
+      if (!res) return;
+      const data = await res.json();
+      const orders = (data.message && data.message.orders) || [];
+      if (orders.length === 1) {
+        // Single order → load directly into POS
+        const o = orders[0];
+        const escName = escapeHtml(o.customer_name || 'Walk-in');
+        const escPhone = escapeHtml(o.mobile || '');
+        await loadTableOrder(o.name, o.restaurant_table || table, escName, escPhone);
+        return;
+      }
+      // Multiple orders → show popup
+      document.getElementById('tomTitle').innerHTML = `&#x1FAAE; Table ${short}`;
+      if (orders.length === 0) {
+        document.getElementById('tomBody').innerHTML = '<div style="text-align:center;padding:30px;color:#9CA3AF;"><div style="font-size:2rem;margin-bottom:8px;">&#x1F4ED;</div><p style="font-size:0.85rem;">No ongoing orders</p><p style="font-size:0.75rem;color:#D1D5DB;margin-top:4px;">Tap "New Order" to take an order</p></div>';
+      } else {
+        document.getElementById('tomBody').innerHTML = orders.map(o => {
+          const items = (o.items || []).map(i =>
+            `<div style="display:flex;justify-content:space-between;font-size:0.78rem;padding:2px 0;color:#4B5563;">
+              <span>${escapeHtml(i.item_name || i.item)}</span>
+              <span style="font-weight:600;">x${i.qty}</span>
+            </div>`
+          ).join('');
+          const statusClass = (o.kitchen_status||'pending').toLowerCase();
+          const escName = escapeHtml(o.customer_name || 'Walk-in');
+          const escPhone = escapeHtml(o.mobile || '');
+          return `<div style="background:#fff;border:1px solid #F3F4F6;border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all 0.15s;" onclick="loadTableOrder('${o.name}','${o.restaurant_table||table}','${escName.replace(/'/g,"\\'")}','${escPhone.replace(/'/g,"\\'")}')" onmouseover="this.style.borderColor='#FF6B35';this.style.boxShadow='0 2px 8px rgba(255,107,53,0.12)'" onmouseout="this.style.borderColor='#F3F4F6';this.style.boxShadow='none'">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-weight:700;font-size:0.82rem;color:#1F2937;">#${o.name}</span>
+              <span style="font-size:0.68rem;font-weight:600;padding:2px 8px;border-radius:6px;
+                ${statusClass === 'pending' ? 'background:#FEF3C7;color:#D97706;' :
+                  statusClass === 'processing' ? 'background:#DBEAFE;color:#2563EB;' :
+                  statusClass === 'ready' ? 'background:#D1FAE5;color:#059669;' :
+                  'background:#F3F4F6;color:#6B7280;'}">${o.kitchen_status || 'Pending'}</span>
+            </div>
+            <div style="margin-bottom:4px;">${items}</div>
+            <div style="font-size:0.68rem;color:#9CA3AF;display:flex;justify-content:space-between;">
+              <span>${o.time_ago || ''} · ${o.waiter_name || ''}</span>
+              <span style="color:#FF6B35;font-weight:600;font-size:0.7rem;">Click to load →</span>
+            </div>
+          </div>`;
+        }).join('');
+      }
+      openModal('tableOrdersModal');
+    } catch (e) {
+      showToast('Error loading table orders', true);
+    }
+  }
+
+  function tomNewOrder() {
+    if (!_tomTable) return;
+    closeModal('tableOrdersModal');
+    selectTableFromSidebar(_tomTable);
+    cart = {}; render();
+    switchTab('pos');
+  }
+
+  function showOrderDetails(orderName) {
+    switchTab('ongoing');
+    const cards = document.querySelectorAll('.order-card');
+    cards.forEach(c => c.style.outline = 'none');
+    const target = document.querySelector(`.order-card[data-order="${orderName}"]`);
+    if (target) {
+      target.style.outline = '2px solid #FF6B35';
+      target.style.outlineOffset = '2px';
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => { target.style.outline = 'none'; }, 3000);
+    } else {
+      showToast('Order #' + orderName + ' is in the Ongoing tab');
+    }
+  }
+
+  async function showCompareView(oldName, newName) {
+    openModal('compareModal');
+    document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:30px;color:#9CA3AF;">Loading...</div>';
+    try {
+      const res = await _post('/api/method/luuvcrm.api.compare_orders', { old: oldName, new: newName });
+      if (!res) return;
+      const data = await res.json();
+      const old = data.message?.old;
+      const nw = data.message?.new;
+      if (!old || !nw) { document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444;">Order data not found</div>'; return; }
+      function renderSide(label, order, cls) {
+        const itemsHtml = (order.items || []).map(i => `<div class="cmp-item"><span>${escapeHtml(i.item_name || i.item)} x${i.qty}</span><span style="font-weight:600;">LKR ${(i.rate * i.qty).toLocaleString()}</span></div>`).join('');
+        return `<div class="cmp-side ${cls}">
+          <h4>${label} <span style="font-size:0.7rem;font-weight:400;color:#9CA3AF;">#${escapeHtml(order.name)}</span></h4>
+          <div class="cmp-label">Table</div><div class="cmp-val">${order.restaurant_table || '—'}</div>
+          <div class="cmp-label">Customer</div><div class="cmp-val">${escapeHtml(order.customer_name || 'Walk-in')}</div>
+          <div class="cmp-label">Waiter</div><div class="cmp-val">${escapeHtml(order.waiter_name || '—')}</div>
+          <div class="cmp-label">Status</div><div class="cmp-val">${order.kitchen_status || '—'}</div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #E5E7EB;">${itemsHtml}</div>
+          <div class="cmp-total"><span>Total</span><span>LKR ${(order.grand_total || 0).toLocaleString()}</span></div>
+        </div>`;
+      }
+      const oldItemsTotal = (old.items || []).reduce((s, i) => s + (i.rate * i.qty), 0);
+      const newItemsTotal = (nw.items || []).reduce((s, i) => s + (i.rate * i.qty), 0);
+      const mismatch = oldItemsTotal !== newItemsTotal || (old.items || []).length !== (nw.items || []).length;
+      const warnHtml = mismatch ? `<div class="cmp-warn"><span class="icon">&#x26A0;&#xFE0F;</span><span>Order details mismatch! Items or totals differ between the cancelled and re-created order.</span></div>` : `<div style="text-align:center;margin-top:12px;font-size:0.78rem;color:#10B981;">&#x2705; Orders match — no discrepancies found</div>`;
+      document.getElementById('compareBody').innerHTML = `<div class="cmp-grid">${renderSide('🗑 Cancelled', old, 'cancelled')}${renderSide('🔄 Re-created', nw, 'new')}</div>${warnHtml}`;
+    } catch (e) {
+      document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444;">Failed to load comparison</div>';
+    }
+  }
+
+  async function loadTableOrder(orderName, table, customer, phone) {
+    closeModal('tableOrdersModal');
+    await openEditOrder(orderName, table, customer, phone);
+    // Show Pay button using cart data (not DOM lookup)
+    setTimeout(() => {
+      const total = Object.keys(cart).reduce((sum, code) => {
+        const qty = cart[code] || 0;
+        const itemEl = document.querySelector(`.item-card[data-code="${code}"]`);
+        const rateText = itemEl?.querySelector('.item-price')?.textContent?.replace(/[^0-9.]/g, '') || '0';
+        return sum + (parseFloat(rateText) || 0) * qty;
+      }, 0);
+      const scAmount = Math.round(total * SERVICE_CHARGE_RATE) / 100;
+      const grandTotal = total + scAmount;
+      const footer = document.getElementById('cartFooter');
+      if (!footer) return;
+      footer.innerHTML = `
+        <div class="total-row"><span>Subtotal</span><span id="subtotal">LKR ${total.toLocaleString()}</span></div>
+        ${SERVICE_CHARGE_RATE > 0 ? `<div class="total-row"><span>Service Charge (${SERVICE_CHARGE_RATE}%)</span><span id="scAmount">LKR ${scAmount.toLocaleString(undefined, {minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>` : ''}
+        <div class="grand-total"><span>Total</span><span id="grandTotal">LKR ${grandTotal.toLocaleString()}</span></div>
+        <div class="cart-actions">
+          <button onclick="sendToKitchen()" style="flex:1;border:none;padding:12px;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#F59E0B,#D97706);color:#fff;">🍳 Update Kitchen</button>
+          <button onclick="payExistingOrderFromCart('${orderName}')" style="flex:1;border:none;padding:12px;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#FF6B35,#E55A2B);color:#fff;">💳 Pay LKR ${grandTotal.toLocaleString()}</button>
+        </div>`;
+    }, 300);
+  }
+
+  function payExistingOrderFromCart(orderName) {
+    const subtotal = Object.keys(cart).reduce((sum, code) => {
+      const qty = cart[code] || 0;
+      const itemEl = document.querySelector(`.item-card[data-code="${code}"]`);
+      const rateText = itemEl?.querySelector('.item-price')?.textContent?.replace(/[^0-9.]/g, '') || '0';
+      return sum + (parseFloat(rateText) || 0) * qty;
+    }, 0);
+    const scAmount = Math.round(subtotal * SERVICE_CHARGE_RATE) / 100;
+    const total = subtotal + scAmount;
+    const itemCount = Object.keys(cart).length;
+    const table = document.getElementById('tableSelect').value || '—';
+    const customerName = document.getElementById('pmCustomerName').value || '';
+    const phone = document.getElementById('pmCustomerPhone').value || '';
+
+    document.getElementById('pmItems').textContent = itemCount;
+    document.getElementById('pmTable').textContent = table;
+    document.getElementById('pmTotal').textContent = 'LKR ' + total.toLocaleString();
+    document.getElementById('amountTendered').value = total;
+    document.getElementById('pmCustomerName').value = customerName;
+    document.getElementById('pmCustomerPhone').value = phone;
+    document.getElementById('pmNotes').value = '';
+
+    _payingOrderName = orderName;
+    selectPaymentMode('Cash');
+    openModal('paymentModal');
+  }
+
+  function closePaymentModal() {
+    _payingOrderName = null;
+    closeModal('paymentModal');
+  }
+
+  function resetCartFooter() {
+    _currentOrderName = '';
+    document.getElementById('cartHeaderTitle').innerHTML = 'Current Order <span class="count" id="itemCount">0</span>';
+    document.getElementById('clearBtn').style.display = '';
+    const footer = document.getElementById('cartFooter');
+    footer.innerHTML = `
+      <div class="total-row"><span>Subtotal</span><span id="subtotal">LKR 0</span></div>
+      <div class="total-row" id="scRow" style="display:none;"><span>Service Charge (<span id="scRate">0</span>%)</span><span id="scAmount">LKR 0</span></div>
+      <div class="grand-total"><span>Total</span><span id="grandTotal">LKR 0</span></div>
+      <div class="cart-actions">
+        <button class="kitchen-btn" id="sendKitchenBtn" onclick="sendToKitchen()">🍳 Send to Kitchen</button>
+      </div>`;
+  }
+
+  function newOrder() {
+    document.getElementById('successOverlay').classList.remove('show');
+    const changelogEl = document.getElementById('editChangelogSuccess');
+    if (changelogEl) changelogEl.remove();
+    document.getElementById('successOverlay').querySelector('p').textContent = 'Order has been sent to the kitchen.';
+    _editingOrderName = null;
+    _payingOrderName = null;
+    document.getElementById('editBanner').classList.remove('show');
+    resetCartFooter();
+    cart = {}; render();
+    document.getElementById('tableSelect').value = '';
+    document.getElementById('pmCustomerName').value = '';
+    document.getElementById('pmCustomerPhone').value = '';
+    document.getElementById('pmNotes').value = '';
+  }
+
+  // ─── Edit Order (loads into main POS) ────────────────
+  let _editingOrderName = null;
+
+  async function openEditOrder(orderName, table, customer, phone) {
+    const res = await _post('/api/method/luuvcrm.api.get_order_items', { order_name: orderName });
+    if (!res) return;
+    const data = await res.json();
+    const items = data.message && data.message.items ? data.message.items : [];
+    if (items.length === 0) { alert('No items in this order'); return; }
+
+    // Populate cart with order items
+    cart = {};
+    items.forEach(i => { cart[i.item] = i.qty; });
+    render();
+
+    // Set table & customer info
+    if (table) document.getElementById('tableSelect').value = table;
+    if (customer) document.getElementById('pmCustomerName').value = customer;
+    if (phone) document.getElementById('pmCustomerPhone').value = phone;
+
+    // Show edit banner
+    _editingOrderName = orderName;
+    document.getElementById('editBannerOrder').textContent = '#' + orderName;
+    document.getElementById('editBanner').classList.add('show');
+
+    // Switch to POS tab
+    switchTab('pos');
+
+    // Load changelog silently
+    _loadChangelog(orderName);
+  }
+
+  function cancelEdit() {
+    _editingOrderName = null;
+    _payingOrderName = null;
+    _currentOrderName = '';
+    resetCartFooter();
+    document.getElementById('editBanner').classList.remove('show');
+    cart = {};
+    render();
+    document.getElementById('tableSelect').value = '';
+    document.getElementById('pmCustomerName').value = '';
+    document.getElementById('pmCustomerPhone').value = '';
+    document.getElementById('pmNotes').value = '';
+  }
+
+  // ─── Kiosk Orders ────────────────────────────────────
+  async function loadKioskOrders(background) {
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_kiosk_orders', {});
+      if (!res) return;
+      const data = await res.json();
+      const orders = data.message && data.message.orders ? data.message.orders : [];
+      const list = document.getElementById('kioskList');
+      const empty = document.getElementById('kioskEmpty');
+      const tab = document.getElementById('tab-kiosk');
+      const isActive = tab && tab.classList.contains('active');
+
+      const hasNew = orders.some(o => !_knownKioskIds.has(o.name) && _knownKioskIds.size > 0);
+      if (hasNew) {
+        playNewOrderSound();
+        const newOrders = orders.filter(o => !_knownKioskIds.has(o.name));
+        newOrders.forEach(o => {
+          notifyNewOrder('New Kiosk Order', `Table: ${o.restaurant_table || '—'}`);
+        });
+        if (!isActive) {
+          const btn = document.querySelector('.tab-btn[data-tab="kiosk"]');
+          if (btn) btn.style.background = '#FF6B35';
+        }
+      }
+      _knownKioskIds = new Set(orders.map(o => o.name));
+
+      if (!background || isActive) {
+        if (orders.length === 0) { empty.style.display = 'block'; list.innerHTML = ''; }
+        else {
+          empty.style.display = 'none';
+          list.innerHTML = orders.map(o => _renderOrderCard(o, true, 'Kiosk')).join('');
+        }
+        const count = document.getElementById('kioskTabCount');
+        if (count) count.textContent = orders.length;
+      }
+      if (isActive) {
+        const btn = document.querySelector('.tab-btn[data-tab="kiosk"]');
+        if (btn) btn.style.background = '';
+      }
+    } catch (e) { /* silently retry */ }
+  }
+
+  let _cachedChangelogHtml = '';
+  async function _loadChangelog(orderName) {
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_order_changelog', { order_name: orderName });
+      if (!res) return;
+      const data = await res.json();
+      const log = data.message && data.message.changelog ? data.message.changelog : [];
+      if (log.length === 0) { _cachedChangelogHtml = ''; return; }
+      let html = '<h4 style="font-size:0.78rem;font-weight:700;color:#6B7280;margin:8px 0 4px;display:flex;align-items:center;gap:6px;">&#x1F4CB; Change History</h4>';
+      log.forEach(v => {
+        html += `<div style="padding:4px 0;border-bottom:1px solid #F3F4F6;font-size:0.72rem;">
+          <div style="display:flex;justify-content:space-between;color:#9CA3AF;font-size:0.68rem;">${escapeHtml(v.owner)} | ${v.created ? new Date(v.created).toLocaleString() : ''}</div>`;
+        (v.changes || []).forEach(c => {
+          html += `<div style="color:#374151;">${escapeHtml(c.field)}: <span style="color:#EF4444;text-decoration:line-through;">${escapeHtml(String(c.old_value||''))}</span> <span style="color:#059669;font-weight:600;">${escapeHtml(String(c.new_value||''))}</span></div>`;
+        });
+        html += '</div>';
+      });
+      _cachedChangelogHtml = html;
+    } catch(e) { /* ignore */ }
+  }
+
+  // ─── Ongoing Orders ─────────────────────────────────
+  async function loadOngoingOrders(background) {
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_ongoing_orders', {});
+      if (!res) return;
+      const data = await res.json();
+      const orders = data.message && data.message.orders ? data.message.orders : [];
+      const list = document.getElementById('ongoingList');
+      const empty = document.getElementById('ongoingEmpty');
+      const tab = document.getElementById('tab-ongoing');
+      const isActive = tab && tab.classList.contains('active');
+
+      const hasNew = orders.some(o => !_knownOngoingIds.has(o.name) && _knownOngoingIds.size > 0);
+      if (hasNew) {
+        playNewOrderSound();
+        const newOrders = orders.filter(o => !_knownOngoingIds.has(o.name));
+        newOrders.forEach(o => {
+          const source = o.order_source === 'Waiter' ? '🙋 Waiter' : 'Walk-in';
+          notifyNewOrder(`New ${source} Order`, `Table: ${o.restaurant_table || '—'} | ${o.customer_name || 'Walk-in'}`);
+        });
+        if (!isActive) {
+          const btn = document.querySelector('.tab-btn[data-tab="ongoing"]');
+          if (btn) btn.style.background = '#FF6B35';
+        }
+      }
+      _knownOngoingIds = new Set(orders.map(o => o.name));
+
+      if (!background || isActive) {
+        if (orders.length === 0) { empty.style.display = 'block'; list.innerHTML = ''; }
+        else {
+          empty.style.display = 'none';
+          list.innerHTML = orders.map(o => _renderOrderCard(o, true)).join('');
+        }
+        const count = document.getElementById('ongoingTabCount');
+        if (count) count.textContent = orders.length;
+        const mc = document.getElementById('mobileOngoingCount');
+        if (mc) mc.textContent = orders.length;
+      }
+      if (isActive) {
+        const btn = document.querySelector('.tab-btn[data-tab="ongoing"]');
+        if (btn) btn.style.background = '';
+      }
+    } catch (e) { /* silently retry */ }
+  }
+
+  function _renderOrderCard(o, isOngoing, sourceLabel) {
+    const items = o.items_json ? JSON.parse(o.items_json) : [];
+    const itemRows = items.map(i =>
+      `<div class="oc-item">
+        <span class="oi-name">${escapeHtml(i.item_name || i.item)}</span>
+        <span class="oi-qty">x${i.qty}</span>
+        <span class="oi-total">LKR ${(i.rate * i.qty).toLocaleString()}</span>
+      </div>`
+    ).join('');
+
+    const ot = o.order_type;
+    const otIcon = ot === 'Dine In' ? '🪑' : ot === 'Take Away' ? '🛍️' : ot === 'Delivery' ? '🛵' : '';
+    const otBadge = ot ? `<span style="font-size:0.65rem;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.7);margin-left:4px;">${otIcon} ${ot}</span>` : '';
+    const hasInvoice = !!(o.pos_invoice || o.invoice_name);
+    const isCancelled = o.kitchen_status === 'Cancelled';
+    const statusLabel = isCancelled ? 'Cancelled' : (sourceLabel || (isOngoing ? 'Ongoing' : (o.kitchen_status || 'Served')));
+    const cardClass = isCancelled ? 'cancelled' : (isOngoing ? 'ongoing' : 'served');
+    return `<div class="order-card ${cardClass}" data-order="${o.name}" data-table="${o.restaurant_table||''}" data-customer="${escapeHtml(o.customer_name||'')}" data-phone="${o.mobile||''}" data-total="${o.grand_total||0}">
+      <div class="oc-left">
+        <div class="oc-top">
+          <span class="oc-time">${isOngoing ? (o.time_ago || '') : (o.completed_at || '')}</span>
+          <span class="oc-table">${o.restaurant_table || '—'}${otBadge}</span>
+          <span class="oc-customer"><span class="name">${escapeHtml(o.customer_name)}</span> <span class="phone">${o.mobile || ''}</span></span>
+          <span class="oc-status ${isCancelled ? 'cancelled' : (isOngoing ? 'ongoing' : 'served')}">${statusLabel}</span>
+        </div>
+        <div class="oc-items-list">${itemRows}</div>
+        <div class="oc-total-row">
+          <span class="oc-total">LKR ${(o.grand_total || 0).toLocaleString()}</span>
+          ${hasInvoice ? `<span class="oc-invoice">#${o.pos_invoice || o.invoice_name}</span>` : '<span class="oc-invoice" style="color:#F59E0B;">Unpaid</span>'}
+        </div>
+        ${isCancelled && o.recreated_as ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #F3F4F6;font-size:0.75rem;color:#6366F1;display:flex;align-items:center;gap:4px;">&#x1F504; Re-created as <strong onclick="showCompareView('${escapeHtml(o.name)}','${escapeHtml(o.recreated_as)}')" style="cursor:pointer;color:#FF6B35;text-decoration:underline;">#${escapeHtml(o.recreated_as)}</strong> &nbsp;<span style="font-size:0.65rem;color:#9CA3AF;">(click to compare)</span></div>` : ''}
+      </div>
+      ${isOngoing ? `<div class="oc-action" style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button onclick="printKOT('${o.name}')" style="background:#F59E0B;">&#x1F373; KOT</button>
+        ${!hasInvoice ? `<button onclick="printGuestCheck('${o.name}')" style="background:#6366F1;">&#x1F4CB; Guest</button>` : ''}
+        ${!hasInvoice ? `<button onclick="payExistingOrder('${o.name}')" style="background:#FF6B35;">&#x1F4B3; Pay</button>` : ''}
+        <button onclick="markServed('${o.name}')" style="background:#10B981;">&#x2705; Complete</button>
+        ${!hasInvoice ? `<button onclick="cancelOrder('${o.name}')" style="background:#EF4444;">&#x1F5D1; Amend</button>` : ''}
+      </div>` : ''}
+    </div>`;
+  }
+
+  async function markServed(orderName) {
+    if (!confirm('Mark this order as served?')) return;
+    try {
+      const res = await _post('/api/method/luuvcrm.api.mark_order_served', { order_name: orderName });
+      if (!res) return;
+      const data = await res.json();
+      if (data.message && data.message.status === 'Served') {
+        loadOngoingOrders();
+      } else {
+        alert('Error: ' + (data.message || 'Unknown'));
+      }
+     } catch (e) { alert('Error marking order as served.'); }
+   }
+
+  // ─── Cancel Order ──────────────────────────────────
+  async function cancelOrder(orderName) {
+    if (!confirm(`Amend order ${orderName}? Items will be loaded back to cart.`)) return;
+    try {
+      // Get table from the order card before cancelling
+      const orderCard = document.querySelector(`.order-card[data-order="${orderName}"]`);
+      const table = orderCard?.dataset?.table || '';
+      const customer = orderCard?.dataset?.customer || '';
+      const phone = orderCard?.dataset?.phone || '';
+
+      const itemsRes = await _post('/api/method/luuvcrm.api.get_order_items', { order_name: orderName });
+      if (!itemsRes) return;
+      const itemsData = await itemsRes.json();
+      const orderItems = (itemsData.message && itemsData.message.items) || [];
+
+      const cancelRes = await _post('/api/method/luuvcrm.api.cancel_order', { order_name: orderName });
+      if (!cancelRes) return;
+      const cancelData = await cancelRes.json();
+      if (cancelData.message && cancelData.message.status === 'cancelled') {
+        _currentOrderName = '';
+        _amendedOrderName = orderName;
+        cart = {};
+        orderItems.forEach(i => { cart[i.item] = i.qty; });
+        if (table) document.getElementById('tableSelect').value = table;
+        if (customer) document.getElementById('pmCustomerName').value = customer;
+        if (phone) document.getElementById('pmCustomerPhone').value = phone;
+        resetCartFooter();
+        render();
+        // Switch to Changes tab so user sees the amend log
+        switchTab('changes');
+        loadChangelogs();
+        loadOngoingOrders();
+      } else {
+        showToast('Cannot amend — payment already processed for this order', true);
+      }
+    } catch (e) { showToast('Error amending order', true); }
+  }
+
+  // ─── Changelogs ────────────────────────────────────
+  async function loadChangelogs() {
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_all_changelogs', {});
+      if (!res) return;
+      const data = await res.json();
+      const logs = (data.message && data.message.logs) || [];
+      const list = document.getElementById('changesList');
+      const empty = document.getElementById('changesEmpty');
+      const count = document.getElementById('changesTabCount');
+      const mc = document.getElementById('mobileChangesCount');
+
+      if (count) count.textContent = logs.length;
+      if (mc) mc.textContent = logs.length;
+      if (logs.length === 0) { empty.style.display = 'block'; list.innerHTML = ''; return; }
+      empty.style.display = 'none';
+      // Group linked entries: cancel + re-create pairs
+      const linked = {};
+      logs.forEach(l => {
+        const from = l.changes.find(c => c.field === 'amended_from');
+        const to = l.changes.find(c => c.field === 'amended_to');
+        if (from) { linked[from.new] = linked[from.new] || {}; linked[from.new].recreate = l; }
+        if (to) { linked[to.new] = linked[to.new] || {}; linked[to.new].cancel = l; }
+      });
+      list.innerHTML = logs.map(l => {
+        const isLinked = l.changes.some(c => c.field === 'amended_from' || c.field === 'amended_to');
+        if (isLinked) {
+          // For linked entries, find the partner and skip the cancel half (show as pair)
+          const linkFrom = l.changes.find(c => c.field === 'amended_from');
+          const linkTo = l.changes.find(c => c.field === 'amended_to');
+          if (linkTo) {
+            // This is the cancelled order's Version - show paired with the new order
+            const newOrderRef = linked[linkTo.new]?.recreate;
+            const recreateNote = newOrderRef ? newOrderRef.changes.find(c => c.field === 'note')?.new || '' : '';
+            const cancelChanges = l.changes.filter(c => c.field !== 'amended_to' && c.field !== 'note');
+            const cancelHtml = cancelChanges.map(c => {
+              if (c.field === 'kitchen_status') return `<div style="font-size:0.78rem;padding:1px 0;color:#D97706;">&#x1F373; ${escapeHtml(c.old)} → <span style="color:#EF4444;">${escapeHtml(c.new)}</span></div>`;
+              return `<div style="font-size:0.78rem;padding:1px 0;color:#6B7280;">${escapeHtml(c.field)}: ${escapeHtml(c.old)} → ${escapeHtml(c.new)}</div>`;
+            }).join('');
+            return `<div class="order-card" style="border-left:3px solid #EF4444;margin-bottom:8px;">
+              <div class="oc-left">
+                <div class="oc-top">
+                  <span class="oc-table" style="color:#EF4444;">&#x1F5D1; #${escapeHtml(l.order_name)} Cancelled</span>
+                  <span class="oc-time">${l.time_ago || ''}</span>
+                  <span style="font-size:0.72rem;color:#9CA3AF;">by ${escapeHtml(l.owner)}</span>
+                </div>
+                <div style="margin-top:4px;">${cancelHtml}</div>
+                <div style="margin-top:4px;padding-top:4px;border-top:1px solid #F3F4F6;font-size:0.78rem;color:#6366F1;cursor:pointer;" onclick="showCompareView('${escapeHtml(l.order_name)}','${escapeHtml(linkTo.new)}')">&#x1F504; Re-created as <strong style="color:#FF6B35;text-decoration:underline;">#${escapeHtml(linkTo.new)}</strong> ${recreateNote ? '· ' + recreateNote : ''} &nbsp;<span style="font-size:0.65rem;color:#9CA3AF;">(compare)</span></div>
+              </div>
+            </div>`;
+          }
+          if (linkFrom) return ''; // Skip the "re-created from" half - already shown above
+        }
+        const changesHtml = l.changes.map(c => {
+          if (c.action === 'added') return `<div style="font-size:0.78rem;color:#059669;padding:2px 0;">&#x2795; ${c.count} item(s) added</div>`;
+          if (c.action === 'removed') return `<div style="font-size:0.78rem;color:#EF4444;padding:2px 0;">&#x2796; ${c.count} item(s) removed</div>`;
+          if (c.action === 'modified') return `<div style="font-size:0.78rem;color:#6366F1;padding:2px 0;">&#x270E; ${c.count} item(s) modified</div>`;
+          if (c.field === 'kitchen_status') return `<div style="font-size:0.78rem;padding:2px 0;color:#D97706;">&#x1F373; Status: <span style="color:#EF4444;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
+          if (c.field === 'grand_total') return `<div style="font-size:0.78rem;padding:2px 0;color:#6B7280;">&#x1F4B0; Total: <span style="color:#EF4444;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
+          if (c.field === 'note') return `<div style="font-size:0.78rem;padding:2px 0;color:#6B7280;">${escapeHtml(c.new)}</div>`;
+          if (c.field === 'amended_from') return `<div style="font-size:0.78rem;padding:2px 0;color:#6366F1;">&#x1F504; Re-created from <strong>#${escapeHtml(c.new)}</strong></div>`;
+          if (c.field === 'table') return '';
+          if (c.field === 'total') return '';
+          return `<div style="font-size:0.78rem;padding:2px 0;color:#6B7280;">${escapeHtml(c.field)}: <span style="color:#EF4444;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
+        }).join('');
+        return `<div class="order-card" style="border-left:3px solid #6366F1;margin-bottom:8px;">
+          <div class="oc-left">
+            <div class="oc-top">
+              <span class="oc-table">#${escapeHtml(l.order_name)}</span>
+              <span class="oc-time">${l.time_ago || ''}</span>
+              <span style="font-size:0.72rem;color:#9CA3AF;">by ${escapeHtml(l.owner)}</span>
+            </div>
+            <div style="margin-top:4px;">${changesHtml}</div>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {}
+  }
+
+  // ─── Completed Orders ───────────────────────────────
+  async function loadCompletedOrders() {
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_completed_orders', {});
+      if (!res) return;
+      const data = await res.json();
+      const orders = data.message && data.message.orders ? data.message.orders : [];
+      const list = document.getElementById('completedList');
+      const empty = document.getElementById('completedEmpty');
+
+      if (orders.length === 0) { empty.style.display = 'block'; list.innerHTML = ''; }
+      else {
+        empty.style.display = 'none';
+        list.innerHTML = orders.map(o => _renderOrderCard(o, false)).join('');
+      }
+    } catch (e) { /* silently retry */ }
+  }
+
+  // ─── Shift Management ────────────────────────────────
+  async function toggleShift() {
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_pos_shift', {});
+      if (!res) return;
+      const data = await res.json();
+      const shift = data.message && data.message.shift;
+
+      if (shift && shift.status === 'open') {
+        document.getElementById('soOpening').textContent = 'LKR ' + (shift.opening_balance || 0).toLocaleString();
+        document.getElementById('soSales').textContent = 'LKR ' + (shift.total_sales || 0).toLocaleString();
+        document.getElementById('soOrders').textContent = shift.order_count || 0;
+        const pb = shift.payment_breakdown || {};
+        const modes = Object.keys(pb);
+        const rowsHtml = modes.map(function(m){
+          const icons = {'Cash':'&#x1F4B5;','Credit Card':'&#x1F4B3;','Card':'&#x1F4B3;','Mobile':'&#x1F4F1;','QR':'&#x1F4F0;'};
+          const icon = icons[m] || '&#x1F4B0;';
+          return '<div class="row"><span class="label">'+icon+' '+m+'</span><span class="value">LKR '+(pb[m]||0).toLocaleString()+'</span></div>';
+        }).join('');
+        document.getElementById('shiftPaymentRows').innerHTML = rowsHtml;
+        const expected = (shift.opening_balance || 0) + (shift.total_sales || 0);
+        document.getElementById('soExpected').textContent = 'LKR ' + expected.toLocaleString();
+        document.getElementById('closingBalance').value = expected;
+        openModal('shiftCloseModal');
+      } else {
+        openModal('shiftOpenModal');
+      }
+    } catch (e) { openModal('shiftOpenModal'); }
+  }
+
+  // ── shift modal helpers (inline error + button loading) ──
+  function _shiftErr(id, msg) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (msg) { el.textContent = msg; el.style.display = 'block'; }
+    else { el.textContent = ''; el.style.display = 'none'; }
+  }
+  function _btnLoad(id, loading, busyText, idleText) {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.disabled = loading;
+    b.style.opacity = loading ? '0.6' : '';
+    b.textContent = loading ? busyText : idleText;
+  }
+  function _serverMsg(data, fallback) {
+    try {
+      const msgs = data && data._server_messages && JSON.parse(data._server_messages);
+      if (msgs && msgs.length) {
+        const m = JSON.parse(msgs[0]);
+        return (m && m.message) || fallback;
+      }
+    } catch (e) {}
+    return fallback;
+  }
+
+  async function openShift() {
+    const balance = parseFloat(document.getElementById('openingBalance').value);
+    if (isNaN(balance) || balance < 0) { _shiftErr('shiftOpenErr', 'Enter a valid opening balance (0 or more).'); return; }
+    _shiftErr('shiftOpenErr', '');
+    _btnLoad('shiftOpenBtn', true, 'Opening…', 'Open Shift');
+    try {
+      const res = await _post('/api/method/luuvcrm.api.pos_open_shift', { opening_balance: balance });
+      if (!res) { _btnLoad('shiftOpenBtn', false, '', 'Open Shift'); return; }
+      const data = await res.json();
+      if (res.ok && data.message && data.message.shift) {
+        updateShiftUI(data.message.shift);
+        closeModal('shiftOpenModal');
+      } else {
+        _shiftErr('shiftOpenErr', _serverMsg(data, 'Could not open shift.'));
+      }
+    } catch (e) { _shiftErr('shiftOpenErr', 'Connection error. Try again.'); }
+    _btnLoad('shiftOpenBtn', false, '', 'Open Shift');
+  }
+
+  async function closeShift() {
+    const balance = parseFloat(document.getElementById('closingBalance').value);
+    if (isNaN(balance) || balance < 0) { _shiftErr('shiftCloseErr', 'Enter a valid closing balance (0 or more).'); return; }
+    const cashier = document.getElementById('cashierName').value.trim() || frappe.session?.user || 'Staff';
+    _shiftErr('shiftCloseErr', '');
+    _btnLoad('shiftCloseBtn', true, 'Closing…', 'Close Shift');
+    try {
+      const res = await _post('/api/method/luuvcrm.api.pos_close_shift', { closing_balance: balance });
+      if (!res) { _btnLoad('shiftCloseBtn', false, '', 'Close Shift'); return; }
+      const data = await res.json();
+      if (res.ok && data.message && data.message.shift) {
+        window._lastShiftData = data.message.shift;
+        window._lastShiftData.closing_balance = balance;
+        window._lastShiftData.cashier_name = cashier;
+        updateShiftUI(data.message.shift);
+        closeModal('shiftCloseModal');
+        setTimeout(function(){
+          if (confirm('Shift closed successfully! Print summary?')) {
+            printShiftSummary(window._lastShiftData);
+          }
+        }, 300);
+      } else {
+        _shiftErr('shiftCloseErr', _serverMsg(data, 'Could not close shift.'));
+      }
+    } catch (e) { _shiftErr('shiftCloseErr', 'Connection error. Try again.'); }
+    _btnLoad('shiftCloseBtn', false, '', 'Close Shift');
+  }
+
+  async function loadShiftStatus() {
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_pos_shift', {});
+      if (!res) return;
+      const data = await res.json();
+      const shift = data.message && data.message.shift;
+      updateShiftUI(shift);
+      if (!shift || shift.status !== 'open') forceShiftOpen();
+    } catch (e) { /* ignore */ }
+  }
+
+  // Force a shift open before the POS can be used (cannot dismiss until opened).
+  function forceShiftOpen() {
+    const cancel = document.getElementById('shiftOpenCancel');
+    if (cancel) cancel.style.display = 'none';
+    const hint = document.getElementById('shiftOpenHint');
+    if (hint) hint.style.display = 'block';
+    openModal('shiftOpenModal');
+  }
+
+  function _fmtTime(dtStr) {
+    try {
+      const d = new Date(String(dtStr).replace(' ', 'T'));
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  function updateShiftUI(shift) {
+    const dot = document.getElementById('shiftDot');
+    const label = document.getElementById('shiftLabel');
+    const info = document.getElementById('shiftInfo');
+    const open = shift && shift.status === 'open';
+    if (open) {
+      dot.className = 'dot open';
+      label.textContent = 'Shift Open';
+      const cancel = document.getElementById('shiftOpenCancel');
+      if (cancel) cancel.style.display = '';
+      const hint = document.getElementById('shiftOpenHint');
+      if (hint) hint.style.display = 'none';
+      if (info) {
+        info.style.display = 'flex';
+        const c = document.getElementById('siCashier');
+        const s = document.getElementById('siSince');
+        const sa = document.getElementById('siSales');
+        if (c) c.textContent = shift.cashier || '';
+        if (s) s.textContent = shift.period_start ? ('since ' + _fmtTime(shift.period_start)) : '';
+        if (sa) sa.textContent = 'LKR ' + (shift.total_sales || 0).toLocaleString() + ' · ' + (shift.order_count || 0) + ' orders';
+      }
+    } else {
+      dot.className = 'dot closed';
+      label.textContent = 'Shift Closed';
+      if (info) info.style.display = 'none';
+    }
+  }
+
+  // ─── WhatsApp ────────────────────────────────────────
+  function sendWhatsApp() {
+    const phone = window._lastCustomerPhone;
+    const name = window._lastCustomerName || 'Customer';
+    const order = window._lastPrintedOrder || window._lastInvoiceName || '';
+    if (!phone) { alert('No WhatsApp number for this order'); return; }
+    const num = phone.replace(/[^0-9]/g, '');
+    if (num.length < 9) { alert('Invalid phone number'); return; }
+    const msg = encodeURIComponent(`Hi ${name}! Your order #${order} from Luuv Fryxo is ready! 🍽️`);
+    window.open(`https://wa.me/${num}?text=${msg}`, '_blank');
+  }
+
+  // ─── Modal Helpers ──────────────────────────────────
+  function openModal(id) { document.getElementById(id).classList.add('show'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+  // ─── Audio + Notification System ──────────────────
+  let _posCtx = null;
+  function _posAudioCtx() {
+    if (!_posCtx) _posCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return _posCtx;
+  }
+  ['click','touchstart'].forEach(e => document.addEventListener(e, () => {
+    try { const c = _posAudioCtx(); if (c.state === 'suspended') c.resume(); } catch(e) {}
+  }, {once: true, passive: true}));
+
+  function _bellTone(ctx, t, freq, vol) {
+    [freq, freq * 2.756, freq * 5.404].forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      const v = vol * [1, 0.4, 0.15][i];
+      gain.gain.setValueAtTime(v, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.2 - i * 0.2);
+      osc.start(t);
+      osc.stop(t + 1.4);
+    });
+  }
+
+  function playNewOrderSound() {
+    try {
+      const ctx = _posAudioCtx();
+      const go = () => {
+        const n = ctx.currentTime;
+        _bellTone(ctx, n,       880, 0.3);
+        _bellTone(ctx, n + 0.3, 1100, 0.25);
+        _bellTone(ctx, n + 0.6, 1320, 0.2);
+      };
+      if (ctx.state === 'suspended') ctx.resume().then(go);
+      else go();
+    } catch(e) {}
+  }
+
+  function showToast(title, body) {
+    const toast = document.getElementById('orderToast');
+    document.getElementById('toastTitle').textContent = title;
+    document.getElementById('toastBody').textContent = body;
+    document.getElementById('toastTime').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    toast.style.display = 'block';
+    setTimeout(dismissToast, 7000);
+  }
+  function dismissToast() { document.getElementById('orderToast').style.display = 'none'; }
+
+  function notifyNewOrder(title, body) {
+    showToast(title, body);
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '/icon.svg' });
+    } else if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  let _knownOngoingIds = new Set();
+  let _knownKioskIds = new Set();
+
+  // ─── Load Pending Sync ──────────────────────────────
+  async function loadPendingSync() {
+    const all = await dbGetAll();
+    const pending = all.filter(o => o.status === 'pending' || o.status === 'syncing');
+    const list = document.getElementById('pendingList');
+    const empty = document.getElementById('pendingEmpty');
+
+    if (pending.length === 0) { empty.style.display = 'block'; list.innerHTML = ''; return; }
+    empty.style.display = 'none';
+    list.innerHTML = pending.map(o => {
+      const statusCls = o.status === 'syncing' ? 'ongoing' : '';
+      const items = (o.items || []).map(i =>
+        `<div class="oc-item"><span class="oi-name">${escapeHtml(i.item || i.item_name || '')}</span><span class="oi-qty">x${i.qty||1}</span></div>`
+      ).join('');
+      return `<div class="order-card ${statusCls}" style="border-left:3px solid #F59E0B;">
+        <div class="oc-left">
+          <div class="oc-top">
+            <span class="oc-table">&#x1F4E4; ${escapeHtml(o.local_id)}</span>
+            <span class="oc-status ongoing" style="background:#FEF3C7;color:#D97706;">${o.status === 'syncing' ? '⏳ Syncing...' : '⏳ Pending'}</span>
+          </div>
+          <div style="font-size:0.75rem;color:#6B7280;margin-bottom:4px;">${escapeHtml(o.customer_name||'Walk-in')} · ${escapeHtml(o.table||'—')}</div>
+          <div class="oc-items-list">${items}</div>
+          <div class="oc-total-row"><span class="oc-total">LKR ${(parseFloat(o.grand_total)||0).toLocaleString()}</span></div>
+          <div style="font-size:0.68rem;color:#9CA3AF;margin-top:4px;">${new Date(o.created_at).toLocaleString()} · retries: ${o.retry_count||0}</div>
+        </div>
+        ${o.retry_count > 0 ? `<div class="oc-action"><button onclick="retryOrder('${o.local_id}')" style="background:#F59E0B;">&#x21BB; Retry</button></div>` : ''}
+        <div class="oc-action"><button onclick="deletePending('${o.local_id}')" style="background:#EF4444;">&#x1F5D1;</button></div>
+      </div>`;
+    }).join('');
+  }
+
+  async function retryOrder(localId) {
+    const all = await dbGetAll();
+    const order = all.find(o => o.local_id === localId);
+    if (!order) return;
+    order.retry_count = 0;
+    order.last_error = '';
+    await dbSave(order);
+    runSync();
+  }
+
+  async function deletePending(localId) {
+    if (!confirm('Remove this pending order?')) return;
+    await dbDelete(localId);
+    if (typeof updateSyncUI === 'function') updateSyncUI();
+    loadPendingSync();
+  }
+
+  // ─── Toast / Popup ─────────────────────────────────
+  let _toastTimer = null;
+  function showToast(msg, isError) {
+    const t = document.getElementById('posToast');
+    t.textContent = msg;
+    t.style.background = isError ? '#DC2626' : '#059669';
+    t.style.display = 'block';
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => t.style.display = 'none', 4000);
+  }
+
+  // ─── Utils ──────────────────────────────────────────
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function _tableDisplayName(name) {
+    const parts = (name || '').split('-');
+    return parts[parts.length - 1] || name;
+  }
+
+  // ─── BLE / RawBT Print Setup ──────────────────────
+  let _activePrintTab = 'ble';
+
+  function switchPrintTab(tab) {
+    _activePrintTab = tab;
+    document.getElementById('flutterTabBtn').classList.toggle('active', tab==='flutter');
+    document.getElementById('bleTabBtn').classList.toggle('active', tab==='ble');
+    document.getElementById('rawbtTabBtn').classList.toggle('active', tab==='rawbt');
+    document.getElementById('iminTabBtn').classList.toggle('active', tab==='imin');
+    document.getElementById('flutterConfig').style.display = tab==='flutter' ? 'block' : 'none';
+    document.getElementById('bleConfig').style.display = tab==='ble' ? 'block' : 'none';
+    document.getElementById('rawbtConfig').style.display = tab==='rawbt' ? 'block' : 'none';
+    document.getElementById('iminConfig').style.display = tab==='imin' ? 'block' : 'none';
+    if (tab === 'imin') {
+      const statusEl = document.getElementById('iminStatus');
+      const url = localStorage.getItem('lf_imin_url') || localStorage.getItem('lf_flutter_url');
+      statusEl.textContent = url ? '✅ Configured' : '⚠️ Set Print App URL below';
+      statusEl.style.color = url ? '#059669' : '#B45309';
+    }
+  }
+
+  function toggleRawBT() {
+    const flutterURL = localStorage.getItem('lf_flutter_url') || 'http://localhost:9200';
+    const iminURL = localStorage.getItem('lf_imin_url') || flutterURL;
+    const bleURL = localStorage.getItem('lf_ble_url') || 'http://localhost:9100';
+    const bleAddr = localStorage.getItem('lf_ble_addr') || '';
+    const rawbtIP = localStorage.getItem('lf_rawbt_ip') || '';
+    const rawbtMAC = localStorage.getItem('lf_rawbt_mac') || '';
+    document.getElementById('flutterURL').value = flutterURL;
+    document.getElementById('iminFlutterURL').value = iminURL;
+    document.getElementById('bleURL').value = bleURL;
+    document.getElementById('bleAddress').value = bleAddr;
+    document.getElementById('rawbtIP').value = rawbtIP;
+    document.getElementById('rawbtMAC').value = rawbtMAC;
+    switchPrintTab(localStorage.getItem('lf_print_mode') || 'flutter');
+    openModal('rawbtModal');
+  }
+
+  function savePrintSetup() {
+    const mode = _activePrintTab;
+    localStorage.setItem('lf_print_mode', mode);
+    if (mode === 'flutter') {
+      const url = document.getElementById('flutterURL').value.trim();
+      if (url) localStorage.setItem('lf_flutter_url', url);
+      else localStorage.removeItem('lf_flutter_url');
+    } else if (mode === 'imin') {
+      const url = document.getElementById('iminFlutterURL').value.trim();
+      if (url) localStorage.setItem('lf_imin_url', url);
+      else localStorage.removeItem('lf_imin_url');
+    } else if (mode === 'ble') {
+      const url = document.getElementById('bleURL').value.trim();
+      const addr = document.getElementById('bleAddress').value.trim().toUpperCase();
+      if (url) localStorage.setItem('lf_ble_url', url);
+      else localStorage.removeItem('lf_ble_url');
+      if (addr) localStorage.setItem('lf_ble_addr', addr);
+      else localStorage.removeItem('lf_ble_addr');
+    } else {
+      const ip = document.getElementById('rawbtIP').value.trim();
+      const mac = document.getElementById('rawbtMAC').value.trim().toUpperCase();
+      if (ip) localStorage.setItem('lf_rawbt_ip', ip);
+      else localStorage.removeItem('lf_rawbt_ip');
+      if (mac) localStorage.setItem('lf_rawbt_mac', mac);
+      else localStorage.removeItem('lf_rawbt_mac');
+    }
+  updatePrintBtns();
+  // Auto-switch to iMin mode if configured
+  const hasAnyPrintConfig = !!localStorage.getItem('lf_ble_url') || !!localStorage.getItem('lf_rawbt_ip');
+  const hasIminUrl = !!localStorage.getItem('lf_imin_url') || !!localStorage.getItem('lf_flutter_url');
+  if (!hasAnyPrintConfig && hasIminUrl) {
+    localStorage.setItem('lf_print_mode', 'imin');
+    updatePrintBtns();
+  }
+    closeModal('rawbtModal');
+  }
+
+  function updatePrintBtns() {
+    const btn = document.getElementById('rawbtBtn');
+    const flutterPbtn = document.getElementById('flutterPrintBtn');
+    const blePbtn = document.getElementById('blePrintBtn');
+    const rawbtPbtn = document.getElementById('rawbtPrintBtn');
+    const iminPbtn = document.getElementById('iminPrintBtn');
+    const mode = localStorage.getItem('lf_print_mode') || 'flutter';
+    const hasFlutter = !!localStorage.getItem('lf_flutter_url');
+    const hasBLE = !!localStorage.getItem('lf_ble_url');
+    const hasRawBT = !!localStorage.getItem('lf_rawbt_ip');
+    const hasImin = !!localStorage.getItem('lf_imin_url') || !!localStorage.getItem('lf_flutter_url');
+    const anyConfigured = hasFlutter || hasBLE || hasRawBT || hasImin;
+
+    if (anyConfigured) btn.classList.add('active');
+    else btn.classList.remove('active');
+
+    if (flutterPbtn) flutterPbtn.style.display = (hasFlutter && mode === 'flutter') ? 'inline-block' : 'none';
+    blePbtn.style.display = (anyConfigured && mode === 'ble') ? 'inline-block' : 'none';
+    rawbtPbtn.style.display = (anyConfigured && mode === 'rawbt') ? 'inline-block' : 'none';
+    if (iminPbtn) iminPbtn.style.display = (hasImin && mode === 'imin') ? 'inline-block' : 'none';
+  }
+
+  async function flutterPrint(orderName) {
+    const name = orderName || window._lastPrintedOrder;
+    if (!name) { alert('No order to print'); return; }
+    const url = localStorage.getItem('lf_flutter_url');
+    if (!url) { alert('Configure Print App first (tap 🖨️ BT)'); return; }
+    try {
+      const text = await _buildReceiptText(name);
+      if (!text) return;
+      const res = await fetch(`${url}/print`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) { const e = await res.text(); alert('Print App error: ' + e); }
+      else _logPrint(name, 'flutter');
+    } catch(e) { alert('Print App error: ' + e.message); }
+  }
+
+  function _padR(t,w){return t.length>=w?t:t+' '.repeat(w-t.length)}
+  function _padL(t,w){return t.length>=w?t:' '.repeat(w-t.length)+t}
+  function _padC(t,w){const d=w-t.length;if(d<=0)return t;const l=Math.floor(d/2);return' '.repeat(l)+t+' '.repeat(d-l)}
+  const TW=42;
+
+  async function _buildReceiptText(name) {
+    const res = await _post('/api/method/luuvcrm.api.get_receipt_print_data', { order_name: name });
+    if (!res) return null;
+    const data = await res.json();
+    const d = data.message;
+    if (!d) return null;
+    const now = new Date();
+    const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+    const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    const sep = '='.repeat(TW);
+    let lines = [];
+    lines.push(_padC('LUUV FRYXO', TW));
+    lines.push(_padC(ds + '  ' + ts, TW));
+    lines.push(_padC('#' + d.order_name, TW));
+    lines.push(sep);
+    lines.push('Customer: ' + (d.customer_name||'Walk-in'));
+    lines.push('Table:    ' + (d.table||'---'));
+    lines.push('Payment:  ' + (d.payment_mode||'Cash'));
+    lines.push(sep);
+    for (const i of d.items) {
+      const right = 'LKR ' + (i.rate * i.qty).toLocaleString();
+      const left = i.item_name + ' x' + i.qty;
+      const avail = TW - right.length - 1;
+      lines.push(_padR(left.length > avail ? left.substring(0, avail - 1) + '\u2026' : left, avail) + ' ' + right);
+    }
+    lines.push(sep);
+    const subtotal = d.items.reduce((s,i) => s + (i.rate * i.qty), 0);
+    lines.push(_padR('Subtotal:', 30) + _padL('LKR ' + subtotal.toLocaleString(), 12));
+    if (d.service_charge_amount && d.service_charge_amount > 0) {
+      lines.push(_padR('Service Charge (' + (d.service_charge_rate||0) + '%):', 30) + _padL('LKR ' + (d.service_charge_amount||0).toLocaleString(), 12));
+    }
+    lines.push(_padR('Total:', 30) + _padL('LKR ' + d.grand_total.toLocaleString(), 12));
+    lines.push(sep);
+    lines.push(_padC('Thank you!', TW));
+    return lines.join('\n');
+  }
+
+  async function blePrint(orderName) {
+    const name = orderName || window._lastPrintedOrder;
+    if (!name) { alert('No order to print'); return; }
+    const url = localStorage.getItem('lf_ble_url');
+    const addr = localStorage.getItem('lf_ble_addr') || '';
+    if (!url) { alert('Configure BLE first (tap 🖨️ BT)'); return; }
+    try {
+      const text = await _buildReceiptText(name);
+      if (!text) return;
+      // Try local print service first (Windows default printer)
+      // Then fall back to BLE if address provided
+      const method = addr ? 'ble' : 'default';
+      const body = JSON.stringify({ text, method, address: addr });
+      const res = await fetch(`${url}/print`, {
+        method: 'POST', body, headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) { const e = await res.text(); alert('Print error: ' + e); }
+      else { _logPrint(name, 'ble'); }
+    } catch(e) { alert('Print error: ' + e.message); }
+  }
+
+  async function rawbtPrint(orderName) {
+    const name = orderName || window._lastPrintedOrder;
+    if (!name) { alert('No order to print'); return; }
+    const rawbtIP = localStorage.getItem('lf_rawbt_ip');
+    if (!rawbtIP) { alert('Configure RawBT first'); return; }
+    try {
+      const text = await _buildReceiptText(name);
+      if (!text) return;
+      const res = await fetch(`http://${rawbtIP}/print`, { method:'POST', body:text, headers:{'Content-Type':'text/plain'} });
+      if (!res.ok) alert('RawBT error: ' + (await res.text()));
+      else _logPrint(name, 'rawbt');
+    } catch(e) { alert('RawBT error: ' + e.message); }
+  }
+
+  // ─── Init ───────────────────────────────────────────
+  window._currentUser = document.querySelector('.user-chip-name')?.textContent?.trim() || 'Staff';
+  render();
+  loadShiftStatus();
+  loadKioskOrders();
+  loadTablesStatus();
+  updatePrintBtns();
+  if (typeof updateSyncUI === 'function') updateSyncUI();
+  // Pre-warm audio context for instant sound on first order
+  try { const c = _posAudioCtx(); if (c.state === 'suspended') c.resume(); } catch(e) {}
+
+  // Always-on polling (5s) for real-time order detection — regardless of active tab
+  setInterval(() => { loadOngoingOrders(true); }, 5000);
+  setInterval(() => { loadKioskOrders(true); }, 5000);
+  setInterval(() => { loadChangelogs(); }, 10000);
+  setInterval(() => { loadTablesStatus(); }, 10000);
+  setInterval(() => { if (typeof updateSyncUI === 'function') updateSyncUI(); if (navigator.onLine && typeof runSync === 'function') runSync(); }, 30000);
+
+  function _logPrint(orderName, type) {
+    _post('/api/method/luuvcrm.api.log_print', { order_name: orderName, print_type: type }).catch(() => {});
+  }
+
+  async function printReceiptBrowser(orderName) {
+    const name = orderName || window._lastPrintedOrder;
+    if (!name) { alert('No order to print'); return; }
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_receipt_print_data', { order_name: name });
+      if (!res) return; const data = await res.json(); const d = data.message;
+      if (!d) { alert('No print data'); return; }
+      const now = new Date();
+      const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+      const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+      let ih = d.items.map(function(i){ return '<tr><td style="padding:4px 0;font-size:13px;">'+i.item_name+' x'+i.qty+'</td><td style="text-align:right;padding:4px 0;font-size:13px;">LKR '+(i.rate*i.qty).toLocaleString()+'</td></tr>'; }).join('');
+      // Create hidden iframe for printing
+      var iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:430px;height:700px;';
+      document.body.appendChild(iframe);
+      var doc = iframe.contentWindow.document;
+      doc.open();
+      const scHtml = (d.service_charge_amount && d.service_charge_amount > 0) ? '<div style="text-align:right;font-size:13px;padding:4px 0;">Service Charge ('+(d.service_charge_rate||0)+'%): LKR '+(d.service_charge_amount||0).toLocaleString()+'</div>' : '';
+      doc.write('<!DOCTYPE html><html><head><title>Receipt - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:12px;margin:0;padding:16px;color:#000;}.hdr{text-align:center;border-bottom:1px dashed #ccc;padding-bottom:12px;margin-bottom:12px;}.hdr h2{margin:0 0 4px;font-size:16px;}.hdr p{margin:2px 0;color:#555;}table{width:100%;border-collapse:collapse;}.items{border-bottom:1px dashed #ccc;padding-bottom:8px;margin-bottom:8px;}.totals{text-align:right;}.grand{font-size:16px;font-weight:bold;border-top:1px solid #000;padding-top:4px;}.ftr{text-align:center;border-top:1px dashed #ccc;padding-top:12px;margin-top:12px;color:#888;font-size:11px;}.info{margin-bottom:8px;}.info p{margin:2px 0;font-size:12px;}</style></head><body>'+
+        '<div class="hdr"><h2>Luuv Fryxo</h2><p>#'+d.order_name+'</p><p>'+ds+' '+ts+'</p></div>'+
+        '<div class="info"><p>Customer: '+(d.customer_name||'Walk-in')+'</p><p>Table: '+(d.table||'---')+'</p><p>Payment: '+(d.payment_mode||'Cash')+'</p><p>Printed by: '+(window._currentUser || 'Staff')+'</p></div>'+
+        '<div class="items"><table>'+ih+'</table></div>'+
+        scHtml +
+        '<div class="totals"><div class="grand">Total: LKR '+d.grand_total.toLocaleString()+'</div></div>'+
+        '<div class="ftr"><p>Thank you for dining with us!</p><p style="font-size:10px;">Invoice: '+(d.invoice_name||'---')+'</p></div>'+
+        '<script>window.onload=function(){window.focus();window.print();}<'+'/script></body></html>');
+      doc.close();
+      iframe.onload = function() { iframe.contentWindow.print(); };
+      _logPrint(name, 'receipt');
+    } catch(e) { alert('Print error: '+e.message); }
+  }
+
+  async function printReceipt(orderName) {
+    const name = orderName || window._lastPrintedOrder;
+    if (!name) { alert('No order to print'); return; }
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_receipt_print_data', { order_name: name });
+      if (!res) return; const data = await res.json(); const d = data.message;
+      if (!d) { alert('No print data'); return; }
+      const now = new Date();
+      const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+      const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+      let ih = d.items.map(function(i){ return '<tr><td style="padding:4px 0;font-size:13px;">'+i.item_name+' x'+i.qty+'</td><td style="text-align:right;padding:4px 0;font-size:13px;">LKR '+(i.rate*i.qty).toLocaleString()+'</td></tr>'; }).join('');
+      var w = window.open('','_blank','width=430,height=700');
+      const scHtml = (d.service_charge_amount && d.service_charge_amount > 0) ? '<div style="text-align:right;font-size:13px;padding:4px 0;">Service Charge ('+(d.service_charge_rate||0)+'%): LKR '+(d.service_charge_amount||0).toLocaleString()+'</div>' : '';
+      w.document.write('<!DOCTYPE html><html><head><title>Receipt - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:12px;margin:0;padding:16px;color:#000;}.hdr{text-align:center;border-bottom:1px dashed #ccc;padding-bottom:12px;margin-bottom:12px;}.hdr h2{margin:0 0 4px;font-size:16px;}.hdr p{margin:2px 0;color:#555;}table{width:100%;border-collapse:collapse;}.items{border-bottom:1px dashed #ccc;padding-bottom:8px;margin-bottom:8px;}.totals{text-align:right;}.grand{font-size:16px;font-weight:bold;border-top:1px solid #000;padding-top:4px;}.ftr{text-align:center;border-top:1px dashed #ccc;padding-top:12px;margin-top:12px;color:#888;font-size:11px;}.info{margin-bottom:8px;}.info p{margin:2px 0;font-size:12px;}</style></head><body>');
+      w.document.write('<div class="hdr"><h2>Luuv Fryxo</h2><p>#'+d.order_name+'</p><p>'+ds+' '+ts+'</p></div>');
+      w.document.write('<div class="info"><p>Customer: '+(d.customer_name||'Walk-in')+'</p><p>Table: '+(d.table||'---')+'</p><p>Payment: '+(d.payment_mode||'Cash')+'</p><p>Printed by: '+(window._currentUser || 'Staff')+'</p></div>');
+      w.document.write('<div class="items"><table>'+ih+'</table></div>');
+      w.document.write(scHtml);
+      w.document.write('<div class="totals"><div class="grand">Total: LKR '+d.grand_total.toLocaleString()+'</div></div>');
+      w.document.write('<div class="ftr"><p>Thank you for dining with us!</p><p style="font-size:10px;">Invoice: '+(d.invoice_name||'---')+'</p></div>');
+      w.document.write('<script>window.onload=function(){window.print();window.close();}<'+'/script></body></html>');
+      w.document.close();
+      _logPrint(name, 'receipt');
+    } catch(e) { alert('Print error: '+e.message); }
+  }
+
+  // ─── Debug: Fetch logs from Flutter app ────────────
+  let _debugLogs = '';
+  function toggleDebug() {
+    const s = document.getElementById('debugSection');
+    const t = document.getElementById('debugToggleLabel');
+    const show = s.style.display !== 'block';
+    s.style.display = show ? 'block' : 'none';
+    t.textContent = show ? 'Hide Debug' : 'Show Debug';
+    const url = localStorage.getItem('lf_flutter_url') || 'http://localhost:9200';
+    document.getElementById('debugURL').value = url;
+  }
+  async function fetchDebugLogs() {
+    const area = document.getElementById('debugLogArea');
+    const url = document.getElementById('debugURL').value.trim();
+    if (!url) { area.value = 'Enter Print App URL first'; return; }
+    area.value = 'Fetching logs from ' + url + '/logs ...';
+    try {
+      const res = await fetch(url + '/logs');
+      if (!res.ok) { area.value = 'Error: HTTP ' + res.status; return; }
+      _debugLogs = await res.text();
+      area.value = _debugLogs || '(no logs yet)';
+    } catch(e) {
+      area.value = 'Failed: ' + e.message;
+    }
+  }
+  function copyDebugLogs() {
+    const area = document.getElementById('debugLogArea');
+    if (!area.value || area.value === _debugLogs) {
+      area.select();
+      document.execCommand('copy');
+    } else if (_debugLogs) {
+      navigator.clipboard.writeText(_debugLogs).catch(function() {
+        area.value = _debugLogs;
+        area.select();
+        document.execCommand('copy');
+      });
+    }
+  }
+
+  // ─── iMin Printer Bridge (Official SDK) ─────────────
+  function _detectIminPrinter() {
+    return typeof IminPrinter !== 'undefined' || window.IminPrinter || window.iminPrinter || window.neptune?.printer || window.SunmiPrinter || null;
+  }
+
+  function _loadIminSDK() {
+    if (typeof IminPrinter !== 'undefined') return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      var s = document.createElement('script');
+      s.src = 'https://imin-sg-resources.oss-ap-southeast-1.aliyuncs.com/docs/demo/imin-printer.min.js';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  async function iminPrint(orderName) {
+    const name = orderName || window._lastPrintedOrder;
+    if (!name) { alert('No order to print'); return; }
+    const url = localStorage.getItem('lf_imin_url') || localStorage.getItem('lf_flutter_url');
+    if (!url) { alert('Configure Print App URL first (tap 🖨️ BT, iMin tab)'); return; }
+    try {
+      const text = await _buildReceiptText(name);
+      if (!text) return;
+      const res = await fetch(`${url}/print`, {
+        method: 'POST',
+        body: JSON.stringify({ text, mode: 'imin' }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) { const e = await res.text(); alert('iMin Print error: ' + e); }
+      else { _logPrint(name, 'imin'); }
+    } catch(e) { alert('iMin Print error: ' + e.message); }
+  }
+
+  async function printKOT(orderName) {
+    const name = orderName || window._lastPrintedOrder;
+    if (!name) { alert('No order to print KOT'); return; }
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_kot_print_data', { order_name: name });
+      if (!res) return; const data = await res.json(); const d = data.message;
+      if (!d) { alert('No print data'); return; }
+      const now = new Date();
+      const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+      const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+      let ih = d.items.map(function(i){ return '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+'</td></tr>'; }).join('');
+      var fr = document.getElementById('kotPrintFrame');
+      if (!fr) {
+        fr = document.createElement('iframe');
+        fr.id = 'kotPrintFrame';
+        fr.style.cssText = 'position:absolute;width:0;height:0;border:none;opacity:0;pointer-events:none;';
+        document.body.appendChild(fr);
+      }
+      var w = fr.contentWindow;
+      w.document.write('<!DOCTYPE html><html><head><title>KOT - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .kl{font-size:11px;color:#333;font-weight:bold;margin:4px 0 0;}.hdr h3{margin:4px 0 0;font-size:14px;}.meta{text-align:center;margin-bottom:10px;font-size:13px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}.items{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin:8px 0;}hr{border:none;border-top:1px dashed #ccc;margin:8px 0;}.bl{text-align:center;margin:6px 0;font-size:11px;letter-spacing:1px;}.ftr{text-align:center;margin-top:10px;font-size:10px;color:#888;}</style></head><body>');
+      w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');
+      w.document.write('<div class="meta"><p><strong>Table:</strong> '+(d.table||'---')+'</p><p><strong>Source:</strong> '+(d.order_source||'Walk-in')+'</p>');
+      if(d.waiter_name) w.document.write('<p><strong>Waiter:</strong> '+d.waiter_name+'</p>');
+      w.document.write('<p><strong>Printed by:</strong> '+(window._currentUser || 'Staff')+'</p>');
+      w.document.write('<p><strong>'+ds+' '+ts+'</strong></p></div>');
+      w.document.write('<div class="items"><table>'+ih+'</table></div>');
+      w.document.write('<hr><div class="bl">* '+d.order_name+' *</div>');
+      w.document.write('<div class="ftr"><p>Thank you &middot; Luuv Fryxo</p></div>');
+      w.document.close();
+      setTimeout(function(){ w.focus(); w.print(); }, 300);
+      _logPrint(name, 'kot');
+    } catch(e) { alert('KOT print error: '+e.message); }
+  }
+
+  async function downloadReceiptPDF() {
+    var invName = window._lastInvoiceName || window._lastPrintedOrder;
+    if (!invName) { alert('No invoice to download'); return; }
+    var url = '/printview?doctype=Sales%20Invoice&name=' + encodeURIComponent(invName) + '&format=Luuv%20Fryxo%20Receipt&no_letterhead=1';
+    window.open(url, '_blank');
+  }
+
+  async function printGuestCheck(orderName) {
+    const name = orderName || window._lastPrintedOrder;
+    if (!name) { alert('No order to print guest check'); return; }
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_guest_check_data', { order_name: name });
+      if (!res) return; const data = await res.json(); const d = data.message;
+      if (!d) { alert('No guest check data'); return; }
+      const now = new Date();
+      const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+      const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+      const scAmt = d.service_charge_amount || 0;
+      const scRate = d.service_charge_rate || 0;
+      const subtotal = d.grand_total - scAmt;
+      let ih = d.items.map(function(i){ return '<tr><td style="padding:3px 0;font-size:13px;">'+i.item_name+'</td><td style="padding:3px 0;font-size:13px;text-align:center;">x'+i.qty+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(i.rate*i.qty).toLocaleString()+'</td></tr>'; }).join('');
+      var fr = document.getElementById('kotPrintFrame');
+      if (!fr) {
+        fr = document.createElement('iframe');
+        fr.id = 'kotPrintFrame';
+        fr.style.cssText = 'position:absolute;width:0;height:0;border:none;opacity:0;pointer-events:none;';
+        document.body.appendChild(fr);
+      }
+      var w = fr.contentWindow;
+      w.document.write('<!DOCTYPE html><html><head><title>Guest Check - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .sub{font-size:11px;color:#EF4444;font-weight:bold;margin:4px 0 0;letter-spacing:1px;}.meta{text-align:center;margin-bottom:8px;font-size:12px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}th{font-size:11px;color:#6B7280;padding:3px 0;border-bottom:1px solid #000;}td{padding:3px 0;}hr{border:none;border-top:1px dashed #ccc;margin:6px 0;}.totals{text-align:right;margin-top:6px;font-size:13px;}.totals p{margin:2px 0;}.grand{font-size:16px;font-weight:700;border-top:2px solid #000;padding-top:4px;margin-top:4px;}.ftr{text-align:center;margin-top:12px;font-size:10px;color:#888;border-top:1px dashed #000;padding-top:8px;}.sig{text-align:center;margin-top:10px;font-size:11px;}</style></head><body>');
+      w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="sub">--- GUEST CHECK ---</div><h3>#'+d.order_name+'</h3></div>');
+      w.document.write('<div class="meta"><p><strong>Table:</strong> '+(d.table||'---')+' | <strong>'+d.order_type+'</strong></p>');
+      if(d.waiter_name) w.document.write('<p><strong>Waiter:</strong> '+d.waiter_name+'</p>');
+      w.document.write('<p><strong>Customer:</strong> '+(d.customer_name||'Walk-in')+'</p>');
+      w.document.write('<p>'+ds+' '+ts+'</p></div>');
+      w.document.write('<table><thead><tr><th style="text-align:left;">Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Total</th></tr></thead><tbody>'+ih+'</tbody></table>');
+      w.document.write('<hr><div class="totals">');
+      w.document.write('<p>Subtotal: LKR '+subtotal.toLocaleString()+'</p>');
+      if(scAmt > 0) w.document.write('<p>Service Charge ('+scRate+'%): LKR '+scAmt.toLocaleString()+'</p>');
+      w.document.write('<p class="grand">Grand Total: LKR '+d.grand_total.toLocaleString()+'</p></div>');
+      w.document.write('<div class="ftr"><p style="color:#EF4444;font-weight:700;">This is not a bill — for verification only</p>');
+      w.document.write('<p>Please verify all items before payment</p>');
+      w.document.write('<p>Luuv Fryxo &middot; Thank you!</p></div>');
+      w.document.close();
+      setTimeout(function(){ w.focus(); w.print(); }, 300);
+      _logPrint(name, 'guest_check');
+    } catch(e) { alert('Guest check print error: '+e.message); }
+  }
+
+  async function printShiftSummary(shiftData) {
+    var d = shiftData || window._lastShiftData;
+    if (!d) {
+      var cn = prompt('Enter closing entry name:');
+      if (!cn) return;
+      try {
+        var r = await _post('/api/method/luuvcrm.api.get_shift_closing_data', { closing_name: cn });
+        if (!r) return;
+        var j = await r.json();
+        d = j.message && j.message.shift;
+        if (!d) { alert('No data found'); return; }
+      } catch(e) { alert('Error: '+e.message); return; }
+    }
+    var now = new Date();
+    var ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+    var ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    var pb = d.payment_breakdown || {};
+    var pr = d.payment_reconciliation || [];
+    var modes = pr.length ? pr : Object.keys(pb).map(function(m){ return {mode_of_payment:m,opening_amount:0,expected_amount:pb[m]||0,closing_amount:pb[m]||0,difference:0}; });
+    var rows = modes.map(function(r){
+      var mop = r.mode_of_payment || '';
+      return '<tr><td style="padding:3px 0;font-size:13px;">'+mop+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.opening_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.expected_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.closing_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;'+(r.difference<0?'color:#EF4444;':'')+'">'+(r.difference>=0?'+':'')+(r.difference||0).toLocaleString()+'</td></tr>';
+    }).join('');
+    var diff = (d.closing_balance||0) - ((d.opening_balance||0)+(d.total_sales||0));
+    var cashierName = d.cashier_name || d.cashier || '________________________';
+    var fr = document.getElementById('kotPrintFrame');
+    if (!fr) {
+      fr = document.createElement('iframe');
+      fr.id = 'kotPrintFrame';
+      fr.style.cssText = 'position:absolute;width:0;height:0;border:none;opacity:0;pointer-events:none;';
+      document.body.appendChild(fr);
+    }
+    var w = fr.contentWindow;
+    w.document.write('<!DOCTYPE html><html><head><title>Shift Summary</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .kl{font-size:11px;color:#333;font-weight:bold;margin:4px 0 0;}table{width:100%;border-collapse:collapse;margin:8px 0;}th,td{padding:4px 6px;text-align:left;font-size:12px;}th{font-weight:700;}.total{font-weight:700;border-top:2px solid #000;}.sig{margin-top:24px;padding-top:12px;border-top:1px dashed #000;}.sig-line{border-top:1px solid #000;width:70%;margin:8px 0 4px;padding-top:6px;}.ftr{text-align:center;margin-top:10px;font-size:10px;color:#888;}hr{border:none;border-top:1px dashed #ccc;margin:8px 0;}</style></head><body>');
+    w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="kl">--- SHIFT SUMMARY ---</div></div>');
+    w.document.write('<div style="text-align:center;margin-bottom:10px;font-size:13px;">');
+    w.document.write('<p><strong>Close:</strong> '+ds+' '+ts+'</p>');
+    w.document.write('<p><strong>Period:</strong> '+(d.period_start||'—')+' → '+(d.period_end||'—')+'</p>');
+    w.document.write('<p><strong>Cashier:</strong> '+cashierName+'</p></div>');
+    w.document.write('<table><thead><tr><th>Mode</th><th style="text-align:right;">Opening</th><th style="text-align:right;">Expected</th><th style="text-align:right;">Closing</th><th style="text-align:right;">Diff</th></tr></thead><tbody>'+rows+'</tbody></table>');
+    w.document.write('<hr>');
+    w.document.write('<div style="text-align:right;font-size:14px;"><p><strong>Opening:</strong> LKR '+(d.opening_balance||0).toLocaleString()+'</p>');
+    w.document.write('<p><strong>Total Sales:</strong> LKR '+(d.total_sales||0).toLocaleString()+'</p>');
+    w.document.write('<p><strong>Order Count:</strong> '+(d.order_count||0)+'</p>');
+    w.document.write('<p class="total"><strong>Expected:</strong> LKR '+((d.opening_balance||0)+(d.total_sales||0)).toLocaleString()+'</p>');
+    w.document.write('<p><strong>Closing:</strong> LKR '+(d.closing_balance||0).toLocaleString()+'</p>');
+    w.document.write('<p style="'+(diff<0?'color:#EF4444;':'')+'"><strong>Difference:</strong> '+(diff>=0?'+':'')+diff.toLocaleString()+'</p></div>');
+    w.document.write('<div class="sig"><strong>Cashier Signature:</strong><div class="sig-line">'+cashierName+'</div></div>');
+    w.document.write('<div class="ftr"><p>Luuv Fryxo &middot; Shift Summary</p></div>');
+    w.document.close();
+    setTimeout(function(){ w.focus(); w.print(); }, 300);
+  }
+
+  function reprintShift() {
+    if (window._lastShiftData) {
+      printShiftSummary(window._lastShiftData);
+    } else {
+      var cn = prompt('Enter closing entry name (e.g. CLOSING-XXXXX):');
+      if (cn) printShiftSummary({closing_name: cn});
+    }
+  }
+</script>
+
+<script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(e){console.error("SW reg failed:",e)});navigator.serviceWorker.addEventListener("message",function(e){if(e.data&&e.data.type==="TRIGGER_SYNC")runSync()})}</script>
+
+<script>
+// ─── OfflineManager (IndexedDB) ──────────────────────────
+const DB_NAME = 'LuuvPOSOffline';
+const DB_VER = 1;
+const STORE = 'pending_orders';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        const store = db.createObjectStore(STORE, { keyPath: 'local_id' });
+        store.createIndex('status', 'status', { unique: false });
+      }
+    };
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+function dbSave(order) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(order);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  }));
+}
+
+function dbGetAll() {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => { db.close(); resolve(req.result || []); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  }));
+}
+
+function dbDelete(id) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  }));
+}
+
+function getPendingCount() {
+  return dbGetAll().then(all => all.filter(o => o.status === 'pending' || o.status === 'syncing').length);
+}
+
+function updateSyncUI() {
+  getPendingCount().then(count => {
+    const dot = document.getElementById('offlineDot');
+    const label = document.getElementById('offlineLabel');
+    const syncBtn = document.getElementById('syncBtn');
+    const tabCount = document.getElementById('pendingTabCount');
+    const mobileCount = document.getElementById('mobilePendingCount');
+    const online = navigator.onLine;
+    if (dot) {
+      dot.className = 'dot ' + (online ? 'open' : 'closed');
+      dot.style.background = online ? '#22C55E' : '#EF4444';
+    }
+    if (label) label.textContent = online ? (count > 0 ? 'Online (' + count + ' pending)' : 'Online') : 'Offline';
+    if (syncBtn) syncBtn.style.display = (online && count > 0) ? 'inline-flex' : 'none';
+    if (tabCount) tabCount.textContent = count;
+    if (mobileCount) mobileCount.textContent = count;
+  });
+}
+
+function saveOfflineOrder(orderData) {
+  const local_id = 'offline_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  return dbSave({
+    local_id,
+    created_at: new Date().toISOString(),
+    status: 'pending',
+    retry_count: 0,
+    ...orderData,
+  }).then(() => { updateSyncUI(); return local_id; });
+}
+
+function runSync() {
+  return dbGetAll().then(all => {
+    const pending = all.filter(o => o.status === 'pending');
+    if (pending.length === 0) { updateSyncUI(); return; }
+    const syncBtn = document.getElementById('syncBtn');
+    if (syncBtn) syncBtn.textContent = '\u23F3 Syncing ' + pending.length + '...';
+    return Promise.all(pending.map(order => {
+      order.status = 'syncing';
+      return dbSave(order).then(() => {
+        return _origPost('/api/method/luuvcrm.api.sync_offline_orders', { orders: JSON.stringify([order]) });
+      }).then(res => res && res.json()).then(data => {
+        const result = data && data.message && data.message.results && data.message.results[0];
+        if (result && result.status === 'synced') {
+          showToast('\u2705 Synced: ' + result.server_name + ' (offline order)');
+          return dbDelete(order.local_id);
+        }
+        throw new Error((result && result.error) || 'Sync failed');
+      }).catch(e => {
+        order.status = 'pending';
+        order.retry_count = (order.retry_count || 0) + 1;
+        order.last_error = e.message;
+        return dbSave(order);
+      });
+    }));
+  }).then(() => {
+    const syncBtn = document.getElementById('syncBtn');
+    if (syncBtn) syncBtn.textContent = '';
+    updateSyncUI();
+    loadOngoingOrders();
+    loadChangelogs();
+  }).catch(() => {});
+}
+
+window.addEventListener('online', () => { updateSyncUI(); runSync(); });
+window.addEventListener('offline', updateSyncUI);
+
+// Patch _post for offline mutations
+var _origPost = _post;
+_post = function(url, data) {
+  if (!navigator.onLine && url.indexOf('/api/method/luuvcrm.api.') !== -1 && url.indexOf('get_') === -1) {
+    var isPayment = url.indexOf('place_order') !== -1;
+    var isKitchen = url.indexOf('send_to_kitchen') !== -1;
+    if (isPayment || isKitchen) {
+      return saveOfflineOrder({ ...data, _api: url.replace('/api/method/luuvcrm.api.', '') }).then(function(local_id) {
+        return new Response(JSON.stringify({ message: { name: local_id, local_id: local_id, offline: true, grand_total: (data && data.grand_total) || 0 } }), {
+          status: 201, headers: { 'Content-Type': 'application/json' },
+        });
+      });
+    }
+  }
+  return _origPost(url, data);
+};
+</script>
+</body>
+</html>
+{% endif %}
