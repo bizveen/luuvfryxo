@@ -925,6 +925,29 @@ def pos_open_shift():
         }
     }
 
+def _consolidate_shift_inline(closing):
+    """Merge a POS Closing Entry's POS Invoices into Sales Invoice(s) RIGHT NOW, in this process.
+
+    ERPNext's consolidate_pos_invoices() enqueues this onto the background queue whenever a shift
+    has >= 10 POS Invoices. This bench's queue workers can't import an installed app, so that queued
+    job dies — the closing is left status="Queued"/"Failed" and the opening stuck "Open" (the cashier
+    can then neither open a new shift nor log out). Calling create_merge_logs() directly in the
+    backend, where imports work, does the exact same consolidation reliably. Idempotent-ish: skip
+    when the closing already consolidated (status "Submitted")."""
+    from erpnext.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import (
+        get_invoice_customer_map,
+        create_merge_logs,
+    )
+    invoices = closing.get("pos_transactions") or []
+    if not invoices:
+        # Nothing to merge — just flip the opening to Closed.
+        closing.update_opening_entry()
+        closing.set_status(update=True, status="Submitted")
+        return
+    invoice_by_customer = get_invoice_customer_map(invoices)
+    create_merge_logs(invoice_by_customer, closing)  # creates Sales Invoice(s) + marks opening Closed
+
+
 @frappe.whitelist(methods=["POST"])
 def pos_close_shift():
     _require_pos_role()
@@ -968,16 +991,26 @@ def pos_close_shift():
 
     closing.flags.ignore_permissions = True
     closing.insert()
-    # Run the POS consolidation (POS Invoice merge -> Sales Invoice) SYNCHRONOUSLY instead of on
-    # the background queue: this bench's queue workers fail to import an app (frappe_whatsapp), so
-    # the async merge silently fails and leaves the shift stuck "Open". in_migrate makes
-    # frappe.enqueue run the job inline (in this request) — proven reliable for large shifts.
-    _was_migrate = frappe.flags.in_migrate
-    frappe.flags.in_migrate = True
-    try:
-        closing.submit()  # triggers native consolidation -> Sales Invoice(s), now inline
-    finally:
-        frappe.flags.in_migrate = _was_migrate
+    closing.submit()  # docstatus=1; ERPNext consolidates inline for <10 invoices, else enqueues
+    closing.reload()
+
+    # For a big shift (>= 10 invoices) ERPNext only QUEUED the consolidation — and this bench's
+    # queue worker can't run it, which is exactly what left shifts stuck "Open". Finish it here.
+    consolidated = True
+    if closing.status == "Queued":
+        # Flip the opening to Closed up front so the cashier is unwedged even if the heavy merge
+        # below is slow/fails (they can always open a fresh shift or log out). Committed first so a
+        # later rollback of a failed merge can't reopen the shift.
+        opening.db_set("status", "Closed")
+        opening.db_set("pos_closing_entry", closing.name)
+        frappe.db.commit()
+        try:
+            _consolidate_shift_inline(closing)
+            frappe.db.commit()
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(frappe.get_traceback(), "POS shift consolidation failed")
+            consolidated = False
 
     opening_amt = sum(float(d.opening_amount or 0) for d in opening.balance_details)
     total_sales = float(closing.grand_total or 0)
@@ -991,6 +1024,7 @@ def pos_close_shift():
             "opening_balance": opening_amt,
             "total_sales": total_sales,
             "order_count": order_count,
+            "consolidated": consolidated,
             "payment_breakdown": payment_breakdown,
             "payment_reconciliation": [{
                 "mode_of_payment": r.mode_of_payment,
@@ -1047,6 +1081,69 @@ def get_shift_closing_data():
             "period_end": str(closing.period_end_date),
             "cashier": closing.user
         }
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def recover_stuck_shift(opening=None):
+    """Force-finish a shift left stuck "Open" because its consolidation failed/queued (e.g. a big
+    shift whose merge was sent to a dead queue worker). Cancels any half-done Failed/Queued closings
+    for the opening, builds a fresh closing from its still-unconsolidated invoices, consolidates
+    inline, and marks the opening Closed. Safe to call on any of the user's stuck shifts (or pass an
+    explicit opening name for a manager to recover a cashier's shift)."""
+    _require_pos_role()
+    from erpnext.accounts.doctype.pos_closing_entry.pos_closing_entry import make_closing_entry_from_opening
+
+    opening_name = opening or frappe.db.get_value("POS Opening Entry",
+        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name")
+    if not opening_name:
+        frappe.throw(_("No stuck shift found"))
+    opening_doc = frappe.get_doc("POS Opening Entry", opening_name)
+
+    # Drop earlier half-done closings (Failed/Queued) — nothing was consolidated, so cancelling is
+    # safe and lets us build one clean closing over the current invoices. Best-effort.
+    for c in frappe.get_all("POS Closing Entry",
+            filters={"pos_opening_entry": opening_name, "docstatus": 1,
+                     "status": ["in", ["Failed", "Queued"]]}, pluck="name"):
+        try:
+            cdoc = frappe.get_doc("POS Closing Entry", c)
+            cdoc.flags.ignore_permissions = True
+            cdoc.cancel()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "recover_stuck_shift: cancel old closing")
+    frappe.db.commit()
+
+    closing = make_closing_entry_from_opening(opening_doc)
+    for row in closing.payment_reconciliation:
+        # On recovery we trust the system-expected amounts (the cashier's count was lost with the
+        # failed close); a manager can adjust later if needed.
+        row.closing_amount = float(row.expected_amount or 0)
+        row.difference = 0
+    closing.flags.ignore_permissions = True
+    closing.insert()
+    closing.submit()
+    closing.reload()
+
+    consolidated = closing.status != "Queued"
+    if closing.status == "Queued":
+        opening_doc.db_set("status", "Closed")
+        opening_doc.db_set("pos_closing_entry", closing.name)
+        frappe.db.commit()
+        try:
+            _consolidate_shift_inline(closing)
+            frappe.db.commit()
+            consolidated = True
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(frappe.get_traceback(), "recover_stuck_shift: consolidation failed")
+            consolidated = False
+
+    return {
+        "recovered": True,
+        "opening": opening_name,
+        "closing": closing.name,
+        "invoices": len(closing.pos_transactions or []),
+        "consolidated": consolidated,
     }
 
 

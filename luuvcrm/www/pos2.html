@@ -998,7 +998,7 @@ input,select,button{font-family:inherit;}
     shiftData=s; shiftOpen=!!(s&&s.status==='open'); const pill=document.getElementById('shiftPill'); const lbl=document.getElementById('shiftLabel'); const btn=document.getElementById('shiftBtn');
     if(shiftOpen){ pill.style.background='var(--color-success-subtle)'; pill.style.color='var(--color-success)'; lbl.textContent='Shift open · '+(s.period_start?new Date(s.period_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):''); btn.textContent='Close shift'; }
     else { pill.style.background='var(--gray-100)'; pill.style.color='var(--text-muted)'; lbl.textContent='Shift closed'; btn.textContent='Open shift'; }
-    return s; }catch(e){} }
+    return s; }catch(e){ toast('Could not load shift status — check your connection'); } }
   function modeRows(modes,kind){ return modes.map(m=>`<div class="field"><label>${m} (${kind==='opening'?'opening float':'counted'})</label><input type="number" data-mode="${m}" class="${kind}-amt" value="0"></div>`).join(''); }
   function renderOpeningModes(){ const prof=document.getElementById('openProfile').value; const modes=PROFILE_PAY[prof]||['Cash']; document.getElementById('openingModes').innerHTML=modeRows(modes,'opening'); }
   function openShiftModal(){ renderOpeningModes(); mErr('openErr',''); show('shiftOpenModal'); }
@@ -1014,7 +1014,7 @@ input,select,button{font-family:inherit;}
   async function closeShift(){ const details=[...document.querySelectorAll('.closing-amt')].map(i=>({mode_of_payment:i.dataset.mode,closing_amount:parseFloat(i.value)||0}));
     const btn=document.getElementById('closeBtn'); btn.disabled=true; mErr('closeErr','');
     try{ const res=await _post('/api/method/luuvcrm.api.pos_close_shift',{closing_details:JSON.stringify(details)}); if(!res){ btn.disabled=false; return; } const d=await res.json();
-      if(res.ok && d.message && d.message.shift){ const z=d.message.shift; hide('shiftCloseModal'); toast('Shift closed — '+(z.order_count||0)+' orders, '+fmt(z.total_sales||0)); printZReport(z); await loadShift(); loadOpenOrders(); openShiftModal(); } else mErr('closeErr', _smsg(d,'could not close shift'));
+      if(res.ok && d.message && d.message.shift){ const z=d.message.shift; hide('shiftCloseModal'); toast('Shift closed — '+(z.order_count||0)+' orders, '+fmt(z.total_sales||0)); if(z.consolidated===false){ toast('Shift closed, but daily invoice consolidation is pending — a manager can retry it.'); } printZReport(z); await loadShift(); loadOpenOrders(); openShiftModal(); } else mErr('closeErr', _smsg(d,'could not close shift'));
     }catch(e){ mErr('closeErr','Connection error'); } btn.disabled=false; }
   function printZReport(z){ const rows=(z.payment_reconciliation||[]).map(r=>`<tr><td>${r.mode_of_payment}</td><td class="r">${(r.closing_amount||0).toLocaleString()}</td></tr>`).join('');
     printDoc(`<h2>Z-Report</h2><div class="loc">${z.cashier||''}</div><div class="tot">Orders: ${z.order_count||0}</div><div class="tot">Total sales: LKR ${(z.total_sales||0).toLocaleString()}</div><table>${rows}</table><div class="t">${z.period_start||''} → ${z.period_end||''}</div>`); }

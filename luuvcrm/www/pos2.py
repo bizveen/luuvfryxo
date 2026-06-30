@@ -75,7 +75,7 @@ def get_context(context):
     context.tables = _tables
 
     opening = frappe.db.get_value("POS Opening Entry",
-        {"status": "Open", "user": user},
+        {"docstatus": 1, "status": "Open", "user": user},
         ["name", "period_start_date"], as_dict=True)
     context.shift = {"status": "open"} if opening else None
 
