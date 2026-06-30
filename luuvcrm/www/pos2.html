@@ -249,7 +249,7 @@ input,select,button{font-family:inherit;}
 
 <!-- Shift close dialog -->
 <div class="lf-dialog__overlay" id="shiftCloseModal"><div class="lf-dialog">
-  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Close shift</h3><p class="lf-dialog__desc">Count the drawer per payment method. A Z-report prints on close.</p></div>
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Close shift</h3><p class="lf-dialog__desc">Count the cash drawer — card totals fill in automatically. A Z-report prints on close.</p></div>
   <div class="lf-dialog__body">
     <div class="msum"><div class="r"><span>Orders</span><span class="mono" id="csOrders">0</span></div><div class="r tot"><span>Total sales</span><span class="mono" id="csSales">0</span></div></div>
     <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;">Reconciliation</div>
@@ -1000,6 +1000,28 @@ input,select,button{font-family:inherit;}
     else { pill.style.background='var(--gray-100)'; pill.style.color='var(--text-muted)'; lbl.textContent='Shift closed'; btn.textContent='Open shift'; }
     return s; }catch(e){ toast('Could not load shift status — check your connection'); } }
   function modeRows(modes,kind){ return modes.map(m=>`<div class="field"><label>${m} (${kind==='opening'?'opening float':'counted'})</label><input type="number" data-mode="${m}" class="${kind}-amt" value="0"></div>`).join(''); }
+  // Close reconciliation: the cashier only counts CASH (physical drawer). Every other method
+  // (Credit Card, etc.) is known exactly by the system, so it auto-fills to its expected amount
+  // and is read-only — the close then tallies with the report by construction.
+  function renderCloseRecon(s){
+    const floats={}; (s.opening_details||[]).forEach(d=>floats[d.mode_of_payment]=parseFloat(d.opening_amount)||0);
+    const sales=s.payment_breakdown||{};
+    const modes=Array.from(new Set([...(s.opening_details||[]).map(d=>d.mode_of_payment), ...Object.keys(sales)]));
+    if(!modes.length) modes.push('Cash');
+    // Cash first, then the rest.
+    modes.sort((a,b)=> (a==='Cash'?-1:b==='Cash'?1:0));
+    return modes.map(m=>{
+      const expected=(floats[m]||0)+(sales[m]||0);
+      if(m==='Cash'){
+        return `<div class="field"><label>${m} counted (in drawer)</label>
+          <input type="number" data-mode="${m}" class="closing-amt" value="${expected}">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Expected ${fmt(expected)} = float ${fmt(floats[m]||0)} + cash sales ${fmt(sales[m]||0)}</div></div>`;
+      }
+      return `<div class="field"><label>${m} <span style="color:var(--text-muted);font-weight:400;">(auto)</span></label>
+        <input type="number" data-mode="${m}" class="closing-amt" value="${expected}" readonly tabindex="-1" style="background:var(--surface-sunken);color:var(--text-muted);cursor:not-allowed;">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">From system — no count needed</div></div>`;
+    }).join('');
+  }
   function renderOpeningModes(){ const prof=document.getElementById('openProfile').value; const modes=PROFILE_PAY[prof]||['Cash']; document.getElementById('openingModes').innerHTML=modeRows(modes,'opening'); }
   function openShiftModal(){ renderOpeningModes(); mErr('openErr',''); show('shiftOpenModal'); }
   async function openShift(){ const prof=document.getElementById('openProfile').value;
@@ -1010,7 +1032,7 @@ input,select,button{font-family:inherit;}
     }catch(e){ mErr('openErr','Connection error'); } btn.disabled=false; }
   async function openCloseModal(){ const s=await loadShift(); if(!s){ toast('No open shift'); return; }
     document.getElementById('csOrders').textContent=s.order_count||0; document.getElementById('csSales').textContent=fmt(s.total_sales||0);
-    const modes=(s.opening_details||[]).map(d=>d.mode_of_payment); document.getElementById('closeModes').innerHTML=modeRows(modes.length?modes:['Cash'],'closing'); mErr('closeErr',''); show('shiftCloseModal'); }
+    document.getElementById('closeModes').innerHTML=renderCloseRecon(s); mErr('closeErr',''); show('shiftCloseModal'); }
   async function closeShift(){ const details=[...document.querySelectorAll('.closing-amt')].map(i=>({mode_of_payment:i.dataset.mode,closing_amount:parseFloat(i.value)||0}));
     const btn=document.getElementById('closeBtn'); btn.disabled=true; mErr('closeErr','');
     try{ const res=await _post('/api/method/luuvcrm.api.pos_close_shift',{closing_details:JSON.stringify(details)}); if(!res){ btn.disabled=false; return; } const d=await res.json();
