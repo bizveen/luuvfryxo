@@ -139,6 +139,22 @@ def _ensure_open_shift(pos_profile_name):
     opening.submit()
     return opening.name
 
+def _shift_unconsolidated_invoices(user, pos_profile):
+    """Every submitted, UNCONSOLIDATED POS Invoice for this cashier+profile — i.e. the open
+    shift's sales. We attribute by "unconsolidated" rather than ERPNext's [period_start, now]
+    time window: a window silently drops any bill whose posting timestamp falls outside it (a
+    sale paid right at/just before a previous close, clock skew, offline replay) which makes the
+    close show Rs 0 / undercount. Closed shifts already consolidated theirs, so this is exactly
+    the current shift's set."""
+    return frappe.db.sql("""
+        select name, grand_total
+        from `tabPOS Invoice`
+        where owner = %s and docstatus = 1 and pos_profile = %s
+          and ifnull(consolidated_invoice, '') = ''
+        order by timestamp(posting_date, posting_time)
+    """, (user, pos_profile), as_dict=True)
+
+
 def _get_invoice_doc(invoice_name):
     """Load an order's invoice regardless of whether it is a POS Invoice or Sales Invoice."""
     dt = "POS Invoice" if frappe.db.exists("POS Invoice", invoice_name) else "Sales Invoice"
@@ -970,15 +986,30 @@ def pos_close_shift():
         counted["Cash"] = float(data.get("closing_balance") or 0)
 
     opening_name = frappe.db.get_value("POS Opening Entry",
-        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name")
+        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name",
+        order_by="creation desc")
     if not opening_name:
         frappe.throw(_("No open shift found"))
 
     opening = frappe.get_doc("POS Opening Entry", opening_name)
 
+    # ERPNext gathers the closing's invoices over [period_start_date, now]. Widen the start (in
+    # memory only) to the earliest unconsolidated bill for this cashier+profile so a sale paid
+    # at/just before this shift opened is still captured — otherwise it's silently dropped and the
+    # close shows Rs 0 / undercounts. Restore the field right after (make_closing_entry only reads
+    # it) so the later opening.save() keeps the true shift start.
+    _true_start = opening.period_start_date
+    _earliest = frappe.db.sql("""
+        select min(timestamp(posting_date, posting_time)) from `tabPOS Invoice`
+        where owner = %s and docstatus = 1 and pos_profile = %s and ifnull(consolidated_invoice, '') = ''
+    """, (opening.user, opening.pos_profile))[0][0]
+    if _earliest and str(_earliest) < str(_true_start):
+        opening.period_start_date = _earliest
+
     # Native: gather this shift's submitted POS Invoices into a POS Closing Entry
     # (pos_transactions + taxes + payment reconciliation built by ERPNext).
     closing = make_closing_entry_from_opening(opening)
+    opening.period_start_date = _true_start  # restore so update_opening_entry doesn't persist the widened start
 
     # Apply the cashier's counted amount per mode; trust expected where none counted.
     payment_breakdown = {}
@@ -1151,7 +1182,8 @@ def recover_stuck_shift(opening=None):
 def get_pos_shift():
     _require_pos_role()
     opening_name = frappe.db.get_value("POS Opening Entry",
-        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name")
+        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name",
+        order_by="creation desc")
     if not opening_name:
         return {"shift": None}
 
@@ -1164,20 +1196,24 @@ def get_pos_shift():
         opening_details.append({"mode_of_payment": d.mode_of_payment,
                                 "opening_amount": float(d.opening_amount or 0)})
 
-    # Live totals from this shift's submitted POS Invoices — the exact set the close
-    # consolidates (so the close modal shows the complete sales, incl. paid-not-served).
-    from erpnext.accounts.doctype.pos_closing_entry.pos_closing_entry import get_pos_invoices
-    invoices = get_pos_invoices(opening.period_start_date, now_datetime(),
-                                opening.pos_profile, opening.user)
+    # Live totals from this shift's UNCONSOLIDATED POS Invoices (attributed by user+profile, not a
+    # fragile [period_start, now] window) so the close modal shows every bill — never Rs 0 while
+    # sales exist. payment_breakdown sums each invoice's payment rows.
+    invoices = _shift_unconsolidated_invoices(opening.user, opening.pos_profile)
     total_sales = sum(float(i.get("grand_total") or 0) for i in invoices)
     order_count = len(invoices)
 
     payment_breakdown = {}
-    for inv in invoices:
-        for p in (inv.get("payments") or []):
-            mode = p.get("mode_of_payment")
-            if mode:
-                payment_breakdown[mode] = payment_breakdown.get(mode, 0) + float(p.get("amount") or 0)
+    for p in frappe.db.sql("""
+        select sp.mode_of_payment as mode, sum(sp.amount) as amt
+        from `tabSales Invoice Payment` sp
+        join `tabPOS Invoice` pi on sp.parent = pi.name
+        where pi.owner = %s and pi.docstatus = 1 and pi.pos_profile = %s
+          and ifnull(pi.consolidated_invoice, '') = ''
+        group by sp.mode_of_payment
+    """, (opening.user, opening.pos_profile), as_dict=True):
+        if p.mode:
+            payment_breakdown[p.mode] = float(p.amt or 0)
 
     return {
         "shift": {
