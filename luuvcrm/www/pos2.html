@@ -558,8 +558,28 @@ input,select,button{font-family:inherit;}
       if(r.ok && d.message && d.message.ok){ toast('Removal sent to manager 📱'); pollEdit(d.message.name,currentOrder,table); }
       else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
   function newTakeaway(){ setOrderType('Take Away'); }
-  function setOrderType(t){ orderType=t; document.getElementById('segDine').classList.toggle('active',t==='Dine In'); document.getElementById('segTake').classList.toggle('active',t==='Take Away');
-    if(t==='Take Away'){ currentOrder=null; } updateTabsVisibility(); renderCart(); }
+  async function setOrderType(t){ orderType=t; document.getElementById('segDine').classList.toggle('active',t==='Dine In'); document.getElementById('segTake').classList.toggle('active',t==='Take Away');
+    if(t==='Take Away'){
+      // Convert a not-yet-fired dine-in ticket into ONE takeaway order. Previously this only set
+      // currentOrder=null, which orphaned the dine-in draft on its table while firing then created a
+      // SECOND (takeaway) order — two bills printed. Drop the draft, clear the table, keep the cart;
+      // it re-saves as a single takeaway order (all-takeaway lines, no service charge).
+      if(Object.values(firedBaseline).some(q=>q>0)){
+        // KOT already sent — those items are cooking as dine-in; converting now would mis-route them.
+        orderType='Dine In'; document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active');
+        toast('Already sent to kitchen — start a new takeaway order instead'); updateTabsVisibility(); renderCart(); return;
+      }
+      // Flush any pending/in-flight autosave so currentOrder is resolved before we drop the draft —
+      // otherwise a fast switch (draft still being created) leaves it orphaned → a second order/bill.
+      clearTimeout(_saveTimer); let g=0; while(_saving && g++<60){ await new Promise(r=>setTimeout(r,40)); }
+      const tbl=document.getElementById('tableSel').value;
+      if(currentOrder){ await _post('/api/method/luuvcrm.api.delete_draft_order',{order_name:currentOrder}).catch(()=>{}); }
+      currentOrder=null; firedBaseline={}; editBaseline={};
+      document.getElementById('tableSel').value='';
+      if(tbl) refreshTableTabs(tbl);
+      if(Object.keys(cart).length) scheduleSave();
+    }
+    updateTabsVisibility(); renderCart(); }
   function cartTotals(){ let sub=0,scBase=0; Object.keys(cart).forEach(c=>{ const it=itemMap[c]||{rate:0}; const total=cart[c]; sub+=it.rate*total; const taN=(orderType==='Take Away')?total:Math.min(cartTA[c]||0,total); scBase+=it.rate*(total-taN); });
     const disc=Math.min((currentDiscount&&currentDiscount.amount)||0,sub); const factor=sub>0?(1-disc/sub):1;
     const sc=Math.round(scBase*factor*SC_RATE)/100; return {sub,sc,scBase,disc,gt:sub-disc+sc}; }
@@ -622,7 +642,7 @@ input,select,button{font-family:inherit;}
       html+=`<div style="display:flex;flex-direction:column;gap:10px;padding:12px 13px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
         <div style="display:flex;align-items:flex-start;gap:8px;">
           <div style="flex:1;min-width:0;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
-            <span style="font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--text-strong);">${it.name}</span>
+            <span style="font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--text-strong);min-width:0;overflow-wrap:anywhere;word-break:break-word;">${it.name}</span>
             ${badge?`<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#9a6207;background:var(--color-warning-subtle);padding:2px 8px;border-radius:var(--radius-pill);">${badge}</span>`:''}
           </div>
           <button onclick="removeItem('${code}')" title="Remove" style="flex:none;width:30px;height:30px;border-radius:var(--radius-md);border:none;background:transparent;color:var(--text-faint);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
