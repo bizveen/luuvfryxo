@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - Luuv Fryxo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #1F2937;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 20px;
+}
+.bg-pattern {
+  position: fixed; inset:0; overflow:hidden; z-index:0;
+  pointer-events:none;
+}
+.bg-pattern span {
+  position:absolute; border-radius:50%;
+  background: rgba(255,107,53,0.06);
+  animation: float 20s ease-in-out infinite;
+}
+.bg-pattern span:nth-child(1) { width:400px; height:400px; top:-100px; left:-100px; animation-delay:0s; }
+.bg-pattern span:nth-child(2) { width:300px; height:300px; bottom:-80px; right:-80px; animation-delay:-7s; }
+.bg-pattern span:nth-child(3) { width:200px; height:200px; top:50%; left:50%; transform:translate(-50%,-50%); animation-delay:-14s; }
+@keyframes float {
+  0%,100% { transform:translate(0,0) scale(1); }
+  33% { transform:translate(30px,-30px) scale(1.05); }
+  66% { transform:translate(-20px,20px) scale(0.95); }
+}
+.login-card {
+  position:relative; z-index:1;
+  background: #fff; border-radius: 24px; padding: 44px 40px 36px;
+  width: 100%; max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  animation: cardIn 0.6s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes cardIn {
+  from { opacity:0; transform:translateY(30px) scale(0.96); }
+  to { opacity:1; transform:translateY(0) scale(1); }
+}
+.brand {
+  text-align:center; margin-bottom:32px;
+}
+.brand .icon {
+  width:64px; height:64px; border-radius:16px;
+  background: linear-gradient(135deg,#FF6B35,#E55A2B);
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto 14px; font-size:1.8rem; box-shadow:0 8px 24px rgba(255,107,53,0.3);
+}
+.brand h1 {
+  font-size:1.4rem; font-weight:800; color:#1F2937; letter-spacing:-0.5px;
+}
+.brand p {
+  font-size:0.82rem; color:#9CA3AF; margin-top:4px; font-weight:500;
+}
+.form-group { margin-bottom:16px; }
+.form-group label {
+  display:block; font-size:0.78rem; font-weight:600; color:#6B7280;
+  margin-bottom:6px;
+}
+.form-group .input-wrap {
+  position:relative;
+}
+.form-group .input-wrap .icon {
+  position:absolute; left:14px; top:50%; transform:translateY(-50%);
+  font-size:1rem; color:#9CA3AF; pointer-events:none;
+}
+.form-group input {
+  width:100%; padding:12px 14px 12px 42px;
+  border:1.5px solid #E5E7EB; border-radius:12px;
+  font-size:0.9rem; font-family:inherit; outline:none;
+  transition:all 0.2s; background:#F9FAFB;
+}
+.form-group input:focus {
+  border-color:#FF6B35; background:#fff;
+  box-shadow:0 0 0 3px rgba(255,107,53,0.1);
+}
+.form-group input::placeholder { color:#D1D5DB; }
+.form-options {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:20px;
+}
+.form-options label {
+  display:flex; align-items:center; gap:8px;
+  font-size:0.78rem; color:#6B7280; cursor:pointer; font-weight:500;
+}
+.form-options label input[type="checkbox"] {
+  width:16px; height:16px; accent-color:#FF6B35; cursor:pointer;
+}
+.form-options a {
+  font-size:0.78rem; color:#FF6B35; text-decoration:none; font-weight:600;
+}
+.form-options a:hover { text-decoration:underline; }
+.login-btn {
+  width:100%; padding:13px; border:none; border-radius:12px;
+  font-size:0.95rem; font-weight:700; cursor:pointer; font-family:inherit;
+  background: linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff;
+  transition:all 0.25s; position:relative; overflow:hidden;
+}
+.login-btn:hover {
+  transform:translateY(-1px);
+  box-shadow:0 8px 25px rgba(255,107,53,0.35);
+}
+.login-btn:active { transform:translateY(0) scale(0.98); }
+.login-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; box-shadow:none; }
+.login-btn .spinner {
+  display:none; width:20px; height:20px; border:2.5px solid rgba(255,255,255,0.3);
+  border-top-color:#fff; border-radius:50%; animation:spin 0.6s linear infinite;
+  margin:0 auto;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.login-btn.loading .spinner { display:block; }
+.login-btn.loading .label { display:none; }
+.error-msg {
+  display:none; background:#FEF2F2; border:1px solid #FECACA;
+  border-radius:10px; padding:10px 14px; font-size:0.8rem; color:#DC2626;
+  margin-bottom:16px; font-weight:500; text-align:center;
+}
+.error-msg.show { display:block; }
+.divider {
+  display:flex; align-items:center; gap:12px; margin:24px 0 0;
+  color:#D1D5DB; font-size:0.75rem;
+}
+.divider::before, .divider::after { content:''; flex:1; height:1px; background:#F3F4F6; }
+.footer-text {
+  text-align:center; margin-top:20px; font-size:0.75rem; color:#9CA3AF;
+}
+.footer-text a { color:#FF6B35; text-decoration:none; font-weight:600; }
+.footer-text a:hover { text-decoration:underline; }
+
+@media (max-width:480px) {
+  .login-card { padding:32px 24px 28px; border-radius:20px; }
+  .brand .icon { width:56px; height:56px; font-size:1.5rem; }
+  .brand h1 { font-size:1.2rem; }
+}
+</style>
+</head>
+<body>
+<div class="bg-pattern"><span></span><span></span><span></span></div>
+
+<div class="login-card">
+  <div class="brand">
+    <div class="icon">🍽️</div>
+    <h1>Luuv Fryxo</h1>
+    <p>Restaurant POS System</p>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <form id="loginForm" onsubmit="return handleLogin(event)">
+    <div class="form-group">
+      <label>Username or Email</label>
+      <div class="input-wrap">
+        <span class="icon">👤</span>
+        <input type="text" id="username" placeholder="Enter username" autocomplete="username" required autofocus>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <div class="input-wrap">
+        <span class="icon">🔒</span>
+        <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required>
+      </div>
+    </div>
+    <div class="form-options">
+      <label><input type="checkbox" id="remember"> Remember me</label>
+      <a href="#">Forgot password?</a>
+    </div>
+    <button type="submit" class="login-btn" id="loginBtn">
+      <span class="spinner"></span>
+      <span class="label">Sign In</span>
+    </button>
+  </form>
+
+  <div class="footer-text">
+    Luuv Fryxo &copy; 2026
+  </div>
+</div>
+
+<script>
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('errorMsg');
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+
+  err.classList.remove('show');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/method/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({
+        usr: username,
+        pwd: password
+      })
+    });
+    const data = await res.json();
+    if (data.message === "Logged In") {
+      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/pos';
+      window.location.href = redirect;
+    } else {
+      err.textContent = 'Invalid username or password';
+      err.classList.add('show');
+    }
+  } catch (e) {
+    err.textContent = 'Connection error. Please try again.';
+    err.classList.add('show');
+  }
+
+  btn.classList.remove('loading');
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>

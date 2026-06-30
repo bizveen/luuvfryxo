@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Codes - Luuv Fryxo</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter',-apple-system,sans-serif; background:#fff; color:#1F2937; padding:20px; }
+    h1 { font-size:1.2rem; font-weight:800; margin-bottom:16px; text-align:center; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; }
+    .card { border:1px solid #E5E7EB; border-radius:12px; padding:16px; text-align:center; break-inside:avoid; }
+    .card img { width:180px; height:180px; margin-bottom:8px; }
+    .card .name { font-size:0.9rem; font-weight:700; color:#FF6B35; }
+    .card .url { font-size:0.7rem; color:#9CA3AF; word-break:break-all; margin-top:4px; }
+    .print-btn { display:block; margin:0 auto 20px; padding:10px 24px; border:none; border-radius:8px; background:#FF6B35; color:#fff; font-size:0.9rem; font-weight:600; cursor:pointer; font-family:inherit; }
+    @media print { .print-btn { display:none; } body { padding:10px; } }
+  </style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">🖨 Print QR Codes</button>
+<h1>📱 Scan to Order - Luuv Fryxo</h1>
+<div class="grid">
+  {% for qr in qr_list %}
+  <div class="card">
+    <img src="https://chart.googleapis.com/chart?chs=180x180&cht=qr&chl={{ qr.url|urlencode }}" alt="QR for {{ qr.name }}">
+    <div class="name">{{ qr.name }}</div>
+    <div class="url">{{ qr.url }}</div>
+  </div>
+  {% endfor %}
+</div>
+</body>
+</html>

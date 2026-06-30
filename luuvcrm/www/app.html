@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>{{ restaurant_name or "Luuv Fryxo" }}</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<link rel="manifest" href="/app_manifest.json">
+<meta name="theme-color" content="#F15207">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Luuv Fryxo">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/assets/luuvcrm/app/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-300:#FF9E68;--orange-400:#FB7430;
+  --orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;--white:#FFFFFF;
+  --gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
+  --gray-500:#837A70;--gray-600:#5E564E;--gray-700:#423D38;--gray-900:#1A1714;--ink:#141210;
+  --green-500:#1E9E5A;--amber-500:#F0A323;--red-500:#E23D3D;--blue-500:#2D74D6;
+  --color-primary:var(--orange-500);--color-primary-hover:var(--orange-600);--color-on-primary:#fff;
+  --text-strong:var(--gray-900);--text-body:var(--gray-700);--text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);--surface-brand:var(--orange-500);
+  --border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --color-success:var(--green-500);--color-success-subtle:#E6F5EC;--color-warning:var(--amber-500);--color-warning-subtle:#FDF1DC;
+  --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;--color-info:var(--blue-500);--color-info-subtle:#E6EFFB;
+  --font-display:'Poppins',system-ui,-apple-system,sans-serif;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--font-mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-2xl:28px;--radius-pill:999px;
+  --shadow-xs:0 1px 2px rgba(20,18,16,.06);--shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
+  --shadow-lg:0 12px 28px rgba(20,18,16,.12),0 4px 8px rgba(20,18,16,.06);--shadow-brand:0 8px 22px rgba(241,82,7,.30);
+  --duration-base:200ms;--ease-out:cubic-bezier(0.16,1,0.3,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+}
+*,*::before,*::after{box-sizing:border-box;}
+*::-webkit-scrollbar{width:0;height:0;}
+body{margin:0;font-family:var(--font-body);color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;}
+input,button{font-family:inherit;}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.disp{font-family:var(--font-display);font-weight:800;letter-spacing:-.01em;color:var(--text-strong);}
+.lf-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);cursor:pointer;box-shadow:var(--shadow-brand);width:100%;height:52px;font-size:17px;}
+.lf-btn:active{transform:scale(.98);}
+.lf-btn:disabled{opacity:.45;box-shadow:none;cursor:not-allowed;}
+.lf-btn.ghost{background:var(--surface-card);color:var(--text-body);border:1.5px solid var(--border-default);box-shadow:none;}
+@keyframes fade{from{opacity:0;}to{opacity:1;}}
+@keyframes up{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+@keyframes spin{to{transform:rotate(360deg);}}
+.spinner{display:inline-block;width:18px;height:18px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;}
+.spinner.dark{border-color:var(--gray-200);border-top-color:var(--color-primary);}
+.wrap{min-height:100vh;width:100%;background:var(--surface-sunken);display:flex;align-items:flex-start;justify-content:center;}
+.card{width:430px;max-width:100%;min-height:100vh;background:var(--surface-card);position:relative;box-shadow:0 0 60px rgba(20,18,16,.07);display:flex;flex-direction:column;}
+
+/* header */
+.topbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border-subtle);padding:14px 18px;display:flex;align-items:center;gap:12px;}
+.brand-badge{width:38px;height:38px;border-radius:12px;background:var(--orange-100);color:var(--orange-700);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;box-shadow:0 0 0 3px var(--orange-50);}
+.scroll{flex:1;overflow-y:auto;padding:18px 18px 112px;}
+
+/* tab nav */
+.navbar{position:sticky;bottom:0;z-index:30;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:9px 10px 13px;gap:3px;}
+.navb{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:transparent;cursor:pointer;padding:6px 0;color:var(--text-muted);}
+.navb.active{color:var(--color-primary);}
+.navb i{width:22px;height:22px;}
+.navb span.lbl{font-size:11px;font-weight:700;font-family:var(--font-display);}
+.navb .dot{position:absolute;top:-2px;right:calc(50% - 18px);min-width:16px;height:16px;border-radius:8px;background:var(--color-primary);color:#fff;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center;padding:0 4px;}
+
+/* menu */
+.search{display:flex;align-items:center;gap:9px;background:var(--surface-sunken);border:1.5px solid var(--border-subtle);border-radius:var(--radius-pill);padding:11px 16px;margin-bottom:14px;}
+.search input{border:none;outline:none;background:transparent;font-size:15px;color:var(--text-strong);width:100%;}
+.cats{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:18px;}
+.cat{flex:none;display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:var(--radius-pill);border:1.5px solid var(--border-subtle);background:var(--surface-card);font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--text-muted);cursor:pointer;white-space:nowrap;}
+.cat.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
+.section{margin-bottom:24px;}
+.section h2{font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--text-strong);margin:0 0 12px;letter-spacing:-.01em;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.mcard{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-xs);display:flex;flex-direction:column;}
+.mcard .img{height:104px;background:var(--orange-50);display:flex;align-items:center;justify-content:center;font-size:38px;}
+.mcard .img img{width:100%;height:100%;object-fit:cover;}
+.mcard .body{padding:11px 12px 12px;display:flex;flex-direction:column;flex:1;}
+.mcard .nm{font-size:13.5px;font-weight:700;color:var(--text-strong);line-height:1.25;margin-bottom:8px;flex:1;}
+.mcard .row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.mcard .pr{font-family:var(--font-mono);font-weight:500;font-size:14px;color:var(--text-strong);}
+.add{width:32px;height:32px;border-radius:50%;border:none;background:var(--color-primary);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:var(--shadow-xs);}
+.add:active{transform:scale(.9);}
+.qctrl{display:flex;align-items:center;gap:9px;}
+.qctrl button{width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.qctrl .minus{background:var(--orange-100);color:var(--orange-700);}
+.qctrl .plus{background:var(--color-primary);color:#fff;}
+.qctrl .q{font-family:var(--font-mono);font-weight:500;font-size:15px;min-width:16px;text-align:center;color:var(--text-strong);}
+
+/* floating cart bar + sheet */
+.cartbar{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;width:402px;max-width:calc(100% - 28px);z-index:40;background:var(--ink);color:#fff;border-radius:var(--radius-lg);padding:13px 18px;display:none;align-items:center;gap:13px;box-shadow:var(--shadow-lg);cursor:pointer;animation:up var(--duration-base) var(--ease-out);}
+.cartbar .cnt{background:var(--color-primary);min-width:24px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:13px;font-weight:500;padding:0 6px;}
+.overlay{position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;}
+.overlay.show{display:flex;}
+.sheet{width:430px;max-width:100%;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:20px 20px 26px;max-height:88vh;overflow-y:auto;animation:up var(--duration-base) var(--ease-out);}
+.sheet .grab{width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 16px;}
+.citem{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);}
+.citem .nm{flex:1;min-width:0;font-size:14px;font-weight:700;color:var(--text-strong);}
+.citem .ln{font-family:var(--font-mono);font-size:13px;color:var(--text-muted);}
+.field label{display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;}
+.field input{width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-size:15px;color:var(--text-strong);outline:none;background:var(--surface-sunken);}
+.field input:focus{border-color:var(--color-primary);background:#fff;}
+.field input.pin{font-family:var(--font-mono);font-size:26px;letter-spacing:.4em;text-align:center;}
+.err{display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:10px;}
+.ok{display:none;color:var(--color-success);font-size:13px;font-weight:700;margin-top:10px;}
+
+/* generic cards */
+.panel{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:16px 17px;box-shadow:var(--shadow-sm);margin-bottom:13px;}
+.panel h3{font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin:0 0 12px;display:flex;align-items:center;gap:7px;}
+.empty{display:flex;flex-direction:column;align-items:center;gap:11px;padding:60px 20px;text-align:center;color:var(--text-faint);}
+.empty .ic{width:62px;height:62px;border-radius:50%;background:var(--surface-sunken);display:inline-flex;align-items:center;justify-content:center;}
+.gate{display:flex;flex-direction:column;align-items:center;gap:14px;padding:54px 24px;text-align:center;}
+
+/* order row */
+.ord{background:var(--surface-card);border:1px solid var(--border-subtle);border-left:3px solid var(--gray-300);border-radius:var(--radius-lg);padding:14px 15px;margin-bottom:11px;box-shadow:var(--shadow-xs);animation:up var(--duration-base) var(--ease-out);}
+.ord.Pending{border-left-color:var(--color-warning);}
+.ord.Processing{border-left-color:var(--color-info);}
+.ord.Ready{border-left-color:var(--color-success);background:var(--color-success-subtle);}
+.ord.Served{border-left-color:var(--gray-400);}
+.ord .ohead{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.ord .oid{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--text-strong);}
+.pill{font-family:var(--font-display);font-size:11px;font-weight:700;padding:3px 10px;border-radius:var(--radius-pill);}
+.pill.Pending{background:var(--color-warning-subtle);color:#9a6207;}
+.pill.Processing{background:var(--color-info-subtle);color:var(--color-info);}
+.pill.Ready{background:#fff;color:var(--color-success);}
+.pill.Served{background:var(--gray-100);color:var(--text-muted);}
+.ord .ometa{display:flex;gap:12px;font-size:12px;color:var(--text-muted);margin-bottom:7px;}
+.ord .oitems{font-size:13px;color:var(--text-body);line-height:1.5;}
+.ord .ototal{display:flex;justify-content:space-between;font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-top:8px;padding-top:8px;border-top:1px solid var(--border-subtle);}
+.ord .ototal .mono{font-weight:500;}
+
+/* rewards */
+.balcard{background:var(--surface-brand);color:#fff;border-radius:var(--radius-xl);padding:20px 22px;box-shadow:var(--shadow-brand);margin-bottom:13px;}
+.balcard .lab{font-size:13px;font-weight:600;opacity:.85;letter-spacing:.04em;}
+.balcard .amt{font-family:var(--font-mono);font-weight:500;font-size:38px;letter-spacing:-.02em;margin-top:4px;}
+.balcard .sub{display:flex;gap:18px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.22);}
+.balcard .sub div div:first-child{font-size:12px;opacity:.82;}
+.balcard .sub .mono{font-weight:500;font-size:17px;}
+.codebox{display:flex;align-items:center;gap:11px;background:var(--orange-50);border:1.5px dashed var(--orange-300);border-radius:var(--radius-md);padding:13px 15px;margin-bottom:11px;}
+.codebox .code{flex:1;font-family:var(--font-mono);font-weight:500;font-size:21px;letter-spacing:.12em;color:var(--orange-700);}
+.codebox button{border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);padding:9px 16px;font-family:var(--font-display);font-weight:700;font-size:13px;cursor:pointer;}
+.dl{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:14px;}
+.dl:last-child{border:none;}
+.dl .nm{flex:1;font-weight:700;color:var(--text-strong);}
+.dl .ea{font-family:var(--font-mono);font-size:13px;color:var(--color-success);}
+.tiers{display:flex;gap:8px;}
+.tier{flex:1;background:var(--surface-sunken);border-radius:var(--radius-md);padding:10px;text-align:center;}
+.tier .v{font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);}
+.tier .l{font-size:10.5px;color:var(--text-muted);margin-top:2px;}
+
+.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);max-width:90%;text-align:center;}
+</style>
+</head>
+<body>
+{% set emoji = {'Beverages':'🥤','Biryani & Naan Combos':'🍛','Cheese Kottu':'🧀','Coffee & Tea':'☕','Desserts':'🍨','European Dishes & Salads':'🥗','Fried Rice':'🍚','Grills':'🥩','Indian Cuisine':'🍛','Kottu':'🥘','North Asian':'🥟','Pizza':'🍕','Rice & Curry':'🍛','Seafood':'🦐','Sides & Accompaniments':'🧆','Signature Kottu':'⭐','Sizzler Platters':'🔥','Soups':'🥣','Sri Lankan Fusion':'🌴','Vegetarian':'🥦'} %}
+<div class="wrap"><div class="card">
+
+  <!-- HEADER -->
+  <div class="topbar">
+    <span class="brand-badge">🍔</span>
+    <div style="flex:1;min-width:0;">
+      <div class="disp" style="font-size:16px;line-height:1.15;" id="hdTitle">{{ restaurant_name or "Luuv Fryxo" }}</div>
+      <div style="font-size:12px;color:var(--text-muted);" id="hdSub">Order · track · earn cashback</div>
+    </div>
+    <button id="hdLogout" onclick="logout()" title="Sign out" style="display:none;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);align-items:center;justify-content:center;flex:none;cursor:pointer;"><i data-lucide="log-out" style="width:17px;height:17px;"></i></button>
+  </div>
+
+  <div class="scroll">
+
+    <!-- ═══ ORDER TAB ═══ -->
+    <div id="tabOrder">
+      <div class="search">
+        <i data-lucide="search" style="width:18px;height:18px;color:var(--text-muted);"></i>
+        <input type="text" id="searchInput" placeholder="Search the menu…" oninput="filterItems()">
+      </div>
+      <div class="cats" id="cats">
+        <button class="cat active" data-cat="all" onclick="setCategory('all')">🍽️ All</button>
+        {% for g in menu_groups %}
+        <button class="cat" data-cat="{{ g['name']|replace(' ','-') }}" onclick="setCategory('{{ g['name']|replace(' ','-') }}')">{{ emoji.get(g['name'],'🍽️') }} {{ g['name'] }}</button>
+        {% endfor %}
+      </div>
+
+      {% if menu_groups %}
+        {% for g in menu_groups %}
+        <section class="section" data-cat="{{ g['name']|replace(' ','-') }}">
+          <h2>{{ emoji.get(g['name'],'🍽️') }} {{ g['name'] }}</h2>
+          <div class="grid">
+            {% for item in g['items'] %}
+            <div class="mcard" data-code="{{ item.code }}" data-cat="{{ item.group|replace(' ','-') }}" data-rate="{{ item.rate }}" data-name="{{ item.name|e }}">
+              <div class="img">
+                {% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy" onerror="this.replaceWith(document.createTextNode('{{ emoji.get(item.group,'🍽️') }}'))">{% else %}<span>{{ emoji.get(item.group,'🍽️') }}</span>{% endif %}
+              </div>
+              <div class="body">
+                <div class="nm">{{ item.name }}</div>
+                <div class="row">
+                  <span class="pr">Rs {{ '%.0f' % item.rate }}</span>
+                  <div data-slot="{{ item.code }}"><button class="add" onclick="addItem('{{ item.code }}')">+</button></div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+        {% endfor %}
+      {% else %}
+        <div class="empty"><span class="ic"><i data-lucide="utensils" style="width:28px;height:28px;color:var(--text-muted);"></i></span><div class="disp" style="font-size:16px;">Menu coming soon</div><div style="font-size:13px;">No items available right now.</div></div>
+      {% endif %}
+    </div>
+
+    <!-- ═══ ORDERS TAB ═══ -->
+    <div id="tabOrders" style="display:none;">
+      <div class="disp" style="font-size:21px;margin-bottom:14px;">My Orders</div>
+      <div id="ordersBody"></div>
+    </div>
+
+    <!-- ═══ REWARDS TAB ═══ -->
+    <div id="tabRewards" style="display:none;">
+      <div class="disp" style="font-size:21px;margin-bottom:14px;">Rewards</div>
+      <div id="rewardsBody"></div>
+    </div>
+
+    <!-- ═══ ACCOUNT TAB ═══ -->
+    <div id="tabAccount" style="display:none;">
+      <div class="disp" style="font-size:21px;margin-bottom:14px;">Account</div>
+      <div id="accountBody"></div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="navbar">
+    <button class="navb active" data-tab="order" onclick="setTab('order')"><i data-lucide="utensils-crossed"></i><span class="lbl">Order</span></button>
+    <button class="navb" data-tab="orders" onclick="setTab('orders')"><i data-lucide="receipt-text"></i><span class="lbl">Orders</span></button>
+    <button class="navb" data-tab="rewards" onclick="setTab('rewards')"><span style="position:relative;display:inline-flex;"><i data-lucide="gift"></i></span><span class="lbl">Rewards</span></button>
+    <button class="navb" data-tab="account" onclick="setTab('account')"><i data-lucide="user-round"></i><span class="lbl">Account</span></button>
+  </div>
+</div></div>
+
+<!-- floating cart bar -->
+<div class="cartbar" id="cartbar" onclick="openCart()">
+  <span style="font-size:19px;">🛒</span>
+  <span class="cnt" id="cartCnt">0</span>
+  <span style="flex:1;font-family:var(--font-display);font-weight:700;font-size:14px;">View order</span>
+  <span class="mono" style="font-size:15px;font-weight:500;" id="cartBarTotal">Rs 0</span>
+</div>
+
+<!-- checkout sheet -->
+<div class="overlay" id="cartOverlay" onclick="if(event.target===this)closeCart()">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="disp" style="font-size:19px;">Your order</div>
+      <button onclick="clearCart()" style="border:none;background:none;color:var(--color-danger);font-weight:700;font-size:13px;cursor:pointer;">Clear</button>
+    </div>
+    <div id="cartItems"></div>
+    <div style="display:flex;justify-content:space-between;font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);margin:14px 0 16px;">
+      <span>Total</span><span class="mono" style="font-weight:500;" id="cartTotal">Rs 0</span>
+    </div>
+    <div class="field" id="checkoutPhoneField" style="margin-bottom:14px;">
+      <label>Phone number <span style="color:var(--text-faint);font-weight:500;">(for tracking & cashback)</span></label>
+      <input type="tel" id="checkoutPhone" inputmode="numeric" placeholder="07X XXX XXXX" maxlength="10">
+    </div>
+    <div class="err" id="checkoutErr"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span></span></div>
+    <button class="lf-btn" id="placeBtn" onclick="placeOrder()" style="margin-top:4px;">Place order</button>
+    <div style="text-align:center;font-size:12px;color:var(--text-faint);margin-top:12px;">We'll text you a tracking link on WhatsApp.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+let _token = localStorage.getItem('lf_token') || '';
+let _mobile = localStorage.getItem('lf_mobile') || '';
+let _name = localStorage.getItem('lf_name') || '';
+let _ref = "{{ ref_code }}" || localStorage.getItem('lf_ref') || '';
+const PREFILL_PHONE = "{{ prefill_phone }}";
+let tab = 'order';
+let cart = {};            // code -> qty
+let _loy = null;          // cached loyalty info
+
+if (_ref) localStorage.setItem('lf_ref', _ref);
+
+function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
+function isAuthed(){ return !!_token; }
+function nf(n){ return Math.round(n||0).toLocaleString('en-US'); }
+function esc(s){ const d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML; }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2600); }
+
+// GET read helper (whitelisted allow_guest reads)
+async function _call(method, args){
+  const p=new URLSearchParams(); for(const[k,v] of Object.entries(args||{})) p.set(k,v);
+  const r=await fetch('/api/method/'+method+'?'+p.toString(),{method:'GET',credentials:'include'});
+  return r.json();
+}
+// POST write helper (with CSRF)
+async function _post(method, args){
+  const p=new URLSearchParams(); p.set('csrf_token',CSRF); for(const[k,v] of Object.entries(args||{})) p.set(k,v);
+  const r=await fetch('/api/method/'+method,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Frappe-CSRF-Token':CSRF},body:p});
+  return r.json();
+}
+
+/* ─────────── tabs ─────────── */
+function setTab(t){
+  tab=t;
+  document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  ['order','orders','rewards','account'].forEach(x=>{ document.getElementById('tab'+x.charAt(0).toUpperCase()+x.slice(1)).style.display = x===t?'block':'none'; });
+  document.getElementById('cartbar').style.display = (t==='order' && cartCount()>0) ? 'flex' : 'none';
+  if(t==='orders') renderOrders();
+  if(t==='rewards') renderRewards();
+  if(t==='account') renderAccount();
+  icons();
+}
+
+/* ─────────── menu / cart ─────────── */
+function rateOf(code){ const el=document.querySelector('.mcard[data-code="'+CSS.escape(code)+'"]'); return el?parseFloat(el.dataset.rate)||0:0; }
+function nameOf(code){ const el=document.querySelector('.mcard[data-code="'+CSS.escape(code)+'"]'); return el?el.dataset.name:code; }
+function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
+function cartTotal(){ return Object.entries(cart).reduce((a,[c,q])=>a+rateOf(c)*q,0); }
+
+function addItem(code){ cart[code]=(cart[code]||0)+1; syncCart(); }
+function setQty(code,d){ cart[code]=(cart[code]||0)+d; if(cart[code]<=0) delete cart[code]; syncCart(); }
+function clearCart(){ cart={}; syncCart(); closeCart(); }
+
+function slotHtml(code){
+  const q=cart[code]||0;
+  if(q<=0) return '<button class="add" onclick="addItem(\''+code+'\')">+</button>';
+  return '<div class="qctrl"><button class="minus" onclick="setQty(\''+code+'\',-1)">−</button><span class="q">'+q+'</span><button class="plus" onclick="setQty(\''+code+'\',1)">+</button></div>';
+}
+function syncCart(){
+  // update each item card's +/- slot
+  document.querySelectorAll('.mcard').forEach(el=>{ const slot=el.querySelector('[data-slot]'); if(slot) slot.innerHTML=slotHtml(el.dataset.code); });
+  const n=cartCount(), tot=cartTotal();
+  document.getElementById('cartCnt').textContent=n;
+  document.getElementById('cartBarTotal').textContent='Rs '+nf(tot);
+  document.getElementById('cartbar').style.display=(tab==='order'&&n>0)?'flex':'none';
+  // sheet
+  const ci=document.getElementById('cartItems');
+  if(ci){
+    const entries=Object.entries(cart);
+    ci.innerHTML = entries.length ? entries.map(([c,q])=>(
+      '<div class="citem"><div class="nm">'+esc(nameOf(c))+'<div class="ln">Rs '+nf(rateOf(c))+' × '+q+'</div></div>'+
+      '<div class="qctrl"><button class="minus" onclick="setQty(\''+c+'\',-1)">−</button><span class="q">'+q+'</span><button class="plus" onclick="setQty(\''+c+'\',1)">+</button></div>'+
+      '<span class="mono" style="font-size:13px;font-weight:500;color:var(--text-strong);width:64px;text-align:right;">Rs '+nf(rateOf(c)*q)+'</span></div>'
+    )).join('') : '<div class="empty" style="padding:30px 10px;"><span class="ic">🛒</span><div>Your cart is empty</div></div>';
+  }
+  document.getElementById('cartTotal').textContent='Rs '+nf(tot);
+  const pb=document.getElementById('placeBtn'); if(pb) pb.disabled = n===0;
+}
+function openCart(){ if(cartCount()===0) return; if(isAuthed()&&_mobile) document.getElementById('checkoutPhone').value=_mobile; document.getElementById('cartOverlay').classList.add('show'); icons(); }
+function closeCart(){ document.getElementById('cartOverlay').classList.remove('show'); }
+
+function setCategory(cat){
+  document.querySelectorAll('.cat').forEach(b=>b.classList.toggle('active',b.dataset.cat===cat));
+  document.querySelectorAll('.section').forEach(s=>{ s.style.display = (cat==='all'||s.dataset.cat===cat)?'':'none'; });
+}
+function filterItems(){
+  const q=document.getElementById('searchInput').value.toLowerCase().trim();
+  document.querySelectorAll('.mcard').forEach(c=>{ c.style.display=(c.dataset.name||'').toLowerCase().includes(q)?'':'none'; });
+  document.querySelectorAll('.section').forEach(s=>{ const vis=[...s.querySelectorAll('.mcard')].some(c=>c.style.display!=='none'); s.style.display=vis?'':'none'; });
+}
+
+async function placeOrder(){
+  const phone=(document.getElementById('checkoutPhone').value||'').trim();
+  const eb=document.getElementById('checkoutErr'); const em=eb.querySelector('span');
+  if(phone.length<10){ em.textContent='Enter a valid 10-digit phone number'; eb.style.display='flex'; return; }
+  const entries=Object.entries(cart); if(!entries.length) return;
+  const items=entries.map(([code,qty])=>({item:code,qty,rate:rateOf(code)}));
+  const btn=document.getElementById('placeBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>'; eb.style.display='none';
+  // attach referral first (best-effort) so the referrer earns cashback on this order
+  if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{mobile:phone,ref_code:_ref}); }catch(e){} localStorage.removeItem('lf_ref'); _ref=''; }
+  let res;
+  try{ res=await _post('luuvcrm.api.kiosk_place_order',{items:JSON.stringify(items),customer_name:_name||'Online Guest',mobile:phone}); }
+  catch(e){ btn.disabled=false; btn.textContent='Place order'; em.textContent='Connection error — please try again'; eb.style.display='flex'; return; }
+  btn.disabled=false; btn.textContent='Place order';
+  if(res && res.message && res.message.name){
+    cart={}; syncCart(); closeCart();
+    toast('Order placed! 🎉 #'+res.message.name);
+    if(isAuthed()){ setTab('orders'); } else { toast('Order placed! Sign in to track it & earn cashback.'); }
+  } else {
+    em.textContent='Could not place order'; eb.style.display='flex';
+  }
+}
+
+/* ─────────── orders tab ─────────── */
+async function renderOrders(){
+  const body=document.getElementById('ordersBody');
+  if(!isAuthed()){ body.innerHTML=gateHtml('Sign in to see your orders','Track every order live — pending, ready, served.'); icons(); return; }
+  body.innerHTML='<div class="empty"><span class="spinner dark" style="width:30px;height:30px;"></span><div>Loading…</div></div>';
+  const r=await _call('luuvcrm.api.customer_get_orders',{token:_token});
+  const d=r.message;
+  if(!d||!d.success){ doLogout(false); body.innerHTML=gateHtml('Session expired','Please sign in again.'); icons(); return; }
+  const orders=d.orders||[];
+  if(!orders.length){ body.innerHTML='<div class="empty"><span class="ic"><i data-lucide="receipt-text" style="width:26px;height:26px;color:var(--text-muted);"></i></span><div class="disp" style="font-size:16px;">No orders yet</div><div style="font-size:13px;">Your orders will show up here.</div></div>'; icons(); return; }
+  body.innerHTML=orders.map(o=>{
+    const st=o.status||'Pending';
+    const its=(o.items||[]).map(i=>esc((i.item_name||i.item))+' ×'+i.qty).join(' · ');
+    return '<div class="ord '+st+'"><div class="ohead"><span class="oid">#'+esc(o.name)+'</span><span class="pill '+st+'">'+esc(st)+'</span></div>'+
+      '<div class="ometa"><span>🪑 '+esc(o.table||'—')+'</span><span>🕐 '+esc(o.time_ago||'')+'</span></div>'+
+      '<div class="oitems">'+its+'</div>'+
+      '<div class="ototal"><span>Total</span><span class="mono">Rs '+nf(o.grand_total)+'</span></div></div>';
+  }).join('');
+  icons();
+}
+
+/* ─────────── rewards tab ─────────── */
+async function renderRewards(){
+  const body=document.getElementById('rewardsBody');
+  if(!isAuthed()){ body.innerHTML=gateHtml('Sign in to see your rewards','Earn cashback when friends you refer order. Redeem anytime.'); icons(); return; }
+  body.innerHTML='<div class="empty"><span class="spinner dark" style="width:30px;height:30px;"></span><div>Loading…</div></div>';
+  let r=await _call('luuvcrm.api.loyalty_get_info',{mobile:_mobile});
+  _loy=r.message;
+  if(!_loy||!_loy.success){
+    // no loyalty account yet — show zero state with a generate-code action
+    body.innerHTML='<div class="balcard"><div class="lab">Cashback balance</div><div class="amt">Rs 0</div></div>'+
+      '<div class="panel"><h3>🔗 Refer & earn</h3><div style="font-size:13.5px;color:var(--text-muted);margin-bottom:12px;line-height:1.5;">Get your referral code — friends get a deal and you earn cashback on their orders.</div><button class="lf-btn" onclick="genCode()">Get my referral code</button></div>';
+    icons(); return;
+  }
+  const d=_loy;
+  if(!d.referral_code){ // auto-generate once
+    const g=await _call('luuvcrm.api.loyalty_generate_code',{mobile:_mobile});
+    if(g.message&&g.message.referral_code){ d.referral_code=g.message.referral_code; }
+  }
+  const s=d.settings||{};
+  const refUrl=window.location.origin+'/app?ref='+(d.referral_code||'');
+  body.innerHTML=
+    '<div class="balcard"><div class="lab">Cashback balance</div><div class="amt">Rs '+nf(d.cashback_balance)+'</div>'+
+      '<div class="sub"><div><div>Earned</div><div class="mono">Rs '+nf(d.total_earned)+'</div></div><div><div>Redeemed</div><div class="mono">Rs '+nf(d.total_redeemed)+'</div></div></div></div>'+
+    '<div class="panel"><h3>🔗 Your referral code</h3>'+
+      '<div class="codebox"><span class="code">'+esc(d.referral_code||'—')+'</span><button onclick="copyCode(\''+esc(d.referral_code||'')+'\')">Copy</button></div>'+
+      '<button class="lf-btn ghost" onclick="shareRef(\''+esc(d.referral_code||'')+'\')"><i data-lucide="share-2" style="width:17px;height:17px;"></i> Share with a friend</button>'+
+      '<div style="display:flex;justify-content:center;margin-top:14px;"><img src="https://chart.googleapis.com/chart?chs=170x170&cht=qr&chl='+encodeURIComponent(refUrl)+'" alt="QR" width="150" height="150" style="border-radius:12px;border:1px solid var(--border-subtle);"></div>'+
+      '<div style="text-align:center;font-size:12px;color:var(--text-faint);margin-top:8px;">Friend scans → orders → you earn cashback</div></div>'+
+    '<div class="panel"><h3>💸 Redeem cashback</h3>'+
+      '<div class="err" id="redErr"></div><div class="ok" id="redOk"></div>'+
+      '<div style="display:flex;gap:9px;"><input type="number" id="redAmt" inputmode="numeric" placeholder="Amount (min Rs '+nf(s.min_redeem||200)+')" style="flex:1;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px 14px;font-family:var(--font-mono);font-size:15px;outline:none;">'+
+      '<button id="redBtn" onclick="doRedeem()" style="border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-md);padding:0 20px;font-family:var(--font-display);font-weight:700;font-size:14px;cursor:pointer;">Redeem</button></div></div>'+
+    '<div class="panel"><h3>👥 Your referrals ('+(d.downline_count||0)+')</h3>'+
+      ((d.downline&&d.downline.length)?d.downline.map(x=>'<div class="dl"><span class="nm">'+esc(x.name)+'</span><span class="ea">+Rs '+nf(x.total_earned)+'</span></div>').join(''):'<div style="font-size:13px;color:var(--text-muted);">No referrals yet — share your code above!</div>')+'</div>'+
+    '<div class="tiers"><div class="tier"><div class="v">'+(s.level_1_percent||5)+'%</div><div class="l">Direct (L1)</div></div><div class="tier"><div class="v">'+(s.level_2_percent||2)+'%</div><div class="l">Level 2</div></div><div class="tier"><div class="v">'+(s.level_3_percent||1)+'%</div><div class="l">Level 3</div></div></div>';
+  icons();
+}
+async function genCode(){ const g=await _call('luuvcrm.api.loyalty_generate_code',{mobile:_mobile}); if(g.message&&g.message.referral_code){ toast('Referral code ready!'); renderRewards(); } else toast('Could not create code'); }
+function copyCode(code){ navigator.clipboard.writeText(code).then(()=>toast('Code copied: '+code)).catch(()=>{}); }
+function shareRef(code){ const link=window.location.origin+'/app?ref='+code; const txt='Order from Luuv Fryxo with my code '+code+' 🍔'; if(navigator.share){ navigator.share({title:'Luuv Fryxo',text:txt,url:link}).catch(()=>{}); } else { navigator.clipboard.writeText(link).then(()=>toast('Referral link copied')).catch(()=>prompt('Copy this link:',link)); } }
+async function doRedeem(){
+  const amt=parseFloat(document.getElementById('redAmt').value)||0;
+  const eb=document.getElementById('redErr'), ok=document.getElementById('redOk');
+  eb.style.display='none'; ok.style.display='none';
+  if(amt<=0){ eb.textContent='Enter an amount'; eb.style.display='block'; return; }
+  const btn=document.getElementById('redBtn'); btn.disabled=true; btn.textContent='…';
+  const r=await _post('luuvcrm.api.loyalty_redeem',{mobile:_mobile,amount:amt});
+  btn.disabled=false; btn.textContent='Redeem';
+  if(r.message&&r.message.success){ ok.textContent='✅ Redeemed! New balance Rs '+nf(r.message.new_balance); ok.style.display='block'; toast('Redeemed Rs '+nf(amt)); setTimeout(renderRewards,1200); }
+  else { eb.textContent=(r.message&&r.message.error)||'Redeem failed'; eb.style.display='block'; }
+}
+
+/* ─────────── account / auth ─────────── */
+function gateHtml(title,sub){
+  return '<div class="gate"><span class="empty" style="padding:0;"><span class="ic"><i data-lucide="lock" style="width:26px;height:26px;color:var(--text-muted);"></i></span></span>'+
+    '<div class="disp" style="font-size:18px;">'+esc(title)+'</div>'+
+    '<div style="font-size:13.5px;color:var(--text-muted);max-width:260px;line-height:1.5;">'+esc(sub)+'</div>'+
+    '<button class="lf-btn" style="max-width:240px;" onclick="setTab(\'account\')">Sign in</button></div>';
+}
+function renderAccount(){
+  const body=document.getElementById('accountBody');
+  if(isAuthed()){
+    body.innerHTML='<div class="panel" style="display:flex;align-items:center;gap:14px;">'+
+      '<span style="width:52px;height:52px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:20px;">'+esc((_name||'G')[0].toUpperCase())+'</span>'+
+      '<div style="flex:1;min-width:0;"><div class="disp" style="font-size:17px;">'+esc(_name||'Guest')+'</div><div class="mono" style="font-size:13px;color:var(--text-muted);">+94 '+esc(_mobile.slice(-9))+'</div></div></div>'+
+      '<button class="lf-btn ghost" onclick="logout()"><i data-lucide="log-out" style="width:17px;height:17px;"></i> Sign out</button>';
+    icons(); return;
+  }
+  // logged out → phone step
+  acctPhone();
+}
+function acctPhone(){
+  document.getElementById('accountBody').innerHTML=
+    '<div class="panel"><h3>📱 Sign in / Sign up</h3>'+
+    '<div style="font-size:13.5px;color:var(--text-muted);margin-bottom:14px;line-height:1.5;">Enter your phone to view orders and rewards. New here? You\'ll set a quick 4-digit PIN.</div>'+
+    '<div class="field"><label>Phone number</label><input type="tel" id="acPhone" inputmode="numeric" maxlength="10" placeholder="07X XXX XXXX" value="'+esc(PREFILL_PHONE)+'"></div>'+
+    '<div class="err" id="acErr"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span></span></div>'+
+    '<button class="lf-btn" id="acBtn" onclick="acctCheck()" style="margin-top:16px;">Continue</button></div>';
+  icons();
+}
+function acErr(msg){ const e=document.getElementById('acErr'); e.querySelector('span').textContent=msg; e.style.display='flex'; }
+async function acctCheck(){
+  const phone=(document.getElementById('acPhone').value||'').trim();
+  if(phone.length<10){ acErr('Enter a valid 10-digit number'); return; }
+  _mobile=phone;
+  const btn=document.getElementById('acBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+  const r=await _call('luuvcrm.api.customer_create_or_login',{mobile:phone});
+  btn.disabled=false; btn.textContent='Continue';
+  if(r.message&&r.message.success){ if(r.message.exists) acctVerify(); else acctSetPin(); }
+  else acErr((r.message&&r.message.error)||'Connection error');
+}
+function acctVerify(){
+  document.getElementById('accountBody').innerHTML=
+    '<div class="panel"><h3>🔐 Welcome back</h3>'+
+    '<div style="font-size:13.5px;color:var(--text-muted);margin-bottom:14px;">Enter your PIN for +94 '+esc(_mobile.slice(-9))+'</div>'+
+    '<div class="field"><label>4-digit PIN</label><input type="password" id="acPin" class="pin" inputmode="numeric" maxlength="4" oninput="this.value=this.value.replace(/\\D/g,\'\')"></div>'+
+    '<div class="err" id="acErr"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span></span></div>'+
+    '<button class="lf-btn" id="acBtn" onclick="acctLogin()" style="margin-top:16px;">View my orders</button>'+
+    '<button class="lf-btn ghost" onclick="acctPhone()" style="margin-top:10px;">Use a different number</button></div>';
+  document.getElementById('acPin').focus(); icons();
+}
+async function acctLogin(){
+  const pin=document.getElementById('acPin').value;
+  if(pin.length!==4){ acErr('Enter your 4-digit PIN'); return; }
+  const btn=document.getElementById('acBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+  const r=await _call('luuvcrm.api.customer_verify_pin',{mobile:_mobile,pin});
+  btn.disabled=false; btn.textContent='View my orders';
+  if(r.message&&r.message.success){ saveSession(r.message.token,_mobile,r.message.name); }
+  else acErr((r.message&&r.message.error)||'Wrong PIN');
+}
+function acctSetPin(){
+  document.getElementById('accountBody').innerHTML=
+    '<div class="panel"><h3>🎉 Create your account</h3>'+
+    '<div style="font-size:13.5px;color:var(--text-muted);margin-bottom:14px;">+94 '+esc(_mobile.slice(-9))+' · set a 4-digit PIN for quick access.</div>'+
+    '<div class="field" style="margin-bottom:12px;"><label>Your name (optional)</label><input type="text" id="acNm" placeholder="Name"></div>'+
+    '<div class="field" style="margin-bottom:12px;"><label>Create PIN</label><input type="password" id="acPin" class="pin" inputmode="numeric" maxlength="4" oninput="this.value=this.value.replace(/\\D/g,\'\')"></div>'+
+    '<div class="field"><label>Confirm PIN</label><input type="password" id="acPin2" class="pin" inputmode="numeric" maxlength="4" oninput="this.value=this.value.replace(/\\D/g,\'\')"></div>'+
+    '<div class="err" id="acErr"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span></span></div>'+
+    '<button class="lf-btn" id="acBtn" onclick="acctRegister()" style="margin-top:16px;">Create & continue</button>'+
+    '<button class="lf-btn ghost" onclick="acctPhone()" style="margin-top:10px;">Back</button></div>';
+  icons();
+}
+async function acctRegister(){
+  const name=(document.getElementById('acNm').value||'').trim();
+  const pin=document.getElementById('acPin').value, c=document.getElementById('acPin2').value;
+  if(pin.length!==4){ acErr('PIN must be 4 digits'); return; }
+  if(pin!==c){ acErr('PINs do not match'); return; }
+  const btn=document.getElementById('acBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+  const r=await _call('luuvcrm.api.customer_set_pin',{mobile:_mobile,pin,name});
+  btn.disabled=false; btn.textContent='Create & continue';
+  if(r.message&&r.message.success){ saveSession(r.message.token,_mobile,name||r.message.name); }
+  else acErr((r.message&&r.message.error)||'Could not create account');
+}
+async function saveSession(token,mobile,name){
+  _token=token; _mobile=mobile; _name=name||'';
+  localStorage.setItem('lf_token',_token); localStorage.setItem('lf_mobile',_mobile); localStorage.setItem('lf_name',_name);
+  // attach pending referral now that we know the mobile
+  if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{mobile:_mobile,ref_code:_ref}); }catch(e){} localStorage.removeItem('lf_ref'); _ref=''; }
+  reflectAuth(); toast('Welcome'+(_name?', '+_name:'')+'! 🍔'); setTab('orders');
+}
+function doLogout(go){ _token=''; _mobile=''; _name=''; localStorage.removeItem('lf_token'); localStorage.removeItem('lf_mobile'); localStorage.removeItem('lf_name'); reflectAuth(); if(go!==false) setTab('account'); }
+function logout(){ doLogout(true); toast('Signed out'); }
+function reflectAuth(){
+  document.getElementById('hdLogout').style.display=isAuthed()?'flex':'none';
+  document.getElementById('hdSub').textContent=isAuthed()?('+94 '+_mobile.slice(-9)):'Order · track · earn cashback';
+  icons();
+}
+
+/* ─────────── boot ─────────── */
+reflectAuth();
+syncCart();
+icons();
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('/app_sw.js',{scope:'/app'}).catch(()=>{}); }
+</script>
+</body>
+</html>

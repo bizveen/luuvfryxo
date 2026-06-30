@@ -18,6 +18,43 @@ def _calc_service_charge(subtotal):
     rate = _get_service_charge_rate()
     return round(subtotal * rate / 100, 2)
 
+def _is_takeaway(order_type):
+    """Take Away orders are not charged a service charge."""
+    return (order_type or "").strip().lower() in ("take away", "takeaway")
+
+def _item_is_takeaway(item_data, order_type):
+    """An item carries no service charge if the whole order is take-away, or the line
+    itself is flagged take-away (mixed dine-in + parcel order)."""
+    return _is_takeaway(order_type) or bool(item_data.get("takeaway"))
+
+def _service_charge_on(sc_base):
+    """Service charge rate + amount for a dine-in subtotal (0 base -> 0 charge)."""
+    rate = _get_service_charge_rate() if sc_base > 0 else 0.0
+    return rate, round(sc_base * rate / 100, 2)
+
+def _apply_takeaway_service_charge(pos_order):
+    """Re-apply service charge on the dine-in subtotal only (excludes take-away items),
+    overriding the POS Order doctype controller (which lives in the Zeloura module and is
+    left untouched — it recomputes SC on the full subtotal). Call after insert/save."""
+    rate = float(pos_order.get("service_charge_rate") or 0)
+    subtotal = sum((i.qty or 1) * (i.rate or 0) for i in pos_order.items)
+    sc_base = sum((i.qty or 1) * (i.rate or 0) for i in pos_order.items if not i.get("takeaway"))
+    # A manager-approved discount applies to the items subtotal (before service charge),
+    # so the SC base shrinks proportionally and the discount comes off the total.
+    disc = float(pos_order.get("discount_amount") or 0)
+    if disc > subtotal:
+        disc = subtotal
+    factor = (1 - disc / subtotal) if subtotal > 0 else 1
+    sc_amount = round(sc_base * factor * rate / 100, 2) if rate > 0 else 0.0
+    pos_order.db_set("service_charge_amount", sc_amount)
+    pos_order.db_set("grand_total", round(subtotal - disc + sc_amount, 2))
+
+def _sc_rate_for(order_type):
+    return 0.0 if _is_takeaway(order_type) else _get_service_charge_rate()
+
+def _sc_amount_for(subtotal, order_type):
+    return 0.0 if _is_takeaway(order_type) else _calc_service_charge(subtotal)
+
 def _get_pos_price_list():
     """Selling price list from the default POS Profile (used for price resolution)."""
     return frappe.db.get_value("POS Profile", {}, "selling_price_list")
@@ -73,32 +110,62 @@ def _active_pos_profile_name(requested=""):
     return prof or _resolve_pos_profile_name(requested)
 
 def _invoice_doctype_for(pos_profile_name):
-    """POS Invoice (native pipeline) when an open shift exists for the profile, else
-    Sales Invoice. POS Invoice requires an open POS Opening Entry; falling back keeps
-    no-shift flows (rare edge) from hard-failing."""
-    if pos_profile_name and frappe.db.exists("POS Opening Entry",
-            {"pos_profile": pos_profile_name, "status": "Open", "docstatus": 1}):
-        return "POS Invoice"
-    return "Sales Invoice"
+    """POS sales always become native POS Invoices (open/close entries + consolidation).
+    An open shift is guaranteed by _ensure_open_shift() before any invoice is created."""
+    return "POS Invoice"
+
+def _ensure_open_shift(pos_profile_name):
+    """Guarantee the session user has an open shift for the profile; auto-open one
+    (0 opening per payment mode) if not. POS Invoice creation requires an open POS
+    Opening Entry, so this keeps every cashier sale on the native POS pipeline."""
+    user = frappe.session.user
+    existing = frappe.db.get_value("POS Opening Entry",
+        {"status": "Open", "docstatus": 1, "user": user, "pos_profile": pos_profile_name}, "name")
+    if existing:
+        return existing
+    pos_profile = frappe.get_doc("POS Profile", pos_profile_name)
+    opening = frappe.get_doc({
+        "doctype": "POS Opening Entry",
+        "pos_profile": pos_profile_name,
+        "company": pos_profile.company,
+        "period_start_date": now_datetime(),
+        "posting_date": now_datetime().strftime("%Y-%m-%d"),
+        "user": user,
+        "balance_details": [{"mode_of_payment": m, "opening_amount": 0}
+                            for m in _profile_payment_modes(pos_profile_name)],
+    })
+    opening.flags.ignore_permissions = True
+    opening.insert()
+    opening.submit()
+    return opening.name
 
 def _get_invoice_doc(invoice_name):
     """Load an order's invoice regardless of whether it is a POS Invoice or Sales Invoice."""
     dt = "POS Invoice" if frappe.db.exists("POS Invoice", invoice_name) else "Sales Invoice"
     return frappe.get_doc(dt, invoice_name)
 
-def _ensure_service_charge_item():
-    if not frappe.db.exists("Item", "Service Charge"):
-        item = frappe.get_doc({
-            "doctype": "Item",
-            "item_code": "Service Charge",
-            "item_name": "Service Charge",
-            "item_group": "Services",
-            "stock_uom": "Nos",
-            "is_stock_item": 0,
-            "is_sales_item": 1,
-        })
-        item.flags.ignore_permissions = True
-        item.insert()
+def _service_charge_account(company):
+    """Income account the restaurant service charge posts to.
+    The service charge is a charge/tax on the bill, not a sellable item, so it goes
+    into the invoice's Sales Taxes and Charges table against an income account."""
+    abbr = frappe.get_cached_value("Company", company, "abbr")
+    for nm in (f"Service Charge - {abbr}", f"Service - {abbr}"):
+        if frappe.db.exists("Account", nm):
+            return nm
+    return frappe.get_cached_value("Company", company, "default_income_account")
+
+
+def _append_service_charge_tax(invoice, sc_amount):
+    """Add the service charge as an Actual Sales Taxes and Charges row (not a line item).
+    sc_amount is the pre-computed dine-in-only amount, so it's added verbatim."""
+    invoice.append("taxes", {
+        "charge_type": "Actual",
+        "account_head": _service_charge_account(invoice.company),
+        "description": "Service Charge",
+        "tax_amount": sc_amount,
+        "category": "Total",
+        "add_deduct_tax": "Add",
+    })
 
 def _ensure_order_type_field():
     if not frappe.db.exists("Custom Field", {"dt": "POS Order", "fieldname": "order_type"}):
@@ -154,6 +221,19 @@ def get_tables_with_status():
 
 # ─── Place Order ─────────────────────────────────────────
 
+def _set_cash_tender(invoice, payment_mode, tendered, grand_total):
+    """Record cash tendered + change returned on the invoice for the receipt.
+    Display-only custom fields (custom_tendered_amount / custom_change_returned) —
+    no effect on the payment rows, paid_amount, or any GL/accounting."""
+    try:
+        t = float(tendered or 0)
+    except (TypeError, ValueError):
+        t = 0
+    if payment_mode == "Cash" and t > (grand_total or 0):
+        invoice.custom_tendered_amount = t
+        invoice.custom_change_returned = round(t - grand_total, 2)
+
+
 @frappe.whitelist(methods=["POST"])
 def place_order():
     data = frappe.local.form_dict
@@ -178,11 +258,11 @@ def place_order():
     _ensure_order_type_field()
 
     pos_profile = frappe.get_doc("POS Profile", pos_profile_name)
-    _ensure_service_charge_item()
-
+    _ensure_open_shift(pos_profile_name)
     invoice_items = []
     pos_items = []
     subtotal = 0
+    sc_base = 0
 
     for item_data in items:
         item_code = item_data.get("item")
@@ -190,13 +270,15 @@ def place_order():
         rate = float(item_data.get("rate", 0))
         if not rate:
             rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        item_ta = _item_is_takeaway(item_data, order_type)
 
-        invoice_items.append({"item_code": item_code, "qty": qty, "rate": rate})
-        pos_items.append({"item": item_code, "qty": qty, "rate": rate})
+        invoice_items.append({"item_code": item_code, "qty": qty, "rate": rate, "takeaway": 1 if item_ta else 0})
+        pos_items.append({"item": item_code, "qty": qty, "rate": rate, "takeaway": 1 if item_ta else 0})
         subtotal += rate * qty
+        if not item_ta:
+            sc_base += rate * qty
 
-    sc_rate = _get_service_charge_rate()
-    sc_amount = _calc_service_charge(subtotal)
+    sc_rate, sc_amount = _service_charge_on(sc_base)
     grand_total = subtotal + sc_amount
 
     payments = []
@@ -227,10 +309,13 @@ def place_order():
         invoice.append("items", inv_item)
 
     if sc_amount > 0:
-        invoice.append("items", {"item_code": "Service Charge", "qty": 1, "rate": sc_amount})
+        _append_service_charge_tax(invoice, sc_amount)
+    _set_cash_tender(invoice, payment_mode, data.get("tendered"), grand_total)
 
     invoice.flags.ignore_permissions = True
     invoice.insert()
+    if invoice.doctype == "POS Invoice":
+        invoice.submit()  # finalize the sale so it consolidates at shift close
 
     pos_order = frappe.get_doc({
         "doctype": "POS Order",
@@ -261,6 +346,7 @@ def place_order():
             "item_name": item_name,
             "qty": item["qty"],
             "rate": item["rate"],
+            "takeaway": item.get("takeaway", 0),
         })
 
     pos_order.flags.ignore_permissions = True
@@ -268,6 +354,7 @@ def place_order():
     pos_order.insert()
     if order_type:
         pos_order.db_set("order_type", order_type)
+    _apply_takeaway_service_charge(pos_order)
 
     _link_invoice_to_order(invoice.name, pos_order.name)
 
@@ -304,6 +391,8 @@ def send_to_kitchen():
     order_type = data.get("order_type", "")
     amended_from = data.get("amended_from", "").strip()
     waiter_name = frappe.get_value("User", frappe.session.user, "full_name") or frappe.session.user
+    # Draft = auto-created as the cashier builds the ticket; not yet fired to the kitchen.
+    is_draft = int(data.get("draft") or 0)
 
     pos_order = frappe.get_doc({
         "doctype": "POS Order",
@@ -313,7 +402,7 @@ def send_to_kitchen():
         "mobile": mobile,
         "restaurant_table": table,
         "order_source": order_source,
-        "kitchen_status": "Pending",
+        "kitchen_status": "Draft" if is_draft else "Pending",
         "grand_total": 0,
         "service_charge_rate": 0,
         "service_charge_amount": 0,
@@ -327,18 +416,21 @@ def send_to_kitchen():
         pos_order.pos_opening_entry = opening_entry_name
 
     subtotal = 0
+    sc_base = 0
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
         rate = float(item_data.get("rate", 0))
         if not rate:
             rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
-        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate})
+        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate, "takeaway": 1 if item_ta else 0})
         subtotal += rate * qty
+        if not item_ta:
+            sc_base += rate * qty
 
-    sc_rate = _get_service_charge_rate()
-    sc_amount = _calc_service_charge(subtotal)
+    sc_rate, sc_amount = _service_charge_on(sc_base)
     pos_order.grand_total = subtotal + sc_amount
     pos_order.service_charge_rate = sc_rate
     pos_order.service_charge_amount = sc_amount
@@ -347,6 +439,7 @@ def send_to_kitchen():
     pos_order.insert()
     if order_type:
         pos_order.db_set("order_type", order_type)
+    _apply_takeaway_service_charge(pos_order)
 
     # If this order was created from an amend, create Version records linking both orders
     if amended_from:
@@ -412,6 +505,8 @@ def process_payment():
         frappe.throw(_("Order is not in draft state"))
     if pos_order.pos_invoice:
         frappe.throw(_("Payment already processed for this order"))
+    if any(int(i.get("paid_qty") or 0) > 0 for i in pos_order.items):
+        frappe.throw(_("This order has split payments. Use Split Bill to pay the remaining items."))
 
     payment_mode = data.get("payment_mode", "Cash")
     cash_amount = float(data.get("cash_amount", 0))
@@ -419,6 +514,7 @@ def process_payment():
 
     pos_profile_name = _active_pos_profile_name(data.get("pos_profile", ""))
     pos_profile = frappe.get_doc("POS Profile", pos_profile_name)
+    _ensure_open_shift(pos_profile_name)
 
     payments = []
     if payment_mode == "Cash+Card":
@@ -446,14 +542,19 @@ def process_payment():
     })
 
     for item in pos_order.items:
-        invoice.append("items", {"item_code": item.item, "qty": item.qty, "rate": item.rate})
+        invoice.append("items", {"item_code": item.item, "qty": item.qty, "rate": item.rate, "takeaway": int(item.get("takeaway") or 0)})
 
     if pos_order.service_charge_amount and pos_order.service_charge_amount > 0:
-        _ensure_service_charge_item()
-        invoice.append("items", {"item_code": "Service Charge", "qty": 1, "rate": pos_order.service_charge_amount})
+        _append_service_charge_tax(invoice, pos_order.service_charge_amount)
+    if pos_order.get("discount_amount") and pos_order.discount_amount > 0:
+        invoice.apply_discount_on = "Net Total"
+        invoice.discount_amount = pos_order.discount_amount
+    _set_cash_tender(invoice, payment_mode, data.get("tendered"), pos_order.grand_total)
 
     invoice.flags.ignore_permissions = True
     invoice.insert()
+    if invoice.doctype == "POS Invoice":
+        invoice.submit()  # finalize the sale so it consolidates at shift close
 
     pos_order.db_set("pos_invoice", invoice.name)
     _link_invoice_to_order(invoice.name, order_name)
@@ -467,6 +568,119 @@ def process_payment():
         "payment_mode": payment_mode,
     }
 
+# ─── Split Bill (pay a subset of an order's items as its own bill) ─
+
+@frappe.whitelist(methods=["POST"])
+def pay_split():
+    data = frappe.local.form_dict
+    order_name = data.get("order_name")
+    if not order_name:
+        frappe.throw(_("Order name is required"))
+    lines_raw = data.get("lines")
+    lines = frappe.parse_json(lines_raw) if isinstance(lines_raw, str) else (lines_raw or [])
+
+    pos_order = frappe.get_doc("POS Order", order_name)
+    if pos_order.docstatus != 0:
+        frappe.throw(_("Order is not open"))
+
+    payment_mode = data.get("payment_mode", "Cash")
+    cash_amount = float(data.get("cash_amount", 0))
+    card_amount = float(data.get("card_amount", 0))
+
+    pos_profile_name = _active_pos_profile_name(data.get("pos_profile", ""))
+    pos_profile = frappe.get_doc("POS Profile", pos_profile_name)
+    _ensure_open_shift(pos_profile_name)
+
+    # One order row per item; validate requested qty against remaining (qty - paid_qty).
+    order_rows = {it.item: it for it in pos_order.items}
+    requested = {}
+    for ln in lines:
+        code = ln.get("item")
+        qty = int(ln.get("qty") or 0)
+        if qty <= 0:
+            continue
+        row = order_rows.get(code)
+        if not row:
+            frappe.throw(_("Item {0} is not on this order").format(code))
+        remaining = int(row.qty or 0) - int(row.get("paid_qty") or 0)
+        if requested.get(code, 0) + qty > remaining:
+            frappe.throw(_("Only {0} of {1} left to bill").format(remaining, code))
+        requested[code] = requested.get(code, 0) + qty
+    if not requested:
+        frappe.throw(_("Select at least one item to bill"))
+
+    sc_rate = _get_service_charge_rate()
+    subtotal = 0
+    sc_base = 0
+    invoice_items = []
+    for code, qty in requested.items():
+        row = order_rows[code]
+        rate = float(row.rate or 0)
+        invoice_items.append({"item_code": code, "qty": qty, "rate": rate, "takeaway": 1 if row.get("takeaway") else 0})
+        subtotal += rate * qty
+        if not row.get("takeaway"):
+            sc_base += rate * qty
+
+    sc_amount = round(sc_base * sc_rate / 100, 2) if (sc_rate > 0 and sc_base > 0) else 0.0
+    grand_total = subtotal + sc_amount
+
+    payments = []
+    if payment_mode == "Cash+Card":
+        if cash_amount > 0:
+            payments.append({"mode_of_payment": "Cash", "amount": cash_amount})
+        if card_amount > 0:
+            payments.append({"mode_of_payment": "Credit Card", "amount": card_amount})
+    else:
+        payments.append({"mode_of_payment": payment_mode, "amount": grand_total})
+
+    invoice = frappe.get_doc({
+        "doctype": _invoice_doctype_for(pos_profile_name),
+        "is_pos": 1,
+        "pos_profile": pos_profile_name,
+        "customer": "Walk In",
+        "company": pos_profile.company,
+        "currency": pos_profile.currency or "LKR",
+        "selling_price_list": pos_profile.selling_price_list or "",
+        "set_warehouse": pos_profile.warehouse or "",
+        "update_stock": 0,
+        "posting_date": now_datetime().strftime("%Y-%m-%d"),
+        "remarks": f"POS Order: {order_name} | SPLIT | {payment_mode}",
+        "items": [],
+        "payments": payments,
+    })
+    for inv_item in invoice_items:
+        invoice.append("items", inv_item)
+    if sc_amount > 0:
+        _append_service_charge_tax(invoice, sc_amount)
+    invoice.flags.ignore_permissions = True
+    invoice.insert()
+    if invoice.doctype == "POS Invoice":
+        invoice.submit()
+
+    for code, qty in requested.items():
+        row = order_rows[code]
+        row.db_set("paid_qty", int(row.get("paid_qty") or 0) + qty)
+
+    pos_order.reload()
+    fully_paid = _order_fully_paid(pos_order)
+    if fully_paid:
+        if not pos_order.pos_invoice:
+            pos_order.db_set("pos_invoice", invoice.name)
+        _link_invoice_to_order(invoice.name, order_name)
+        pos_order.db_set("docstatus", 1)
+        pos_order.db_set("kitchen_status", "Served")
+
+    return {
+        "name": order_name,
+        "invoice_name": invoice.name,
+        "subtotal": subtotal,
+        "service_charge_rate": sc_rate if sc_amount > 0 else 0,
+        "service_charge_amount": sc_amount,
+        "grand_total": grand_total,
+        "payment_mode": payment_mode,
+        "fully_paid": fully_paid,
+    }
+
 # ─── Ongoing Orders ──────────────────────────────────────
 
 @frappe.whitelist()
@@ -474,7 +688,8 @@ def get_ongoing_orders():
     orders = frappe.get_all("POS Order",
         filters={"docstatus": 0, "order_source": ["in", ["Walk-in", "Waiter"]]},
         fields=["name", "customer_name", "mobile", "restaurant_table",
-                "grand_total", "creation", "order_source", "pos_invoice", "order_type"],
+                "grand_total", "creation", "order_source", "pos_invoice", "order_type",
+                "discount_amount", "discount_note"],
         order_by="creation desc"
     )
     # Exclude orders that already have an invoice (already paid)
@@ -483,7 +698,7 @@ def get_ongoing_orders():
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
         doc = frappe.get_doc("POS Order", o.name)
         o["items_count"] = len(doc.get("items") or [])
-        o["items_json"] = json.dumps([{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate} for i in (doc.get("items") or [])])
+        o["items_json"] = json.dumps([{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate, "takeaway": int(i.get("takeaway") or 0), "sent_qty": int(i.get("sent_qty") or 0)} for i in (doc.get("items") or [])])
     return {"orders": orders}
 
 # ─── Kiosk Orders (Online source) ────────────────────────
@@ -500,7 +715,7 @@ def get_kiosk_orders():
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
         doc = frappe.get_doc("POS Order", o.name)
         o["items_count"] = len(doc.get("items") or [])
-        o["items_json"] = json.dumps([{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate} for i in (doc.get("items") or [])])
+        o["items_json"] = json.dumps([{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate, "takeaway": int(i.get("takeaway") or 0), "sent_qty": int(i.get("sent_qty") or 0)} for i in (doc.get("items") or [])])
     return {"orders": orders}
 
 # ─── Completed Orders (current shift only) ──────────────
@@ -584,7 +799,7 @@ def cancel_order():
 @frappe.whitelist()
 def get_all_changelogs():
     versions = frappe.get_all("Version",
-        filters={"ref_doctype": "POS Order"},
+        filters={"ref_doctype": "POS Order", "creation": [">=", frappe.utils.today()]},
         fields=["name", "creation", "owner", "data", "docname"],
         order_by="creation desc",
         limit_page_length=50
@@ -643,12 +858,18 @@ def mark_order_served():
 
 # ─── POS Shift (ERPNext POS Opening/Closing Entry) ──────
 
+def _profile_payment_modes(pos_profile_name):
+    """Ordered mode-of-payment names configured on a POS Profile (Cash first if present)."""
+    modes = frappe.get_all("POS Payment Method",
+        filters={"parent": pos_profile_name}, fields=["mode_of_payment"], order_by="idx")
+    names = [m.mode_of_payment for m in modes if m.mode_of_payment]
+    return names or ["Cash"]
+
 @frappe.whitelist(methods=["POST"])
 def pos_open_shift():
     _require_pos_role()
     data = frappe.local.form_dict
     pos_profile_name = _resolve_pos_profile_name(data.get("pos_profile", ""))
-    opening_balance = float(data.get("opening_balance", 0))
 
     existing = frappe.db.get_value("POS Opening Entry",
         {"status": "Open", "user": frappe.session.user}, "name")
@@ -657,6 +878,25 @@ def pos_open_shift():
 
     pos_profile = frappe.get_doc("POS Profile", pos_profile_name)
 
+    # Per-mode opening amounts (native). Accept posted balance_details, else fall back to
+    # the profile's payment methods at 0 (legacy single opening_balance honoured for Cash).
+    posted = data.get("balance_details")
+    amounts = {}
+    if posted:
+        try:
+            for row in json.loads(posted):
+                if row.get("mode_of_payment"):
+                    amounts[row["mode_of_payment"]] = float(row.get("opening_amount") or 0)
+        except (ValueError, TypeError):
+            amounts = {}
+    if not amounts and data.get("opening_balance") is not None:
+        amounts["Cash"] = float(data.get("opening_balance") or 0)
+
+    balance_details = [
+        {"mode_of_payment": mode, "opening_amount": amounts.get(mode, 0)}
+        for mode in _profile_payment_modes(pos_profile_name)
+    ]
+
     opening = frappe.get_doc({
         "doctype": "POS Opening Entry",
         "pos_profile": pos_profile_name,
@@ -664,22 +904,22 @@ def pos_open_shift():
         "period_start_date": now_datetime(),
         "posting_date": now_datetime().strftime("%Y-%m-%d"),
         "user": frappe.session.user,
-        "balance_details": [{
-            "mode_of_payment": "Cash",
-            "opening_amount": opening_balance
-        }]
+        "balance_details": balance_details,
     })
     opening.insert()
     opening.submit()
 
+    opening_amt = sum(float(d["opening_amount"]) for d in balance_details)
     return {
         "shift": {
             "status": "open",
             "name": opening.name,
-            "opening_balance": opening_balance,
+            "pos_profile": pos_profile_name,
+            "opening_balance": opening_amt,
+            "opening_details": balance_details,
             "total_sales": 0,
             "order_count": 0,
-            "payment_breakdown": {"Cash": 0},
+            "payment_breakdown": {},
             "period_start": str(opening.period_start_date),
             "cashier": frappe.get_value("User", opening.user, "full_name") or opening.user
         }
@@ -691,7 +931,20 @@ def pos_close_shift():
     from erpnext.accounts.doctype.pos_closing_entry.pos_closing_entry import make_closing_entry_from_opening
 
     data = frappe.local.form_dict
-    closing_balance = float(data.get("closing_balance", 0))
+
+    # Per-mode counted amounts (native). Accept posted closing_details, else fall back to the
+    # legacy single closing_balance (applied to Cash).
+    counted = {}
+    posted = data.get("closing_details")
+    if posted:
+        try:
+            for row in json.loads(posted):
+                if row.get("mode_of_payment"):
+                    counted[row["mode_of_payment"]] = float(row.get("closing_amount") or 0)
+        except (ValueError, TypeError):
+            counted = {}
+    if not counted and data.get("closing_balance") is not None:
+        counted["Cash"] = float(data.get("closing_balance") or 0)
 
     opening_name = frappe.db.get_value("POS Opening Entry",
         {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name")
@@ -704,18 +957,27 @@ def pos_close_shift():
     # (pos_transactions + taxes + payment reconciliation built by ERPNext).
     closing = make_closing_entry_from_opening(opening)
 
-    # Apply the cashier's counted cash; trust expected for non-cash modes.
+    # Apply the cashier's counted amount per mode; trust expected where none counted.
     payment_breakdown = {}
     for row in closing.payment_reconciliation:
         expected = float(row.expected_amount or 0)
         opening_amt_row = float(row.opening_amount or 0)
-        row.closing_amount = closing_balance if row.mode_of_payment == "Cash" else expected
+        row.closing_amount = counted.get(row.mode_of_payment, expected)
         row.difference = float(row.closing_amount) - expected
         payment_breakdown[row.mode_of_payment] = expected - opening_amt_row
 
     closing.flags.ignore_permissions = True
     closing.insert()
-    closing.submit()  # triggers native consolidation -> Sales Invoice(s)
+    # Run the POS consolidation (POS Invoice merge -> Sales Invoice) SYNCHRONOUSLY instead of on
+    # the background queue: this bench's queue workers fail to import an app (frappe_whatsapp), so
+    # the async merge silently fails and leaves the shift stuck "Open". in_migrate makes
+    # frappe.enqueue run the job inline (in this request) — proven reliable for large shifts.
+    _was_migrate = frappe.flags.in_migrate
+    frappe.flags.in_migrate = True
+    try:
+        closing.submit()  # triggers native consolidation -> Sales Invoice(s), now inline
+    finally:
+        frappe.flags.in_migrate = _was_migrate
 
     opening_amt = sum(float(d.opening_amount or 0) for d in opening.balance_details)
     total_sales = float(closing.grand_total or 0)
@@ -792,41 +1054,41 @@ def get_shift_closing_data():
 def get_pos_shift():
     _require_pos_role()
     opening_name = frappe.db.get_value("POS Opening Entry",
-        {"docstatus": 1, "user": frappe.session.user}, "name")
+        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name")
     if not opening_name:
         return {"shift": None}
 
     opening = frappe.get_doc("POS Opening Entry", opening_name)
 
     opening_amt = 0
+    opening_details = []
     for d in opening.balance_details:
         opening_amt += float(d.opening_amount)
+        opening_details.append({"mode_of_payment": d.mode_of_payment,
+                                "opening_amount": float(d.opening_amount or 0)})
 
-    orders = frappe.get_all("POS Order",
-        filters={"pos_opening_entry": opening_name, "docstatus": 1},
-        fields=["grand_total", "name"])
-    total_sales = sum(o.grand_total for o in orders)
-    order_count = len(orders)
+    # Live totals from this shift's submitted POS Invoices — the exact set the close
+    # consolidates (so the close modal shows the complete sales, incl. paid-not-served).
+    from erpnext.accounts.doctype.pos_closing_entry.pos_closing_entry import get_pos_invoices
+    invoices = get_pos_invoices(opening.period_start_date, now_datetime(),
+                                opening.pos_profile, opening.user)
+    total_sales = sum(float(i.get("grand_total") or 0) for i in invoices)
+    order_count = len(invoices)
 
     payment_breakdown = {}
-    if orders:
-        payments = frappe.db.sql("""
-            SELECT sip.mode_of_payment, SUM(sip.amount) as total
-            FROM `tabSales Invoice Payment` sip
-            INNER JOIN `tabPOS Invoice` si ON si.name = sip.parent
-            INNER JOIN `tabPOS Order` po ON po.pos_invoice = si.name
-            WHERE po.pos_opening_entry = %s AND po.docstatus = 1
-              AND sip.parenttype = 'POS Invoice'
-            GROUP BY sip.mode_of_payment
-        """, opening_name, as_dict=True)
-        for p in payments:
-            payment_breakdown[p.mode_of_payment] = float(p.total)
+    for inv in invoices:
+        for p in (inv.get("payments") or []):
+            mode = p.get("mode_of_payment")
+            if mode:
+                payment_breakdown[mode] = payment_breakdown.get(mode, 0) + float(p.get("amount") or 0)
 
     return {
         "shift": {
             "status": "open",
             "name": opening_name,
+            "pos_profile": opening.pos_profile,
             "opening_balance": opening_amt,
+            "opening_details": opening_details,
             "total_sales": total_sales,
             "order_count": order_count,
             "payment_breakdown": payment_breakdown,
@@ -900,6 +1162,145 @@ def setup_pos_order_invoice_link():
     frappe.clear_cache()
     return {"pos_order.pos_invoice_options": "POS Invoice", "pos_invoice.pos_order_field_created": created_field}
 
+
+@frappe.whitelist()
+def setup_takeaway_field():
+    """Add a per-line `takeaway` Check to POS Order Item (for mixed dine-in + take-away
+    orders, where take-away items carry no service charge). Idempotent; no full migrate."""
+    from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+
+    created = False
+    if not frappe.db.has_column("POS Order Item", "takeaway"):
+        create_custom_field("POS Order Item", {
+            "fieldname": "takeaway",
+            "label": "Take Away",
+            "fieldtype": "Check",
+            "default": "0",
+            "insert_after": "rate",
+            "in_list_view": 1,
+        })
+        created = True
+    frappe.clear_cache()
+    return {"pos_order_item.takeaway_field_created": created}
+
+
+@frappe.whitelist()
+def setup_invoice_takeaway_field():
+    """Add a per-line `takeaway` Check to POS Invoice Item so the printed receipt can show
+    take-away items separately (carried from the POS Order). Idempotent; no full migrate."""
+    from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+
+    created = False
+    if not frappe.db.has_column("POS Invoice Item", "takeaway"):
+        create_custom_field("POS Invoice Item", {
+            "fieldname": "takeaway",
+            "label": "Take Away",
+            "fieldtype": "Check",
+            "default": "0",
+            "insert_after": "rate",
+            "in_list_view": 1,
+        })
+        created = True
+    frappe.clear_cache()
+    return {"pos_invoice_item.takeaway_field_created": created}
+
+
+@frappe.whitelist()
+def setup_split_fields():
+    """Add a per-line `paid_qty` Int to POS Order Item (for bill splitting — how many of the
+    line's qty have already been billed via a split). Idempotent; no full migrate."""
+    from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+
+    created = False
+    if not frappe.db.has_column("POS Order Item", "paid_qty"):
+        create_custom_field("POS Order Item", {
+            "fieldname": "paid_qty",
+            "label": "Paid Qty",
+            "fieldtype": "Int",
+            "default": "0",
+            "insert_after": "takeaway",
+        })
+        created = True
+    frappe.clear_cache()
+    return {"pos_order_item.paid_qty_field_created": created}
+
+
+@frappe.whitelist()
+def setup_sent_qty_field():
+    """Add a per-line `sent_qty` Int to POS Order Item — how many of the line's qty have
+    already been fired to the kitchen (printed on a KOT). Lets a re-print show only the newly
+    added items. Idempotent; no full migrate."""
+    from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+
+    created = False
+    if not frappe.db.has_column("POS Order Item", "sent_qty"):
+        create_custom_field("POS Order Item", {
+            "fieldname": "sent_qty",
+            "label": "Sent Qty",
+            "fieldtype": "Int",
+            "default": "0",
+            "insert_after": "takeaway",
+        })
+        created = True
+    frappe.clear_cache()
+    return {"pos_order_item.sent_qty_field_created": created}
+
+
+@frappe.whitelist(methods=["POST"])
+def mark_kot_printed():
+    """Flag that the current items have been fired to the kitchen — sets each line's
+    sent_qty to its qty, so the next KOT shows only items added afterwards."""
+    _require_pos_role()
+    order_name = frappe.local.form_dict.get("order_name")
+    if not order_name:
+        frappe.throw(_("Order name is required"))
+    if not frappe.db.has_column("POS Order Item", "sent_qty"):
+        setup_sent_qty_field()
+    doc = frappe.get_doc("POS Order", order_name)
+    for i in (doc.get("items") or []):
+        if int(i.get("sent_qty") or 0) != int(i.qty or 0):
+            frappe.db.set_value("POS Order Item", i.name, "sent_qty", int(i.qty or 0))
+    # Firing the KOT promotes a draft to the kitchen queue.
+    if doc.kitchen_status == "Draft":
+        frappe.db.set_value("POS Order", order_name, "kitchen_status", "Pending")
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def setup_kitchen_status_options():
+    """Allow 'Draft' (auto-created, not yet fired) and 'Cancelled' as kitchen_status values via a
+    Property Setter, so insert()/save() don't reject them. Idempotent; no full migrate."""
+    options = "Pending\nProcessing\nReady\nServed\nDraft\nCancelled"
+    frappe.make_property_setter({
+        "doctype": "POS Order", "fieldname": "kitchen_status",
+        "property": "options", "value": options, "property_type": "Text",
+    }, validate_fields_for_doctype=False)
+    frappe.clear_cache(doctype="POS Order")
+    return {"ok": True, "options": options}
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_draft_order():
+    """Delete an auto-created ticket that ended up empty — only when nothing has been fired to
+    the kitchen and no invoice exists. Used for cleanup when the cart is cleared."""
+    _require_pos_role()
+    order_name = frappe.local.form_dict.get("order_name")
+    if not order_name or not frappe.db.exists("POS Order", order_name):
+        return {"ok": True, "deleted": False}
+    doc = frappe.get_doc("POS Order", order_name)
+    fired = sum(int(i.get("sent_qty") or 0) for i in (doc.get("items") or []))
+    if doc.pos_invoice or fired > 0:
+        return {"ok": True, "deleted": False}
+    frappe.delete_doc("POS Order", order_name, ignore_permissions=True, force=True)
+    return {"ok": True, "deleted": True}
+
+def _order_fully_paid(pos_order):
+    """True when every order line has been fully billed (via splits or a full pay)."""
+    items = pos_order.get("items") or []
+    if not items:
+        return False
+    return all((int(i.get("paid_qty") or 0) >= int(i.qty or 0)) for i in items)
+
 # ─── Order Items Detail ──────────────────────────────────
 
 @frappe.whitelist(allow_guest=True)
@@ -907,7 +1308,10 @@ def get_order_items(order_name):
     if not order_name:
         return {"items": []}
     doc = frappe.get_doc("POS Order", order_name)
-    items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate} for i in (doc.get("items") or [])]
+    items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate,
+              "takeaway": int(i.get("takeaway") or 0), "paid_qty": int(i.get("paid_qty") or 0),
+              "sent_qty": int(i.get("sent_qty") or 0),
+              "remaining": int(i.qty or 0) - int(i.get("paid_qty") or 0)} for i in (doc.get("items") or [])]
     return {"items": items}
 
 # ─── Orders by Table ─────────────────────────────────────
@@ -921,7 +1325,7 @@ def get_table_orders():
         filters={"docstatus": 0, "restaurant_table": table},
         fields=["name", "customer_name", "waiter_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "notes", "kitchen_status",
-                "pos_invoice"],
+                "pos_invoice", "discount_amount", "discount_note"],
         order_by="creation asc"
     )
     # Exclude paid orders (have invoice)
@@ -929,7 +1333,8 @@ def get_table_orders():
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
         doc = frappe.get_doc("POS Order", o.name)
-        items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate}
+        items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate,
+                  "takeaway": int(i.get("takeaway") or 0), "sent_qty": int(i.get("sent_qty") or 0)}
                  for i in (doc.get("items") or [])]
         o["items"] = items
     return {"orders": orders}
@@ -971,7 +1376,7 @@ def compare_orders():
 @frappe.whitelist()
 def get_kitchen_orders():
     orders = frappe.get_all("POS Order",
-        filters={"kitchen_status": ["not in", ["Served"]]},
+        filters={"kitchen_status": ["not in", ["Served", "Draft", "Cancelled"]]},
         fields=["name", "customer_name", "waiter_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "notes", "kitchen_status"],
         order_by="creation asc"
@@ -1062,21 +1467,33 @@ def update_order():
     # Track whether a receipt was already printed (invoice exists)
     was_printed = bool(pos_order.pos_invoice)
 
+    order_type = pos_order.order_type or ""
+    # Preserve per-line "already fired to kitchen" qty across the full items rebuild,
+    # so a re-print of the KOT shows only the newly added items.
+    # Keyed by (item, takeaway) so a same-item dine-in/takeaway split keeps each line's fired qty.
+    sent_map = {}
+    for i in (pos_order.get("items") or []):
+        sent_map[(i.item, int(i.get("takeaway") or 0))] = int(i.get("sent_qty") or 0)
     # Update items
     pos_order.items = []
     subtotal = 0
+    sc_base = 0
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
         rate = float(item_data.get("rate", 0))
         if not rate:
             rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
-        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate})
+        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate,
+                                   "takeaway": 1 if item_ta else 0,
+                                   "sent_qty": min(sent_map.get((item_code, 1 if item_ta else 0), 0), qty)})
         subtotal += rate * qty
+        if not item_ta:
+            sc_base += rate * qty
 
-    sc_rate = _get_service_charge_rate()
-    sc_amount = _calc_service_charge(subtotal)
+    sc_rate, sc_amount = _service_charge_on(sc_base)
     pos_order.grand_total = subtotal + sc_amount
     pos_order.service_charge_rate = sc_rate
     pos_order.service_charge_amount = sc_amount
@@ -1089,6 +1506,7 @@ def update_order():
 
     pos_order.flags.ignore_permissions = True
     pos_order.save()
+    _apply_takeaway_service_charge(pos_order)
 
     # Also sync the linked POS Invoice if it exists
     if pos_order.pos_invoice:
@@ -1101,11 +1519,11 @@ def update_order():
                 rate = float(item_data.get("rate", 0))
                 if not rate:
                     rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
-                invoice.append("items", {"item_code": item_code, "qty": qty, "rate": rate})
+                invoice.append("items", {"item_code": item_code, "qty": qty, "rate": rate, "takeaway": 1 if _item_is_takeaway(item_data, order_type) else 0})
 
+            invoice.taxes = []
             if sc_amount > 0:
-                _ensure_service_charge_item()
-                invoice.append("items", {"item_code": "Service Charge", "qty": 1, "rate": sc_amount})
+                _append_service_charge_tax(invoice, sc_amount)
 
             invoice.payments = []
             existing_payment_mode = ""
@@ -1183,6 +1601,7 @@ def kiosk_place_order():
     customer_name = data.get("customer_name", "").strip() or "Online Guest"
     mobile = data.get("mobile", "").strip() or ""
     table = data.get("table", "")
+    order_type = data.get("order_type", "")
 
     # Validate table exists — if not, silently ignore it
     if table:
@@ -1208,24 +1627,28 @@ def kiosk_place_order():
         "items": [],
     })
     subtotal = 0
+    sc_base = 0
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
         rate = float(item_data.get("rate", 0))
         if not rate:
             rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
-        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate})
+        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate, "takeaway": 1 if item_ta else 0})
         subtotal += rate * qty
+        if not item_ta:
+            sc_base += rate * qty
 
-    sc_rate = _get_service_charge_rate()
-    sc_amount = _calc_service_charge(subtotal)
+    sc_rate, sc_amount = _service_charge_on(sc_base)
     pos_order.grand_total = subtotal + sc_amount
     pos_order.service_charge_rate = sc_rate
     pos_order.service_charge_amount = sc_amount
     pos_order.flags.ignore_permissions = True
     pos_order.flags.ignore_links = True
     pos_order.insert()
+    _apply_takeaway_service_charge(pos_order)
     frappe.db.commit()
 
     # Process cashback loyalty for this order
@@ -2059,16 +2482,19 @@ def sync_offline_orders():
                 rate = float(item_data.get("rate", 0))
                 if not rate:
                     rate = _resolve_item_rate(code, 0, _get_pos_price_list())
-                rate_map[code] = {"qty": qty, "rate": rate}
+                rate_map[code] = {"qty": qty, "rate": rate,
+                                  "takeaway": 1 if _item_is_takeaway(item_data, order_type) else 0}
 
             invoice_items = []
             subtotal = 0
+            sc_base = 0
             for code, ri in rate_map.items():
-                invoice_items.append({"item_code": code, "qty": ri["qty"], "rate": ri["rate"]})
+                invoice_items.append({"item_code": code, "qty": ri["qty"], "rate": ri["rate"], "takeaway": ri["takeaway"]})
                 subtotal += ri["rate"] * ri["qty"]
+                if not ri["takeaway"]:
+                    sc_base += ri["rate"] * ri["qty"]
 
-            sc_rate = _get_service_charge_rate()
-            sc_amount = _calc_service_charge(subtotal)
+            sc_rate, sc_amount = _service_charge_on(sc_base)
             grand_total = subtotal + sc_amount
 
             payments = [{"mode_of_payment": payment_mode, "amount": grand_total}]
@@ -2080,6 +2506,7 @@ def sync_offline_orders():
                     payments.append({"mode_of_payment": "Credit Card", "amount": card_amount})
 
             pos_profile = frappe.get_doc("POS Profile", pos_profile_name)
+            _ensure_open_shift(pos_profile_name)
 
             invoice = frappe.get_doc({
                 "doctype": _invoice_doctype_for(pos_profile_name),
@@ -2100,8 +2527,7 @@ def sync_offline_orders():
                 invoice.append("items", inv_item)
 
             if sc_amount > 0:
-                _ensure_service_charge_item()
-                invoice.append("items", {"item_code": "Service Charge", "qty": 1, "rate": sc_amount})
+                _append_service_charge_tax(invoice, sc_amount)
 
             invoice.flags.ignore_permissions = True
             invoice.insert()
@@ -2126,10 +2552,11 @@ def sync_offline_orders():
             })
             for code, ri in rate_map.items():
                 item_name = frappe.db.get_value("Item", code, "item_name") or code
-                pos_order.append("items", {"item": code, "item_name": item_name, "qty": ri["qty"], "rate": ri["rate"]})
+                pos_order.append("items", {"item": code, "item_name": item_name, "qty": ri["qty"], "rate": ri["rate"], "takeaway": ri["takeaway"]})
             pos_order.flags.ignore_permissions = True
             pos_order.flags.ignore_links = True
             pos_order.insert()
+            _apply_takeaway_service_charge(pos_order)
 
             _link_invoice_to_order(invoice.name, pos_order.name)
 
@@ -2224,21 +2651,66 @@ def get_kot_print_data(order_name):
     doc = frappe.get_doc("POS Order", order_name)
     items = []
     for i in (doc.get("items") or []):
+        # Only items not yet fired to the kitchen (a re-print shows only newly added items).
+        new_qty = int(i.qty or 0) - int(i.get("sent_qty") or 0)
+        if new_qty <= 0:
+            continue
         items.append({
             "item": i.item,
             "item_name": i.item_name or i.item,
-            "qty": i.qty,
+            "qty": new_qty,
+            "takeaway": int(i.get("takeaway") or 0),
         })
 
     return {
         "order_name": doc.name,
         "table": doc.restaurant_table or "",
+        "order_type": doc.get("order_type") or "",
         "waiter_name": doc.waiter_name or "",
         "order_source": doc.order_source or "Walk-in",
         "notes": doc.notes or "",
         "items": items,
         "creation": str(doc.creation),
     }
+
+
+@frappe.whitelist()
+def get_pos_print_formats():
+    """Print Formats available for POS printing, grouped by target doctype.
+    'invoice' formats render the receipt (POS Invoice); 'order' formats render
+    the guest check and KOT (POS Order)."""
+    def _fmts(dt):
+        return frappe.get_all(
+            "Print Format",
+            filters={"doc_type": dt, "disabled": 0},
+            fields=["name"], order_by="name",
+        )
+    return {
+        "invoice": _fmts("POS Invoice"),   # receipt
+        "order": _fmts("POS Order"),       # guest check + KOT
+    }
+
+
+@frappe.whitelist()
+def render_pos_print(order_name, kind="receipt", print_format=None):
+    """Render a POS document with a selected Frappe Print Format.
+    kind: 'receipt' -> POS Invoice; 'guest_check'/'kot' -> POS Order.
+    Returns {"html": ""} when no format is chosen (or the order is not yet
+    invoiced for a receipt), so the caller falls back to the built-in layout."""
+    if not order_name:
+        frappe.throw(_("Order name is required"))
+    if not print_format:
+        return {"html": ""}
+    if kind == "receipt":
+        order = frappe.get_doc("POS Order", order_name)
+        if not order.pos_invoice:
+            return {"html": ""}   # not paid yet → fall back to built-in
+        dt = "POS Invoice" if frappe.db.exists("POS Invoice", order.pos_invoice) else "Sales Invoice"
+        dn = order.pos_invoice
+    else:
+        dt, dn = "POS Order", order_name
+    html = frappe.get_print(dt, dn, print_format=print_format)
+    return {"html": html}
 
 
 # ─── WhatsApp Order Confirmation ─────────────────────────
@@ -2307,7 +2779,7 @@ def send_customer_whatsapp(order_name, mobile):
     if not wa_account:
         return
 
-    track_url = f"https://luuvgrand.com/myorders?phone={mobile}"
+    track_url = f"https://luuvgrand.com/app?phone={mobile}"
     message = (
         f"*Order #{order_name} - Luuv Fryxo* 🎉\n\n"
         f"Thank you for your order!\n\n"
@@ -2380,3 +2852,906 @@ def _send_wa_reply(mobile, message):
         requests.post(url, headers=headers, json=data)
     except Exception as e:
         frappe.log_error(f"WA reply error: {str(e)}", "WhatsApp")
+
+
+# ─── POS Cash Movements (drawer pay-in / pay-out) ────────
+# ERPNext has no native mid-shift cash in/out; the Frappe-default way to persist a new
+# record type is a DocType. POS Cash Movement is a per-shift drawer log (not GL-integrated).
+
+@frappe.whitelist()
+def setup_cash_movement():
+    """Create the `POS Cash Movement` Custom DocType (idempotent; custom:1 => no bench migrate).
+    A small drawer pay-in / pay-out log linked to the shift's POS Opening Entry."""
+    if frappe.db.exists("DocType", "POS Cash Movement"):
+        return {"created": False, "exists": True}
+
+    # Cashier role is used by the POS; ensure it exists (mirrors setup_pos_shift_perms).
+    if not frappe.db.exists("Role", "Cashier"):
+        frappe.get_doc({"doctype": "Role", "role_name": "Cashier", "desk_access": 1}).insert(
+            ignore_permissions=True
+        )
+
+    dt = frappe.get_doc({
+        "doctype": "DocType",
+        "name": "POS Cash Movement",
+        "module": "Zeloura",
+        "custom": 1,
+        "naming_rule": "Random",
+        "autoname": "hash",
+        "track_changes": 1,
+        "fields": [
+            {"fieldname": "pos_opening_entry", "label": "POS Opening Entry", "fieldtype": "Link",
+             "options": "POS Opening Entry", "in_list_view": 1},
+            {"fieldname": "direction", "label": "Direction", "fieldtype": "Select",
+             "options": "in\nout", "reqd": 1, "in_list_view": 1},
+            {"fieldname": "amount", "label": "Amount", "fieldtype": "Currency", "reqd": 1,
+             "in_list_view": 1},
+            {"fieldname": "reason", "label": "Reason", "fieldtype": "Small Text"},
+            {"fieldname": "cashier", "label": "Cashier", "fieldtype": "Link", "options": "User",
+             "in_list_view": 1},
+            {"fieldname": "movement_time", "label": "Time", "fieldtype": "Datetime",
+             "in_list_view": 1},
+        ],
+        "permissions": [
+            {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+            {"role": "Cashier", "read": 1, "write": 1, "create": 1},
+        ],
+    })
+    dt.flags.ignore_permissions = True
+    dt.insert()
+    frappe.clear_cache()
+    return {"created": True}
+
+
+@frappe.whitelist(methods=["POST"])
+def record_cash_movement():
+    """Record a drawer pay-in or pay-out against the current open shift."""
+    _require_pos_role()
+    data = frappe.local.form_dict
+    direction = (data.get("direction") or "").strip().lower()
+    if direction not in ("in", "out"):
+        frappe.throw(_("Direction must be 'in' or 'out'"))
+    amount = float(data.get("amount") or 0)
+    if amount <= 0:
+        frappe.throw(_("Amount must be greater than zero"))
+    reason = (data.get("reason") or "").strip()
+
+    # The user's own open shift, else the single open shift (so a manager on the app can record).
+    opening = frappe.db.get_value("POS Opening Entry",
+        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name") \
+        or frappe.db.get_value("POS Opening Entry", {"docstatus": 1, "status": "Open"}, "name")
+    if not opening:
+        frappe.throw(_("No open shift — open a shift first"))
+
+    if not frappe.db.exists("DocType", "POS Cash Movement"):
+        setup_cash_movement()
+
+    doc = frappe.get_doc({
+        "doctype": "POS Cash Movement",
+        "pos_opening_entry": opening,
+        "direction": direction,
+        "amount": amount,
+        "reason": reason,
+        "cashier": frappe.session.user,
+        "movement_time": now_datetime(),
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert()
+    return {"ok": True, "name": doc.name, "direction": direction, "amount": amount}
+
+
+@frappe.whitelist()
+def get_cash_movements():
+    """Cash-drawer movements for the current open shift: totals + recent list (newest first)."""
+    _require_pos_role()
+    opening = frappe.db.get_value("POS Opening Entry",
+        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name") \
+        or frappe.db.get_value("POS Opening Entry", {"docstatus": 1, "status": "Open"}, "name")
+    if not opening or not frappe.db.exists("DocType", "POS Cash Movement"):
+        return {"in_total": 0, "out_total": 0, "moves": []}
+
+    rows = frappe.get_all("POS Cash Movement",
+        filters={"pos_opening_entry": opening},
+        fields=["name", "direction", "amount", "reason", "cashier", "movement_time"],
+        order_by="movement_time desc")
+    in_total = sum(float(r.amount or 0) for r in rows if r.direction == "in")
+    out_total = sum(float(r.amount or 0) for r in rows if r.direction == "out")
+    moves = [{
+        "direction": r.direction,
+        "amount": float(r.amount or 0),
+        "reason": r.reason or "",
+        "cashier": frappe.get_value("User", r.cashier, "full_name") or r.cashier,
+        "time": frappe.utils.pretty_date(r.movement_time),
+    } for r in rows]
+    return {"in_total": in_total, "out_total": out_total, "moves": moves}
+
+
+# ─── Move an order to another table ──────────────────────
+
+@frappe.whitelist(methods=["POST"])
+def move_order_table():
+    """Move an open (unpaid) POS Order to a different restaurant table."""
+    data = frappe.local.form_dict
+    order_name = data.get("order_name")
+    table = (data.get("table") or "").strip()
+    if not order_name:
+        frappe.throw(_("Order name is required"))
+
+    pos_order = frappe.get_doc("POS Order", order_name)
+    if pos_order.docstatus != 0:
+        frappe.throw(_("Only open orders can be moved"))
+    if pos_order.pos_invoice:
+        frappe.throw(_("Cannot move a paid order"))
+    if table and not frappe.db.exists("Restaurant Table", table):
+        frappe.throw(_("Table {0} not found").format(table))
+
+    old_table = pos_order.restaurant_table
+    pos_order.db_set("restaurant_table", table)
+    return {"ok": True, "name": order_name, "old_table": old_table or "", "table": table}
+
+
+# ─── Purchases & Expenses (buying bills → manager approval → price book) ──
+# A purchaser logs a supplier bill (items + purchase prices + receipt); the manager approves,
+# which updates each item's BUYING Item Price (the "price book"). Frappe-default = a DocType.
+
+def _buying_price_list():
+    pl = frappe.db.get_value("Price List", {"buying": 1, "enabled": 1}, "name")
+    return pl or "Standard Buying"
+
+
+@frappe.whitelist()
+def setup_purchase_bill():
+    """Create `Purchase Bill` + `Purchase Bill Item` Custom DocTypes (idempotent; no migrate)."""
+    if frappe.db.exists("DocType", "Purchase Bill"):
+        return {"created": False, "exists": True}
+    if not frappe.db.exists("Price List", "Standard Buying"):
+        frappe.get_doc({"doctype": "Price List", "price_list_name": "Standard Buying",
+                        "buying": 1, "enabled": 1, "currency": "LKR"}).insert(ignore_permissions=True)
+    # child first
+    frappe.get_doc({
+        "doctype": "DocType", "name": "Purchase Bill Item", "module": "Zeloura",
+        "custom": 1, "istable": 1, "editable_grid": 1,
+        "fields": [
+            {"fieldname": "item", "label": "Item", "fieldtype": "Link", "options": "Item", "in_list_view": 1},
+            {"fieldname": "item_name", "label": "Item Name", "fieldtype": "Data", "in_list_view": 1},
+            {"fieldname": "uom", "label": "UOM", "fieldtype": "Data"},
+            {"fieldname": "qty", "label": "Qty", "fieldtype": "Float", "in_list_view": 1},
+            {"fieldname": "price", "label": "Price", "fieldtype": "Currency", "in_list_view": 1},
+            {"fieldname": "old_price", "label": "Old Price", "fieldtype": "Currency"},
+        ],
+        "permissions": [],
+    }).insert(ignore_permissions=True)
+    frappe.get_doc({
+        "doctype": "DocType", "name": "Purchase Bill", "module": "Zeloura",
+        "custom": 1, "naming_rule": "Random", "autoname": "hash", "track_changes": 1,
+        "fields": [
+            {"fieldname": "vendor", "label": "Vendor", "fieldtype": "Data", "in_list_view": 1, "reqd": 1},
+            {"fieldname": "note", "label": "Note", "fieldtype": "Small Text"},
+            {"fieldname": "receipt_image", "label": "Receipt", "fieldtype": "Attach Image"},
+            {"fieldname": "total", "label": "Total", "fieldtype": "Currency", "in_list_view": 1},
+            {"fieldname": "status", "label": "Status", "fieldtype": "Select",
+             "options": "pending\napproved\nrejected", "default": "pending", "in_list_view": 1},
+            {"fieldname": "items", "label": "Items", "fieldtype": "Table", "options": "Purchase Bill Item"},
+            {"fieldname": "requested_by", "label": "Requested By", "fieldtype": "Link", "options": "User"},
+            {"fieldname": "requested_at", "label": "Requested At", "fieldtype": "Datetime"},
+            {"fieldname": "resolved_by", "label": "Resolved By", "fieldtype": "Link", "options": "User"},
+            {"fieldname": "resolved_at", "label": "Resolved At", "fieldtype": "Datetime"},
+        ],
+        "permissions": [
+            {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+            {"role": "Cashier", "read": 1, "write": 1, "create": 1},
+        ],
+    }).insert(ignore_permissions=True)
+    frappe.clear_cache()
+    return {"created": True}
+
+
+RAW_MATERIALS = [
+    ("RM-TOMATO", "Tomatoes", "Kg", 320), ("RM-LETTUCE", "Lettuce", "Kg", 280),
+    ("RM-ONION", "Onions", "Kg", 240), ("RM-POTATO", "Potatoes", "Kg", 220),
+    ("RM-CARROT", "Carrots", "Kg", 260), ("RM-CHICKEN", "Chicken", "Kg", 1150),
+    ("RM-BEEF", "Beef mince", "Kg", 1800), ("RM-FISH", "Fish", "Kg", 1400),
+    ("RM-EGGS", "Eggs", "Dozen", 600), ("RM-CHEESE", "Cheddar cheese", "Kg", 2400),
+    ("RM-MILK", "Milk", "Litre", 380), ("RM-BUTTER", "Butter", "Kg", 2200),
+    ("RM-BUNS", "Burger buns", "Dozen", 420), ("RM-RICE", "Rice", "Kg", 280),
+    ("RM-FLOUR", "Flour", "Kg", 220), ("RM-OIL", "Cooking oil", "Litre", 650),
+    ("RM-SUGAR", "Sugar", "Kg", 260), ("RM-SALT", "Salt", "Kg", 120),
+    ("RM-GAS", "LP gas", "Cylinder", 4900), ("RM-BOXES", "Takeaway boxes", "Pack", 1800),
+    ("RM-CUPS", "Paper cups", "Pack", 900), ("RM-NAPKINS", "Napkins", "Pack", 450),
+]
+
+
+@frappe.whitelist()
+def setup_raw_materials():
+    """Create a `Raw Materials` Item Group + restaurant ingredients (is_purchase_item) with
+    their buying Item Prices. Idempotent."""
+    if not frappe.db.exists("Item Group", "Raw Materials"):
+        parent = frappe.db.get_value("Item Group", {"name": "All Item Groups"}, "name") \
+            or frappe.db.get_value("Item Group", {"is_group": 1}, "name")
+        frappe.get_doc({"doctype": "Item Group", "item_group_name": "Raw Materials",
+                        "parent_item_group": parent, "is_group": 0}).insert(ignore_permissions=True)
+    for u in ["Kg", "Litre", "Dozen", "Cylinder", "Pack"]:
+        if not frappe.db.exists("UOM", u):
+            frappe.get_doc({"doctype": "UOM", "uom_name": u}).insert(ignore_permissions=True)
+    if not frappe.db.exists("Price List", "Standard Buying"):
+        frappe.get_doc({"doctype": "Price List", "price_list_name": "Standard Buying",
+                        "buying": 1, "enabled": 1, "currency": "LKR"}).insert(ignore_permissions=True)
+    pl = _buying_price_list()
+    created = 0
+    for code, name, uom, price in RAW_MATERIALS:
+        if not frappe.db.exists("Item", code):
+            frappe.get_doc({
+                "doctype": "Item", "item_code": code, "item_name": name,
+                "item_group": "Raw Materials", "stock_uom": uom,
+                "is_purchase_item": 1, "is_sales_item": 0, "is_stock_item": 0,
+            }).insert(ignore_permissions=True)
+            created += 1
+        if not frappe.db.exists("Item Price", {"item_code": code, "price_list": pl}):
+            frappe.get_doc({"doctype": "Item Price", "item_code": code, "price_list": pl,
+                            "buying": 1, "price_list_rate": price}).insert(ignore_permissions=True)
+    frappe.clear_cache()
+    return {"created": created, "group": "Raw Materials", "total": len(RAW_MATERIALS)}
+
+
+@frappe.whitelist()
+def get_purchase_catalog():
+    """Buying items + current purchase price (the price book) — raw materials first."""
+    pl = _buying_price_list()
+    items = frappe.get_all("Item", filters={"item_group": "Raw Materials", "disabled": 0},
+                           fields=["name", "item_name", "stock_uom", "item_group"],
+                           order_by="item_name", limit_page_length=300)
+    if not items:
+        items = frappe.get_all("Item", filters={"is_purchase_item": 1, "disabled": 0},
+                               fields=["name", "item_name", "stock_uom", "item_group"],
+                               order_by="item_name", limit_page_length=300)
+    if not items:
+        items = frappe.get_all("Item", filters={"disabled": 0},
+                               fields=["name", "item_name", "stock_uom", "item_group"],
+                               order_by="item_name", limit_page_length=120)
+    out = []
+    for it in items:
+        price = frappe.db.get_value("Item Price", {"item_code": it.name, "price_list": pl},
+                                    "price_list_rate") or 0
+        out.append({"item": it.name, "name": it.item_name or it.name,
+                    "unit": it.stock_uom or "Nos", "group": it.item_group or "",
+                    "price": float(price)})
+    return {"items": out, "price_list": pl}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_purchase_item():
+    """Create a new buying Item from the purchases app (name + unit).
+    Reuses an existing Item if one with the same name is already there."""
+    _require_pos_role()
+    data = frappe.local.form_dict
+    item_name = (data.get("item_name") or "").strip()
+    if not item_name:
+        frappe.throw(_("Item name is required"))
+    unit = (data.get("unit") or "Nos").strip() or "Nos"
+
+    existing = frappe.db.get_value("Item", {"item_name": item_name},
+                                   ["name", "stock_uom"], as_dict=True)
+    if existing:
+        return {"ok": True, "item": existing.name, "name": item_name,
+                "unit": existing.stock_uom or unit, "price": 0, "existed": True}
+
+    if not frappe.db.exists("UOM", unit):
+        frappe.get_doc({"doctype": "UOM", "uom_name": unit}).insert(ignore_permissions=True)
+    group = "Raw Materials" if frappe.db.exists("Item Group", "Raw Materials") \
+        else (frappe.db.get_value("Item Group", {"is_group": 0}, "name") or "All Item Groups")
+    doc = frappe.get_doc({
+        "doctype": "Item",
+        "item_code": item_name,
+        "item_name": item_name,
+        "item_group": group,
+        "stock_uom": unit,
+        "is_stock_item": 0,
+        "is_purchase_item": 1,
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert()
+    return {"ok": True, "item": doc.name, "name": doc.item_name,
+            "unit": doc.stock_uom, "price": 0}
+
+
+def _bill_dict(name):
+    doc = frappe.get_doc("Purchase Bill", name)
+    lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",
+              "qty": float(i.qty or 0), "price": float(i.price or 0),
+              "old_price": float(i.old_price or 0)} for i in (doc.get("items") or [])]
+    total = sum(l["qty"] * l["price"] for l in lines)
+    return {
+        "name": doc.name, "vendor": doc.vendor or "", "note": doc.note or "",
+        "receipt_image": doc.receipt_image or "", "status": doc.status or "pending",
+        "by": frappe.get_value("User", doc.requested_by, "full_name") or doc.requested_by or "",
+        "time": frappe.utils.pretty_date(doc.requested_at) if doc.requested_at else "",
+        "lines": lines, "total": total,
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def create_purchase_bill():
+    _require_pos_role()
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        setup_purchase_bill()
+    data = frappe.local.form_dict
+    vendor = (data.get("vendor") or "").strip()
+    if not vendor:
+        frappe.throw(_("Vendor is required"))
+    lines = frappe.parse_json(data.get("lines") or "[]")
+    if not lines:
+        frappe.throw(_("Add at least one item"))
+    doc = frappe.get_doc({
+        "doctype": "Purchase Bill", "vendor": vendor, "note": (data.get("note") or "").strip(),
+        "receipt_image": data.get("receipt_image") or "", "status": "pending",
+        "requested_by": frappe.session.user, "requested_at": now_datetime(), "items": [],
+    })
+    total = 0
+    appr_lines = []
+    for ln in lines:
+        item = ln.get("item")
+        qty = float(ln.get("qty") or 0)
+        price = float(ln.get("price") or 0)
+        old_price = frappe.db.get_value("Item Price",
+            {"item_code": item, "price_list": _buying_price_list()}, "price_list_rate") or 0
+        name = frappe.db.get_value("Item", item, "item_name") or item
+        uom = ln.get("unit") or frappe.db.get_value("Item", item, "stock_uom") or "Nos"
+        doc.append("items", {"item": item, "item_name": name, "uom": uom, "qty": qty,
+                             "price": price, "old_price": float(old_price)})
+        total += qty * price
+        appr_lines.append({"qtyStr": f"{qty:g} {uom}", "name": name,
+                           "totalStr": f"Rs {int(round(qty * price)):,}"})
+    doc.total = total
+    doc.flags.ignore_permissions = True
+    doc.insert()
+
+    # Route the bill to the manager app for approval (same POS Approval pipeline).
+    if not frappe.db.exists("DocType", "POS Approval"):
+        setup_pos_approval()
+    n = len(appr_lines)
+    frappe.get_doc({
+        "doctype": "POS Approval", "approval_type": "bill", "title": vendor,
+        "subhead": f"{n} item{'' if n == 1 else 's'} · purchase bill",
+        "details_json": json.dumps({"lines": appr_lines, "footer_label": "Bill total",
+                                    "footer_value": f"Rs {int(round(total)):,}"}),
+        "flag_text": ((data.get("note") or "").strip()
+                      or "Purchase bill — approving updates the price book"),
+        "action": "purchase_bill", "action_payload": json.dumps({"bill": doc.name}),
+        "status": "pending", "requested_by": frappe.session.user, "requested_at": now_datetime(),
+    }).insert(ignore_permissions=True)
+    return {"ok": True, "name": doc.name, "total": total}
+
+
+@frappe.whitelist()
+def get_purchase_bills():
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        return {"bills": [], "approved_today": 0, "pending_amt": 0, "week": 0}
+    rows = frappe.get_all("Purchase Bill", filters={}, fields=["name", "status", "requested_at"],
+                          order_by="requested_at desc", limit_page_length=60)
+    bills = [_bill_dict(r.name) for r in rows]
+    today = frappe.utils.today()
+    wk = frappe.utils.add_days(today, -7)
+    approved_today = sum(b["total"] for b, r in zip(bills, rows)
+                         if b["status"] == "approved" and str(r.requested_at) >= today)
+    pending_amt = sum(b["total"] for b in bills if b["status"] == "pending")
+    week = sum(b["total"] for b, r in zip(bills, rows)
+               if b["status"] != "rejected" and str(r.requested_at) >= wk)
+    return {"bills": bills, "approved_today": approved_today, "pending_amt": pending_amt, "week": week}
+
+
+@frappe.whitelist()
+def get_price_book():
+    cat = get_purchase_catalog()
+    return cat
+
+
+def _decide_purchase_bill(name, decision):
+    """Apply a manager decision to a Purchase Bill (idempotent); approving updates
+    each item's buying Item Price. Returns the number of prices changed."""
+    doc = frappe.get_doc("Purchase Bill", name)
+    if doc.status != "pending":
+        return 0
+    updated = 0
+    if decision == "approved":
+        pl = _buying_price_list()
+        for line in (doc.get("items") or []):
+            if not line.item or not line.price:
+                continue
+            existing = frappe.db.get_value("Item Price",
+                {"item_code": line.item, "price_list": pl}, "name")
+            if existing:
+                if float(frappe.db.get_value("Item Price", existing, "price_list_rate") or 0) != float(line.price):
+                    frappe.db.set_value("Item Price", existing, "price_list_rate", float(line.price))
+                    updated += 1
+            else:
+                frappe.get_doc({"doctype": "Item Price", "item_code": line.item,
+                                "price_list": pl, "buying": 1,
+                                "price_list_rate": float(line.price)}).insert(ignore_permissions=True)
+                updated += 1
+    doc.db_set("status", decision)
+    doc.db_set("resolved_by", frappe.session.user)
+    doc.db_set("resolved_at", now_datetime())
+    return updated
+
+
+@frappe.whitelist(methods=["POST"])
+def resolve_purchase_bill():
+    """Manager approves/rejects a bill; approving updates each item's buying Item Price."""
+    _require_pos_role()
+    data = frappe.local.form_dict
+    name = data.get("name")
+    decision = data.get("decision")
+    if decision not in ("approved", "rejected"):
+        frappe.throw(_("Decision must be 'approved' or 'rejected'"))
+    if frappe.db.get_value("Purchase Bill", name, "status") != "pending":
+        frappe.throw(_("Already resolved"))
+    updated = _decide_purchase_bill(name, decision)
+    return {"ok": True, "status": decision, "prices_updated": updated}
+
+
+# ─── Manager dashboard (today's sales, cash drawer, approvals) ─────
+
+@frappe.whitelist()
+def get_manager_dashboard():
+    """Aggregate today's POS activity for the Manager phone dashboard (all cashiers)."""
+    from frappe.utils import get_datetime, today as _today
+    today = _today()
+
+    invoices = frappe.get_all("POS Invoice",
+        filters={"docstatus": 1, "posting_date": today},
+        fields=["name", "grand_total", "creation"])
+    revenue = sum(float(i.grand_total or 0) for i in invoices)
+    sales_count = len(invoices)
+    avg = revenue / sales_count if sales_count else 0
+
+    # payment mix + cash sales
+    pay = {}
+    cash_sales = 0
+    for inv in invoices:
+        doc = frappe.get_doc("POS Invoice", inv.name)
+        for p in (doc.payments or []):
+            mode = p.mode_of_payment or "Other"
+            amt = float(p.amount or 0)
+            pay[mode] = pay.get(mode, 0) + amt
+            if mode == "Cash":
+                cash_sales += amt
+    payments = [{"mode": m, "amount": a} for m, a in sorted(pay.items(), key=lambda x: -x[1])]
+
+    # hourly revenue
+    hourly = {}
+    for inv in invoices:
+        h = get_datetime(inv.creation).hour
+        hourly[h] = hourly.get(h, 0) + float(inv.grand_total or 0)
+    hourly_list = [{"hour": h, "amount": hourly[h]} for h in sorted(hourly.keys())]
+
+    # top items today (from paid POS Orders)
+    paid_orders = frappe.get_all("POS Order",
+        filters={"pos_invoice": ["!=", ""], "creation": [">=", today]}, pluck="name")
+    tally = {}
+    for name in paid_orders:
+        od = frappe.get_doc("POS Order", name)
+        for it in (od.get("items") or []):
+            key = it.item_name or it.item
+            t = tally.setdefault(key, {"qty": 0, "rev": 0})
+            t["qty"] += int(it.qty or 0)
+            t["rev"] += float(it.rate or 0) * int(it.qty or 0)
+    top_items = sorted(
+        [{"name": k, "qty": v["qty"], "revenue": v["rev"]} for k, v in tally.items()],
+        key=lambda x: -x["revenue"])[:5]
+
+    # voids today
+    voids = frappe.get_all("POS Order",
+        filters={"docstatus": 2, "kitchen_status": "Cancelled", "modified": [">=", today]},
+        fields=["grand_total"])
+    void_count = len(voids)
+    void_amt = sum(float(v.grand_total or 0) for v in voids)
+
+    # cash drawer — the open shift (any cashier)
+    opening = frappe.db.get_value("POS Opening Entry",
+        {"docstatus": 1, "status": "Open"}, ["name", "period_start_date", "user"], as_dict=True)
+    float_amt = 0
+    cash_in = cash_out = 0
+    cash_moves = []
+    opened_at = ""
+    cashier = ""
+    if opening:
+        od = frappe.get_doc("POS Opening Entry", opening.name)
+        float_amt = sum(float(d.opening_amount or 0) for d in (od.balance_details or []))
+        opened_at = str(opening.period_start_date)
+        cashier = frappe.get_value("User", opening.user, "full_name") or opening.user
+        if frappe.db.exists("DocType", "POS Cash Movement"):
+            rows = frappe.get_all("POS Cash Movement",
+                filters={"pos_opening_entry": opening.name},
+                fields=["direction", "amount", "reason", "cashier", "movement_time"],
+                order_by="movement_time desc")
+            for r in rows:
+                amt = float(r.amount or 0)
+                if r.direction == "in":
+                    cash_in += amt
+                else:
+                    cash_out += amt
+                cash_moves.append({
+                    "direction": r.direction, "amount": amt, "reason": r.reason or "",
+                    "cashier": frappe.get_value("User", r.cashier, "full_name") or r.cashier,
+                    "time": frappe.utils.pretty_date(r.movement_time),
+                })
+    expected_drawer = float_amt + cash_sales + cash_in - cash_out
+
+    return {
+        "date": today,
+        "revenue": revenue,
+        "sales_count": sales_count,
+        "avg_ticket": avg,
+        "void_count": void_count,
+        "void_amount": void_amt,
+        "payments": payments,
+        "hourly": hourly_list,
+        "top_items": top_items,
+        "cash": {
+            "opened_at": opened_at,
+            "cashier": cashier,
+            "float": float_amt,
+            "cash_sales": cash_sales,
+            "cash_in": cash_in,
+            "cash_out": cash_out,
+            "expected": expected_drawer,
+            "moves": cash_moves,
+        },
+        "approvals": _format_approvals(_pending_and_recent_approvals()),
+    }
+
+
+@frappe.whitelist()
+def get_manager_sales_report(days=7):
+    """Daily sales trend + item-wise sales over the last N days (all cashiers).
+
+    Powers the Manager app 'Reports' tab: a day-by-day revenue chart plus a
+    full item-wise breakdown for the same window.
+    """
+    from frappe.utils import getdate, add_days, today as _today, formatdate
+
+    try:
+        days = int(days)
+    except Exception:
+        days = 7
+    days = max(1, min(days, 92))  # cap the window
+
+    end = getdate(_today())
+    start = add_days(end, -(days - 1))
+
+    # ── daily revenue + sale count (one grouped query) ──
+    rows = frappe.db.sql(
+        """
+        SELECT posting_date AS d,
+               COALESCE(SUM(grand_total), 0) AS revenue,
+               COUNT(*) AS cnt
+        FROM `tabPOS Invoice`
+        WHERE docstatus = 1 AND posting_date BETWEEN %s AND %s
+        GROUP BY posting_date
+        """,
+        (start, end), as_dict=True)
+    by_date = {str(r.d): {"revenue": float(r.revenue or 0), "count": int(r.cnt or 0)} for r in rows}
+
+    daily = []
+    cur = start
+    while cur <= end:
+        key = str(cur)
+        rec = by_date.get(key, {"revenue": 0, "count": 0})
+        daily.append({
+            "date": key,
+            "label": formatdate(cur, "d MMM"),
+            "weekday": formatdate(cur, "EEE"),
+            "revenue": rec["revenue"],
+            "count": rec["count"],
+        })
+        cur = add_days(cur, 1)
+
+    total_revenue = sum(d["revenue"] for d in daily)
+    total_sales = sum(d["count"] for d in daily)
+    avg_ticket = total_revenue / total_sales if total_sales else 0
+    best_day = max(daily, key=lambda d: d["revenue"]) if daily else None
+
+    # ── item-wise sales over the window (from paid POS Orders) ──
+    item_rows = frappe.db.sql(
+        """
+        SELECT COALESCE(soi.item_name, soi.item) AS name,
+               SUM(soi.qty) AS qty,
+               SUM(soi.rate * soi.qty) AS revenue
+        FROM `tabPOS Order Item` soi
+        INNER JOIN `tabPOS Order` so ON so.name = soi.parent
+        WHERE so.pos_invoice IS NOT NULL AND so.pos_invoice != ''
+          AND so.creation >= %s AND so.creation < %s
+        GROUP BY name
+        ORDER BY revenue DESC
+        """,
+        (start, add_days(end, 1)), as_dict=True)
+    items = [{"name": r.name, "qty": int(r.qty or 0), "revenue": float(r.revenue or 0)}
+             for r in item_rows if r.name]
+    items_revenue = sum(i["revenue"] for i in items) or 1
+
+    return {
+        "days": days,
+        "start": str(start),
+        "end": str(end),
+        "daily": daily,
+        "items": items,
+        "items_revenue": items_revenue,
+        "total_revenue": total_revenue,
+        "total_sales": total_sales,
+        "avg_ticket": avg_ticket,
+        "best_day": best_day,
+    }
+
+
+# ─── POS Approvals (manager sign-off for bill changes: voids, price overrides) ─
+# When the POS makes a change that needs a manager (void after guest check, price
+# override, etc.) it raises a POS Approval; the Manager app approves/rejects and the
+# action is executed server-side. The Frappe-default way: a dedicated DocType.
+
+@frappe.whitelist()
+def setup_pos_approval():
+    """Create the `POS Approval` Custom DocType (idempotent; custom:1, no migrate)."""
+    if frappe.db.exists("DocType", "POS Approval"):
+        return {"created": False, "exists": True}
+    if not frappe.db.exists("Role", "Cashier"):
+        frappe.get_doc({"doctype": "Role", "role_name": "Cashier", "desk_access": 1}).insert(
+            ignore_permissions=True)
+    dt = frappe.get_doc({
+        "doctype": "DocType", "name": "POS Approval", "module": "Zeloura", "custom": 1,
+        "naming_rule": "Random", "autoname": "hash", "track_changes": 1,
+        "fields": [
+            {"fieldname": "approval_type", "label": "Type", "fieldtype": "Select",
+             "options": "void\nprice\nitem\nbill\ndiscount\nedit", "in_list_view": 1},
+            {"fieldname": "pos_order", "label": "POS Order", "fieldtype": "Link",
+             "options": "POS Order", "in_list_view": 1},
+            {"fieldname": "title", "label": "Title", "fieldtype": "Data", "in_list_view": 1},
+            {"fieldname": "subhead", "label": "Subhead", "fieldtype": "Small Text"},
+            {"fieldname": "details_json", "label": "Details JSON", "fieldtype": "Long Text"},
+            {"fieldname": "flag_text", "label": "Flag", "fieldtype": "Data"},
+            {"fieldname": "action", "label": "Action", "fieldtype": "Data"},
+            {"fieldname": "action_payload", "label": "Action Payload", "fieldtype": "Long Text"},
+            {"fieldname": "status", "label": "Status", "fieldtype": "Select",
+             "options": "pending\napproved\nrejected", "default": "pending", "in_list_view": 1},
+            {"fieldname": "requested_by", "label": "Requested By", "fieldtype": "Link", "options": "User"},
+            {"fieldname": "requested_at", "label": "Requested At", "fieldtype": "Datetime"},
+            {"fieldname": "resolved_by", "label": "Resolved By", "fieldtype": "Link", "options": "User"},
+            {"fieldname": "resolved_at", "label": "Resolved At", "fieldtype": "Datetime"},
+        ],
+        "permissions": [
+            {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+            {"role": "Cashier", "read": 1, "write": 1, "create": 1},
+        ],
+    })
+    dt.flags.ignore_permissions = True
+    dt.insert()
+    frappe.clear_cache()
+    return {"created": True}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_approval():
+    """POS raises an approval request for a bill change that needs a manager."""
+    _require_pos_role()
+    if not frappe.db.exists("DocType", "POS Approval"):
+        setup_pos_approval()
+    data = frappe.local.form_dict
+    doc = frappe.get_doc({
+        "doctype": "POS Approval",
+        "approval_type": data.get("approval_type", "void"),
+        "pos_order": data.get("pos_order", ""),
+        "title": data.get("title", "") or "Approval request",
+        "subhead": data.get("subhead", ""),
+        "details_json": data.get("details_json", "") or "",
+        "flag_text": data.get("flag_text", ""),
+        "action": data.get("action", ""),
+        "action_payload": data.get("action_payload", "") or "",
+        "status": "pending",
+        "requested_by": frappe.session.user,
+        "requested_at": now_datetime(),
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert()
+    return {"ok": True, "name": doc.name}
+
+
+def _pending_and_recent_approvals():
+    if not frappe.db.exists("DocType", "POS Approval"):
+        return []
+    fields = ["name", "approval_type", "pos_order", "title", "subhead", "details_json",
+              "flag_text", "status", "requested_by", "requested_at", "resolved_at"]
+    pending = frappe.get_all("POS Approval", filters={"status": "pending"},
+                             fields=fields, order_by="requested_at desc")
+    recent = frappe.get_all("POS Approval",
+                            filters=[["status", "in", ["approved", "rejected"]],
+                                     ["modified", ">=", frappe.utils.today()]],
+                            fields=fields, order_by="modified desc", limit_page_length=15)
+    return pending + recent
+
+
+def _format_approvals(rows):
+    out = []
+    for r in rows:
+        try:
+            details = json.loads(r.get("details_json") or "{}")
+        except Exception:
+            details = {}
+        out.append({
+            "name": r.get("name"),
+            "type": r.get("approval_type") or "item",
+            "pos_order": r.get("pos_order") or "",
+            "title": r.get("title") or "",
+            "subhead": r.get("subhead") or "",
+            "lines": details.get("lines") or [],
+            "footer_label": details.get("footer_label") or "",
+            "footer_value": details.get("footer_value") or "",
+            "flag_text": r.get("flag_text") or "",
+            "status": r.get("status") or "pending",
+            "time": frappe.utils.pretty_date(r.get("requested_at")),
+        })
+    return out
+
+
+@frappe.whitelist()
+def get_pending_approvals():
+    rows = _pending_and_recent_approvals()
+    pending = sum(1 for r in rows if r.get("status") == "pending")
+    return {"approvals": _format_approvals(rows), "pending": pending}
+
+
+@frappe.whitelist()
+def get_approval_status(name):
+    if not name or not frappe.db.exists("DocType", "POS Approval"):
+        return {"status": "unknown"}
+    return {"status": frappe.db.get_value("POS Approval", name, "status") or "unknown"}
+
+
+@frappe.whitelist(methods=["POST"])
+def resolve_approval():
+    """Manager approves/rejects a POS Approval; on approve the action is executed."""
+    _require_pos_role()
+    data = frappe.local.form_dict
+    name = data.get("name")
+    decision = data.get("decision")
+    if decision not in ("approved", "rejected"):
+        frappe.throw(_("Decision must be 'approved' or 'rejected'"))
+    doc = frappe.get_doc("POS Approval", name)
+    if doc.status != "pending":
+        frappe.throw(_("Already resolved"))
+    doc.db_set("status", decision)
+    doc.db_set("resolved_by", frappe.session.user)
+    doc.db_set("resolved_at", now_datetime())
+
+    executed = None
+    action = (doc.action or "")
+    try:
+        if action == "purchase_bill":
+            payload = json.loads(doc.action_payload or "{}")
+            bill = payload.get("bill")
+            if bill and frappe.db.exists("Purchase Bill", bill):
+                _decide_purchase_bill(bill, decision)
+                executed = "purchase_" + decision
+        elif decision == "approved" and doc.pos_order:
+            if action == "void":
+                po = frappe.get_doc("POS Order", doc.pos_order)
+                if po.docstatus == 0 and not po.pos_invoice:
+                    old_status = po.kitchen_status
+                    po.db_set("docstatus", 2)
+                    po.db_set("kitchen_status", "Cancelled")
+                    frappe.get_doc({
+                        "doctype": "Version", "ref_doctype": "POS Order", "docname": doc.pos_order,
+                        "data": frappe.as_json({"changed": [
+                            ["docstatus", "0", "2"],
+                            ["kitchen_status", old_status or "Pending", "Cancelled"]]}),
+                        "owner": frappe.session.user, "modified_by": frappe.session.user,
+                        "creation": now_datetime(),
+                    }).insert(ignore_permissions=True)
+                    executed = "voided"
+            elif action == "update_items":
+                payload = json.loads(doc.action_payload or "{}")
+                items = payload.get("items") or []
+                _apply_order_items(doc.pos_order, items)
+                executed = "items_updated"
+            elif action == "discount":
+                payload = json.loads(doc.action_payload or "{}")
+                _apply_order_discount(doc.pos_order, payload)
+                executed = "discounted"
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "resolve_approval action failed")
+    return {"ok": True, "status": decision, "executed": executed}
+
+
+def _apply_order_discount(order_name, payload):
+    """Apply a manager-approved discount to a draft POS Order. The discount comes off the
+    items subtotal (before service charge); a percentage is converted to an amount here."""
+    pos_order = frappe.get_doc("POS Order", order_name)
+    if pos_order.docstatus != 0 or pos_order.pos_invoice:
+        return
+    subtotal = sum((i.qty or 1) * (i.rate or 0) for i in pos_order.items)
+    kind = payload.get("kind") or "amt"
+    try:
+        value = float(payload.get("value") or 0)
+    except (TypeError, ValueError):
+        value = 0
+    if kind == "pct":
+        amount = round(subtotal * value / 100, 2)
+        note = ("%g%%" % value)
+    else:
+        amount = round(value, 2)
+        note = "Rs." + frappe.utils.fmt_money(amount, 0)
+    if amount > subtotal:
+        amount = subtotal
+    pos_order.db_set("discount_amount", amount)
+    pos_order.db_set("discount_note", note)
+    _apply_takeaway_service_charge(pos_order)
+
+
+def _apply_order_items(order_name, items):
+    """Replace a draft POS Order's items + recompute service charge (shared by update_order
+    and approved bill-edits)."""
+    pos_order = frappe.get_doc("POS Order", order_name)
+    if pos_order.docstatus != 0:
+        frappe.throw(_("Only draft orders can be edited"))
+    order_type = pos_order.order_type or ""
+    pos_order.items = []
+    subtotal = 0
+    sc_base = 0
+    for item_data in items:
+        item_code = item_data.get("item")
+        qty = max(int(item_data.get("qty", 1)), 1)
+        rate = float(item_data.get("rate", 0))
+        if not rate:
+            rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        item_ta = _item_is_takeaway(item_data, order_type)
+        item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
+        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty,
+                                   "rate": rate, "takeaway": 1 if item_ta else 0})
+        subtotal += rate * qty
+        if not item_ta:
+            sc_base += rate * qty
+    sc_rate, sc_amount = _service_charge_on(sc_base)
+    pos_order.grand_total = subtotal + sc_amount
+    pos_order.service_charge_rate = sc_rate
+    pos_order.service_charge_amount = sc_amount
+    pos_order.flags.ignore_permissions = True
+    pos_order.save()
+    _apply_takeaway_service_charge(pos_order)
+    return pos_order
+
+
+@frappe.whitelist()
+def setup_check_printed():
+    """Add a `check_printed` Check to POS Order (set when a guest check is printed; after that,
+    deleting items needs a manager approval). Idempotent; no migrate."""
+    from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+    created = False
+    if not frappe.db.has_column("POS Order", "check_printed"):
+        create_custom_field("POS Order", {
+            "fieldname": "check_printed", "label": "Guest Check Printed",
+            "fieldtype": "Check", "default": "0", "insert_after": "kitchen_status"})
+        created = True
+    frappe.clear_cache()
+    return {"check_printed_created": created}
+
+
+@frappe.whitelist(methods=["POST"])
+def mark_check_printed():
+    """Flag that a guest check was printed for an order."""
+    _require_pos_role()
+    order_name = frappe.local.form_dict.get("order_name")
+    if not order_name:
+        frappe.throw(_("Order name is required"))
+    if not frappe.db.has_column("POS Order", "check_printed"):
+        setup_check_printed()
+    frappe.db.set_value("POS Order", order_name, "check_printed", 1)
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def get_order_flags(order_name):
+    """Lightweight flags the POS needs to decide if an edit requires approval."""
+    if not order_name:
+        return {}
+    cp = 0
+    if frappe.db.has_column("POS Order", "check_printed"):
+        cp = int(frappe.db.get_value("POS Order", order_name, "check_printed") or 0)
+    return {"check_printed": cp}

@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>My Orders | Luuv Fryxo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; }
+    body { font-family:'Inter',-apple-system,sans-serif; background:#F5F5F5; color:#1F2937; }
+    .mo-container { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }
+    .mo-header { background:#1F2937; color:#fff; padding:14px 20px; text-align:center; flex-shrink:0; }
+    .mo-header h1 { font-size:1.1rem; font-weight:800; }
+    .mo-header .sub { font-size:0.72rem; color:rgba(255,255,255,0.5); margin-top:2px; }
+
+    .mo-body { flex:1; padding:24px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .mo-body.top { justify-content:flex-start; padding-top:20px; }
+
+    .mo-card { background:#fff; border-radius:16px; padding:28px 24px; width:100%; max-width:400px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+    .mo-card h2 { font-size:1rem; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+    .mo-card .hint { font-size:0.78rem; color:#9CA3AF; margin-bottom:16px; }
+    .mo-field { margin-bottom:12px; }
+    .mo-field label { font-size:0.75rem; font-weight:600; color:#6B7280; display:block; margin-bottom:4px; }
+    .mo-field input { width:100%; padding:11px 14px; border:1.5px solid #E5E7EB; border-radius:10px; font-size:0.9rem; font-family:inherit; outline:none; transition:border 0.2s; background:#F9FAFB; }
+    .mo-field input:focus { border-color:#FF6B35; background:#fff; }
+    .mo-field input.pin-input { font-size:1.5rem; letter-spacing:8px; text-align:center; font-weight:700; }
+    .mo-btn { width:100%; padding:12px; border:none; border-radius:10px; background:linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff; font-size:0.9rem; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.15s; }
+    .mo-btn:disabled { opacity:0.5; cursor:not-allowed; }
+    .mo-btn:active { transform:scale(0.98); }
+    .mo-error { color:#EF4444; font-size:0.78rem; margin-top:6px; display:none; }
+
+    /* Orders */
+    .mo-order { background:#fff; border-radius:12px; padding:14px 16px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.04); border-left:3px solid #E5E7EB; width:100%; max-width:400px; }
+    .mo-order.status-Pending { border-left-color:#F59E0B; }
+    .mo-order.status-Ready { border-left-color:#10B981; background:#F0FDF4; }
+    .mo-order.status-Served { border-left-color:#6B7280; }
+    .mo-order .oo-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .mo-order .oo-name { font-size:0.85rem; font-weight:700; color:#1F2937; }
+    .mo-order .oo-status { font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:10px; }
+    .mo-order .oo-status.Pending { background:#FEF3C7; color:#D97706; }
+    .mo-order .oo-status.Ready { background:#D1FAE5; color:#059669; }
+    .mo-order .oo-status.Served { background:#F3F4F6; color:#6B7280; }
+    .mo-order .oo-meta { font-size:0.72rem; color:#9CA3AF; margin-bottom:6px; display:flex; gap:12px; }
+    .mo-order .oo-items { font-size:0.78rem; color:#4B5563; line-height:1.5; }
+    .mo-order .oo-total { font-size:0.9rem; font-weight:700; color:#1F2937; margin-top:6px; padding-top:6px; border-top:1px solid #F3F4F6; display:flex; justify-content:space-between; }
+
+    .mo-empty { text-align:center; padding:40px 20px; color:#9CA3AF; }
+    .mo-empty .icon { font-size:3rem; margin-bottom:8px; }
+
+    .mo-back { background:none; border:none; color:#FF6B35; font-size:0.82rem; font-weight:600; cursor:pointer; font-family:inherit; padding:8px 0; display:flex; align-items:center; gap:4px; margin-bottom:12px; }
+    .mo-logout { background:none; border:none; color:#9CA3AF; font-size:0.75rem; cursor:pointer; font-family:inherit; text-decoration:underline; margin-top:16px; }
+    .mo-spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.6s linear infinite; vertical-align:middle; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+
+    /* ── Loyalty ── */
+    .mo-tabs { display:flex; gap:0; width:100%; max-width:400px; margin-bottom:12px; background:#fff; border-radius:10px; overflow:hidden; border:1px solid #E5E7EB; }
+    .mo-tab { flex:1; padding:9px 0; border:none; background:#fff; font-size:0.8rem; font-weight:600; color:#6B7280; cursor:pointer; font-family:inherit; transition:all 0.15s; }
+    .mo-tab.active { background:#FF6B35; color:#fff; }
+    .mo-tab:first-child { border-right:1px solid #E5E7EB; }
+    .loy-card { background:#fff; border-radius:12px; padding:14px 16px; width:100%; max-width:400px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+    .loy-card h3 { font-size:0.82rem; font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+    .loy-bal { display:flex; align-items:center; gap:16px; margin-bottom:8px; }
+    .loy-bal .lb-amt { font-size:1.6rem; font-weight:800; color:#FF6B35; }
+    .loy-bal .lb-label { font-size:0.72rem; color:#9CA3AF; }
+    .loy-code-box { background:#FFF5F0; border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+    .loy-code-box .lc-code { font-size:1.1rem; font-weight:800; color:#FF6B35; letter-spacing:2px; flex:1; }
+    .loy-code-box .lc-copy { padding:6px 12px; background:#FF6B35; color:#fff; border:none; border-radius:6px; font-size:0.72rem; font-weight:600; cursor:pointer; font-family:inherit; }
+    .loy-qr { text-align:center; margin-bottom:8px; }
+    .loy-qr img { width:150px; height:150px; border-radius:8px; }
+    .loy-qr .qr-label { font-size:0.7rem; color:#9CA3AF; margin-top:4px; }
+    .loy-stats { display:flex; gap:8px; margin-bottom:8px; }
+    .loy-stat { flex:1; background:#F9FAFB; border-radius:8px; padding:8px; text-align:center; }
+    .loy-stat .ls-val { font-size:0.9rem; font-weight:700; color:#1F2937; }
+    .loy-stat .ls-lbl { font-size:0.65rem; color:#9CA3AF; }
+    .loy-redeem { display:flex; gap:6px; margin-bottom:8px; }
+    .loy-redeem input { flex:1; padding:8px 12px; border:1.5px solid #E5E7EB; border-radius:8px; font-size:0.82rem; font-family:inherit; outline:none; }
+    .loy-redeem input:focus { border-color:#FF6B35; }
+    .loy-redeem button { padding:8px 14px; border:none; border-radius:8px; background:#10B981; color:#fff; font-size:0.78rem; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; }
+    .loy-redeem button:disabled { opacity:0.4; cursor:not-allowed; }
+    .loy-downline { font-size:0.78rem; }
+    .loy-downline .ld-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid #F3F4F6; }
+    .loy-downline .ld-row:last-child { border:none; }
+    .loy-downline .ld-name { flex:1; font-weight:600; }
+    .loy-downline .ld-earned { color:#059669; font-weight:600; }
+    .loy-err { color:#EF4444; font-size:0.75rem; display:none; margin-bottom:6px; }
+    .loy-ok { color:#059669; font-size:0.75rem; display:none; margin-bottom:6px; }
+  </style>
+</head>
+<body>
+<script>window.frappe = window.frappe || {};</script>
+<!-- csrf_token -->
+<meta name="csrf-token" content="">
+<script>window.csrf_token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.frappe?.csrf_token || '';</script>
+
+<div class="mo-container" id="app">
+  <div class="mo-header">
+    <h1>🍽️ Luuv Fryxo</h1>
+    <div class="sub">My Orders</div>
+  </div>
+  <div class="mo-body" id="screenArea"></div>
+</div>
+
+<script>
+const CSRF = window.csrf_token || '';
+let _token = localStorage.getItem('lf_token') || '';
+let _mobile = '';
+
+const STEPS = { PHONE:1, SET_PIN:2, VERIFY_PIN:3, ORDERS:4 };
+
+async function _call(method, args) {
+  const params = new URLSearchParams();
+  for (const [k,v] of Object.entries(args)) params.set(k, v);
+  const res = await fetch('/api/method/' + method + '?' + params.toString(), { method:'GET', credentials:'include' });
+  return res.json();
+}
+
+function render() {
+  const area = document.getElementById('screenArea');
+  if (_token) { _showOrders(area); return; }
+
+  // Check URL for ?phone=XXX
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlPhone = urlParams.get('phone') || '';
+
+  // Check localStorage for saved mobile
+  const savedMobile = localStorage.getItem('lf_mobile') || '';
+
+  if (urlPhone) {
+    _mobile = urlPhone;
+    _checkAccount(area);
+    return;
+  }
+
+  if (savedMobile) {
+    _mobile = savedMobile;
+    _checkAccount(area);
+    return;
+  }
+
+  _showPhone(area);
+}
+
+function _showPhone(area) {
+  area.innerHTML = `
+    <div class="mo-card">
+      <h2>📱 My Orders</h2>
+      <div class="hint">Enter your phone number to view your orders</div>
+      <div class="mo-field">
+        <label>Phone Number</label>
+        <input type="tel" id="phoneInput" placeholder="07X XXXXXXX" maxlength="10" oninput="document.getElementById('phoneErr').style.display='none'">
+      </div>
+      <div class="mo-error" id="phoneErr"></div>
+      <button class="mo-btn" id="phoneBtn" onclick="checkPhone()">Continue</button>
+    </div>`;
+  document.getElementById('phoneInput').focus();
+}
+
+async function checkPhone() {
+  const phone = document.getElementById('phoneInput').value.trim();
+  const err = document.getElementById('phoneErr');
+  if (phone.length < 10) { err.textContent = 'Enter a valid 10-digit phone number'; err.style.display = 'block'; return; }
+
+  const btn = document.getElementById('phoneBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="mo-spinner"></span> Checking...';
+  _mobile = phone;
+
+  const res = await _call('luuvcrm.api.customer_create_or_login', { mobile: phone });
+  btn.disabled = false; btn.textContent = 'Continue';
+
+  if (res.message && res.message.success) {
+    if (res.message.exists) {
+      _showPin(phone, document.getElementById('screenArea'));
+    } else {
+      _showSetPin(phone, document.getElementById('screenArea'));
+    }
+  } else {
+    err.textContent = res.message?.error || 'Error connecting';
+    err.style.display = 'block';
+  }
+}
+
+function _showSetPin(phone, area) {
+  area.innerHTML = `
+    <div class="mo-card">
+      <h2>🔐 Create Your PIN</h2>
+      <div class="hint">📱 +94 ${escapeHtml(phone.slice(-9))}</div>
+      <div class="hint">Set a 4-digit PIN for quick access next time</div>
+      <div class="mo-field">
+        <label>Your Name (optional)</label>
+        <input type="text" id="nameInput" placeholder="Enter your name">
+      </div>
+      <div class="mo-field">
+        <label>Create 4-digit PIN</label>
+        <input type="password" class="pin-input" id="pinInput" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,'')">
+      </div>
+      <div class="mo-field">
+        <label>Confirm PIN</label>
+        <input type="password" class="pin-input" id="pinConfirm" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,'')">
+      </div>
+      <div class="mo-error" id="pinErr"></div>
+      <button class="mo-btn" id="pinBtn" onclick="submitSetPin()">Create Account & View Orders</button>
+    </div>
+    <button class="mo-back" onclick="render()">← Back</button>`;
+  document.getElementById('pinInput').focus();
+}
+
+async function submitSetPin() {
+  const name = document.getElementById('nameInput').value.trim();
+  const pin = document.getElementById('pinInput').value;
+  const confirm = document.getElementById('pinConfirm').value;
+  const err = document.getElementById('pinErr');
+
+  if (pin.length !== 4) { err.textContent = 'PIN must be 4 digits'; err.style.display = 'block'; return; }
+  if (pin !== confirm) { err.textContent = 'PINs do not match'; err.style.display = 'block'; return; }
+
+  const btn = document.getElementById('pinBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="mo-spinner"></span> Creating...';
+
+  const res = await _call('luuvcrm.api.customer_set_pin', { mobile: _mobile, pin, name });
+  btn.disabled = false; btn.textContent = 'Create Account & View Orders';
+
+  if (res.message && res.message.success) {
+    _token = res.message.token;
+    localStorage.setItem('lf_token', _token);
+    localStorage.setItem('lf_mobile', _mobile);
+    _showOrders(document.getElementById('screenArea'));
+  } else {
+    err.textContent = res.message?.error || 'Error creating account';
+    err.style.display = 'block';
+  }
+}
+
+function _checkAccount(area) {
+  _call('luuvcrm.api.customer_create_or_login', { mobile: _mobile }).then(res => {
+    if (res.message && res.message.success && res.message.exists) {
+      _showPin(_mobile, area);
+    } else {
+      // New customer - go straight to Set PIN (no phone input again)
+      _showSetPin(_mobile, area);
+    }
+  }).catch(() => _showSetPin(_mobile, area));
+}
+
+function _showPin(phone, area) {
+  area.innerHTML = `
+    <div class="mo-card">
+      <h2>🔐 Welcome Back</h2>
+      <div class="hint">Enter your PIN for ${escapeHtml(phone)}</div>
+      <div class="mo-field">
+        <label>4-digit PIN</label>
+        <input type="password" class="pin-input" id="pinInput" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,'');document.getElementById('pinErr').style.display='none'">
+      </div>
+      <div class="mo-error" id="pinErr"></div>
+      <button class="mo-btn" id="pinBtn" onclick="submitPin()">View My Orders</button>
+    </div>
+    <button class="mo-back" onclick="localStorage.removeItem('lf_mobile');_mobile='';render()">← Different number</button>`;
+  document.getElementById('pinInput').focus();
+}
+
+async function submitPin() {
+  const pin = document.getElementById('pinInput').value;
+  const err = document.getElementById('pinErr');
+  if (pin.length !== 4) { err.textContent = 'Enter your 4-digit PIN'; err.style.display = 'block'; return; }
+
+  const btn = document.getElementById('pinBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="mo-spinner"></span> Verifying...';
+
+  const res = await _call('luuvcrm.api.customer_verify_pin', { mobile: _mobile, pin });
+  btn.disabled = false; btn.textContent = 'View My Orders';
+
+  if (res.message && res.message.success) {
+    _token = res.message.token;
+    localStorage.setItem('lf_token', _token);
+    _showOrders(document.getElementById('screenArea'));
+  } else {
+    err.textContent = res.message?.error || 'Wrong PIN';
+    err.style.display = 'block';
+  }
+}
+
+let _activeTab = 'orders';
+let _loyData = null;
+
+async function _showOrders(area) {
+  area.innerHTML = '<div style="text-align:center;padding:40px;color:#9CA3AF;"><span class="mo-spinner" style="border-color:#D1D5DB;border-top-color:#FF6B35;width:32px;height:32px;border-width:3px;"></span><p style="margin-top:10px;">Loading...</p></div>';
+  area.parentElement.classList.add('top');
+
+  // Load both orders and loyalty data
+  const [ordRes, loyRes] = await Promise.all([
+    _call('luuvcrm.api.customer_get_orders', { token: _token }),
+    _call('luuvcrm.api.loyalty_get_info', { mobile: _mobile })
+  ]);
+  const data = ordRes.message;
+  _loyData = loyRes.message;
+
+  if (!data || !data.success) {
+    _token = '';
+    localStorage.removeItem('lf_token');
+    localStorage.removeItem('lf_mobile');
+    render();
+    return;
+  }
+
+  const orders = data.orders || [];
+  area.innerHTML = '';
+
+  // Cashback balance bar
+  const bal = _loyData && _loyData.success ? _loyData.cashback_balance || 0 : null;
+  const cashbackHtml = bal !== null
+    ? `<div style="width:100%;max-width:400px;background:#FFF5F0;border:1px solid #FF6B35;border-radius:10px;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:0.78rem;font-weight:600;color:#1F2937;">💰 Cashback Balance</span>
+        <span style="font-size:1.1rem;font-weight:800;color:#FF6B35;">LKR ${bal.toLocaleString()}</span>
+      </div>`
+    : '';
+
+  // Header with tabs
+  const header = document.createElement('div');
+  header.style.cssText = 'width:100%;max-width:400px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;';
+  header.innerHTML = `<span style="font-size:0.85rem;font-weight:700;">👋 ${escapeHtml(data.orders?.[0]?.customer_name || 'Guest')}</span>
+    <span style="font-size:0.72rem;color:#9CA3AF;">📱 +94 ${escapeHtml(_mobile.slice(-9))}</span>
+    <button style="background:none;border:none;color:#9CA3AF;font-size:0.72rem;cursor:pointer;text-decoration:underline;font-family:inherit;" onclick="logout()">Logout</button>`;
+  area.appendChild(header);
+  if (cashbackHtml) {
+    const cashEl = document.createElement('div');
+    cashEl.innerHTML = cashbackHtml;
+    area.appendChild(cashEl.firstElementChild);
+  }
+
+  // Tab bar
+  const tabs = document.createElement('div');
+  tabs.className = 'mo-tabs';
+  tabs.innerHTML = `<button class="mo-tab ${_activeTab==='orders'?'active':''}" onclick="switchMyTab('orders')">📋 Orders (${orders.length})</button>
+    <button class="mo-tab ${_activeTab==='loyalty'?'active':''}" onclick="switchMyTab('loyalty')">🎁 Rewards</button>`;
+  area.appendChild(tabs);
+
+  // Content container
+  const content = document.createElement('div');
+  content.id = 'moContent';
+  content.style.cssText = 'width:100%;max-width:400px;';
+  area.appendChild(content);
+
+  _renderMyTab();
+}
+
+function switchMyTab(tab) {
+  _activeTab = tab;
+  document.querySelectorAll('.mo-tab').forEach(b => b.classList.toggle('active', b.textContent.includes(tab==='orders'?'Orders':'Rewards')));
+  _renderMyTab();
+}
+
+function _renderMyTab() {
+  const content = document.getElementById('moContent');
+  if (!content) return;
+  if (_activeTab === 'orders') { _renderOrders(content); }
+  else { _renderLoyalty(content); }
+}
+
+function _renderOrders(content) {
+  content.innerHTML = '';
+  const res = document.createElement('div');
+  res.id = 'ordersContainer';
+  content.appendChild(res);
+
+  // We need to re-fetch or use cached orders
+  _call('luuvcrm.api.customer_get_orders', { token: _token }).then(ordRes => {
+    const data = ordRes.message;
+    const orders = (data && data.orders) || [];
+    const container = document.getElementById('ordersContainer');
+    if (!container) return;
+
+    if (orders.length === 0) {
+      container.innerHTML = '<div class="mo-empty"><div class="icon">📋</div><p>No orders found</p></div>';
+      return;
+    }
+
+    orders.forEach(o => {
+      const itemText = o.items.map(i => `${escapeHtml(i.item_name || i.item)} ×${i.qty}`).join(' · ');
+      const statusClass = o.status || 'Pending';
+      const statusLabel = statusClass === 'Pending' ? '⏳ Pending' : statusClass === 'Ready' ? '✅ Ready' : '✅ Served';
+      const card = document.createElement('div');
+      card.className = 'mo-order status-' + statusClass;
+      card.innerHTML = `
+        <div class="oo-top"><span class="oo-name">#${escapeHtml(o.name)}</span><span class="oo-status ${statusClass}">${statusLabel}</span></div>
+        <div class="oo-meta"><span>🪑 ${escapeHtml(o.table || '—')}</span><span>🕐 ${escapeHtml(o.time_ago)}</span></div>
+        <div class="oo-items">${escapeHtml(itemText)}</div>
+        <div class="oo-total"><span>Total</span><span>LKR ${(o.grand_total || 0).toLocaleString()}</span></div>`;
+      container.appendChild(card);
+    });
+  });
+}
+
+function _renderLoyalty(content) {
+  const d = _loyData;
+  if (!d || !d.success) {
+    content.innerHTML = '<div class="mo-empty"><div class="icon">🎁</div><p>Loyalty info not available</p></div>';
+    return;
+  }
+
+  // Generate referral code if needed
+  if (!d.referral_code) {
+    _call('luuvcrm.api.loyalty_generate_code', { mobile: _mobile }).then(r => {
+      if (r.message?.referral_code) {
+        d.referral_code = r.message.referral_code;
+        _renderLoyalty(content);
+      }
+    });
+    return;
+  }
+
+  const refUrl = window.location.origin + '/order?ref=' + d.referral_code;
+  const qrUrl = 'https://chart.googleapis.com/chart?chs=150x150&cht=qr&chl=' + encodeURIComponent(refUrl);
+
+  content.innerHTML = `
+    <div class="loy-card">
+      <h3>💰 Cashback Balance</h3>
+      <div class="loy-bal">
+        <div><span class="lb-amt">LKR ${(d.cashback_balance || 0).toLocaleString()}</span></div>
+        <div><span class="lb-label">Earned: LKR ${(d.total_earned || 0).toLocaleString()}</span></div>
+      </div>
+    </div>
+
+    <div class="loy-card">
+      <h3>🔗 Your Referral Code</h3>
+      <div class="loy-code-box">
+        <span class="lc-code">${escapeHtml(d.referral_code)}</span>
+        <button class="lc-copy" onclick="copyRefCode('${escapeHtml(d.referral_code)}')">Copy</button>
+      </div>
+      <div style="margin-bottom:8px;">
+        <button class="lc-copy" style="width:100%;padding:10px;font-size:0.82rem;border-radius:8px;" onclick="shareReferralLink('${escapeHtml(d.referral_code)}')">📤 Share Referral Link</button>
+      </div>
+      <div class="loy-qr">
+        <img src="${qrUrl}" alt="Referral QR" loading="lazy">
+        <div class="qr-label">Share this QR — friend gets 5% off!</div>
+      </div>
+    </div>
+
+    <div class="loy-card">
+      <h3>💸 Redeem Cashback</h3>
+      <div class="loy-err" id="redeemErr"></div>
+      <div class="loy-ok" id="redeemOk"></div>
+      <div class="loy-redeem">
+        <input type="number" id="redeemAmt" placeholder="Amount (min LKR ${d.settings?.min_redeem || 200})">
+        <button id="redeemBtn" onclick="doRedeem()">Redeem</button>
+      </div>
+    </div>
+
+    <div class="loy-card">
+      <h3>👥 Your Referrals (${d.downline_count || 0})</h3>
+      <div class="loy-downline">
+        ${(d.downline && d.downline.length > 0)
+          ? d.downline.map(dl => `<div class="ld-row"><span class="ld-name">${escapeHtml(dl.name)}</span><span class="ld-earned">LKR ${(dl.total_earned || 0).toLocaleString()}</span></div>`).join('')
+          : '<div style="color:#9CA3AF;font-size:0.78rem;">No referrals yet. Share your QR!</div>'}
+      </div>
+    </div>
+
+    <div class="loy-stats">
+      <div class="loy-stat"><div class="ls-val">Level 1: 5%</div><div class="ls-lbl">Direct referral</div></div>
+      <div class="loy-stat"><div class="ls-val">Level 2: 2%</div><div class="ls-lbl">Second level</div></div>
+      <div class="loy-stat"><div class="ls-val">Level 1: 1%</div><div class="ls-lbl">Third level</div></div>
+    </div>`;
+}
+
+function copyRefCode(code) {
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.querySelector('.lc-copy');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1500); }
+  }).catch(() => {});
+}
+
+function shareReferralLink(code) {
+  const link = window.location.origin + '/order?ref=' + code;
+  if (navigator.share) {
+    navigator.share({ title: 'Luuv Fryxo - 5% off!', text: 'Use my referral code for 5% off your order!', url: link })
+      .catch(() => {});
+  } else {
+    navigator.clipboard.writeText(link).then(() => {
+      alert('✅ Referral link copied!\n\nShare this with friends:\n' + link);
+    }).catch(() => {
+      prompt('Copy this link:', link);
+    });
+  }
+}
+
+async function doRedeem() {
+  const amt = parseFloat(document.getElementById('redeemAmt').value) || 0;
+  const err = document.getElementById('redeemErr');
+  const ok = document.getElementById('redeemOk');
+  err.style.display = 'none'; ok.style.display = 'none';
+
+  if (amt <= 0) { err.textContent = 'Enter amount'; err.style.display = 'block'; return; }
+
+  const btn = document.getElementById('redeemBtn');
+  btn.disabled = true; btn.textContent = '⏳';
+
+  const res = await _call('luuvcrm.api.loyalty_redeem', { mobile: _mobile, amount: amt });
+  btn.disabled = false; btn.textContent = 'Redeem';
+
+  if (res.message?.success) {
+    ok.textContent = '✅ Redeemed! New balance: LKR ' + (res.message.new_balance || 0).toLocaleString();
+    ok.style.display = 'block';
+    document.getElementById('redeemAmt').value = '';
+    // Refresh loyalty info
+    const loyRes = await _call('luuvcrm.api.loyalty_get_info', { mobile: _mobile });
+    if (loyRes.message) _loyData = loyRes.message;
+  } else {
+    err.textContent = res.message?.error || 'Redeem failed';
+    err.style.display = 'block';
+  }
+}
+
+function logout() {
+  _token = '';
+  localStorage.removeItem('lf_token');
+  localStorage.removeItem('lf_mobile');
+  document.getElementById('screenArea').parentElement.classList.remove('top');
+  render();
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s||'');
+  return d.innerHTML;
+}
+
+render();
+</script>
+</body>
+</html>

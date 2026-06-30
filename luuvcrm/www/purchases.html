@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Luuv Fryxo Purchases</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<link rel="manifest" href="/purchases_manifest.json">
+<meta name="theme-color" content="#F15207">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LF Purchases">
+<link rel="apple-touch-icon" href="/manager-icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-300:#FF9E68;--orange-400:#FB7430;
+  --orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;--white:#FFFFFF;
+  --gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
+  --gray-500:#837A70;--gray-600:#5E564E;--gray-700:#423D38;--gray-900:#1A1714;--ink:#141210;
+  --green-500:#1E9E5A;--amber-500:#F0A323;--red-500:#E23D3D;--blue-500:#2D74D6;
+  --color-primary:var(--orange-500);--color-primary-hover:var(--orange-600);--color-on-primary:#fff;
+  --text-strong:var(--gray-900);--text-body:var(--gray-700);--text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);--surface-brand:var(--orange-500);
+  --border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --color-success:var(--green-500);--color-success-subtle:#E6F5EC;--color-warning:var(--amber-500);--color-warning-subtle:#FDF1DC;
+  --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;--color-info:var(--blue-500);--color-info-subtle:#E6EFFB;
+  --font-display:'Poppins',system-ui,-apple-system,sans-serif;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--font-mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-2xl:28px;--radius-pill:999px;
+  --shadow-xs:0 1px 2px rgba(20,18,16,.06);--shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
+  --shadow-lg:0 12px 28px rgba(20,18,16,.12),0 4px 8px rgba(20,18,16,.06);--shadow-xl:0 24px 48px rgba(20,18,16,.18);--shadow-brand:0 8px 22px rgba(241,82,7,.30);
+  --duration-base:200ms;--ease-out:cubic-bezier(0.16,1,0.3,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+}
+*,*::before,*::after{box-sizing:border-box;}
+*::-webkit-scrollbar{width:0;height:0;}
+body{margin:0;font-family:var(--font-body);color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased;}
+input,button{font-family:inherit;}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.lf-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-display);font-weight:700;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);cursor:pointer;box-shadow:var(--shadow-brand);width:100%;height:52px;font-size:16px;}
+.lf-btn:active{transform:scale(.98);}
+.badge{display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:11px;line-height:1;letter-spacing:.02em;padding:5px 9px;border-radius:var(--radius-pill);}
+.badge.success{background:var(--color-success-subtle);color:var(--color-success);}
+.badge.warning{background:var(--color-warning-subtle);color:#9a6207;}
+.badge.danger{background:var(--color-danger-subtle);color:var(--color-danger);}
+@keyframes peFade{from{opacity:0;}to{opacity:1;}}
+@keyframes peUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+@keyframes peSheet{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.wrap{min-height:100vh;width:100%;background:var(--surface-sunken);display:flex;align-items:flex-start;justify-content:center;}
+.card{width:430px;max-width:100%;min-height:100vh;background:var(--surface-card);position:relative;box-shadow:0 0 60px rgba(20,18,16,.07);display:flex;flex-direction:column;}
+.navb{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;border:none;background:transparent;cursor:pointer;padding:6px 0;color:var(--text-muted);}
+.navb.active{color:var(--color-primary);}
+.navb i{width:23px;height:23px;}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
+.inp{width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-md);padding:13px 15px;font-family:var(--font-body);font-size:15px;color:var(--text-strong);}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+
+  <!-- header -->
+  <div style="position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--border-subtle);padding:16px 20px 14px;">
+    <div style="display:flex;align-items:center;gap:11px;">
+      <span style="width:40px;height:40px;border-radius:12px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:21px;flex:none;">🧾</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);line-height:1.15;">Purchases &amp; expenses</div>
+        <div style="font-size:12.5px;color:var(--text-muted);" id="subline">{{ current_user_full or "Staff" }}</div>
+      </div>
+      <a href="/api/method/logout" onclick="return confirm('Sign out?')" title="Sign out" style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="log-out" style="width:17px;height:17px;"></i></a>
+    </div>
+    <div style="display:flex;gap:9px;margin-top:14px;">
+      <div style="flex:1;background:var(--surface-sunken);border-radius:var(--radius-md);padding:9px 12px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;">Approved today</div><div class="mono" style="font-size:16px;color:var(--text-strong);margin-top:1px;">Rs <span id="stApproved">0</span></div></div>
+      <div style="flex:1;background:var(--orange-50);border-radius:var(--radius-md);padding:9px 12px;"><div style="font-size:11px;color:var(--orange-700);font-weight:600;">Pending</div><div class="mono" style="font-size:16px;color:var(--text-strong);margin-top:1px;">Rs <span id="stPending">0</span></div></div>
+      <div style="flex:1;background:var(--surface-sunken);border-radius:var(--radius-md);padding:9px 12px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;">This week</div><div class="mono" style="font-size:16px;color:var(--text-strong);margin-top:1px;">Rs <span id="stWeek">0</span></div></div>
+    </div>
+  </div>
+
+  <!-- body -->
+  <div style="flex:1;overflow-y:auto;padding:18px 20px 150px;">
+    <div id="tabList"><div id="expList"></div></div>
+    <div id="tabPrices" style="display:none;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="book-open" style="width:16px;height:16px;color:var(--color-primary);"></i> Current purchasing price per item. Updates when a bill is approved.</div>
+      <div id="priceList" style="display:flex;flex-direction:column;gap:9px;"></div>
+    </div>
+  </div>
+
+  <!-- Add FAB (Expenses tab only) -->
+  <div id="fab" style="position:fixed;left:50%;transform:translateX(-50%);width:390px;max-width:calc(100% - 40px);bottom:88px;z-index:25;">
+    <button class="lf-btn" onclick="openAdd()"><i data-lucide="camera" style="width:20px;height:20px;"></i> Add bill / expense</button>
+  </div>
+
+  <!-- bottom nav -->
+  <div style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:10px 8px 14px;gap:4px;">
+    <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Expenses</span></button>
+    <button class="navb" data-tab="prices" onclick="setTab('prices')"><span style="position:relative;display:inline-flex;"><i data-lucide="book-open"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Price book</span></button>
+  </div>
+</div></div>
+
+<!-- Add sheet -->
+<div id="addOverlay" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeAdd()">
+  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
+    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New bill</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Add each item and its purchase price — it goes to the manager for approval.</div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">1 · Receipt photo <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
+    <label id="photoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:20px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
+      <span id="photoHint">📷 Tap to add receipt photo</span>
+      <img id="photoImg" style="display:none;width:100%;height:100%;object-fit:cover;">
+      <input id="photoInput" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this)">
+    </label>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">2 · Items &amp; purchase prices</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
+    <div id="lineRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
+
+    <button onclick="togglePicker()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="plus" id="pickerIcon" style="width:17px;height:17px;"></i> <span id="pickerLabel">Add item from list</span></button>
+    <div id="pickerWrap" style="display:none;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:10px;overflow:hidden;"></div>
+
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Bill total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="billTotal">0</span></span></div>
+
+    <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px;">
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="e.g. Green Valley Farms"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fNote" class="inp" placeholder="Anything the manager should know"></div>
+    </div>
+    <div id="formErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="formErrMsg"></span></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button onclick="closeAdd()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
+      <div style="flex:1;"><button class="lf-btn" id="submitBtn" onclick="submitBill()">Send for approval</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='';
+  function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
+  function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
+  function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2800); }
+  async function _api(u,o){ o=o||{}; o.headers=o.headers||{}; o.headers['X-Frappe-CSRF-Token']=CSRF; o.credentials='include'; try{ const r=await fetch(u,o); if(r.status===403||r.status===401){ location.href='/login?redirect-to=/purchases'; return null;} return r;}catch(e){ return null; } }
+  async function _post(u,d){ const fd=new URLSearchParams(); fd.set('csrf_token',CSRF); for(const[k,v] of Object.entries(d||{})) fd.set(k,v); return _api(u,{method:'POST',body:fd}); }
+  const CAT_EMOJI={tomato:'🍅',lettuce:'🥬',onion:'🧅',potato:'🥔',veg:'🥬',chicken:'🍗',beef:'🥩',meat:'🥩',fish:'🐟',cheese:'🧀',milk:'🥛',dairy:'🥛',bun:'🍞',bread:'🍞',oil:'🛢️',gas:'⛽',box:'📦',cup:'🥤',pack:'📦',rice:'🍚',flour:'🌾',egg:'🥚',sugar:'🧂',salt:'🧂',spice:'🌶️',sauce:'🥫',drink:'🥤',water:'💧'};
+  function emojiFor(s){ const n=(s||'').toLowerCase(); for(const k in CAT_EMOJI){ if(n.includes(k)) return CAT_EMOJI[k]; } return '🧾'; }
+
+  function setTab(t){ tab=t; document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+    document.getElementById('tabList').style.display=t==='list'?'block':'none';
+    document.getElementById('tabPrices').style.display=t==='prices'?'block':'none';
+    document.getElementById('fab').style.display=t==='list'?'block':'none';
+    if(t==='prices') loadPriceBook(); icons(); }
+
+  async function loadBills(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
+    document.getElementById('stApproved').textContent=nfmt(m.approved_today||0);
+    document.getElementById('stPending').textContent=nfmt(m.pending_amt||0);
+    document.getElementById('stWeek').textContent=nfmt(m.week||0);
+    const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
+    document.getElementById('expList').innerHTML=(m.bills||[]).length?(m.bills||[]).map(b=>{ const t=TONE[b.status]||TONE.pending;
+      return `<div style="display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${b.receipt_image}" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
+        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.vendor}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${b.time}</div>
+        <span class="badge ${t[0]}">${t[1]}</span></div></div>`; }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No bills yet. Tap “Add bill / expense”.</div>';
+    icons();
+  }catch(e){} }
+
+  async function loadPriceBook(){ try{ const r=await _post('/api/method/luuvcrm.api.get_price_book',{}); if(!r) return; const d=await r.json(); const items=(d.message&&d.message.items)||[];
+    document.getElementById('priceList').innerHTML=items.length?items.map(p=>`<div style="display:flex;align-items:center;gap:12px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow-xs);"><span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(p.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${p.name}</div><div style="font-size:12px;color:var(--text-muted);">per ${p.unit}</div></div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt(p.price)}</div></div>`).join(''):'<div style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">No purchase items yet.</div>';
+    icons();
+  }catch(e){} }
+
+
+  // ── Add bill ──
+  async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
+  function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
+    document.getElementById('photoImg').style.display='none'; document.getElementById('photoHint').style.display='block'; document.getElementById('formErr').style.display='none';
+    if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
+    document.getElementById('addOverlay').style.display='flex'; icons(); }
+  function closeAdd(){ document.getElementById('addOverlay').style.display='none'; }
+  function togglePicker(){ pickerOpen=!pickerOpen; renderPicker(); }
+  function addLine(item){ const c=catalog.find(x=>x.item===item); if(!c) return; formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,qty:'1',price:String(c.price)}); renderLines(); renderPicker(); }
+  function removeLine(i){ formLines.splice(i,1); renderLines(); renderPicker(); }
+  function setQty(i,v){ formLines[i].qty=v; updateTotal(); }
+  function setPrice(i,v){ formLines[i].price=v; renderLines(); }
+  function renderLines(){ const wrap=document.getElementById('lineRows');
+    wrap.innerHTML=formLines.map((l,i)=>{ const price=parseFloat(l.price)||0; const changed=l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
+      return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 12px;background:var(--surface-card);">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${l.name}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${l.unit}</div></div><button onclick="removeLine(${i})" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${l.unit})</div><input value="${l.qty}" oninput="setQty(${i},this.value)" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
+          <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">New price / ${l.unit}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${l.price}" oninput="setPrice(${i},this.value)" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
+          <div style="flex:none;text-align:right;padding-bottom:9px;min-width:72px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Line</div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt((parseFloat(l.qty)||0)*price)}</div></div>
+        </div>
+        ${changed?`<div style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:${up?'var(--color-danger)':'var(--color-success)'};margin-top:9px;background:${up?'var(--color-danger-subtle)':'var(--color-success-subtle)'};border-radius:var(--radius-pill);padding:3px 10px;"><i data-lucide="${up?'trending-up':'trending-down'}" style="width:12px;height:12px;"></i> ${up?'Up':'Down'} Rs ${nfmt(diff)} from current</div>`:''}
+      </div>`; }).join('');
+    document.getElementById('lineCount').textContent=formLines.length+(formLines.length===1?' item':' items'); updateTotal(); icons(); }
+  function updateTotal(){ const t=formLines.reduce((a,l)=>a+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); document.getElementById('billTotal').textContent=nfmt(t); }
+  function renderPicker(){ const wrap=document.getElementById('pickerWrap'); const ic=document.getElementById('pickerIcon'); const lb=document.getElementById('pickerLabel');
+    lb.textContent=pickerOpen?'Hide item list':'Add item from list'; ic.setAttribute('data-lucide',pickerOpen?'chevron-up':'plus');
+    if(!pickerOpen){ wrap.style.display='none'; icons(); return; } wrap.style.display='block';
+    // Shell built once per open; the search input keeps focus because only #pickerList/#pickerNew re-render.
+    wrap.innerHTML=`
+      <div style="padding:9px 10px;border-bottom:1px solid var(--border-subtle);background:var(--surface-sunken);">
+        <input id="pickerSearch" value="${esc(pickerQuery)}" oninput="pickerQuery=this.value; renderPickerList()" placeholder="Search items…" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);">
+      </div>
+      <div id="pickerList" style="max-height:240px;overflow-y:auto;"></div>
+      <div id="pickerNew" style="border-top:1px solid var(--border-subtle);"></div>`;
+    renderPickerList(); }
+  function renderPickerList(){ const list=document.getElementById('pickerList'); const nw=document.getElementById('pickerNew'); if(!list) return;
+    const q=(pickerQuery||'').trim().toLowerCase(); const added=formLines.map(l=>l.item);
+    let avail=catalog.filter(c=>!added.includes(c.item)); if(q) avail=avail.filter(c=>(c.name||'').toLowerCase().includes(q));
+    list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine('${c.item}')" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${c.unit}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
+    nw.innerHTML=`<button onclick="openNewItem()" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(pickerQuery.trim())}”`:''}</button>`;
+    icons(); }
+  function openNewItem(){ const nm=(pickerQuery||'').trim();
+    document.getElementById('pickerNew').innerHTML=`
+      <div style="padding:12px;background:var(--surface-sunken);border-top:1px solid var(--border-subtle);">
+        <div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">New item</div>
+        <input id="niName" value="${esc(nm)}" placeholder="Item name" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);margin-bottom:8px;">
+        <div style="display:flex;gap:8px;">
+          <select id="niUnit" style="flex:1;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"><option>Nos</option><option>Kg</option><option>g</option><option>L</option><option>ml</option><option>Pkt</option><option>Box</option><option>Dozen</option></select>
+          <button id="niBtn" onclick="createNewItem()" style="flex:none;padding:0 16px;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:14px;">Create &amp; add</button>
+        </div>
+      </div>`;
+    const el=document.getElementById('niName'); if(el){ el.focus(); } icons(); }
+  async function createNewItem(){ const name=(document.getElementById('niName').value||'').trim(); const unit=document.getElementById('niUnit').value||'Nos';
+    if(!name){ toast('Enter an item name'); return; }
+    const btn=document.getElementById('niBtn'); btn.disabled=true;
+    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ const it=d.message;
+        if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:''});
+        pickerQuery=''; addLine(it.item); toast(it.existed?'Item already existed — added':'Item created & added'); }
+      else { toast((d.message&&d.message.message)||'Could not create item'); btn.disabled=false; } }
+    catch(e){ toast('Connection error'); btn.disabled=false; } }
+  async function uploadReceipt(input){ const f=input.files&&input.files[0]; if(!f) return;
+    const fd=new FormData(); fd.append('file',f,f.name); fd.append('is_private',0); fd.append('csrf_token',CSRF);
+    try{ const r=await _api('/api/method/upload_file',{method:'POST',body:fd}); if(!r) return; const d=await r.json(); const url=d.message&&(d.message.file_url||d.message.file_name); if(url){ newReceipt=url; const img=document.getElementById('photoImg'); img.src=url; img.style.display='block'; document.getElementById('photoHint').style.display='none'; toast('Receipt added'); } }catch(e){ toast('Upload failed'); } }
+  async function submitBill(){ const err=document.getElementById('formErr'); const em=document.getElementById('formErrMsg');
+    const vendor=document.getElementById('fVendor').value.trim();
+    if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
+    if(!vendor){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
+    if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
+    const lines=formLines.map(l=>({item:l.item,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
+    const btn=document.getElementById('submitBtn'); btn.disabled=true; err.style.display='none';
+    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:vendor,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); }
+      else { em.textContent=(d.message&&d.message.message)||'Could not submit'; err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
+
+  // init
+  icons();
+  document.getElementById('subline').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · {{ current_user_full or "Staff" }}';
+  loadBills(); loadCatalog();
+  setInterval(()=>{ loadBills(); }, 9000);
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
+</script>
+</body>
+</html>

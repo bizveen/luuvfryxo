@@ -1,0 +1,247 @@
+{
+    "actions": [],
+    "autoname": "naming_series:",
+    "creation": "2026-06-07 05:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "naming_series",
+        "customer_name",
+        "mobile",
+        "restaurant_table",
+        "order_source",
+        "waiter_name",
+        "column_break_1",
+        "grand_total",
+        "service_charge_rate",
+        "service_charge_amount",
+        "kitchen_status",
+        "pos_invoice",
+        "notes",
+        "items_section",
+        "items",
+        "delivery_address"
+    ],
+    "fields": [
+        {
+            "default": "POS-",
+            "fieldname": "naming_series",
+            "fieldtype": "Select",
+            "label": "Naming Series",
+            "options": "POS-",
+            "reqd": 1,
+            "hidden": 1
+        },
+        {
+            "fieldname": "customer_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Customer Name",
+            "reqd": 1,
+            "columns": 2
+        },
+        {
+            "fieldname": "waiter_name",
+            "fieldtype": "Data",
+            "label": "Waiter Name",
+            "read_only": 1
+        },
+        {
+            "fieldname": "mobile",
+            "fieldtype": "Data",
+            "label": "Mobile",
+            "columns": 1
+        },
+        {
+            "fieldname": "restaurant_table",
+            "fieldtype": "Link",
+            "label": "Restaurant Table",
+            "options": "Restaurant Table"
+        },
+        {
+            "default": "Walk-in",
+            "fieldname": "order_source",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Order Source",
+            "options": "Walk-in\nWaiter\nOnline",
+            "columns": 1
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "grand_total",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Grand Total",
+            "read_only": 1,
+            "columns": 1
+        },
+        {
+            "fieldname": "service_charge_rate",
+            "fieldtype": "Percent",
+            "label": "Service Charge Rate",
+            "read_only": 1
+        },
+        {
+            "fieldname": "service_charge_amount",
+            "fieldtype": "Currency",
+            "label": "Service Charge Amount",
+            "read_only": 1
+        },
+        {
+            "default": "Pending",
+            "fieldname": "kitchen_status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Kitchen Status",
+            "options": "Pending\nProcessing\nReady\nServed",
+            "columns": 1
+        },
+        {
+            "fieldname": "pos_invoice",
+            "fieldtype": "Link",
+            "label": "POS Invoice",
+            "options": "Sales Invoice",
+            "read_only": 1
+        },
+        {
+            "fieldname": "notes",
+            "fieldtype": "Small Text",
+            "label": "Notes"
+        },
+        {
+            "fieldname": "items_section",
+            "fieldtype": "Section Break",
+            "label": "Order Items"
+        },
+        {
+            "fieldname": "items",
+            "fieldtype": "Table",
+            "label": "Items",
+            "options": "POS Order Item",
+            "reqd": 1
+        },
+        {
+            "fieldname": "delivery_address",
+            "fieldtype": "Small Text",
+            "label": "Delivery Address"
+        }
+    ],
+    "istable": 0,
+    "links": [
+        {
+            "group": "Invoices",
+            "link_doctype": "Sales Invoice",
+            "link_fieldname": "pos_order"
+        }
+    ],
+    "modified": "2026-06-07 05:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "Zeloura",
+    "name": "POS Order",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "amend": 0,
+            "cancel": 0,
+            "create": 1,
+            "delete": 0,
+            "email": 1,
+            "export": 1,
+            "if_owner": 0,
+            "import": 0,
+            "permlevel": 0,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "set_user_permissions": 0,
+            "share": 1,
+            "submit": 0,
+            "write": 1
+        },
+        {
+            "amend": 0,
+            "cancel": 0,
+            "create": 1,
+            "delete": 0,
+            "email": 1,
+            "export": 1,
+            "if_owner": 0,
+            "import": 0,
+            "permlevel": 0,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "POS User",
+            "set_user_permissions": 0,
+            "share": 0,
+            "submit": 0,
+            "write": 1
+        },
+        {
+            "amend": 0,
+            "cancel": 0,
+            "create": 1,
+            "delete": 0,
+            "email": 0,
+            "export": 0,
+            "if_owner": 0,
+            "import": 0,
+            "permlevel": 0,
+            "print": 0,
+            "read": 1,
+            "report": 0,
+            "role": "Waiter",
+            "set_user_permissions": 0,
+            "share": 0,
+            "submit": 0,
+            "write": 1
+        },
+        {
+            "amend": 0,
+            "cancel": 0,
+            "create": 0,
+            "delete": 0,
+            "email": 0,
+            "export": 0,
+            "if_owner": 0,
+            "import": 0,
+            "permlevel": 0,
+            "print": 0,
+            "read": 1,
+            "report": 0,
+            "role": "Kitchen Staff",
+            "set_user_permissions": 0,
+            "share": 0,
+            "submit": 0,
+            "write": 1
+        },
+        {
+            "amend": 0,
+            "cancel": 0,
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "if_owner": 0,
+            "import": 0,
+            "permlevel": 0,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Restaurant Manager",
+            "set_user_permissions": 0,
+            "share": 1,
+            "submit": 0,
+            "write": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "title_field": "customer_name",
+    "track_changes": 1
+}

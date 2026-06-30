@@ -5,3 +5,11 @@
 tags
 node_modules
 __pycache__
+
+# Binaries (the print companion APK is built/served, not source)
+*.apk
+
+# One-off debug / data-fix scratch scripts (run once against the live DB)
+luuvcrm/check_*.py
+luuvcrm/debug_*.py
+luuvcrm/fix_*.py

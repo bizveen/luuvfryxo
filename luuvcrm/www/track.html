@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Track Order | Luuv Fryxo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter',-apple-system,sans-serif; background:#F5F5F5; color:#1F2937; min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+    .tr-header { width:100%; background:#1F2937; color:#fff; padding:14px 20px; text-align:center; }
+    .tr-header h1 { font-size:1.1rem; font-weight:800; }
+    .tr-body { padding:24px 20px; width:100%; max-width:480px; display:flex; flex-direction:column; align-items:center; }
+    .tr-card { background:#fff; border-radius:16px; padding:24px; width:100%; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:12px; }
+    .tr-card h2 { font-size:1rem; font-weight:700; margin-bottom:4px; }
+    .tr-status { display:flex; align-items:center; gap:8px; padding:8px 14px; border-radius:10px; font-size:0.85rem; font-weight:700; margin-bottom:12px; }
+    .tr-status.Pending { background:#FEF3C7; color:#D97706; }
+    .tr-status.Confirmed { background:#D1FAE5; color:#059669; }
+    .tr-status.Processing { background:#DBEAFE; color:#2563EB; }
+    .tr-status.Ready { background:#D1FAE5; color:#059669; }
+    .tr-status.Served { background:#F3F4F6; color:#6B7280; }
+    .tr-item { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #F3F4F6; font-size:0.85rem; }
+    .tr-total { display:flex; justify-content:space-between; padding:8px 0 0; font-size:0.95rem; font-weight:800; border-top:2px solid #E5E7EB; margin-top:4px; }
+    .tr-loading { text-align:center; padding:40px; color:#9CA3AF; }
+    .tr-btn { width:100%; padding:12px; border:none; border-radius:10px; background:linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff; font-size:0.9rem; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:none; display:block; text-align:center; margin-top:12px; }
+    .tr-error { text-align:center; padding:40px; color:#EF4444; }
+  </style>
+</head>
+<body>
+<div class="tr-header"><h1>🍽️ Luuv Fryxo</h1></div>
+<div class="tr-body" id="app">
+  <div class="tr-loading">⏳ Loading order...</div>
+</div>
+
+<script>
+async function loadOrder() {
+  const params = new URLSearchParams(window.location.search);
+  const orderName = params.get('order');
+  const app = document.getElementById('app');
+
+  if (!orderName) {
+    app.innerHTML = '<div class="tr-error">❌ No order number provided</div><a class="tr-btn" href="/order">📋 New Order</a>';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/method/luuvcrm.api.get_order_items?order_name=' + encodeURIComponent(orderName));
+    const data = await res.json();
+    const msg = data.message || {};
+    const items = msg.items || [];
+
+    if (items.length === 0) {
+      app.innerHTML = '<div class="tr-error">❌ Order not found</div><a class="tr-btn" href="/order">📋 New Order</a>';
+      return;
+    }
+
+    // Get order details from the first item's parent document
+    const ordRes = await fetch('/api/method/luuvcrm.api.get_kot_print_data?order_name=' + encodeURIComponent(orderName));
+    const ordData = await ordRes.json();
+    const orderInfo = ordData.message || {};
+
+    app.innerHTML = `
+      <div class="tr-card">
+        <h2>📋 Order #${escapeHtml(orderName)}</h2>
+        <div class="tr-status Pending">⏳ Pending Confirmation</div>
+        <p style="font-size:0.82rem;color:#6B7280;margin-bottom:10px;">Waiting for restaurant to accept your order</p>
+        <div id="trItems">${items.map(i => `<div class="tr-item"><span>${escapeHtml(i.item_name || i.item)} ×${i.qty}</span><span>LKR ${(i.rate*i.qty).toLocaleString()}</span></div>`).join('')}</div>
+        <div class="tr-total"><span>Total</span><span>LKR ${items.reduce((s,i)=>s+i.rate*i.qty,0).toLocaleString()}</span></div>
+      </div>
+      <a class="tr-btn" href="/order">📋 New Order</a>`;
+  } catch(e) {
+    app.innerHTML = '<div class="tr-error">❌ Error loading order</div><a class="tr-btn" href="/order">📋 New Order</a>';
+  }
+}
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s||''); return d.innerHTML; }
+loadOrder();
+</script>
+</body>
+</html>

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>My Orders | Luuv Fryxo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; }
+    body { font-family:'Inter',-apple-system,sans-serif; background:#F5F5F5; color:#1F2937; }
+    .mo-container { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }
+    .mo-header { background:#1F2937; color:#fff; padding:14px 20px; text-align:center; flex-shrink:0; }
+    .mo-header h1 { font-size:1.1rem; font-weight:800; }
+    .mo-header .sub { font-size:0.72rem; color:rgba(255,255,255,0.5); margin-top:2px; }
+
+    .mo-body { flex:1; padding:24px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .mo-body.top { justify-content:flex-start; padding-top:20px; }
+
+    .mo-card { background:#fff; border-radius:16px; padding:28px 24px; width:100%; max-width:400px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+    .mo-card h2 { font-size:1rem; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+    .mo-card .hint { font-size:0.78rem; color:#9CA3AF; margin-bottom:16px; }
+    .mo-field { margin-bottom:12px; }
+    .mo-field label { font-size:0.75rem; font-weight:600; color:#6B7280; display:block; margin-bottom:4px; }
+    .mo-field input { width:100%; padding:11px 14px; border:1.5px solid #E5E7EB; border-radius:10px; font-size:0.9rem; font-family:inherit; outline:none; transition:border 0.2s; background:#F9FAFB; }
+    .mo-field input:focus { border-color:#FF6B35; background:#fff; }
+    .mo-field input.pin-input { font-size:1.5rem; letter-spacing:8px; text-align:center; font-weight:700; }
+    .mo-btn { width:100%; padding:12px; border:none; border-radius:10px; background:linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff; font-size:0.9rem; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.15s; }
+    .mo-btn:disabled { opacity:0.5; cursor:not-allowed; }
+    .mo-btn:active { transform:scale(0.98); }
+    .mo-error { color:#EF4444; font-size:0.78rem; margin-top:6px; display:none; }
+
+    /* Orders */
+    .mo-order { background:#fff; border-radius:12px; padding:14px 16px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.04); border-left:3px solid #E5E7EB; width:100%; max-width:400px; }
+    .mo-order.status-Pending { border-left-color:#F59E0B; }
+    .mo-order.status-Ready { border-left-color:#10B981; background:#F0FDF4; }
+    .mo-order.status-Served { border-left-color:#6B7280; }
+    .mo-order .oo-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .mo-order .oo-name { font-size:0.85rem; font-weight:700; color:#1F2937; }
+    .mo-order .oo-status { font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:10px; }
+    .mo-order .oo-status.Pending { background:#FEF3C7; color:#D97706; }
+    .mo-order .oo-status.Ready { background:#D1FAE5; color:#059669; }
+    .mo-order .oo-status.Served { background:#F3F4F6; color:#6B7280; }
+    .mo-order .oo-meta { font-size:0.72rem; color:#9CA3AF; margin-bottom:6px; display:flex; gap:12px; }
+    .mo-order .oo-items { font-size:0.78rem; color:#4B5563; line-height:1.5; }
+    .mo-order .oo-total { font-size:0.9rem; font-weight:700; color:#1F2937; margin-top:6px; padding-top:6px; border-top:1px solid #F3F4F6; display:flex; justify-content:space-between; }
+
+    .mo-empty { text-align:center; padding:40px 20px; color:#9CA3AF; }
+    .mo-empty .icon { font-size:3rem; margin-bottom:8px; }
+
+    .mo-back { background:none; border:none; color:#FF6B35; font-size:0.82rem; font-weight:600; cursor:pointer; font-family:inherit; padding:8px 0; display:flex; align-items:center; gap:4px; margin-bottom:12px; }
+    .mo-logout { background:none; border:none; color:#9CA3AF; font-size:0.75rem; cursor:pointer; font-family:inherit; text-decoration:underline; margin-top:16px; }
+    .mo-spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.6s linear infinite; vertical-align:middle; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+  </style>
+</head>
+<body>
+<script>window.frappe = window.frappe || {};</script>
+<!-- csrf_token -->
+<meta name="csrf-token" content="">
+<script>window.csrf_token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.frappe?.csrf_token || '';</script>
+
+<div class="mo-container" id="app">
+  <div class="mo-header">
+    <h1>🍽️ Luuv Fryxo</h1>
+    <div class="sub">My Orders</div>
+  </div>
+  <div class="mo-body" id="screenArea"></div>
+</div>
+
+<script>
+const CSRF = window.csrf_token || '';
+let _token = localStorage.getItem('lf_token') || '';
+let _mobile = '';
+
+const STEPS = { PHONE:1, SET_PIN:2, VERIFY_PIN:3, ORDERS:4 };
+
+async function _call(method, args) {
+  const params = new URLSearchParams();
+  for (const [k,v] of Object.entries(args)) params.set(k, v);
+  const res = await fetch('/api/method/' + method + '?' + params.toString(), { method:'GET', credentials:'include' });
+  return res.json();
+}
+
+function render() {
+  const area = document.getElementById('screenArea');
+  if (_token) { _showOrders(area); return; }
+
+  // Check if we already have mobile from localStorage
+  const savedMobile = localStorage.getItem('lf_mobile') || '';
+  if (savedMobile) {
+    // Try to auto-login with stored mobile
+    _mobile = savedMobile;
+    _checkAccount(area);
+    return;
+  }
+
+  _showPhone(area);
+}
+
+function _showPhone(area) {
+  area.innerHTML = `
+    <div class="mo-card">
+      <h2>📱 My Orders</h2>
+      <div class="hint">Enter your phone number to view your orders</div>
+      <div class="mo-field">
+        <label>Phone Number</label>
+        <input type="tel" id="phoneInput" placeholder="07X XXXXXXX" maxlength="10" oninput="document.getElementById('phoneErr').style.display='none'">
+      </div>
+      <div class="mo-error" id="phoneErr"></div>
+      <button class="mo-btn" id="phoneBtn" onclick="checkPhone()">Continue</button>
+    </div>`;
+  document.getElementById('phoneInput').focus();
+}
+
+async function checkPhone() {
+  const phone = document.getElementById('phoneInput').value.trim();
+  const err = document.getElementById('phoneErr');
+  if (phone.length < 10) { err.textContent = 'Enter a valid 10-digit phone number'; err.style.display = 'block'; return; }
+
+  const btn = document.getElementById('phoneBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="mo-spinner"></span> Checking...';
+  _mobile = phone;
+
+  const res = await _call('luuvcrm.api.customer_create_or_login', { mobile: phone });
+  btn.disabled = false; btn.textContent = 'Continue';
+
+  if (res.message && res.message.success) {
+    if (res.message.exists) {
+      _showPin(phone, document.getElementById('screenArea'));
+    } else {
+      _showSetPin(phone, document.getElementById('screenArea'));
+    }
+  } else {
+    err.textContent = res.message?.error || 'Error connecting';
+    err.style.display = 'block';
+  }
+}
+
+function _showSetPin(phone, area) {
+  area.innerHTML = `
+    <div class="mo-card">
+      <h2>🔐 Create Your PIN</h2>
+      <div class="hint">Set a 4-digit PIN for quick access next time</div>
+      <div class="mo-field">
+        <label>Your Name (optional)</label>
+        <input type="text" id="nameInput" placeholder="Enter your name">
+      </div>
+      <div class="mo-field">
+        <label>Create 4-digit PIN</label>
+        <input type="password" class="pin-input" id="pinInput" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,'')">
+      </div>
+      <div class="mo-field">
+        <label>Confirm PIN</label>
+        <input type="password" class="pin-input" id="pinConfirm" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,'')">
+      </div>
+      <div class="mo-error" id="pinErr"></div>
+      <button class="mo-btn" id="pinBtn" onclick="submitSetPin()">Create Account & View Orders</button>
+    </div>
+    <button class="mo-back" onclick="render()">← Back</button>`;
+  document.getElementById('pinInput').focus();
+}
+
+async function submitSetPin() {
+  const name = document.getElementById('nameInput').value.trim();
+  const pin = document.getElementById('pinInput').value;
+  const confirm = document.getElementById('pinConfirm').value;
+  const err = document.getElementById('pinErr');
+
+  if (pin.length !== 4) { err.textContent = 'PIN must be 4 digits'; err.style.display = 'block'; return; }
+  if (pin !== confirm) { err.textContent = 'PINs do not match'; err.style.display = 'block'; return; }
+
+  const btn = document.getElementById('pinBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="mo-spinner"></span> Creating...';
+
+  const res = await _call('luuvcrm.api.customer_set_pin', { mobile: _mobile, pin, name });
+  btn.disabled = false; btn.textContent = 'Create Account & View Orders';
+
+  if (res.message && res.message.success) {
+    _token = res.message.token;
+    localStorage.setItem('lf_token', _token);
+    localStorage.setItem('lf_mobile', _mobile);
+    _showOrders(document.getElementById('screenArea'));
+  } else {
+    err.textContent = res.message?.error || 'Error creating account';
+    err.style.display = 'block';
+  }
+}
+
+function _checkAccount(area) {
+  _call('luuvcrm.api.customer_create_or_login', { mobile: _mobile }).then(res => {
+    if (res.message && res.message.success && res.message.exists) {
+      _showPin(_mobile, area);
+    } else {
+      _showPhone(area);
+    }
+  }).catch(() => _showPhone(area));
+}
+
+function _showPin(phone, area) {
+  area.innerHTML = `
+    <div class="mo-card">
+      <h2>🔐 Welcome Back</h2>
+      <div class="hint">Enter your PIN for ${escapeHtml(phone)}</div>
+      <div class="mo-field">
+        <label>4-digit PIN</label>
+        <input type="password" class="pin-input" id="pinInput" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,'');document.getElementById('pinErr').style.display='none'">
+      </div>
+      <div class="mo-error" id="pinErr"></div>
+      <button class="mo-btn" id="pinBtn" onclick="submitPin()">View My Orders</button>
+    </div>
+    <button class="mo-back" onclick="localStorage.removeItem('lf_mobile');_mobile='';render()">← Different number</button>`;
+  document.getElementById('pinInput').focus();
+}
+
+async function submitPin() {
+  const pin = document.getElementById('pinInput').value;
+  const err = document.getElementById('pinErr');
+  if (pin.length !== 4) { err.textContent = 'Enter your 4-digit PIN'; err.style.display = 'block'; return; }
+
+  const btn = document.getElementById('pinBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="mo-spinner"></span> Verifying...';
+
+  const res = await _call('luuvcrm.api.customer_verify_pin', { mobile: _mobile, pin });
+  btn.disabled = false; btn.textContent = 'View My Orders';
+
+  if (res.message && res.message.success) {
+    _token = res.message.token;
+    localStorage.setItem('lf_token', _token);
+    _showOrders(document.getElementById('screenArea'));
+  } else {
+    err.textContent = res.message?.error || 'Wrong PIN';
+    err.style.display = 'block';
+  }
+}
+
+async function _showOrders(area) {
+  area.innerHTML = '<div style="text-align:center;padding:40px;color:#9CA3AF;"><span class="mo-spinner" style="border-color:#D1D5DB;border-top-color:#FF6B35;width:32px;height:32px;border-width:3px;"></span><p style="margin-top:10px;">Loading orders...</p></div>';
+  area.parentElement.classList.add('top');
+
+  const res = await _call('luuvcrm.api.customer_get_orders', { token: _token });
+  const data = res.message;
+
+  if (!data || !data.success) {
+    _token = '';
+    localStorage.removeItem('lf_token');
+    localStorage.removeItem('lf_mobile');
+    render();
+    return;
+  }
+
+  const orders = data.orders || [];
+  area.innerHTML = '';
+
+  // Header
+  const header = document.createElement('div');
+  header.style.cssText = 'width:100%;max-width:400px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;';
+  header.innerHTML = `
+    <span style="font-size:0.85rem;font-weight:700;">My Orders <span style="color:#9CA3AF;font-weight:500;">(${orders.length})</span></span>
+    <button style="background:none;border:none;color:#9CA3AF;font-size:0.72rem;cursor:pointer;text-decoration:underline;font-family:inherit;" onclick="logout()">Logout</button>`;
+  area.appendChild(header);
+
+  if (orders.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'mo-empty';
+    empty.innerHTML = '<div class="icon">📋</div><p>No orders found for this number</p>';
+    area.appendChild(empty);
+    return;
+  }
+
+  orders.forEach(o => {
+    const itemText = o.items.map(i => `${escapeHtml(i.item_name || i.item)} ×${i.qty}`).join(' · ');
+    const statusClass = o.status || 'Pending';
+    const statusLabel = statusClass === 'Pending' ? '⏳ Pending' : statusClass === 'Ready' ? '✅ Ready' : '✅ Served';
+
+    const card = document.createElement('div');
+    card.className = 'mo-order status-' + statusClass;
+    card.innerHTML = `
+      <div class="oo-top">
+        <span class="oo-name">#${escapeHtml(o.name)}</span>
+        <span class="oo-status ${statusClass}">${statusLabel}</span>
+      </div>
+      <div class="oo-meta">
+        <span>🪑 ${escapeHtml(o.table || '—')}</span>
+        <span>🕐 ${escapeHtml(o.time_ago)}</span>
+      </div>
+      <div class="oo-items">${escapeHtml(itemText)}</div>
+      <div class="oo-total"><span>Total</span><span>LKR ${(o.grand_total || 0).toLocaleString()}</span></div>`;
+    area.appendChild(card);
+  });
+}
+
+function logout() {
+  _token = '';
+  localStorage.removeItem('lf_token');
+  localStorage.removeItem('lf_mobile');
+  document.getElementById('screenArea').parentElement.classList.remove('top');
+  render();
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s||'');
+  return d.innerHTML;
+}
+
+render();
+</script>
+</body>
+</html>

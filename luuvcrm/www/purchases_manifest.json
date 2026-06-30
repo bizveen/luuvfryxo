@@ -1,0 +1,15 @@
+{
+  "name": "Luuv Fryxo Purchases",
+  "short_name": "LF Purchases",
+  "description": "Log supplier bills & expenses, approve them, keep the purchasing price book.",
+  "start_url": "/purchases",
+  "scope": "/purchases",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF8F6",
+  "theme_color": "#F15207",
+  "icons": [
+    { "src": "/manager-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/manager-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

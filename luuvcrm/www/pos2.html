@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luuv Fryxo POS</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+/* ── Luuv Fryxo design tokens ───────────────────────────── */
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-300:#FF9E68;--orange-400:#FB7430;
+  --orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;--orange-800:#8C2F09;--orange-900:#6E280C;
+  --white:#FFFFFF;--gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
+  --gray-500:#837A70;--gray-600:#5E564E;--gray-700:#423D38;--gray-800:#2A2622;--gray-900:#1A1714;--ink:#141210;
+  --green-500:#1E9E5A;--amber-500:#F0A323;--red-500:#E23D3D;--blue-500:#2D74D6;
+  --color-primary:var(--orange-500);--color-primary-hover:var(--orange-600);--color-primary-press:var(--orange-700);
+  --color-primary-subtle:var(--orange-50);--color-on-primary:var(--white);
+  --text-strong:var(--gray-900);--text-body:var(--gray-700);--text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:var(--white);--surface-sunken:var(--gray-50);
+  --border-subtle:var(--gray-200);--border-default:var(--gray-300);--border-strong:var(--gray-400);
+  --color-success:var(--green-500);--color-success-subtle:#E6F5EC;--color-warning:var(--amber-500);--color-warning-subtle:#FDF1DC;
+  --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;--color-info:var(--blue-500);--color-info-subtle:#E6EFFB;
+  --focus-ring:0 0 0 3px var(--orange-200);
+  --font-display:'Poppins',system-ui,-apple-system,sans-serif;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;
+  --font-mono:'DM Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --radius-xs:4px;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-2xl:28px;--radius-pill:999px;
+  --border-width-strong:1.5px;
+  --shadow-xs:0 1px 2px rgba(20,18,16,.06);--shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
+  --shadow-md:0 4px 12px rgba(20,18,16,.08),0 2px 4px rgba(20,18,16,.05);--shadow-lg:0 12px 28px rgba(20,18,16,.12),0 4px 8px rgba(20,18,16,.06);
+  --shadow-xl:0 24px 48px rgba(20,18,16,.18);--shadow-brand:0 8px 22px rgba(241,82,7,.30);
+  --duration-fast:120ms;--ease-out:cubic-bezier(0.16,1,0.3,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);--z-modal:1000;
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0;font-family:var(--font-body);font-size:16px;line-height:1.5;color:var(--text-body);background:var(--gray-50);-webkit-font-smoothing:antialiased;}
+input,select,button{font-family:inherit;}
+::selection{background:var(--orange-200);color:var(--gray-900);}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+
+/* ── lf components (Button / Badge / QtyStepper / Dialog) ── */
+.lf-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;border:var(--border-width-strong) solid transparent;background:var(--color-primary);color:var(--color-on-primary);border-radius:var(--radius-pill);cursor:pointer;white-space:nowrap;transition:transform var(--duration-fast) var(--ease-out),background var(--duration-fast),box-shadow var(--duration-fast);}
+.lf-btn:active{transform:scale(.97);}
+.lf-btn[disabled]{opacity:.45;cursor:not-allowed;pointer-events:none;}
+.lf-btn--sm{height:34px;padding:0 14px;font-size:13px;}
+.lf-btn--md{height:44px;padding:0 22px;font-size:15px;}
+.lf-btn--lg{height:54px;padding:0 30px;font-size:17px;}
+.lf-btn--full{width:100%;}
+.lf-btn--primary{box-shadow:var(--shadow-brand);}
+.lf-btn--primary:hover{background:var(--color-primary-hover);}
+.lf-btn--secondary{background:var(--white);color:var(--text-strong);border-color:var(--border-default);box-shadow:none;}
+.lf-btn--secondary:hover{background:var(--gray-50);border-color:var(--gray-400);}
+.lf-btn--ghost{background:transparent;color:var(--color-primary);border-color:transparent;box-shadow:none;}
+.lf-btn--ghost:hover{background:var(--color-primary-subtle);}
+.lf-badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-body);font-weight:700;font-size:11px;line-height:1;letter-spacing:.02em;padding:5px 9px;border-radius:var(--radius-pill);white-space:nowrap;}
+.lf-badge--solid{background:var(--color-primary);color:var(--color-on-primary);}
+.lf-badge--success{background:var(--color-success-subtle);color:var(--color-success);}
+.lf-badge--warning{background:var(--color-warning-subtle);color:#9a6207;}
+.lf-qty{display:inline-flex;align-items:center;gap:2px;background:var(--gray-100);border-radius:var(--radius-pill);padding:4px;}
+.lf-qty__btn{border:none;background:var(--white);color:var(--text-strong);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-pill);box-shadow:var(--shadow-xs);font-family:var(--font-display);line-height:1;width:30px;height:30px;font-size:18px;transition:background var(--duration-fast);}
+.lf-qty__btn:hover{background:var(--orange-50);color:var(--color-primary);}
+.lf-qty__val{font-family:var(--font-mono);font-weight:500;text-align:center;color:var(--text-strong);font-variant-numeric:tabular-nums;min-width:28px;font-size:14px;}
+.lf-dialog__overlay{position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px;z-index:var(--z-modal);}
+.lf-dialog__overlay.show{display:flex;}
+.lf-dialog{background:var(--surface-card);border-radius:var(--radius-2xl);box-shadow:var(--shadow-xl);width:100%;max-width:460px;max-height:calc(100vh - 40px);overflow:auto;animation:lf-in var(--duration-fast) var(--ease-spring);}
+@keyframes lf-in{from{transform:scale(.96);opacity:.4;}to{transform:none;opacity:1;}}
+.lf-dialog__head{padding:24px 24px 0;}
+.lf-dialog__title{font-family:var(--font-display);font-weight:800;font-size:22px;letter-spacing:-.01em;color:var(--text-strong);margin:0;line-height:1.2;}
+.lf-dialog__desc{color:var(--text-muted);font-size:14px;margin:6px 0 0;line-height:1.5;}
+.lf-dialog__body{padding:18px 24px;}
+.lf-dialog__foot{display:flex;gap:10px;justify-content:flex-end;padding:8px 24px 24px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;}
+.field input,.field select{width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 13px;font-size:15px;color:var(--text-strong);background:var(--white);outline:none;}
+.field input:focus,.field select:focus{border-color:var(--color-primary);box-shadow:var(--focus-ring);}
+.msum{background:var(--gray-50);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:16px;}
+.msum .r{display:flex;justify-content:space-between;font-size:14px;color:var(--text-muted);padding:3px 0;}
+.msum .r.tot{font-size:17px;font-weight:800;color:var(--text-strong);font-family:var(--font-display);margin-top:6px;padding-top:8px;border-top:1px solid var(--border-subtle);}
+.pmodes{display:flex;gap:8px;margin-bottom:14px;}
+.pmode{flex:1;padding:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);font-weight:700;font-size:14px;color:var(--text-body);text-align:center;cursor:pointer;font-family:var(--font-display);}
+.pmode.active{border-color:var(--color-primary);background:var(--orange-50);color:var(--orange-700);}
+.merr{display:none;background:var(--color-danger-subtle);color:var(--red-500);border-radius:var(--radius-md);padding:9px 12px;font-size:13px;font-weight:600;margin-bottom:12px;}
+
+/* ── toast ── */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
+.cemoji{font-size:20px;}
+[data-lucide]{stroke-width:2;}
+</style>
+</head>
+<body>
+<div style="display:flex;height:100vh;width:100vw;background:var(--surface-sunken);overflow:hidden;">
+  <main style="flex:1;display:flex;flex-direction:column;min-width:0;">
+
+    <!-- topbar -->
+    <header style="display:flex;align-items:center;gap:22px;padding:13px 28px;background:var(--surface-card);border-bottom:1px solid var(--border-subtle);flex:none;">
+      <div style="display:flex;align-items:center;gap:13px;flex:none;">
+        <div style="width:46px;height:46px;border-radius:var(--radius-md);background:var(--color-primary);color:#fff;font-family:var(--font-display);font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-brand);">LF</div>
+        <div>
+          <div style="font-family:var(--font-display);font-weight:800;font-size:22px;letter-spacing:-.01em;color:var(--text-strong);line-height:1.12;">New order</div>
+          <div style="font-size:14px;color:var(--text-muted);">Counter · dine-in &amp; takeaway</div>
+        </div>
+      </div>
+      <nav style="display:flex;align-items:center;gap:4px;background:var(--gray-100);border-radius:var(--radius-pill);padding:4px;flex:none;">
+        <button class="navp" data-nav="sale" onclick="setNav('sale')"><i data-lucide="shopping-bag"></i><span>Sale</span></button>
+        <button class="navp" data-nav="tables" onclick="setNav('tables')"><i data-lucide="grid-2x2"></i><span>Tables</span></button>
+        <button class="navp" data-nav="orders" onclick="setNav('orders')"><i data-lucide="receipt"></i><span>Orders</span></button>
+      </nav>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
+        <div id="shiftPill" style="display:flex;align-items:center;gap:7px;background:var(--gray-100);color:var(--text-muted);border-radius:var(--radius-pill);padding:7px 13px;font-size:15px;font-weight:700;">
+          <span style="width:7px;height:7px;border-radius:50%;background:currentColor;"></span> <span id="shiftLabel">Shift closed</span>
+        </div>
+        <button id="shiftBtn" class="lf-btn lf-btn--secondary lf-btn--sm" onclick="toggleShift()">Open shift</button>
+        <div style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:16px;color:var(--text-muted);">
+          <i data-lucide="clock" style="width:16px;height:16px;"></i> <span id="clock"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:var(--gray-100);border-radius:var(--radius-pill);padding:8px 14px;font-size:15px;font-weight:700;color:var(--text-strong);">
+          <i data-lucide="user" style="width:15px;height:15px;"></i> {{ current_user_full or "Staff" }}
+        </div>
+        <button title="Print settings" onclick="openSettings()" style="width:40px;height:40px;border-radius:50%;background:var(--gray-100);color:var(--text-muted);display:flex;align-items:center;justify-content:center;flex:none;border:none;cursor:pointer;">
+          <i data-lucide="settings" style="width:19px;height:19px;"></i>
+        </button>
+        <a href="#" title="Logout" onclick="doLogout();return false;" style="width:40px;height:40px;border-radius:50%;background:var(--gray-100);color:var(--text-muted);display:flex;align-items:center;justify-content:center;flex:none;">
+          <i data-lucide="log-out" style="width:19px;height:19px;"></i>
+        </a>
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);font-family:var(--font-display);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;">{{ (current_user_full[0]|upper) if current_user_full else "U" }}</div>
+      </div>
+    </header>
+
+    <!-- SALE SCREEN -->
+    <div id="screenSale" style="flex:1;display:flex;min-height:0;">
+
+      <!-- floor rail: open orders -->
+      <aside style="width:172px;flex:none;display:flex;flex-direction:column;background:var(--surface-card);border-right:1px solid var(--border-subtle);overflow-y:auto;padding:16px 12px;gap:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;margin-bottom:2px;">
+          <span style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Open orders</span>
+          <span class="mono" id="ordCnt" style="font-size:12px;color:var(--text-faint);">0</span>
+        </div>
+        <div id="openOrders" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <button onclick="newTakeaway()" title="New takeaway order" style="margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0;border-radius:var(--radius-md);border:1.5px dashed var(--border-default);background:transparent;color:var(--color-primary);cursor:pointer;font-weight:700;font-size:13px;">
+          <i data-lucide="plus" style="width:15px;height:15px;"></i> Takeaway
+        </button>
+      </aside>
+
+      <!-- menu side -->
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;padding:20px 26px;">
+        <div style="display:flex;align-items:center;gap:10px;background:var(--surface-card);border:1.5px solid var(--border-default);border-radius:var(--radius-pill);padding:11px 18px;margin-bottom:16px;max-width:440px;">
+          <i data-lucide="search" style="width:18px;height:18px;color:var(--text-muted);"></i>
+          <input id="search" oninput="filterMenu()" placeholder="Search the menu…" style="border:none;outline:none;background:transparent;font-size:17px;color:var(--text-strong);width:100%;">
+        </div>
+
+        <div id="cats" style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px;">
+          <button class="catp active" data-cat="__all__" onclick="selectCat(this)"><span class="cemoji">🍽️</span> All</button>
+          {% for g in menu_groups %}<button class="catp" data-cat="{{ g.name }}" onclick="selectCat(this)"><span class="cemoji"></span> {{ g.name }}</button>{% endfor %}
+        </div>
+
+        <div style="flex:1;overflow-y:auto;padding-bottom:8px;">
+          <div id="menuGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;align-content:start;">
+            {% for g in menu_groups %}{% for it in g['items'] %}
+            <button class="mcard" data-code="{{ it.code }}" data-name="{{ it.name }}" data-rate="{{ it.rate }}" data-group="{{ g.name }}" onclick="addToCart('{{ it.code }}')"
+              style="position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:16px;min-height:134px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);cursor:pointer;text-align:left;box-shadow:var(--shadow-xs);">
+              <div style="font-size:38px;line-height:1;">{% if it.image %}<img src="{{ it.image }}" style="width:40px;height:40px;object-fit:cover;border-radius:8px;" loading="lazy">{% else %}🍽️{% endif %}</div>
+              <div style="font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--text-strong);line-height:1.2;margin-top:auto;">{{ it.name }}</div>
+              <div class="mono" style="font-weight:500;font-size:17px;color:var(--color-primary);">{{ "{:,.0f}".format(it.rate) }}</div>
+            </button>
+            {% endfor %}{% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- ticket side -->
+      <aside style="width:396px;flex:none;display:flex;flex-direction:column;background:var(--surface-card);border-left:1px solid var(--border-subtle);">
+        <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding:20px 22px 14px;">
+          <div style="display:flex;background:var(--gray-100);border-radius:var(--radius-pill);padding:4px;margin-bottom:16px;">
+            <button id="segDine" onclick="setOrderType('Dine In')">Dine-in</button>
+            <button id="segTake" onclick="setOrderType('Take Away')">Takeaway</button>
+          </div>
+
+          <div id="orderTabsWrap" style="margin-bottom:16px;display:none;">
+            <div id="orderTabsLabel" style="font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Orders on this table</div>
+            <div id="orderTabs" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"></div>
+          </div>
+
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div style="min-width:0;">
+              <div id="cartTtl" style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);">New order</div>
+            </div>
+            <label style="flex:none;display:flex;align-items:center;gap:8px;max-width:172px;border:1.5px solid var(--border-default);background:var(--surface-card);border-radius:var(--radius-pill);padding:4px 10px 4px 7px;cursor:pointer;">
+              <span style="width:26px;height:26px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);font-family:var(--font-display);font-weight:800;font-size:11px;display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="armchair" style="width:13px;height:13px;"></i></span>
+              <select id="tableSel" onchange="onTableChange()" style="border:none;outline:none;background:transparent;font-family:var(--font-display);font-weight:700;font-size:14px;color:var(--text-strong);cursor:pointer;max-width:120px;">
+                <option value="">Select table</option>
+                {% for t in tables %}<option value="{{ t.name }}">Table {{ t.short_name or t.name }}</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+
+          <div id="cartItems" style="display:flex;flex-direction:column;gap:14px;padding-top:14px;border-top:1px solid var(--border-subtle);margin-top:18px;"></div>
+        </div>
+
+        <div id="subFoot" style="padding:14px 22px 6px;border-top:1px solid var(--border-subtle);display:none;flex-direction:column;gap:7px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;font-size:15px;color:var(--text-muted);">
+            <span>Subtotal</span>
+            <span class="mono" style="text-align:right;"><span id="subTot">0</span><span id="svcInline"></span></span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;padding:14px 22px 0;">
+          <button id="guestCheckBtn" class="lf-btn lf-btn--secondary lf-btn--md" style="flex:1;min-width:0;" onclick="guestCheckClick()"><i data-lucide="receipt" style="width:17px;height:17px;"></i> Guest check</button>
+          <button id="kotBtn" class="lf-btn lf-btn--secondary lf-btn--md" style="flex:1;min-width:0;" onclick="kotClick()"><i data-lucide="chef-hat" style="width:17px;height:17px;"></i> KOT</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:stretch;padding:10px 22px 22px;">
+          <button onclick="openDrawer()" title="Order actions" style="flex:none;width:56px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--border-default);background:var(--surface-card);border-radius:var(--radius-pill);cursor:pointer;color:var(--text-body);">
+            <i data-lucide="ellipsis" style="width:22px;height:22px;"></i>
+          </button>
+          <div style="flex:1;min-width:0;">
+            <button id="chargeBtn" class="lf-btn lf-btn--primary lf-btn--lg lf-btn--full" onclick="placeOrder(true)"><span id="chargeLbl">Charge 0</span></button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- TABLES SCREEN -->
+    <div id="screenTables" style="flex:1;overflow-y:auto;padding:24px 28px;display:none;">
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:22px;">
+        <span style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--text-muted);"><span style="width:10px;height:10px;border-radius:50%;background:var(--gray-300);"></span> Free</span>
+        <span style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--text-muted);"><span style="width:10px;height:10px;border-radius:50%;background:var(--color-primary);"></span> Occupied</span>
+      </div>
+      <div id="tablesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:16px;"></div>
+    </div>
+
+    <!-- ORDERS SCREEN -->
+    <div id="screenOrders" style="flex:1;overflow-y:auto;padding:24px 28px;display:none;">
+      <div id="ordStats" style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;"></div>
+      <div id="ticketList" style="display:flex;flex-direction:column;gap:12px;max-width:980px;"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Shift open dialog -->
+<div class="lf-dialog__overlay" id="shiftOpenModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Open shift</h3><p class="lf-dialog__desc">Open a shift and count the drawer to start taking orders.</p></div>
+  <div class="lf-dialog__body">
+    <div class="field"><label>POS Profile</label><select id="openProfile" onchange="renderOpeningModes()">{% for p in pos_profiles %}<option value="{{ p.name }}">{{ p.name }}</option>{% endfor %}</select></div>
+    <div id="openingModes"></div><div class="merr" id="openErr"></div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--secondary lf-btn--md" onclick="doLogout(true)">Log out</button><button class="lf-btn lf-btn--primary lf-btn--md" id="openBtn" onclick="openShift()">Open shift</button></div>
+</div></div>
+
+<!-- Shift close dialog -->
+<div class="lf-dialog__overlay" id="shiftCloseModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Close shift</h3><p class="lf-dialog__desc">Count the drawer per payment method. A Z-report prints on close.</p></div>
+  <div class="lf-dialog__body">
+    <div class="msum"><div class="r"><span>Orders</span><span class="mono" id="csOrders">0</span></div><div class="r tot"><span>Total sales</span><span class="mono" id="csSales">0</span></div></div>
+    <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;">Reconciliation</div>
+    <div id="closeModes"></div><div class="merr" id="closeErr"></div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--secondary lf-btn--md" onclick="hide('shiftCloseModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="closeBtn" onclick="closeShift()">Close shift</button></div>
+</div></div>
+
+<!-- Payment dialog -->
+<div class="lf-dialog__overlay" id="payModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Payment</h3><p class="lf-dialog__desc">Split across cash and card as needed.</p></div>
+  <div class="lf-dialog__body">
+    <div class="msum"><div class="r"><span>Items</span><span id="pmItems">0</span></div><div class="r"><span id="pmCtx">Table</span><span id="pmTable">—</span></div><div class="r tot"><span>Total</span><span class="mono" id="pmTotal">0</span></div></div>
+    <div class="pmodes" id="pmodes">
+      <div class="pmode active" data-m="Cash" onclick="setPayMode('Cash')">Cash</div>
+      <div class="pmode" data-m="Credit Card" onclick="setPayMode('Credit Card')">Card</div>
+      <div class="pmode" data-m="Cash+Card" onclick="setPayMode('Cash+Card')">Split</div>
+    </div>
+    <div class="field" id="tenderField"><label>Amount tendered</label><input type="number" id="tendered" value="0" oninput="calcChange()"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:10px 14px;background:var(--orange-50);border-radius:var(--radius-md);"><span style="font-size:15px;font-weight:700;color:var(--text-body);">Return / Change</span><span class="mono" id="changeDue" style="font-size:28px;font-weight:900;line-height:1;color:var(--color-primary);">0</span></div></div>
+    <div id="ccFields" style="display:none;"><div class="field"><label>Cash</label><input type="number" id="ccCash" value="0"></div><div class="field"><label>Card</label><input type="number" id="ccCard" value="0"></div></div>
+    <div class="merr" id="payErr"></div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('payModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="payConfirm" onclick="confirmPay()">Confirm payment</button></div>
+</div></div>
+
+<!-- Order actions bottom-sheet -->
+<div id="orderDrawer" style="position:fixed;inset:0;z-index:1050;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeDrawer()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:560px;max-height:88vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:14px 22px 26px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:2px auto 16px;"></div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);">Order actions</div>
+    <div id="drawerSub" style="font-size:14px;color:var(--text-muted);margin:2px 0 16px;">New ticket</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;">This order</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+      <button class="drow" onclick="drawerKitchen()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="printer"></i></span><span class="dlbl">Kitchen ticket</span><i data-lucide="chevron-right" class="dchev"></i></button>
+      <button class="drow" onclick="drawerBill()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="receipt"></i></span><span class="dlbl">Guest check</span><i data-lucide="chevron-right" class="dchev"></i></button>
+      <button class="drow" onclick="drawerSplit()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="split"></i></span><span class="dlbl">Split bill</span><i data-lucide="chevron-right" class="dchev"></i></button>
+      <button class="drow" onclick="drawerSplitTA()"><span class="dico" style="background:var(--color-warning-subtle);color:#9a6207;"><i data-lucide="shopping-bag"></i></span><span class="dlbl">Split takeaway</span><i data-lucide="chevron-right" class="dchev"></i></button>
+      <button class="drow" onclick="drawerMove()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="move"></i></span><span class="dlbl">Move table</span><i data-lucide="chevron-right" class="dchev"></i></button>
+    </div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;">Manage</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="drow" onclick="drawerLog()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="history"></i></span><span class="dlbl">Activity log</span><i data-lucide="chevron-right" class="dchev"></i></button>
+      <button class="drow" onclick="drawerDiscount()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="badge-percent"></i></span><span class="dlbl">Discount</span><i data-lucide="chevron-right" class="dchev"></i></button>
+      <button class="drow drow-danger" onclick="drawerVoid()"><span class="dico" style="background:var(--color-danger-subtle);color:var(--color-danger);"><i data-lucide="ban"></i></span><span class="dlbl" style="color:var(--color-danger);">Void order</span><i data-lucide="chevron-right" class="dchev"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- Split bill dialog -->
+<div class="lf-dialog__overlay" id="splitModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title" id="splitTitle">Split bill</h3><p class="lf-dialog__desc" id="splitDesc">Pick the items (and how many) for this bill. The rest stays on the order.</p></div>
+  <div class="lf-dialog__body">
+    <div id="splitItems" style="display:flex;flex-direction:column;gap:12px;"></div>
+    <div class="msum" style="margin-top:14px;"><div class="r tot"><span>This bill</span><span class="mono" id="splitTotal">0</span></div></div>
+    <div class="pmodes" id="splitModes">
+      <div class="pmode active" data-m="Cash" onclick="setSplitMode('Cash')">Cash</div>
+      <div class="pmode" data-m="Credit Card" onclick="setSplitMode('Credit Card')">Card</div>
+    </div>
+    <div class="merr" id="splitErr"></div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('splitModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="splitConfirm" onclick="confirmSplit()">Charge selected</button></div>
+</div></div>
+
+<!-- Activity log dialog -->
+<div class="lf-dialog__overlay" id="logModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Activity log</h3><p class="lf-dialog__desc" id="logSub">Order history</p></div>
+  <div class="lf-dialog__body"><div id="logRows" style="display:flex;flex-direction:column;gap:10px;"></div></div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--primary lf-btn--md" onclick="hide('logModal')">Close</button></div>
+</div></div>
+
+<!-- Move table dialog -->
+<div class="lf-dialog__overlay" id="moveModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Move table</h3><p class="lf-dialog__desc" id="moveSub">Move this order to another table.</p></div>
+  <div class="lf-dialog__body">
+    <div class="field"><label>New table</label><select id="moveTableSel">{% for t in tables %}<option value="{{ t.name }}">Table {{ t.short_name or t.name }}</option>{% endfor %}</select></div>
+    <div class="merr" id="moveErr"></div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('moveModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="moveConfirm" onclick="confirmMove()">Move order</button></div>
+</div></div>
+
+<!-- POS settings dialog -->
+<div class="lf-dialog__overlay" id="settingsModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">POS settings</h3><p class="lf-dialog__desc">Display & printing preferences for this device.</p></div>
+  <div class="lf-dialog__body">
+    <div class="setgrp">Display</div>
+    <div class="field"><label>Category bar</label><select id="catLayout">
+      <option value="stack">Stack — wrap to multiple rows</option>
+      <option value="slide">Slide — one row, scroll sideways</option>
+    </select></div>
+    <div class="setgrp">Printing</div>
+    <div class="field"><label>Receipt template</label><select id="pfReceipt"><option value="">Built-in (default)</option></select></div>
+    <div class="field"><label>Guest check template</label><select id="pfGuestCheck"><option value="">Built-in (default)</option></select></div>
+    <div class="field"><label>Kitchen ticket (KOT) template</label><select id="pfKot"><option value="">Built-in (default)</option></select></div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('settingsModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" onclick="saveSettings()">Save</button></div>
+</div></div>
+
+<!-- Takeaway split dialog: how many units of an item are takeaway -->
+<div class="lf-dialog__overlay" id="taSplitModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Takeaway split</h3><p class="lf-dialog__desc">How many of these are takeaway? Service charge applies to the dine-in part only.</p></div>
+  <div class="lf-dialog__body">
+    <div class="field"><label id="taSplitItem">Item</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
+        <span style="font-size:15px;font-weight:600;color:var(--text-body);">Takeaway qty</span>
+        <div class="lf-qty"><button class="lf-qty__btn" onclick="taSplitStep(-1)">−</button><span class="lf-qty__val" id="taSplitVal">0</span><button class="lf-qty__btn" onclick="taSplitStep(1)">+</button></div>
+      </div>
+      <div id="taSplitHint" style="margin-top:10px;font-size:13px;color:var(--text-muted);"></div>
+    </div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('taSplitModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" onclick="confirmTASplit()">Save</button></div>
+</div></div>
+
+<!-- Discount dialog: needs manager approval -->
+<div class="lf-dialog__overlay" id="discountModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Discount</h3><p class="lf-dialog__desc">Needs manager approval. Applies to the items subtotal (before service charge).</p></div>
+  <div class="lf-dialog__body">
+    <div class="pmodes" id="discModes">
+      <div class="pmode active" data-d="pct" onclick="setDiscKind('pct')">Percent %</div>
+      <div class="pmode" data-d="amt" onclick="setDiscKind('amt')">Amount Rs</div>
+    </div>
+    <div class="field"><label id="discLabel">Discount %</label><input type="number" id="discValue" value="0" oninput="renderDiscPreview()"></div>
+    <div id="discPreview" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding:10px 14px;background:var(--orange-50);border-radius:var(--radius-md);font-size:14px;font-weight:700;color:var(--text-body);"><span>New total</span><span class="mono" id="discTotal" style="font-size:18px;font-weight:900;color:var(--color-primary);">0</span></div>
+    <div class="merr" id="discErr"></div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('discountModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="discConfirm" onclick="confirmDiscount()">Request approval</button></div>
+</div></div>
+
+<div id="toast"></div>
+
+<style>
+.navp{display:flex;align-items:center;gap:7px;padding:8px 15px;border:none;border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:15px;background:transparent;color:var(--text-muted);transition:all var(--duration-fast) var(--ease-out);}
+.navp i{width:18px;height:18px;}
+.navp.active{background:var(--color-primary);color:#fff;box-shadow:var(--shadow-brand);}
+.catp{display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:var(--radius-pill);border:1.5px solid var(--border-default);background:var(--surface-card);cursor:pointer;font-family:var(--font-body);font-weight:700;font-size:16px;color:var(--text-body);transition:all var(--duration-fast) var(--ease-out);}
+.catp.active{border-color:var(--color-primary);background:var(--color-primary);color:#fff;}
+#cats.cats-slide{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:6px;}
+#cats.cats-slide .catp{flex:none;}
+#cats.cats-slide::-webkit-scrollbar{height:6px;}
+#cats.cats-slide::-webkit-scrollbar-thumb{background:var(--border-default);border-radius:var(--radius-pill);}
+.setgrp{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:4px 0 8px;}
+.setgrp:not(:first-child){margin-top:18px;border-top:1px solid var(--border-subtle);padding-top:16px;}
+#segDine,#segTake{flex:1;padding:9px 0;border:none;border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:16px;background:transparent;color:var(--text-muted);transition:all var(--duration-fast) var(--ease-out);}
+#segDine.active,#segTake.active{background:var(--surface-card);color:var(--text-strong);box-shadow:var(--shadow-xs);}
+.drow{display:flex;align-items:center;gap:13px;width:100%;padding:15px 16px;border-radius:var(--radius-md);border:1.5px solid var(--border-default);background:var(--surface-card);cursor:pointer;text-align:left;transition:border-color var(--duration-fast);}
+.drow:hover{border-color:var(--color-primary);}
+.drow-danger:hover{border-color:var(--color-danger);}
+.drow .dico{width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none;}
+.drow .dico i{width:18px;height:18px;}
+.drow .dlbl{flex:1;font-size:16px;font-weight:700;color:var(--text-strong);}
+.drow .dchev{width:18px;height:18px;color:var(--text-faint);}
+.spl-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);}
+</style>
+
+<script>
+  const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  const SC_RATE = {{ service_charge_rate or 0 }};
+  const PROFILE_PAY = {{ pos_profile_payments_json | safe }};
+  const TABLES = [{% for t in tables %}{name:"{{ t.name }}",short:"{{ t.short_name or t.name }}"},{% endfor %}];
+  let cart = {}, cartTA = {}, orderType = 'Dine In', payCtx = null, payMode = 'Cash';
+  let currentOrder = null;     // null = new ticket; else resumed POS Order name
+  let editBaseline = {};       // item->qty snapshot when a sent order is resumed (to detect deletions)
+  let firedBaseline = {};      // item->qty already fired to the kitchen (sent_qty); removing below this needs approval
+  let _saveTimer = null, _saving = false, _saveAgain = false;  // debounced ticket autosave
+  let tableOrders = [];        // cached open orders for the selected table
+  let _openOrders = [];        // cached ongoing orders (rail) — used to resume takeaway tickets
+  let currentDiscount = null;  // manager-approved discount on the current order: {amount, note}
+  let _discKind = 'pct';       // discount dialog: 'pct' or 'amt'
+  let shiftOpen = false, shiftData = null;
+  const CAT_EMOJI = {burger:'🍔',chicken:'🍗',fries:'🍟',side:'🍟',salad:'🥗',drink:'🥤',beverage:'🥤',juice:'🧃',tea:'🍵',coffee:'☕',mojito:'🍹',dessert:'🍰',sweet:'🍦',ice:'🍦',biryani:'🍛',rice:'🍚',naan:'🫓',kottu:'🍜',noodle:'🍜',pizza:'🍕',sandwich:'🥪',wrap:'🌯',soup:'🍲',seafood:'🦐',fish:'🐟',combo:'🍱',meal:'🍱'};
+  function emojiFor(name){ const n=(name||'').toLowerCase(); for(const k in CAT_EMOJI){ if(n.includes(k)) return CAT_EMOJI[k]; } return '🍽️'; }
+
+  function show(id){ document.getElementById(id).classList.add('show'); }
+  function hide(id){ document.getElementById(id).classList.remove('show'); }
+  function _smsg(d,f){ try{ const m=d&&d._server_messages&&JSON.parse(d._server_messages); if(m&&m.length){ return JSON.parse(m[0]).message||f; } }catch(e){} return f; }
+  function mErr(id,msg){ const e=document.getElementById(id); if(msg){e.textContent=msg;e.style.display='block';}else{e.style.display='none';} }
+  function fmt(n){ return 'LKR '+(Math.round(n)).toLocaleString(); }
+  function nfmt(n){ return (Math.round(n)).toLocaleString(); }
+  function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
+  function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2600); }
+
+  const itemMap = {};
+  document.querySelectorAll('.mcard').forEach(c => { itemMap[c.dataset.code] = { name:c.dataset.name, rate:parseFloat(c.dataset.rate)||0 }; });
+  // category pill emojis
+  document.querySelectorAll('.catp[data-cat]').forEach(p=>{ if(p.dataset.cat!=='__all__'){ const e=p.querySelector('.cemoji'); if(e) e.textContent=emojiFor(p.dataset.cat); } });
+
+  async function _api(url,opts){ opts=opts||{}; opts.headers=opts.headers||{}; opts.headers['X-Frappe-CSRF-Token']=CSRF; opts.credentials='include';
+    try{ const r=await fetch(url,opts); if(r.status===403||r.status===401){ location.href='/login?redirect-to=/pos2'; return null;} return r;}catch(e){ return null; } }
+  async function _post(url,data){ const fd=new URLSearchParams(); fd.set('csrf_token',CSRF); for(const[k,v] of Object.entries(data)) fd.set(k,v); return _api(url,{method:'POST',body:fd}); }
+
+  // ── nav: switch SPA screens ──
+  function setNav(n){ document.querySelectorAll('.navp').forEach(b=>b.classList.toggle('active',b.dataset.nav===n));
+    const screens={sale:'screenSale',tables:'screenTables',orders:'screenOrders'};
+    Object.entries(screens).forEach(([k,id])=>{ const el=document.getElementById(id); if(!el) return; el.style.display=(k===n)?(k==='sale'?'flex':'block'):'none'; });
+    if(n==='tables') loadTables();
+    if(n==='orders') loadOrders();
+    icons();
+  }
+
+  // ── Tables screen ──
+  async function loadTables(){
+    let orders=[]; try{ const r=await _post('/api/method/luuvcrm.api.get_ongoing_orders',{}); if(r){ const d=await r.json(); orders=(d.message&&d.message.orders)||[]; } }catch(e){}
+    const byTable={}; orders.forEach(o=>{ if(o.restaurant_table){ const t=byTable[o.restaurant_table]||{amt:0,n:0}; t.amt+=(o.grand_total||0); t.n+=1; byTable[o.restaurant_table]=t; } });
+    const grid=document.getElementById('tablesGrid');
+    grid.innerHTML=TABLES.map(t=>{ const o=byTable[t.name]; const occ=!!o; const tone=occ?'lf-badge--solid':'lf-badge--success';
+      const bd=occ?'border:1.5px solid var(--color-primary);background:var(--orange-50);':'border:1px solid var(--border-subtle);background:var(--surface-card);';
+      return `<button onclick="openTable('${t.name}')" style="display:flex;flex-direction:column;align-items:flex-start;border-radius:var(--radius-lg);padding:18px 20px;cursor:pointer;text-align:left;box-shadow:var(--shadow-xs);${bd}">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+          <span style="font-family:var(--font-display);font-weight:800;font-size:26px;color:var(--text-strong);">Table ${t.short}</span>
+          <span class="lf-badge ${tone}">${occ?'Occupied':'Free'}</span>
+        </div>
+        ${occ?`<div style="display:flex;align-items:center;gap:6px;color:var(--color-primary);font-size:14px;font-weight:700;margin-top:12px;"><i data-lucide="receipt" style="width:14px;height:14px;"></i> ${o.n} order${o.n>1?'s':''}</div>`:'<div style="color:var(--text-faint);font-size:14px;margin-top:12px;">Available</div>'}
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;width:100%;margin-top:14px;">
+          <span class="mono" style="font-weight:500;font-size:20px;color:${occ?'var(--text-strong)':'var(--text-faint)'};">${occ?nfmt(o.amt):'—'}</span>
+        </div></button>`; }).join('');
+    icons();
+  }
+  function openTable(name){ setNav('sale'); const sel=document.getElementById('tableSel'); sel.value=name; orderType='Dine In';
+    document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active'); onTableChange(); }
+
+  // ── Orders screen ──
+  async function loadOrders(){
+    let ongoing=[],done=[];
+    try{ const r=await _post('/api/method/luuvcrm.api.get_ongoing_orders',{}); if(r){ const d=await r.json(); ongoing=(d.message&&d.message.orders)||[]; } }catch(e){}
+    try{ const r=await _post('/api/method/luuvcrm.api.get_completed_orders',{}); if(r){ const d=await r.json(); done=(d.message&&d.message.orders)||[]; } }catch(e){}
+    const sales=done.reduce((a,o)=>a+(o.grand_total||0),0);
+    document.getElementById('ordStats').innerHTML=[['Open',ongoing.length],['Completed',done.length],['Sales',nfmt(sales)]].map(s=>
+      `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:18px 24px;min-width:188px;box-shadow:var(--shadow-xs);"><div style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">${s[0]}</div><div style="font-family:var(--font-display);font-weight:800;font-size:31px;color:var(--text-strong);margin-top:6px;">${s[1]}</div></div>`).join('');
+    const rows=[...ongoing.map(o=>({...o,_done:false})),...done.map(o=>({...o,_done:true}))];
+    document.getElementById('ticketList').innerHTML=rows.map(o=>{ const ta=o.order_type==='Take Away'; const ch=ta?'shopping-bag':'utensils-crossed'; const chL=ta?'Takeaway':('Table '+(o.restaurant_table?o.restaurant_table.split('-').pop():'—'));
+      let items=''; try{ items=(JSON.parse(o.items_json||'[]')).map(i=>i.qty+'× '+(i.item_name||i.item)).join(', '); }catch(e){}
+      const tone=o._done?'lf-badge--success':'lf-badge--warning'; const stat=o._done?'Paid':'Open';
+      return `<div style="display:flex;align-items:center;gap:18px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px 22px;box-shadow:var(--shadow-xs);">
+        <div class="mono" style="font-weight:500;font-size:17px;color:var(--text-strong);width:90px;flex:none;">#${(o.name||'').split('-').pop()}</div>
+        <div style="display:flex;align-items:center;gap:8px;width:138px;flex:none;color:var(--text-body);font-size:16px;font-weight:700;"><i data-lucide="${ch}" style="width:16px;height:16px;color:var(--text-muted);"></i> ${chL}</div>
+        <div style="flex:1;min-width:0;color:var(--text-muted);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${items||'—'}</div>
+        <div style="display:flex;align-items:center;gap:7px;color:var(--text-faint);font-size:14px;width:120px;flex:none;"><i data-lucide="clock" style="width:15px;height:15px;"></i> ${o.time_ago||o.completed_at||''}</div>
+        <span class="lf-badge ${tone}">${stat}</span>
+        <div class="mono" style="font-weight:500;font-size:18px;color:var(--text-strong);width:84px;text-align:right;flex:none;">${nfmt(o.grand_total||0)}</div>
+        ${o._done?`<button onclick="printReceipt('${o.name}')" title="Reprint bill" style="flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="printer" style="width:18px;height:18px;"></i></button>`:'<div style="width:40px;flex:none;"></div>'}
+      </div>`; }).join('') || '<div style="color:var(--text-faint);text-align:center;padding:40px;">No orders this shift.</div>';
+    icons();
+  }
+
+  // ── cart ──
+  function addToCart(code){ cart[code]=(cart[code]||0)+1; renderCart(); scheduleSave(); }
+  function setQty(code,d){
+    if(d<0 && ((cart[code]||0)+d) < (firedBaseline[code]||0)){ requestFiredRemoval(code,-d); return; }
+    cart[code]=(cart[code]||0)+d; if(cart[code]<=0){ delete cart[code]; delete cartTA[code]; } else if((cartTA[code]||0)>cart[code]){ cartTA[code]=cart[code]; } renderCart(); scheduleSave(); }
+  function removeItem(code){
+    if((firedBaseline[code]||0)>0){ requestFiredRemoval(code,(cart[code]||0)); return; }
+    delete cart[code]; delete cartTA[code]; renderCart(); scheduleSave(); }
+  function toggleTA(code){
+    if((firedBaseline[code]||0)>0){ toast('Already sent to kitchen — edit via the order'); return; }
+    const total=cart[code]||0;
+    if(total<=1){ if(cartTA[code]) delete cartTA[code]; else cartTA[code]=1; renderCart(); scheduleSave(); return; }
+    openTASplit(code); }
+  // Takeaway split popup: choose how many of an item's units are takeaway (dine-in keeps service charge).
+  let _taSplitCode=null, _taSplitTotal=0, _taSplitN=0;
+  function openTASplit(code){ const it=itemMap[code]||{name:code}; _taSplitCode=code; _taSplitTotal=cart[code]||0; _taSplitN=Math.min(cartTA[code]||0,_taSplitTotal);
+    document.getElementById('taSplitItem').textContent=it.name+' × '+_taSplitTotal; renderTASplit(); show('taSplitModal'); }
+  function taSplitStep(d){ _taSplitN=Math.max(0,Math.min(_taSplitTotal,_taSplitN+d)); renderTASplit(); }
+  function renderTASplit(){ document.getElementById('taSplitVal').textContent=_taSplitN;
+    document.getElementById('taSplitHint').innerHTML='Dine-in: <b>'+(_taSplitTotal-_taSplitN)+'</b> (service charge) &nbsp;·&nbsp; Takeaway: <b>'+_taSplitN+'</b> (no service charge)'; }
+  function confirmTASplit(){ if(_taSplitCode){ if(_taSplitN>0) cartTA[_taSplitCode]=_taSplitN; else delete cartTA[_taSplitCode]; } hide('taSplitModal'); renderCart(); scheduleSave(); }
+
+  // ── ticket autosave: auto-create a draft order on first item, persist as the cashier builds ──
+  function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(autosaveTicket,600); }
+  async function autosaveTicket(){
+    if(_saving){ _saveAgain=true; return; }
+    const table=document.getElementById('tableSel').value;
+    if(orderType==='Dine In' && !table) return;   // need a table first; onTableChange retries
+    const codes=Object.keys(cart);
+    _saving=true;
+    try{
+      if(!codes.length){
+        // emptied with nothing fired → drop the draft
+        if(currentOrder && !Object.values(firedBaseline).some(q=>q>0)){
+          await _post('/api/method/luuvcrm.api.delete_draft_order',{order_name:currentOrder});
+          currentOrder=null; firedBaseline={}; editBaseline={}; if(table) await refreshTableTabs(table);
+        }
+      } else if(!currentOrder){
+        const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'', draft:1 };
+        const r=await _post('/api/method/luuvcrm.api.send_to_kitchen',body);
+        if(r){ const d=await r.json(); if(d.message&&d.message.name){ currentOrder=d.message.name; editBaseline={}; if(table){ await refreshTableTabs(table); } else { renderOrderTabs(); } } }
+      } else {
+        await _post('/api/method/luuvcrm.api.update_order',{ order_name:currentOrder, items:JSON.stringify(cartItemsPayload()) });
+        if(table) await refreshTableTabs(table);
+      }
+    }catch(e){}
+    _saving=false;
+    if(_saveAgain){ _saveAgain=false; scheduleSave(); }
+  }
+  // Reduce/remove an item already fired to the kitchen → manager approval (the item stays until approved).
+  async function requestFiredRemoval(code,removeQty){
+    if(!currentOrder){ return; }
+    const table=document.getElementById('tableSel').value;
+    const it=itemMap[code]||{name:code,rate:0};
+    const desired={}; Object.keys(cart).forEach(c=>desired[c]=cart[c]); desired[code]=(desired[code]||0)-removeQty; if(desired[code]<=0) delete desired[code];
+    const payload=[]; Object.keys(desired).forEach(c=>linesFor(c,desired[c]).forEach(l=>payload.push(l)));
+    const tName=table?document.getElementById('tableSel').options[document.getElementById('tableSel').selectedIndex].text:'';
+    const flags=await getOrderFlags(currentOrder);
+    const flagText=flags.check_printed?'⚠ Guest check already printed — removal needs sign-off':'Item already sent to kitchen';
+    const details=JSON.stringify({lines:[{qtyStr:removeQty+'×',name:it.name,totalStr:nfmt(it.rate*removeQty)}],footer_label:'Items removed',footer_value:String(removeQty)});
+    try{ const r=await _post('/api/method/luuvcrm.api.create_approval',{approval_type:'edit',pos_order:currentOrder,title:'Remove item approval',subhead:'Order #'+shortNo(currentOrder)+(tName?' · '+tName:''),flag_text:flagText,details_json:details,action:'update_items',action_payload:JSON.stringify({items:payload})});
+      if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Removal sent to manager 📱'); pollEdit(d.message.name,currentOrder,table); }
+      else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
+  function newTakeaway(){ setOrderType('Take Away'); }
+  function setOrderType(t){ orderType=t; document.getElementById('segDine').classList.toggle('active',t==='Dine In'); document.getElementById('segTake').classList.toggle('active',t==='Take Away');
+    if(t==='Take Away'){ currentOrder=null; } updateTabsVisibility(); renderCart(); }
+  function cartTotals(){ let sub=0,scBase=0; Object.keys(cart).forEach(c=>{ const it=itemMap[c]||{rate:0}; const total=cart[c]; sub+=it.rate*total; const taN=(orderType==='Take Away')?total:Math.min(cartTA[c]||0,total); scBase+=it.rate*(total-taN); });
+    const disc=Math.min((currentDiscount&&currentDiscount.amount)||0,sub); const factor=sub>0?(1-disc/sub):1;
+    const sc=Math.round(scBase*factor*SC_RATE)/100; return {sub,sc,scBase,disc,gt:sub-disc+sc}; }
+
+  // ── multiple orders per table (ticket tabs) ──
+  function shortNo(name){ return (name||'').split('-').pop(); }
+  function updateTabsVisibility(){ const tableVal=document.getElementById('tableSel').value; const wrap=document.getElementById('orderTabsWrap');
+    wrap.style.display=(orderType==='Dine In' && tableVal)?'block':'none'; }
+  async function onTableChange(){ const tableVal=document.getElementById('tableSel').value;
+    // Keep the in-progress cart when assigning a table to a NEW ticket (so items added
+    // before picking the table aren't lost). Only clear when leaving a resumed order.
+    if(currentOrder){ cart={}; cartTA={}; }
+    currentOrder=null; firedBaseline={};
+    if(orderType==='Dine In' && tableVal){ await refreshTableTabs(tableVal); } else { tableOrders=[]; updateTabsVisibility(); }
+    renderCart();
+    if(Object.keys(cart).length) scheduleSave(); }
+  async function refreshTableTabs(tableVal){
+    tableVal=tableVal||document.getElementById('tableSel').value;
+    if(!tableVal){ tableOrders=[]; updateTabsVisibility(); return; }
+    try{ const r=await _post('/api/method/luuvcrm.api.get_table_orders',{table:tableVal}); if(r){ const d=await r.json(); tableOrders=(d.message&&d.message.orders)||[]; } }catch(e){ tableOrders=[]; }
+    renderOrderTabs(); updateTabsVisibility();
+  }
+  function renderOrderTabs(){
+    const tableVal=document.getElementById('tableSel').value;
+    const lbl=document.getElementById('orderTabsLabel'); const tabsEl=document.getElementById('orderTabs');
+    const shortT=tableVal?(document.getElementById('tableSel').options[document.getElementById('tableSel').selectedIndex].text):'';
+    lbl.textContent='Orders on '+shortT;
+    const chips=tableOrders.map(o=>{ const active=currentOrder===o.name; const n=(o.items&&o.items.length)||0;
+      const st=active?'border:1.5px solid var(--color-primary);background:var(--color-primary);color:#fff;':'border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-strong);';
+      const badge=active?'background:rgba(255,255,255,.25);color:#fff;':'background:var(--orange-50);color:var(--color-primary);';
+      return `<button onclick="selectOrderTab('${o.name}')" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:14px;${st}">#${shortNo(o.name)}<span style="font-size:11px;font-weight:800;padding:1px 6px;border-radius:var(--radius-pill);${badge}">${n}</span></button>`; }).join('');
+    const newActive=!currentOrder; const newSt=newActive?'border:1.5px solid var(--color-primary);background:var(--orange-50);color:var(--color-primary);':'border:1.5px dashed var(--border-default);background:transparent;color:var(--color-primary);';
+    const plus=`<button onclick="newTicketForTable()" title="New order on this table" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:21px;font-weight:700;line-height:1;${newSt}">+</button>`;
+    tabsEl.innerHTML=chips+plus; icons();
+  }
+  function selectOrderTab(name){ const o=tableOrders.find(x=>x.name===name); if(!o) return;
+    currentOrder=name; cart={}; cartTA={}; firedBaseline={}; (o.items||[]).forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.takeaway) cartTA[i.item]=(cartTA[i.item]||0)+i.qty; if(i.sent_qty) firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; });
+    currentDiscount=(o.discount_amount>0)?{amount:o.discount_amount,note:o.discount_note||''}:null;
+    editBaseline={...firedBaseline};   // only items already fired to the kitchen need approval to remove
+    orderType='Dine In'; document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active');
+    renderOrderTabs(); renderCart(); }
+  function newTicketForTable(){ currentOrder=null; cart={}; cartTA={}; editBaseline={}; firedBaseline={}; currentDiscount=null; renderOrderTabs(); renderCart(); }
+  async function resumeOrder(name,table){ setNav('sale'); const sel=document.getElementById('tableSel'); if(table){ sel.value=table; }
+    orderType='Dine In'; document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active');
+    await refreshTableTabs(table); selectOrderTab(name); }
+
+  function renderCart(){
+    const codes=Object.keys(cart); const wrap=document.getElementById('cartItems');
+    const table=document.getElementById('tableSel');
+    const tName=table.value?table.options[table.selectedIndex].text:'';
+    const tLabel=(orderType==='Take Away')?'Takeaway':(currentOrder?('Order #'+shortNo(currentOrder)+(tName?' · '+tName:'')):(table.value?('Dine-in · '+tName):'New order'));
+    document.getElementById('cartTtl').textContent=tLabel;
+    if(!codes.length){ wrap.innerHTML='<div style="color:var(--text-muted);font-size:16px;padding:52px 12px;text-align:center;">Nothing here yet — tap items to start the ticket.</div>'; document.getElementById('subFoot').style.display='none'; document.getElementById('chargeLbl').textContent='Charge 0'; document.getElementById('chargeBtn').disabled=true; return; }
+    let html='';
+    codes.forEach(code=>{ const it=itemMap[code]||{name:code,rate:0}; const qty=cart[code]; const lt=it.rate*qty;
+      const fired=(firedBaseline[code]||0)>0; const isTAo=(orderType==='Take Away');
+      const taN=isTAo?qty:Math.min(cartTA[code]||0,qty); const dineN=qty-taN; const hasTA=taN>0;
+      const badge=(taN>0&&dineN>0)?(dineN+' dine-in · '+taN+' 🛍️ takeaway'):(taN>0?'🛍️ takeaway':'');
+      const taStyle=hasTA?'background:var(--color-warning-subtle);border:1.5px solid var(--amber-500);color:#9a6207;':'background:transparent;border:1.5px solid var(--border-default);color:var(--text-muted);';
+      html+=`<div style="display:flex;flex-direction:column;gap:10px;padding:12px 13px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <div style="flex:1;min-width:0;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+            <span style="font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--text-strong);">${it.name}</span>
+            ${badge?`<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#9a6207;background:var(--color-warning-subtle);padding:2px 8px;border-radius:var(--radius-pill);">${badge}</span>`:''}
+          </div>
+          <button onclick="removeItem('${code}')" title="Remove" style="flex:none;width:30px;height:30px;border-radius:var(--radius-md);border:none;background:transparent;color:var(--text-faint);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="font-size:14px;color:var(--text-muted);">${nfmt(it.rate)} ea</span>
+            ${(fired||isTAo)?'':`<button onclick="toggleTA('${code}')" title="Takeaway split (no service charge)" style="width:30px;height:30px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${taStyle}"><i data-lucide="shopping-bag" style="width:14px;height:14px;"></i></button>`}
+          </div>
+          <div class="lf-qty lf-qty--sm"><button class="lf-qty__btn" onclick="setQty('${code}',-1)">−</button><span class="lf-qty__val">${qty}</span><button class="lf-qty__btn" onclick="setQty('${code}',1)">+</button></div>
+          <div class="mono" style="font-weight:500;font-size:16px;color:var(--text-strong);min-width:60px;text-align:right;">${nfmt(lt)}</div>
+        </div></div>`; });
+    wrap.innerHTML=html;
+    const t=cartTotals();
+    document.getElementById('subFoot').style.display='flex';
+    document.getElementById('subTot').textContent=nfmt(t.sub);
+    document.getElementById('svcInline').innerHTML=((t.disc>0)?(' − '+nfmt(t.disc)+' <span style="color:var(--text-faint);">(disc'+((currentDiscount&&currentDiscount.note)?' '+currentDiscount.note:'')+')</span>'):'')+((t.sc>0)?(' + '+nfmt(t.sc)+' <span style="color:var(--text-faint);">(service)</span>'):'');
+    document.getElementById('chargeLbl').textContent='Charge '+nfmt(t.gt);
+    document.getElementById('chargeBtn').disabled=false;
+    icons();
+  }
+
+  // ── menu filter ──
+  function selectCat(el){ document.querySelectorAll('.catp').forEach(c=>c.classList.remove('active')); el.classList.add('active'); filterMenu(); }
+  function filterMenu(){ const cat=(document.querySelector('.catp.active')||{}).dataset?.cat||'__all__'; const q=(document.getElementById('search').value||'').toLowerCase();
+    document.querySelectorAll('.mcard').forEach(c=>{ const okC=cat==='__all__'||c.dataset.group===cat; const okQ=!q||c.dataset.name.toLowerCase().includes(q); c.style.display=(okC&&okQ)?'':'none'; }); }
+
+  // ── order placement ──
+  // Build the 1–2 order lines for a cart code: a dine-in line and/or a takeaway line.
+  // cartTA[code] holds the NUMBER of takeaway units (0..qty); a Take Away order is all-takeaway.
+  function linesFor(code,total){
+    const rate=(itemMap[code]||{rate:0}).rate;
+    const taN=(orderType==='Take Away')?total:Math.min(cartTA[code]||0,total);
+    const dineN=total-taN; const out=[];
+    if(dineN>0) out.push({item:code,qty:dineN,rate:rate,takeaway:0});
+    if(taN>0) out.push({item:code,qty:taN,rate:rate,takeaway:1});
+    return out;
+  }
+  function cartItemsPayload(){ const out=[]; Object.keys(cart).forEach(code=>{ linesFor(code,cart[code]).forEach(l=>out.push(l)); }); return out; }
+  // Print the guest check (pre-bill) for the current ticket — the step before taking payment.
+  async function guestCheckClick(){
+    if(!Object.keys(cart).length){ toast('Add items first'); return; }
+    clearTimeout(_saveTimer); let g=0; while(_saving && g++<60){ await new Promise(r=>setTimeout(r,40)); }
+    if(!currentOrder){ await autosaveTicket(); }
+    if(!currentOrder){ toast('Pick a table first'); return; }
+    printGuestCheck(currentOrder);
+  }
+  // Send the new items to the kitchen and print the KOT (kitchen ticket).
+  function kotClick(){ placeOrder(false); }
+  async function placeOrder(pay){
+    if(!Object.keys(cart).length){ toast('Cart is empty'); return; }
+    const table=document.getElementById('tableSel').value;
+    if(orderType==='Dine In' && !table){ toast('Select a table'); return; }
+    if(!shiftOpen){ openShiftModal(); toast('Open a shift first'); return; }
+    // Flush any pending/in-flight autosave so currentOrder is resolved (avoid a duplicate order).
+    clearTimeout(_saveTimer); let _g=0; while(_saving && _g++<60){ await new Promise(r=>setTimeout(r,40)); }
+    if(pay){
+      if(currentOrder){
+        await autosaveTicket();   // flush any just-added items onto the order before charging
+        // Dine-in: payment is only taken after the guest check has been printed for the customer.
+        // Take Away is charged at the counter, so it skips the guest-check gate.
+        if(orderType!=='Take Away'){
+          const flags=await getOrderFlags(currentOrder);
+          if(!flags.check_printed){ toast('Print the guest check first — tap “Print guest check”'); return; }
+        }
+        const o=tableOrders.find(x=>x.name===currentOrder); openPayForOrder(currentOrder,(o&&o.grand_total)||cartTotals().gt,Object.keys(cart).length,table);
+      } else { openPayForCart(); }
+      return; }
+    // Editing a sent order: deleting/reducing items needs a manager approval (KOT already fired / check printed).
+    if(currentOrder){
+      const deletions=[];
+      Object.keys(editBaseline).forEach(c=>{ const was=editBaseline[c]||0; const now=cart[c]||0; if(now<was){ const it=itemMap[c]||{name:c,rate:0}; deletions.push({qtyStr:(was-now)+'×',name:it.name,totalStr:nfmt(it.rate*(was-now))}); } });
+      if(deletions.length){ await requestBillEdit(deletions, table); return; }
+    }
+    try{
+      let res;
+      if(currentOrder){ res=await _post('/api/method/luuvcrm.api.update_order',{ order_name:currentOrder, items:JSON.stringify(cartItemsPayload()) }); }
+      else { const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'' };
+        res=await _post('/api/method/luuvcrm.api.send_to_kitchen',body); }
+      if(!res) return; const data=await res.json();
+      if(res.ok && data.message && data.message.name){ const nm=data.message.name; currentOrder=nm; toast('Sent to kitchen #'+nm); printKOT(nm);
+        // KOT fired → these items are now in the kitchen; keep the order open so more can be added.
+        firedBaseline={...cart}; editBaseline={...cart};
+        const t=(orderType==='Take Away')?'':table; if(t){ await refreshTableTabs(t); } loadOpenOrders(); }
+      else toast('Error: '+_smsg(data,'could not send'));
+    }catch(e){ toast('Connection error'); }
+  }
+  async function getOrderFlags(name){ try{ const r=await _post('/api/method/luuvcrm.api.get_order_flags',{order_name:name}); if(!r) return {}; const d=await r.json(); return d.message||{}; }catch(e){ return {}; } }
+  async function requestBillEdit(deletions, table){
+    const order=currentOrder; const flags=await getOrderFlags(order);
+    const flagText=flags.check_printed? '⚠ Guest check already printed — delete needs sign-off' : 'Item removed after sending to kitchen';
+    const tName=table?(document.getElementById('tableSel').options[document.getElementById('tableSel').selectedIndex].text):'';
+    const details=JSON.stringify({lines:deletions, footer_label:'Items removed', footer_value:String(deletions.reduce((a,d)=>a+parseInt(d.qtyStr),0))});
+    try{ const r=await _post('/api/method/luuvcrm.api.create_approval',{approval_type:'edit',pos_order:order,title:'Bill edit approval',subhead:'Order #'+shortNo(order)+(tName?' · '+tName:''),flag_text:flagText,details_json:details,action:'update_items',action_payload:JSON.stringify({items:cartItemsPayload()})});
+      if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Edit sent to manager for approval 📱'); pollEdit(d.message.name, order, table); }
+      else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
+  function pollEdit(name, order, table){ let tries=0; const iv=setInterval(async()=>{ tries++; if(tries>40){ clearInterval(iv); return; }
+    try{ const r=await _post('/api/method/luuvcrm.api.get_approval_status',{name:name}); if(!r) return; const d=await r.json(); const s=d.message&&d.message.status;
+      if(s==='approved'){ clearInterval(iv); toast('Edit approved ✓'); if(table){ await refreshTableTabs(table); const o=tableOrders.find(x=>x.name===order); if(o) selectOrderTab(order); } loadOpenOrders(); }
+      else if(s==='rejected'){ clearInterval(iv); toast('Edit rejected — restoring order'); cart={...editBaseline}; renderCart(); }
+    }catch(e){} }, 3000); }
+  // clearTicket: reset the active ticket but keep the table selected (so its tabs stay)
+  function clearTicket(){ currentOrder=null; cart={}; cartTA={}; editBaseline={}; firedBaseline={}; currentDiscount=null; renderCart(); renderOrderTabs(); }
+  function clearCart(){ currentOrder=null; cart={}; cartTA={}; editBaseline={}; firedBaseline={}; currentDiscount=null; document.getElementById('tableSel').value=''; tableOrders=[]; updateTabsVisibility(); renderCart(); }
+
+  // ── payment ──
+  function openPayForCart(){ const t=cartTotals(); const table=document.getElementById('tableSel').value;
+    payCtx={ kind:'new', total:t.gt, table:table };
+    document.getElementById('pmItems').textContent=Object.values(cart).reduce((a,b)=>a+b,0);
+    document.getElementById('pmCtx').textContent=orderType==='Take Away'?'Order':'Table';
+    document.getElementById('pmTable').textContent=orderType==='Take Away'?'Take Away':(table||'—');
+    document.getElementById('pmTotal').textContent=fmt(t.gt); setPayMode('Cash'); mErr('payErr',''); show('payModal'); }
+  function openPayForOrder(name,total,itemsCount,table){ payCtx={ kind:'existing', orderName:name, total:total, table:table };
+    document.getElementById('pmItems').textContent=itemsCount; document.getElementById('pmCtx').textContent='Table';
+    document.getElementById('pmTable').textContent=table||'—'; document.getElementById('pmTotal').textContent=fmt(total);
+    setPayMode('Cash'); mErr('payErr',''); show('payModal'); }
+  function setPayMode(m){ payMode=m; document.querySelectorAll('#pmodes .pmode').forEach(p=>p.classList.toggle('active',p.dataset.m===m));
+    const tf=document.getElementById('tenderField'), cc=document.getElementById('ccFields');
+    if(m==='Cash'){ tf.style.display='block'; cc.style.display='none'; document.getElementById('tendered').value=Math.round(payCtx.total); calcChange(); }
+    else if(m==='Cash+Card'){ tf.style.display='none'; cc.style.display='block'; document.getElementById('ccCash').value=0; document.getElementById('ccCard').value=Math.round(payCtx.total); }
+    else { tf.style.display='none'; cc.style.display='none'; } }
+  function calcChange(){ const ch=(parseFloat(document.getElementById('tendered').value)||0)-payCtx.total; document.getElementById('changeDue').textContent=fmt(ch>0?ch:0); }
+  async function confirmPay(){
+    const body={ payment_mode:payMode };
+    if(payMode==='Cash'){ body.tendered=parseFloat(document.getElementById('tendered').value)||0; }
+    if(payMode==='Cash+Card'){ const c=parseFloat(document.getElementById('ccCash').value)||0, k=parseFloat(document.getElementById('ccCard').value)||0;
+      if(Math.abs((c+k)-payCtx.total)>1){ mErr('payErr','Cash + Card must equal '+fmt(payCtx.total)); return; } body.cash_amount=c; body.card_amount=k; }
+    const btn=document.getElementById('payConfirm'); btn.disabled=true; mErr('payErr','');
+    try{ let res;
+      if(payCtx.kind==='new'){ Object.assign(body,{ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':payCtx.table), order_type:orderType, order_source:'Walk-in', customer_name:'' }); res=await _post('/api/method/luuvcrm.api.place_order',body); }
+      else { body.order_name=payCtx.orderName; res=await _post('/api/method/luuvcrm.api.process_payment',body); }
+      if(!res){ btn.disabled=false; return; } const data=await res.json();
+      if(res.ok && data.message && data.message.name){ toast('Charged #'+data.message.name); printReceipt(data.message.name); hide('payModal');
+        const tbl=payCtx.table; if(payCtx.kind==='new') clearCart(); else { clearTicket(); }
+        if(tbl){ await refreshTableTabs(tbl); } loadOpenOrders(); loadShift(); }
+      else mErr('payErr', _smsg(data,'payment failed'));
+    }catch(e){ mErr('payErr','Connection error'); }
+    btn.disabled=false;
+  }
+
+  // ── open orders rail ──
+  async function loadOpenOrders(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_ongoing_orders',{}); if(!r) return; const d=await r.json();
+      const orders=(d.message&&d.message.orders)||[]; _openOrders=orders; const wrap=document.getElementById('openOrders');
+      document.getElementById('ordCnt').textContent=orders.length;
+      wrap.innerHTML=orders.map(o=>{ const ta=o.order_type==='Take Away'; const label=ta?('#'+(o.name||'').split('-').pop()):('Table '+(o.restaurant_table?o.restaurant_table.split('-').pop():'—')); const bIcon=ta?'shopping-bag':'utensils-crossed';
+        return `<button onclick="railClick('${o.name}','${(o.restaurant_table||'').replace(/'/g,'')}',${o.grand_total||0},${o.items_count||0})" style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:11px 12px;border-radius:var(--radius-md);border:1.5px solid var(--border-default);background:var(--surface-card);cursor:pointer;width:100%;text-align:left;">
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:6px;">
+            <span style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);">${label}</span>
+            <span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--color-primary);background:var(--orange-50);padding:2px 7px;border-radius:var(--radius-pill);"><i data-lucide="${bIcon}" style="width:11px;height:11px;"></i>${o.items_count||0}</span>
+          </div>
+          <span class="mono" style="font-size:14px;font-weight:500;color:var(--color-primary);">${nfmt(o.grand_total||0)}</span>
+        </button>`; }).join('') || '<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:28px 8px;line-height:1.5;">No open orders yet.</div>';
+      icons();
+    }catch(e){}
+  }
+  // rail click: dine-in order → resume into ticket (+tabs); takeaway → resume the ticket too,
+  // so more items can be added and the remaining fired to the kitchen before charging.
+  function railClick(name,table,total,count){ if(table){ resumeOrder(name,table); } else { resumeTakeaway(name); } }
+  // Resume an open Take Away order into the ticket (no table) — load its items so the cashier
+  // can add more and fire a KOT for only the new items, then charge.
+  function resumeTakeaway(name){
+    const o=(_openOrders||[]).find(x=>x.name===name); if(!o){ openPayForOrder(name,0,0,''); return; }
+    setNav('sale');
+    orderType='Take Away';
+    document.getElementById('segDine').classList.remove('active');
+    document.getElementById('segTake').classList.add('active');
+    document.getElementById('tableSel').value='';
+    currentOrder=name; cart={}; cartTA={}; firedBaseline={};
+    let items=[]; try{ items=JSON.parse(o.items_json||'[]'); }catch(e){}
+    items.forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.sent_qty) firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; });
+    currentDiscount=(o.discount_amount>0)?{amount:o.discount_amount,note:o.discount_note||''}:null;
+    editBaseline={...firedBaseline};
+    tableOrders=[]; updateTabsVisibility(); renderCart();
+  }
+
+  // ── print ──
+  // Per-device chosen Frappe Print Formats (empty value = built-in layout).
+  const PF_KEYS={receipt:'lf_pf_receipt',guest_check:'lf_pf_guestcheck',kot:'lf_pf_kot'};
+  // Canonical Frappe Print Format per kind, used when the device hasn't chosen one — so the
+  // proper thermal layout (takeaway markers, fonts, spacing) is used, not the bare inline builder.
+  const PF_DEFAULTS={receipt:'Luuv Fryxo Receipt',guest_check:'Guest Check',kot:'Luuv Fryxo KOT'};
+  // A POS Order Print Format is a KOT (kitchen ticket) by name; everything else is a bill/guest check.
+  const isKotPF=n=>/kot|kitchen/i.test(n||'');
+  // Legacy fix: never let the guest-check slot hold a KOT format (or the KOT slot hold a bill).
+  // A mis-set device made "Print guest check" render the KOT instead of the customer bill.
+  (function fixCrossedPrintFormats(){
+    const gc=localStorage.getItem(PF_KEYS.guest_check), kot=localStorage.getItem(PF_KEYS.kot);
+    if(gc && isKotPF(gc)) localStorage.removeItem(PF_KEYS.guest_check); // → built-in guest check
+    if(kot && !isKotPF(kot)) localStorage.removeItem(PF_KEYS.kot);      // → built-in KOT
+  })();
+  // Render the selected Frappe Print Format; fall back to the built-in builder if none chosen.
+  async function printWithFormat(name,kind,fallback){
+    const pf=localStorage.getItem(PF_KEYS[kind]) || PF_DEFAULTS[kind];
+    if(pf){ try{ const r=await _post('/api/method/luuvcrm.api.render_pos_print',{order_name:name,kind:kind,print_format:pf});
+      if(r){ const d=await r.json(); if(d.message&&d.message.html){ printRaw(d.message.html); return; } } }catch(e){} }
+    await fallback();
+  }
+  async function printKOT(name){ await printWithFormat(name,'kot',async()=>{ try{ const r=await _post('/api/method/luuvcrm.api.get_kot_print_data',{order_name:name}); if(!r) return; const d=await r.json(); printDoc(buildKOT(d.message||{})); }catch(e){} });
+    try{ await _post('/api/method/luuvcrm.api.mark_kot_printed',{order_name:name}); }catch(e){} }
+  async function printReceipt(name){ await printWithFormat(name,'receipt',async()=>{ try{ const r=await _post('/api/method/luuvcrm.api.get_receipt_print_data',{order_name:name}); if(!r) return; const d=await r.json(); printDoc(buildReceipt(d.message||{})); }catch(e){} }); }
+  function buildKOT(d){ const items=(d.items||[]).map(i=>`<tr><td>${i.qty}×</td><td>${i.item_name||i.item}${i.takeaway?' <b>[TA]</b>':''}</td></tr>`).join('');
+    const loc=d.order_type==='Take Away'?'TAKE AWAY':(d.order_type==='Delivery'?'DELIVERY':('TABLE '+((d.table||'').split('-').pop()||'-')));
+    return `<h2>KOT — ${d.order_name||''}</h2><div class="loc">${loc}</div><table>${items}</table><div class="t">${new Date().toLocaleString()}</div>`; }
+  function buildReceipt(d){ const items=(d.items||[]).map(i=>`<tr><td>${i.qty}× ${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`).join('');
+    return `<h2>Luuv Fryxo</h2><div class="loc">Receipt — ${d.order_name||''}</div><table>${items}</table>
+      <div class="tot">Service charge: ${(d.service_charge_amount||0).toLocaleString()}</div><div class="tot"><b>Total: LKR ${(d.grand_total||0).toLocaleString()}</b></div>
+      <div class="tot">${(d.payment_mode||'')}</div><div class="t">${new Date().toLocaleString()}</div>`; }
+  // Print via a hidden iframe (popups opened after an await get blocked by the browser).
+  function printDoc(html){
+    let f=document.getElementById('__printFrame');
+    if(!f){ f=document.createElement('iframe'); f.id='__printFrame'; f.setAttribute('aria-hidden','true');
+      f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'; document.body.appendChild(f); }
+    const doc=f.contentWindow.document; doc.open();
+    doc.write(`<html><head><title>Print</title><style>@page{margin:0;}body{font-family:'DM Mono',monospace;width:280px;padding:8px;color:#000;margin:0;}h2{text-align:center;margin:4px 0}.loc{text-align:center;font-weight:700;margin:6px 0;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px}table{width:100%;font-size:13px}td.r{text-align:right}.tot{margin-top:6px;font-size:13px}.t{margin-top:8px;font-size:11px;text-align:center;color:#555}</style></head><body>${html}</body></html>`);
+    doc.close();
+    setTimeout(()=>{ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){} }, 350);
+  }
+  // Print pre-rendered HTML (Frappe Print Format) as-is — its own CSS handles sizing.
+  function printRaw(html){
+    let f=document.getElementById('__printFrame');
+    if(!f){ f=document.createElement('iframe'); f.id='__printFrame'; f.setAttribute('aria-hidden','true');
+      f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'; document.body.appendChild(f); }
+    const doc=f.contentWindow.document; doc.open();
+    doc.write(`<html><head><title>Print</title><style>@page{margin:0;}</style></head><body>${html}</body></html>`);
+    doc.close();
+    setTimeout(()=>{ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){} }, 350);
+  }
+
+  // ── Print settings ──
+  const CAT_LAYOUT_KEY='lf_cat_layout';
+  // Toggle the top category bar between stacked (wrap) and sliding (one-row scroll).
+  function applyCatLayout(mode){ const c=document.getElementById('cats'); if(!c) return;
+    if(mode==='slide'){ c.classList.add('cats-slide'); c.style.flexWrap='nowrap'; c.style.overflowX='auto'; }
+    else { c.classList.remove('cats-slide'); c.style.flexWrap='wrap'; c.style.overflowX='visible'; } }
+  async function openSettings(){
+    document.getElementById('catLayout').value=localStorage.getItem(CAT_LAYOUT_KEY)||'stack';
+    try{ const r=await _post('/api/method/luuvcrm.api.get_pos_print_formats',{}); if(r){ const d=await r.json(); const m=d.message||{};
+      fillPF('pfReceipt',m.invoice,PF_KEYS.receipt);
+      // Guest check slot lists only bill formats; KOT slot lists only kitchen formats — can't cross-pick.
+      fillPF('pfGuestCheck',(m.order||[]).filter(f=>!isKotPF(f.name)),PF_KEYS.guest_check);
+      fillPF('pfKot',(m.order||[]).filter(f=>isKotPF(f.name)),PF_KEYS.kot); } }catch(e){}
+    show('settingsModal'); icons();
+  }
+  function fillPF(id,list,key){ const s=document.getElementById(id);
+    s.querySelectorAll('option:not([value=""])').forEach(o=>o.remove());
+    (list||[]).forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.name; s.appendChild(o); });
+    s.value=localStorage.getItem(key)||''; }
+  function saveSettings(){
+    const catMode=document.getElementById('catLayout').value;
+    localStorage.setItem(CAT_LAYOUT_KEY,catMode); applyCatLayout(catMode);
+    localStorage.setItem(PF_KEYS.receipt,document.getElementById('pfReceipt').value);
+    localStorage.setItem(PF_KEYS.guest_check,document.getElementById('pfGuestCheck').value);
+    localStorage.setItem(PF_KEYS.kot,document.getElementById('pfKot').value);
+    toast('Settings saved'); hide('settingsModal');
+  }
+
+  // ── Order actions drawer ──
+  function openDrawer(){ const table=document.getElementById('tableSel');
+    document.getElementById('drawerSub').textContent=currentOrder?('Order #'+shortNo(currentOrder)+(table.value?' · '+table.options[table.selectedIndex].text:'')):'New ticket — send to kitchen first to manage it';
+    document.getElementById('orderDrawer').style.display='flex'; icons(); }
+  function closeDrawer(){ document.getElementById('orderDrawer').style.display='none'; }
+  function drawerKitchen(){ closeDrawer(); placeOrder(false); }
+  function drawerBill(){ closeDrawer(); if(!currentOrder){ toast('Send to kitchen first'); return; } printGuestCheck(currentOrder); }
+  function drawerSplit(){ closeDrawer(); if(!currentOrder){ toast('Send to kitchen first'); return; } openSplit('all'); }
+  function drawerSplitTA(){ closeDrawer(); if(!currentOrder){ toast('Send to kitchen first'); return; } openSplit('takeaway'); }
+  function drawerMove(){ closeDrawer(); if(!currentOrder){ toast('Send to kitchen first'); return; } openMove(); }
+  function openMove(){ const sel=document.getElementById('moveTableSel'); const cur=document.getElementById('tableSel').value; if(cur) sel.value=cur;
+    document.getElementById('moveSub').textContent='Move order #'+shortNo(currentOrder)+' to another table.'; mErr('moveErr',''); show('moveModal'); }
+  async function confirmMove(){ const newTable=document.getElementById('moveTableSel').value;
+    if(!newTable){ mErr('moveErr','Pick a table'); return; }
+    const oldTable=document.getElementById('tableSel').value; const moved=currentOrder;
+    const btn=document.getElementById('moveConfirm'); btn.disabled=true; mErr('moveErr','');
+    try{ const r=await _post('/api/method/luuvcrm.api.move_order_table',{order_name:moved,table:newTable}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Moved to '+document.getElementById('moveTableSel').options[document.getElementById('moveTableSel').selectedIndex].text); hide('moveModal');
+        if(oldTable && oldTable!==newTable){ await refreshTableTabs(oldTable); }
+        document.getElementById('tableSel').value=newTable; await refreshTableTabs(newTable); selectOrderTab(moved); loadOpenOrders(); }
+      else mErr('moveErr', _smsg(d,'could not move')); }catch(e){ mErr('moveErr','Connection error'); } btn.disabled=false; }
+  function drawerLog(){ closeDrawer(); if(!currentOrder){ toast('Send to kitchen first'); return; } openLog(); }
+  async function drawerVoid(){ closeDrawer(); if(!currentOrder){ toast('Nothing to void'); return; }
+    if(!confirm('Send a void request for #'+shortNo(currentOrder)+' to the manager?')) return;
+    const lines=Object.keys(cart).map(c=>({qtyStr:cart[c]+'×',name:(itemMap[c]||{}).name||c,totalStr:nfmt((itemMap[c]||{rate:0}).rate*cart[c])}));
+    const t=cartTotals(); const table=document.getElementById('tableSel'); const tName=table.value?table.options[table.selectedIndex].text:'';
+    const details=JSON.stringify({lines:lines,footer_label:'Order total',footer_value:'Rs '+nfmt(t.gt)});
+    try{ const r=await _post('/api/method/luuvcrm.api.create_approval',{approval_type:'void',pos_order:currentOrder,title:'Void approval',subhead:'Order #'+shortNo(currentOrder)+(tName?' · '+tName:''),flag_text:'Cashier requested void',details_json:details,action:'void'});
+      if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Void sent to manager 📱'); pollApproval(d.message.name); }
+      else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
+  function pollApproval(name){ let tries=0; const iv=setInterval(async()=>{ tries++; if(tries>40){ clearInterval(iv); return; }
+    try{ const r=await _post('/api/method/luuvcrm.api.get_approval_status',{name:name}); if(!r) return; const d=await r.json(); const s=d.message&&d.message.status;
+      if(s==='approved'){ clearInterval(iv); toast('Void approved ✓'); const t=document.getElementById('tableSel').value; clearTicket(); if(t) await refreshTableTabs(t); loadOpenOrders(); }
+      else if(s==='rejected'){ clearInterval(iv); toast('Void rejected by manager'); }
+    }catch(e){} }, 3000); }
+
+  // ── discount (manager-approved) ──
+  function drawerDiscount(){ closeDrawer(); if(!currentOrder){ toast('Send to kitchen first'); return; }
+    _discKind='pct'; document.getElementById('discValue').value=''; setDiscKind('pct'); mErr('discErr',''); show('discountModal'); }
+  function setDiscKind(k){ _discKind=k; document.querySelectorAll('#discModes .pmode').forEach(p=>p.classList.toggle('active',p.dataset.d===k));
+    document.getElementById('discLabel').textContent=(k==='pct')?'Discount %':'Discount amount (Rs)'; renderDiscPreview(); }
+  function discAmount(){ const sub=cartTotals().sub; const v=parseFloat(document.getElementById('discValue').value)||0;
+    let amt=(_discKind==='pct')?(sub*v/100):v; if(amt<0) amt=0; if(amt>sub) amt=sub; return Math.round(amt); }
+  function renderDiscPreview(){ const t=cartTotals(); const amt=discAmount(); const factor=t.sub>0?(1-amt/t.sub):1;
+    const sc=Math.round(t.scBase*factor*SC_RATE)/100; document.getElementById('discTotal').textContent=nfmt(t.sub-amt+sc); }
+  async function confirmDiscount(){ const v=parseFloat(document.getElementById('discValue').value)||0; const amt=discAmount();
+    if(v<=0||amt<=0){ mErr('discErr','Enter a discount'); return; }
+    const note=(_discKind==='pct')?(v+'%'):('Rs.'+nfmt(amt));
+    const t=cartTotals(); const factor=t.sub>0?(1-amt/t.sub):1; const newGt=t.sub-amt+Math.round(t.scBase*factor*SC_RATE)/100;
+    const table=document.getElementById('tableSel'); const tName=table.value?table.options[table.selectedIndex].text:'';
+    const details=JSON.stringify({lines:[{qtyStr:'',name:'Discount '+note,totalStr:'− Rs.'+nfmt(amt)}],footer_label:'New total',footer_value:'Rs.'+nfmt(newGt)});
+    const btn=document.getElementById('discConfirm'); btn.disabled=true; mErr('discErr','');
+    try{ const r=await _post('/api/method/luuvcrm.api.create_approval',{approval_type:'discount',pos_order:currentOrder,title:'Discount approval',subhead:'Order #'+shortNo(currentOrder)+(tName?' · '+tName:''),flag_text:'Cashier requested '+note+' discount',details_json:details,action:'discount',action_payload:JSON.stringify({kind:_discKind,value:v})});
+      if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Discount sent to manager 📱'); hide('discountModal'); pollDiscount(d.message.name); }
+      else mErr('discErr',_smsg(d,'could not request')); }catch(e){ mErr('discErr','Connection error'); } btn.disabled=false; }
+  function pollDiscount(name){ let tries=0; const iv=setInterval(async()=>{ tries++; if(tries>40){ clearInterval(iv); return; }
+    try{ const r=await _post('/api/method/luuvcrm.api.get_approval_status',{name:name}); if(!r) return; const d=await r.json(); const s=d.message&&d.message.status;
+      if(s==='approved'){ clearInterval(iv); toast('Discount approved ✓'); const ord=currentOrder; const tbl=document.getElementById('tableSel').value;
+        if(orderType==='Take Away'){ await loadOpenOrders(); resumeTakeaway(ord); } else if(tbl){ await refreshTableTabs(tbl); selectOrderTab(ord); } }
+      else if(s==='rejected'){ clearInterval(iv); toast('Discount rejected by manager'); }
+    }catch(e){} }, 3000); }
+
+  // Guest check (pre-bill) print
+  async function printGuestCheck(name){ try{
+    await printWithFormat(name,'guest_check',async()=>{ const r=await _post('/api/method/luuvcrm.api.get_guest_check_data',{order_name:name}); if(!r) return; const d=await r.json(); const x=d.message||{};
+      const items=(x.items||[]).map(i=>`<tr><td>${i.qty}× ${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`).join('');
+      printDoc(`<h2>Luuv Fryxo</h2><div class="loc">GUEST CHECK — ${x.order_name||''}</div><table>${items}</table>
+        <div class="tot">Subtotal: ${(((x.grand_total||0)-(x.service_charge_amount||0))).toLocaleString()}</div>
+        <div class="tot">Service charge: ${(x.service_charge_amount||0).toLocaleString()}</div>
+        <div class="tot"><b>Total: LKR ${(x.grand_total||0).toLocaleString()}</b></div>
+        <div class="t">Not a tax invoice · ${new Date().toLocaleString()}</div>`); });
+    try{ await _post('/api/method/luuvcrm.api.mark_check_printed',{order_name:name}); }catch(e){}
+    toast('Guest check printed');
+  }catch(e){ toast('Connection error'); } }
+
+  // Split bill (and "split takeaway" — bills only the takeaway items, no service charge)
+  let splitMode='Cash', splitData=[], splitFilter='all';
+  async function openSplit(mode){ splitFilter=mode||'all';
+    try{ const r=await _post('/api/method/luuvcrm.api.get_order_items',{order_name:currentOrder}); if(!r) return; const d=await r.json();
+    let items=((d.message&&d.message.items)||[]).filter(i=>(i.remaining||0)>0);
+    if(splitFilter==='takeaway') items=items.filter(i=>i.takeaway);
+    splitData=items.map(i=>({item:i.item,name:i.item_name||i.item,rate:i.rate,remaining:i.remaining,takeaway:!!i.takeaway,sel:splitFilter==='takeaway'?i.remaining:0}));
+    if(!splitData.length){ toast(splitFilter==='takeaway'?'No takeaway items on this order':'Nothing left to split'); return; }
+    document.getElementById('splitTitle').textContent=splitFilter==='takeaway'?'Split takeaway':'Split bill';
+    document.getElementById('splitDesc').textContent=splitFilter==='takeaway'?'Takeaway items billed on their own — no service charge. Dine-in keeps the service charge.':'Pick the items (and how many) for this bill. The rest stays on the order.';
+    setSplitMode('Cash'); mErr('splitErr',''); renderSplit(); show('splitModal'); }catch(e){ toast('Connection error'); } }
+  function renderSplit(){ const wrap=document.getElementById('splitItems');
+    wrap.innerHTML=splitData.map((l,idx)=>`<div class="spl-row"><div style="flex:1;min-width:0;"><div style="font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--text-strong);">${l.name} ${l.takeaway?'<span style="font-size:11px;font-weight:700;color:#9a6207;background:var(--color-warning-subtle);padding:1px 7px;border-radius:var(--radius-pill);">🛍️ TA</span>':''}</div><div style="font-size:12px;color:var(--text-muted);">${nfmt(l.rate)} · ${l.remaining} left</div></div>
+      <div class="lf-qty lf-qty--sm"><button class="lf-qty__btn" onclick="splitStep(${idx},-1)">−</button><span class="lf-qty__val">${l.sel}</span><button class="lf-qty__btn" onclick="splitStep(${idx},1)">+</button></div></div>`).join('');
+    let tot=0; splitData.forEach(l=>tot+=l.rate*l.sel); document.getElementById('splitTotal').textContent=nfmt(tot); icons(); }
+  function splitStep(idx,d){ const l=splitData[idx]; l.sel=Math.max(0,Math.min(l.remaining,l.sel+d)); renderSplit(); }
+  function setSplitMode(m){ splitMode=m; document.querySelectorAll('#splitModes .pmode').forEach(p=>p.classList.toggle('active',p.dataset.m===m)); }
+  async function confirmSplit(){ const lines=splitData.filter(l=>l.sel>0).map(l=>({item:l.item,qty:l.sel}));
+    if(!lines.length){ mErr('splitErr','Select at least one item'); return; }
+    const btn=document.getElementById('splitConfirm'); btn.disabled=true; mErr('splitErr','');
+    try{ const r=await _post('/api/method/luuvcrm.api.pay_split',{order_name:currentOrder,lines:JSON.stringify(lines),payment_mode:splitMode}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.name){ toast('Split charged #'+d.message.name); printReceipt(d.message.name); hide('splitModal');
+        const t=document.getElementById('tableSel').value;
+        if(d.message.fully_paid){ clearTicket(); if(t) await refreshTableTabs(t); } else { await openSplit(); }
+        loadOpenOrders(); loadShift(); }
+      else mErr('splitErr', _smsg(d,'split failed')); }catch(e){ mErr('splitErr','Connection error'); } btn.disabled=false; }
+
+  // Activity log
+  async function openLog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_order_changelog',{order_name:currentOrder}); if(!r) return; const d=await r.json();
+    const log=(d.message&&d.message.changelog)||[]; document.getElementById('logSub').textContent='Order #'+shortNo(currentOrder);
+    document.getElementById('logRows').innerHTML=log.length?log.map(e=>{ const chs=(e.changes||[]).map(c=>c.action?(c.field+' '+c.action+' ('+c.count+')'):(c.field+': '+c.old_value+' → '+c.new_value)).join(', ');
+      return `<div style="display:flex;gap:11px;align-items:flex-start;"><span style="width:30px;height:30px;border-radius:50%;background:var(--orange-50);color:var(--color-primary);display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="history" style="width:14px;height:14px;"></i></span>
+        <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;color:var(--text-strong);">${chs||'created'}</div><div style="font-size:12px;color:var(--text-faint);">${e.owner||''} · ${e.created?new Date(e.created).toLocaleString():''}</div></div></div>`; }).join(''):'<div style="color:var(--text-faint);font-size:14px;text-align:center;padding:20px;">No changes recorded yet.</div>';
+    show('logModal'); icons(); }catch(e){ toast('Connection error'); } }
+
+  // ── shift ──
+  async function loadShift(){ try{ const r=await _post('/api/method/luuvcrm.api.get_pos_shift',{}); if(!r) return; const d=await r.json(); const s=d.message&&d.message.shift;
+    shiftData=s; shiftOpen=!!(s&&s.status==='open'); const pill=document.getElementById('shiftPill'); const lbl=document.getElementById('shiftLabel'); const btn=document.getElementById('shiftBtn');
+    if(shiftOpen){ pill.style.background='var(--color-success-subtle)'; pill.style.color='var(--color-success)'; lbl.textContent='Shift open · '+(s.period_start?new Date(s.period_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):''); btn.textContent='Close shift'; }
+    else { pill.style.background='var(--gray-100)'; pill.style.color='var(--text-muted)'; lbl.textContent='Shift closed'; btn.textContent='Open shift'; }
+    return s; }catch(e){} }
+  function modeRows(modes,kind){ return modes.map(m=>`<div class="field"><label>${m} (${kind==='opening'?'opening float':'counted'})</label><input type="number" data-mode="${m}" class="${kind}-amt" value="0"></div>`).join(''); }
+  function renderOpeningModes(){ const prof=document.getElementById('openProfile').value; const modes=PROFILE_PAY[prof]||['Cash']; document.getElementById('openingModes').innerHTML=modeRows(modes,'opening'); }
+  function openShiftModal(){ renderOpeningModes(); mErr('openErr',''); show('shiftOpenModal'); }
+  async function openShift(){ const prof=document.getElementById('openProfile').value;
+    const details=[...document.querySelectorAll('.opening-amt')].map(i=>({mode_of_payment:i.dataset.mode,opening_amount:parseFloat(i.value)||0}));
+    const btn=document.getElementById('openBtn'); btn.disabled=true; mErr('openErr','');
+    try{ const res=await _post('/api/method/luuvcrm.api.pos_open_shift',{pos_profile:prof,balance_details:JSON.stringify(details)}); if(!res){ btn.disabled=false; return; } const d=await res.json();
+      if(res.ok && d.message && d.message.shift){ toast('Shift opened'); hide('shiftOpenModal'); await loadShift(); loadOpenOrders(); } else mErr('openErr', _smsg(d,'could not open shift'));
+    }catch(e){ mErr('openErr','Connection error'); } btn.disabled=false; }
+  async function openCloseModal(){ const s=await loadShift(); if(!s){ toast('No open shift'); return; }
+    document.getElementById('csOrders').textContent=s.order_count||0; document.getElementById('csSales').textContent=fmt(s.total_sales||0);
+    const modes=(s.opening_details||[]).map(d=>d.mode_of_payment); document.getElementById('closeModes').innerHTML=modeRows(modes.length?modes:['Cash'],'closing'); mErr('closeErr',''); show('shiftCloseModal'); }
+  async function closeShift(){ const details=[...document.querySelectorAll('.closing-amt')].map(i=>({mode_of_payment:i.dataset.mode,closing_amount:parseFloat(i.value)||0}));
+    const btn=document.getElementById('closeBtn'); btn.disabled=true; mErr('closeErr','');
+    try{ const res=await _post('/api/method/luuvcrm.api.pos_close_shift',{closing_details:JSON.stringify(details)}); if(!res){ btn.disabled=false; return; } const d=await res.json();
+      if(res.ok && d.message && d.message.shift){ const z=d.message.shift; hide('shiftCloseModal'); toast('Shift closed — '+(z.order_count||0)+' orders, '+fmt(z.total_sales||0)); printZReport(z); await loadShift(); loadOpenOrders(); openShiftModal(); } else mErr('closeErr', _smsg(d,'could not close shift'));
+    }catch(e){ mErr('closeErr','Connection error'); } btn.disabled=false; }
+  function printZReport(z){ const rows=(z.payment_reconciliation||[]).map(r=>`<tr><td>${r.mode_of_payment}</td><td class="r">${(r.closing_amount||0).toLocaleString()}</td></tr>`).join('');
+    printDoc(`<h2>Z-Report</h2><div class="loc">${z.cashier||''}</div><div class="tot">Orders: ${z.order_count||0}</div><div class="tot">Total sales: LKR ${(z.total_sales||0).toLocaleString()}</div><table>${rows}</table><div class="t">${z.period_start||''} → ${z.period_end||''}</div>`); }
+  function toggleShift(){ if(shiftOpen) openCloseModal(); else openShiftModal(); }
+  // Logout is tied to the shift: a shift must be closed before logging out. From the header,
+  // an open shift routes to the close-shift flow; after close the open-shift modal offers Log out.
+  function doLogout(fromModal){
+    if(!fromModal && shiftOpen){ toast('Close the shift to log out'); hide('shiftOpenModal'); openCloseModal(); return; }
+    if(confirm('Log out?')) location.href='/api/method/logout'; }
+
+  function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+
+  // ── init ──
+  setNav('sale'); setOrderType('Dine In'); setInterval(tick,1000); tick(); icons();
+  applyCatLayout(localStorage.getItem(CAT_LAYOUT_KEY)||'stack');
+  renderCart();
+  (async()=>{ await loadShift(); loadOpenOrders(); if(!shiftOpen) openShiftModal(); })();
+</script>
+</body>
+</html>

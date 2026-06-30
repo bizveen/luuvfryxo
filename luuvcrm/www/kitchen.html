@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Luuv Fryxo">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" href="/icon.svg">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kitchen | Luuv Fryxo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html,body { height:100%; background:#0F172A; color:#F8FAFC; font-family:'Inter',-apple-system,sans-serif; }
+    :root { --bg:#0F172A; --card:#1E293B; --border:rgba(255,255,255,0.08); --pending:#F59E0B; --processing:#3B82F6; --done:#10B981; }
+    ::-webkit-scrollbar { width:6px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:3px; }
+
+    .k-header { background:#1E293B; padding:10px 20px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
+    .k-brand { font-size:1rem; font-weight:800; }
+    .k-brand span { color:var(--pending); }
+    .k-refresh { margin-left:auto; display:flex; align-items:center; gap:8px; }
+    .k-refresh-dot { width:7px; height:7px; border-radius:50%; background:#10B981; animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .k-info { font-size:0.72rem; color:rgba(255,255,255,0.35); display:flex; align-items:center; gap:10px; }
+    .k-clock { font-size:0.85rem; font-weight:600; color:rgba(255,255,255,0.5); }
+
+    .k-tabs { display:flex; background:#162032; border-bottom:1px solid var(--border); }
+    .k-tab { flex:1; padding:10px; border:none; background:none; color:rgba(255,255,255,0.45); font-size:0.8rem; font-weight:700; cursor:pointer; font-family:inherit; border-bottom:2px solid transparent; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+    .k-tab.active { color:var(--pending); border-bottom-color:var(--pending); }
+    .k-tab .kt-count { background:var(--pending); color:#0F172A; font-size:0.6rem; font-weight:800; padding:1px 7px; border-radius:8px; }
+
+    .k-view { display:none; height:calc(100vh - 92px); overflow:hidden; }
+    .k-view.active { display:flex; }
+
+    /* ── Kanban Columns ── */
+    .kanban { display:flex; gap:12px; padding:12px; height:100%; overflow-x:auto; overflow-y:hidden; flex:1; min-width:0; }
+    .kanban-col { flex:1; min-width:280px; max-width:400px; display:flex; flex-direction:column; border-radius:12px; background:rgba(255,255,255,0.03); overflow:hidden; }
+    .kanban-col-header { padding:10px 14px; font-size:0.78rem; font-weight:700; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .kanban-col-header .kch-dot { width:10px; height:10px; border-radius:50%; }
+    .kanban-col-header .kch-count { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.5); font-size:0.65rem; padding:1px 7px; border-radius:8px; margin-left:auto; }
+    .kanban-col-body { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:8px; }
+
+    .k-card { background:var(--card); border-radius:12px; padding:12px 14px; border-left:3px solid transparent; transition:all 0.2s; flex-shrink:0; }
+    .k-card.col-pending { border-left-color:var(--pending); }
+    .k-card.col-processing { border-left-color:var(--processing); }
+    .k-card.col-done { border-left-color:var(--done); opacity:0.7; }
+    .k-card.col-cancelled { border-left-color:#EF4444; opacity:0.6; }
+    .k-card.is-new { animation:popIn 0.3s ease; }
+    @keyframes popIn { from{transform:scale(0.95);opacity:0} to{transform:scale(1);opacity:1} }
+
+    .kc-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+    .kc-table { font-size:1.2rem; font-weight:800; }
+    .k-card.col-pending .kc-table { color:var(--pending); }
+    .k-card.col-processing .kc-table { color:var(--processing); }
+    .k-card.col-done .kc-table { color:var(--done); }
+    .kc-timer { font-size:0.9rem; font-weight:700; white-space:nowrap; }
+    .kc-timer.green { color:var(--done); }
+    .kc-timer.yellow { color:var(--pending); }
+    .kc-timer.red { color:#EF4444; }
+
+    .kc-meta { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .kc-source { font-size:0.65rem; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.5); }
+    .kc-source.waiter { color:#A78BFA; background:rgba(167,139,250,0.12); }
+    .kc-source.kiosk { color:#34D399; background:rgba(52,211,153,0.12); }
+    .kc-time { font-size:0.68rem; color:rgba(255,255,255,0.35); }
+
+    .kc-items { margin-bottom:6px; }
+    .kci-row { display:flex; align-items:center; gap:6px; font-size:0.82rem; padding:2px 0; }
+    .kci-qty { background:rgba(255,255,255,0.1); font-size:0.65rem; font-weight:700; width:20px; height:20px; border-radius:5px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .kci-name { flex:1; color:#E2E8F0; }
+    .kc-notes { background:rgba(245,158,11,0.1); border-left:2px solid var(--pending); padding:5px 8px; border-radius:0 6px 6px 0; font-size:0.75rem; color:#FCD34D; margin-bottom:6px; }
+
+    .kc-actions { display:flex; gap:6px; margin-top:6px; }
+    .kc-btn { flex:1; padding:7px; border:none; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.15s; }
+    .kc-btn:active { transform:scale(0.96); }
+    .kc-btn.ready { background:var(--pending); color:#0F172A; }
+    .kc-btn.ready-done { background:rgba(16,185,129,0.15); color:var(--done); cursor:default; }
+    .kc-btn.proc { background:var(--processing); color:#fff; }
+    .kc-btn.proc-done { background:rgba(16,185,129,0.15); color:var(--done); cursor:default; }
+    .kc-btn.served { background:var(--done); color:#0F172A; }
+    .kc-btn.served-locked { background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.2); cursor:not-allowed; }
+    .kc-btn.kot { background:#6B7280; color:#fff; }
+    .kc-btn.pdf { background:#6366F1; color:#fff; }
+    .kc-new-badge { display:inline-block; background:#EF4444; color:#fff; font-size:0.55rem; font-weight:700; padding:1px 6px; border-radius:6px; margin-left:6px; animation:blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .k-empty { text-align:center; padding:40px 10px; color:rgba(255,255,255,0.25); font-size:0.82rem; }
+    .k-empty .icon { font-size:2.5rem; margin-bottom:6px; }
+
+    /* ── Prep View ── */
+    /* ── Prep View (Kanban by category) ── */
+    .prep-view { padding:12px; overflow-y:auto; flex-direction:column; }
+    .prep-view.active { display:flex; }
+    .prep-header { margin-bottom:12px; }
+    .prep-header h2 { font-size:0.95rem; font-weight:700; color:var(--pending); display:flex; align-items:center; gap:10px; }
+
+    .prep-kanban { display:flex; gap:12px; overflow-x:auto; overflow-y:hidden; flex:1; min-height:0; padding-bottom:8px; }
+    .prep-col { flex:1; min-width:260px; max-width:380px; display:flex; flex-direction:column; border-radius:12px; background:rgba(255,255,255,0.03); overflow:hidden; }
+    .prep-col-header { padding:8px 14px; font-size:0.78rem; font-weight:700; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .prep-col-header .pch-count { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.5); font-size:0.65rem; padding:1px 7px; border-radius:8px; margin-left:auto; }
+    .prep-col-body { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:8px; }
+
+    .prep-card { background:var(--card); border-radius:10px; padding:10px 12px; border-left:3px solid var(--pending); flex-shrink:0; }
+    .prep-card.all-done { border-left-color:var(--done); opacity:0.6; }
+    .pc-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .pc-name { font-size:0.82rem; font-weight:700; }
+    .pc-total { background:var(--pending); color:#0F172A; font-size:0.75rem; font-weight:800; padding:2px 10px; border-radius:10px; }
+    .prep-card.all-done .pc-total { background:var(--done); }
+    .pc-tables { display:flex; flex-wrap:wrap; gap:3px; margin-bottom:6px; }
+    .pc-chip { background:rgba(255,255,255,0.06); border-radius:5px; padding:2px 7px; font-size:0.65rem; display:flex; align-items:center; gap:3px; }
+    .pc-chip .pcc-qty { background:var(--pending); color:#0F172A; font-size:0.55rem; font-weight:800; width:14px; height:14px; border-radius:3px; display:flex; align-items:center; justify-content:center; }
+    .prep-card.all-done .pc-chip .pcc-qty { background:var(--done); }
+
+    .pc-orders { font-size:0.62rem; color:rgba(255,255,255,0.3); }
+    .pc-status { font-size:0.6rem; color:rgba(255,255,255,0.25); display:flex; align-items:center; gap:4px; margin-top:4px; }
+    .pc-status .pcs-dot { width:6px; height:6px; border-radius:50%; display:inline-block; }
+    .pc-status .pcs-dot.pending { background:var(--pending); }
+    .pc-status .pcs-dot.processing { background:var(--processing); }
+
+    @media (max-width:900px) { .kanban { flex-direction:column; overflow-y:auto; } .kanban-col { max-width:none; min-width:0; } .kanban-col-body { max-height:300px; } .prep-kanban { flex-direction:column; overflow-y:auto; } .prep-col { max-width:none; min-width:0; } .prep-col-body { max-height:250px; } }
+  </style>
+</head>
+<body>
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<div class="k-header">
+  <div class="k-brand">🍳 Kitchen <span>Display</span></div>
+  <div class="k-info">
+    <span class="k-clock" id="kClock"></span>
+    <span>{{ current_user_full }}</span>
+  </div>
+  <div class="k-refresh">
+    <div class="k-refresh-dot"></div>
+    <span id="refreshText">8s</span>
+  </div>
+</div>
+
+<div class="k-tabs">
+  <button class="k-tab active" id="tabOrders" onclick="switchKTab('orders')">📋 Orders</button>
+  <button class="k-tab" id="tabPrep" onclick="switchKTab('prep')">🍳 Prep View <span class="kt-count" id="prepTabCount">0</span></button>
+</div>
+
+<!-- Orders Kanban View -->
+<div class="k-view active" id="ordersView">
+  <div class="kanban" id="kanbanContainer"></div>
+</div>
+
+<!-- Prep View -->
+<div class="k-view prep-view" id="prepView">
+  <div class="prep-header"><h2>🍳 Preparation Summary <span style="font-size:0.72rem;font-weight:400;color:rgba(255,255,255,0.35);">Grouped by category</span></h2></div>
+  <div class="prep-kanban" id="prepKanban"></div>
+</div>
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+let knownOrders = new Set();
+let refreshTimer = 8;
+let refreshInterval = null;
+let _lastOrders = [];
+let activeKTab = 'orders';
+
+async function _post(url, data={}) {
+  const fd = new URLSearchParams({ csrf_token: CSRF, ...data });
+  const res = await fetch(url, { method:'POST', body:fd, credentials:'include', headers:{'X-Frappe-CSRF-Token':CSRF} });
+  if (res.status===401||res.status===403) { window.location.href='/login?redirect-to=/kitchen'; return null; }
+  return res;
+}
+
+function escHtml(s) { const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+
+function timerClass(m) { if(m<5) return 'green'; if(m<10) return 'yellow'; return 'red'; }
+
+// ─── Audio + Notification System ──────────────
+let _kCtx = null;
+function _ctx() { if (!_kCtx) _kCtx = new (window.AudioContext||window.webkitAudioContext)(); return _kCtx; }
+['click','touchstart'].forEach(e => document.addEventListener(e, () => { try { const c=_ctx(); if(c.state==='suspended') c.resume(); } catch(e){} }, {once:true,passive:true}));
+
+function _bellT(ctx, t, freq, vol) {
+  [freq, freq * 2.756, freq * 5.404].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine';
+    o.frequency.value = f;
+    const v = vol * [1, 0.4, 0.15][i];
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.2 - i * 0.2);
+    o.start(t); o.stop(t + 1.4);
+  });
+}
+
+function playNewOrderSound() {
+  try {
+    const ctx = _ctx();
+    const go = () => {
+      const n = ctx.currentTime;
+      _bellT(ctx, n,       880, 0.3);
+      _bellT(ctx, n + 0.3, 1100, 0.25);
+      _bellT(ctx, n + 0.6, 1320, 0.2);
+    };
+    if (ctx.state === 'suspended') ctx.resume().then(go);
+    else go();
+  } catch(e) {}
+}
+
+function notifyKitchen(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/icon.svg' });
+  } else if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+// ─── Render ───────────────────────────────────
+function renderCard(o, col) {
+  const items = JSON.parse(o.items_json || '[]');
+  const isWaiter = o.order_source === 'Waiter';
+  const isKiosk = o.order_source === 'Online' || o.order_source === 'Kiosk';
+  const tc = timerClass(o.minutes);
+  const isNew = !knownOrders.has(o.name) && knownOrders.size > 0;
+
+  const itemRows = items.map(i => `<div class="kci-row"><div class="kci-qty">${i.qty}</div><div class="kci-name">${escHtml(i.item)}</div></div>`).join('');
+  const notesHtml = o.notes ? `<div class="kc-notes">📝 ${escHtml(o.notes)}</div>` : '';
+  const sourceHtml = isWaiter ? `<span class="kc-source waiter">🙋 Waiter</span>` : isKiosk ? `<span class="kc-source kiosk">🏪 Kiosk</span>` : `<span class="kc-source">🚶 Walk-in</span>`;
+  const newBadge = col==='pending' && o.seconds < 30 ? `<span class="kc-new-badge">NEW</span>` : '';
+
+  let actions = '';
+  if (col === 'pending') {
+    actions = `<div class="kc-actions">
+      <button class="kc-btn kot" onclick="printKOT('${o.name}')">🖨 KOT</button>
+      <button class="kc-btn proc" onclick="moveTo('${o.name}','processing')">👨‍🍳 Start</button>
+      <button class="kc-btn ready" onclick="markAll('${o.name}')">✓ Ready</button>
+    </div>`;
+  } else if (col === 'processing') {
+    actions = `<div class="kc-actions">
+      <button class="kc-btn kot" onclick="printKOT('${o.name}')">🖨 KOT</button>
+      <button class="kc-btn proc-done">👨‍🍳 Cooking</button>
+      <button class="kc-btn ready" onclick="markAll('${o.name}')">✓ Ready</button>
+    </div>`;
+  } else {
+    actions = `<div class="kc-actions">
+      <button class="kc-btn kot" onclick="printKOT('${o.name}')">🖨 KOT</button>
+      <button class="kc-btn ready-done">✓ Ready</button>
+      <button class="kc-btn served" onclick="markAll('${o.name}')">🍽️ Served</button>
+    </div>`;
+  }
+
+  if (col === 'cancelled') {
+    return `<div class="k-card col-cancelled" id="card-${o.name}" style="opacity:0.6;border-left:3px solid #EF4444;background:rgba(239,68,68,0.08);">
+      <div class="kc-top">
+        <div class="kc-table" style="color:#EF4444;">❌ ${escHtml(o.restaurant_table||'—')}</div>
+        <div class="kc-timer" style="color:#EF4444;">CANCELLED</div>
+      </div>
+      <div class="kc-meta">${sourceHtml}<span class="kc-time">${escHtml(o.time_ago)}</span></div>
+      <div class="kc-items">${itemRows}</div>
+      ${notesHtml}
+    </div>`;
+  }
+  return `<div class="k-card col-${col}${isNew?' is-new':''}" id="card-${o.name}">
+    <div class="kc-top">
+      <div class="kc-table">${escHtml(o.restaurant_table||'—')}${newBadge}</div>
+      <div class="kc-timer ${tc}">${o.minutes}m</div>
+    </div>
+    <div class="kc-meta">${sourceHtml}<span class="kc-time">${escHtml(o.time_ago)}</span></div>
+    <div class="kc-items">${itemRows}</div>
+    ${notesHtml}
+    ${actions}
+  </div>`;
+}
+
+// ─── Kanban columns ────────────────────────────
+const COLUMNS = [
+  { id:'pending', label:'⏳ Pending', dot:'#F59E0B', action:'pending' },
+  { id:'processing', label:'👨‍🍳 Processing', dot:'#3B82F6', action:'processing' },
+  { id:'done', label:'✅ Completed', dot:'#10B981', action:'done' },
+  { id:'cancelled', label:'❌ Cancelled', dot:'#EF4444', action:'cancelled' },
+];
+
+function renderKanban(orders) {
+  const grouped = { pending:[], processing:[], done:[], cancelled:[] };
+  orders.forEach(o => {
+    if (o.kitchen_status === 'Cancelled') grouped.cancelled.push(o);
+    else if (o.kitchen_status === 'Ready' || o.kitchen_status === 'Served') grouped.done.push(o);
+    else if (o.kitchen_status === 'Processing') grouped.processing.push(o);
+    else grouped.pending.push(o);
+  });
+
+  const container = document.getElementById('kanbanContainer');
+  container.innerHTML = COLUMNS.map(col => `
+    <div class="kanban-col">
+      <div class="kanban-col-header">
+        <div class="kch-dot" style="background:${col.dot}"></div>
+        ${col.label}
+        <span class="kch-count">${grouped[col.id].length}</span>
+      </div>
+      <div class="kanban-col-body" id="kanban-${col.id}">
+        ${grouped[col.id].length === 0
+          ? `<div class="k-empty"><div class="icon">✅</div>No orders</div>`
+          : grouped[col.id].map(o => renderCard(o, col.id)).join('')
+        }
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── Move between columns ──────────────────────
+async function moveTo(name, target) {
+  const card = document.getElementById('card-'+name);
+  if (card) card.style.opacity='0.4';
+  try {
+    if (target === 'processing') {
+      await _post('/api/method/luuvcrm.api.mark_kitchen_processing', { order_name: name });
+    }
+    await loadOrders();
+  } catch(e) { if(card) card.style.opacity='1'; }
+}
+
+async function markAll(name) {
+  const card = document.getElementById('card-'+name);
+  if (card) card.style.opacity='0.5';
+  try {
+    // Check current status and toggle: Pending→Ready, Ready→Served
+    // Find order in _lastOrders
+    const order = _lastOrders.find(o => o.name === name);
+    if (!order) return;
+    if (order.kitchen_status === 'Ready' || order.kitchen_status === 'Served') {
+      await _post('/api/method/luuvcrm.api.mark_kitchen_served', { order_name: name });
+    } else {
+      await _post('/api/method/luuvcrm.api.mark_kitchen_ready', { order_name: name });
+    }
+    await loadOrders();
+  } catch(e) { if(card) card.style.opacity='1'; }
+}
+
+// ─── Prep View (Kanban by kitchen_group) ─────────
+
+async function buildPrepView(orders) {
+  const pending = orders.filter(o => o.kitchen_status === 'Pending' || o.kitchen_status === 'Processing');
+  const byGroup = {}; // group -> { code, total, tables:{}, orderNames:[] }
+  const allStatuses = {};
+
+  pending.forEach(o => {
+    JSON.parse(o.items_json||'[]').forEach(item => {
+      const grp = item.kitchen_group || item.group || 'Other';
+      if (!byGroup[grp]) byGroup[grp] = {};
+      if (!byGroup[grp][item.item]) {
+        byGroup[grp][item.item] = { code:item.item, name:item.item_name||item.item, total:0, tables:{}, orderNames:[], statuses:{} };
+      }
+      const it = byGroup[grp][item.item];
+      it.total += item.qty;
+      const tbl = o.restaurant_table||'—';
+      it.tables[tbl] = (it.tables[tbl]||0) + item.qty;
+      if (!it.orderNames.includes(o.name)) it.orderNames.push(o.name);
+      it.statuses[o.name] = o.kitchen_status;
+      allStatuses[o.name] = o.kitchen_status;
+    });
+  });
+
+  const totalItems = Object.values(byGroup).reduce((s,g) => s + Object.keys(g).length, 0);
+  document.getElementById('prepTabCount').textContent = totalItems;
+  const container = document.getElementById('prepKanban');
+
+  // Fetch kitchen group colors and order from the API
+  let groupMeta = {};
+  try {
+    const metaRes = await fetch('/api/method/luuvcrm.api.get_kitchen_groups', { credentials:'include' });
+    const metaData = await metaRes.json();
+    if (metaData.message?.groups) {
+      metaData.message.groups.forEach(g => { groupMeta[g.group_name] = { order: g.display_order||99, color: g.color||"#6B7280" }; });
+    }
+  } catch(e) {}
+  // Sort groups by display_order
+  const groupNames = Object.keys(byGroup).sort((a,b) => {
+    const ao = groupMeta[a]?.order ?? 99;
+    const bo = groupMeta[b]?.order ?? 99;
+    return ao - bo;
+  });
+
+  if (groupNames.length === 0) {
+    container.innerHTML = '<div class="k-empty" style="width:100%"><div class="icon">✅</div><p>All items prepared!</p></div>';
+    return;
+  }
+
+  container.innerHTML = groupNames.map((grp) => {
+    const items = Object.values(byGroup[grp]).sort((a,b) => b.total - a.total);
+    const activeOrders = new Set();
+    items.forEach(it => it.orderNames.forEach(n => activeOrders.add(n)));
+
+    const cards = items.map(it => {
+      const chips = Object.entries(it.tables).map(([t,q]) => `<div class="pc-chip"><span class="pcc-qty">${q}</span>${escHtml(t)}</div>`).join('');
+      // Show statuses of orders this item belongs to
+      const statusDots = Object.entries(it.statuses).slice(0,3).map(([_,s]) => `<span class="pcs-dot ${s.toLowerCase()}"></span>`).join('');
+      const more = Object.keys(it.statuses).length > 3 ? ` +${Object.keys(it.statuses).length - 3}` : '';
+      return `<div class="prep-card" id="prep-${it.code}"><div class="pc-top"><div class="pc-name">${escHtml(it.name)}</div><div class="pc-total">×${it.total}</div></div><div class="pc-tables">${chips}</div><div class="pc-status">${statusDots}${more} (${it.orderNames.length} order${it.orderNames.length>1?'s':''})</div></div>`;
+    }).join('');
+
+    return `<div class="prep-col">
+      <div class="prep-col-header">
+        <div style="width:10px;height:10px;border-radius:50%;background:${groupMeta[grp]?.color||'#6B7280'};flex-shrink:0;"></div>
+        ${escHtml(grp)}
+        <span class="pch-count">${items.reduce((s,i)=>s+i.total,0)}</span>
+      </div>
+      <div class="prep-col-body">${cards}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Load orders ───────────────────────────────
+async function loadOrders() {
+  try {
+    const res = await _post('/api/method/luuvcrm.api.get_kitchen_orders');
+    if (!res) return;
+    const data = await res.json();
+    const orders = (data.message && data.message.orders) ? data.message.orders : [];
+    _lastOrders = orders;
+    const hasNew = orders.some(o => !knownOrders.has(o.name) && knownOrders.size > 0);
+    if (hasNew) {
+      playNewOrderSound();
+      const newOrders = orders.filter(o => !knownOrders.has(o.name));
+      newOrders.forEach(o => {
+        const source = o.order_source === 'Waiter' ? '🙋 Waiter' : o.order_source === 'Online' ? '🏪 Kiosk' : '🚶 Walk-in';
+        notifyKitchen(`New ${source} Order`, `Table: ${o.restaurant_table || '—'} | ${o.customer_name || 'Walk-in'}`);
+      });
+    }
+    knownOrders = new Set(orders.map(o=>o.name));
+    renderKanban(orders);
+    buildPrepView(orders);
+  } catch(e) {}
+}
+
+// ─── Tab switch ────────────────────────────────
+function switchKTab(tab) {
+  activeKTab = tab;
+  document.getElementById('tabOrders').classList.toggle('active', tab==='orders');
+  document.getElementById('tabPrep').classList.toggle('active', tab==='prep');
+  document.getElementById('ordersView').classList.toggle('active', tab==='orders');
+  document.getElementById('prepView').classList.toggle('active', tab==='prep');
+}
+
+// ─── Timer ─────────────────────────────────────
+function tick() { document.getElementById('kClock').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+function startRefresh() {
+  refreshTimer = 8;
+  clearInterval(refreshInterval);
+  refreshInterval = setInterval(() => {
+    refreshTimer--;
+    if (refreshTimer <= 0) { loadOrders(); refreshTimer = 8; }
+    document.getElementById('refreshText').textContent = refreshTimer + 's';
+  }, 1000);
+}
+
+tick(); setInterval(tick, 10000);
+loadOrders();
+startRefresh();
+
+// ─── KOT Print ─────────────────────────────────
+async function printKOT(orderName) {
+  if (!orderName) return;
+  try {
+    const res = await _post('/api/method/luuvcrm.api.get_kot_print_data', { order_name: orderName });
+    if (!res) return; const data = await res.json(); const d = data.message;
+    if (!d) return;
+    const now = new Date();
+    const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+    const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    let ih = d.items.map(i => '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+'</td></tr>').join('');
+    var w = window.open('','_blank','width=300,height=500');
+    w.document.write('<!DOCTYPE html><html><head><title>KOT - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .kl{font-size:11px;color:#333;font-weight:bold;margin:4px 0 0;}.hdr h3{margin:4px 0 0;font-size:14px;}.meta{text-align:center;margin-bottom:10px;font-size:13px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}.items{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin:8px 0;}hr{border:none;border-top:1px dashed #ccc;margin:8px 0;}.bl{text-align:center;margin:6px 0;font-size:11px;letter-spacing:1px;}.ftr{text-align:center;margin-top:10px;font-size:10px;color:#888;}</style></head><body>');
+    w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');
+    w.document.write('<div class="meta"><p><strong>Table:</strong> '+(d.table||'---')+'</p><p><strong>Source:</strong> '+(d.order_source||'Walk-in')+'</p>');
+    if(d.waiter_name) w.document.write('<p><strong>Waiter:</strong> '+d.waiter_name+'</p>');
+    w.document.write('<p><strong>'+ds+' '+ts+'</strong></p></div>');
+    w.document.write('<div class="items"><table>'+ih+'</table></div>');
+    w.document.write('<hr><div class="bl">* '+d.order_name+' *</div>');
+    w.document.write('<div class="ftr"><p>Thank you &middot; Luuv Fryxo</p></div>');
+    w.document.write('<script>window.onload=function(){window.print();window.close();}<'+'/script></body></html>');
+    w.document.close();
+    _logPrint(orderName, 'kot');
+  } catch(e) { console.error('KOT error:', e); }
+}
+
+function _logPrint(orderName, type) {
+  _post('/api/method/luuvcrm.api.log_print', { order_name: orderName, print_type: type }).catch(() => {});
+}
+</script>
+</body>
+</html>

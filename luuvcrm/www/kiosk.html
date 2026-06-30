@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Order | {{ restaurant_name or "Luuv Fryxo" }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden; }
+    body { font-family:'Inter',-apple-system,sans-serif; background:#F5F5F5; color:#1F2937; user-select:none; -webkit-tap-highlight-color:transparent; }
+    .k-container { display:flex; flex-direction:column; height:100vh; height:100dvh; }
+    .k-header {
+      background:#1F2937; color:#fff; padding:10px 16px;
+      display:flex; align-items:center; gap:10px; flex-shrink:0;
+    }
+    .k-header h1 { font-size:1rem; font-weight:700; flex:1; }
+    .k-header .k-table {
+      background:rgba(255,255,255,0.1); padding:4px 10px; border-radius:6px;
+      font-size:0.78rem; font-weight:600; display:flex; align-items:center; gap:5px;
+    }
+    .k-body { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+    .k-cats {
+      display:flex; gap:5px; padding:8px 10px; background:#fff;
+      border-bottom:1px solid #E5E7EB; overflow-x:auto; flex-shrink:0; scrollbar-width:none;
+    }
+    .k-cats::-webkit-scrollbar { display:none; }
+    .k-cats .c-btn {
+      padding:5px 12px; border-radius:16px; border:1.5px solid #E5E7EB; background:#fff;
+      font-size:0.72rem; font-weight:600; color:#6B7280; cursor:pointer;
+      white-space:nowrap; font-family:inherit; transition:all 0.15s;
+    }
+    .k-cats .c-btn.active { background:#FF6B35; border-color:#FF6B35; color:#fff; }
+    .k-items {
+      flex:1; overflow-y:scroll; -webkit-overflow-scrolling:touch;
+      padding:10px; display:grid; grid-template-columns:repeat(2,1fr); gap:8px; align-content:start;
+    }
+    .k-items .i-card {
+      background:#fff; border-radius:10px; padding:12px 8px; cursor:pointer;
+      border:2px solid transparent; transition:all 0.12s; display:flex; flex-direction:column;
+      align-items:center; text-align:center; position:relative; box-shadow:0 1px 3px rgba(0,0,0,0.04);
+    }
+    .k-items .i-card:active { transform:scale(0.96); }
+    .k-items .i-card.has-qty { border-color:#FF6B35; box-shadow:0 0 0 1px #FF6B35, 0 4px 12px rgba(255,107,53,0.12); }
+    .k-items .i-card .i-img {
+      width:48px; height:48px; border-radius:10px; background:#FFF5F0;
+      display:flex; align-items:center; justify-content:center; font-size:1.5rem; margin-bottom:6px; overflow:hidden;
+    }
+    .k-items .i-card .i-img img { width:100%; height:100%; object-fit:cover; }
+    .k-items .i-card .i-name { font-size:0.72rem; font-weight:600; line-height:1.15; margin-bottom:2px; }
+    .k-items .i-card .i-price { font-size:0.82rem; font-weight:700; color:#FF6B35; }
+    .k-items .i-card .i-qty-badge {
+      position:absolute; top:5px; right:5px; background:#FF6B35; color:#fff;
+      font-size:0.6rem; font-weight:700; min-width:18px; height:18px; border-radius:9px;
+      display:none; align-items:center; justify-content:center;
+    }
+    .k-items .i-card.has-qty .i-qty-badge { display:flex; }
+
+    .k-bottom { background:#fff; border-top:1px solid #E5E7EB; flex-shrink:0; }
+    .k-cart-bar {
+      display:flex; align-items:center; gap:10px; padding:10px 14px;
+      cursor:pointer; transition:background 0.15s;
+    }
+    .k-cart-bar:active { background:#F9FAFB; }
+    .k-cart-bar .kcb-icon { font-size:1.2rem; }
+    .k-cart-bar .kcb-info { flex:1; }
+    .k-cart-bar .kcb-count { font-size:0.72rem; font-weight:600; color:#9CA3AF; }
+    .k-cart-bar .kcb-total { font-size:1rem; font-weight:800; color:#1F2937; }
+    .k-cart-bar .kcb-btn {
+      background:linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff; border:none;
+      padding:9px 18px; border-radius:8px; font-size:0.82rem; font-weight:700; cursor:pointer; font-family:inherit;
+    }
+    .k-cart-bar .kcb-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+    /* Cart Drawer */
+    .k-drawer {
+      position:fixed; inset:0; z-index:100; display:none;
+      background:rgba(0,0,0,0.4); align-items:flex-end; justify-content:center;
+    }
+    .k-drawer.show { display:flex; }
+    .k-drawer-inner {
+      background:#fff; border-radius:20px 20px 0 0; width:100%; max-width:500px;
+      max-height:80vh; display:flex; flex-direction:column; animation:slideUp 0.25s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .kd-handle { width:36px; height:4px; background:#E5E7EB; border-radius:2px; margin:10px auto 0; }
+    .kd-header { padding:14px 20px 10px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+    .kd-header h3 { font-size:1rem; font-weight:700; }
+    .kd-header .kd-clear { background:none; border:none; color:#EF4444; font-size:0.78rem; font-weight:600; cursor:pointer; font-family:inherit; }
+    .kd-body { flex:1; overflow-y:auto; padding:0 20px; }
+    .kd-empty { text-align:center; padding:30px; color:#D1D5DB; font-size:0.85rem; }
+    .kd-item {
+      display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #F3F4F6;
+    }
+    .kd-item .kd-name { flex:1; font-size:0.82rem; font-weight:600; min-width:0; }
+    .kd-item .kd-rate { font-size:0.78rem; color:#FF6B35; font-weight:600; min-width:60px; text-align:right; }
+    .kd-item .kd-qty { display:flex; align-items:center; gap:4px; }
+    .kd-item .kd-qty button {
+      width:26px; height:26px; border-radius:50%; border:none; font-size:0.85rem;
+      font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    }
+    .kd-item .kd-qty .kd-minus { background:#FFF0E8; color:#FF6B35; }
+    .kd-item .kd-qty .kd-plus { background:#FF6B35; color:#fff; }
+    .kd-item .kd-qty span { font-size:0.85rem; font-weight:700; min-width:16px; text-align:center; }
+    .kd-item .kd-remove { background:none; border:none; color:#D1D5DB; font-size:1rem; cursor:pointer; }
+    .kd-item .kd-remove:hover { color:#EF4444; }
+    .kd-total { display:flex; justify-content:space-between; padding:12px 0; border-top:2px solid #F3F4F6; font-size:1.1rem; font-weight:800; margin-top:4px; }
+
+    /* Order Form */
+    .kd-form { padding:10px 20px 14px; border-top:1px solid #E5E7EB; flex-shrink:0; }
+    .kd-form .f-row { display:flex; gap:8px; margin-bottom:8px; }
+    .kd-form input {
+      flex:1; padding:10px 12px; border:1.5px solid #E5E7EB; border-radius:8px;
+      font-size:0.85rem; font-family:inherit; outline:none; transition:border 0.2s; background:#F9FAFB;
+    }
+    .kd-form input:focus { border-color:#FF6B35; background:#fff; }
+    .kd-form .f-note { font-size:0.7rem; color:#9CA3AF; margin-bottom:8px; }
+    .kd-form .f-place {
+      width:100%; padding:13px; border:none; border-radius:10px;
+      background:linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff;
+      font-size:0.95rem; font-weight:700; cursor:pointer; font-family:inherit;
+      transition:all 0.15s;
+    }
+    .kd-form .f-place:disabled { opacity:0.5; cursor:not-allowed; }
+    .kd-form .f-place:active { transform:scale(0.98); }
+
+    /* Success Overlay */
+    .k-success {
+      position:fixed; inset:0; z-index:200; display:none;
+      background:rgba(0,0,0,0.5); align-items:center; justify-content:center;
+    }
+    .k-success.show { display:flex; }
+    .k-success-inner {
+      background:#fff; border-radius:20px; padding:32px 24px; text-align:center;
+      max-width:380px; width:90%; animation:popIn 0.25s ease;
+    }
+    @keyframes popIn { from{transform:scale(0.9);opacity:0} to{transform:scale(1);opacity:1} }
+    .ks-icon { font-size:3rem; margin-bottom:8px; }
+    .ks-title { font-size:1.2rem; font-weight:800; margin-bottom:4px; color:#1F2937; }
+    .ks-msg { font-size:0.85rem; color:#6B7280; margin-bottom:4px; }
+    .ks-order { font-size:1rem; font-weight:700; color:#FF6B35; margin:8px 0; }
+    .ks-table { font-size:0.85rem; color:#9CA3AF; margin-bottom:12px; }
+    .ks-items { background:#F9FAFB; border-radius:10px; padding:10px 14px; text-align:left; margin-bottom:12px; font-size:0.82rem; }
+    .ks-items .ksr { display:flex; justify-content:space-between; padding:2px 0; }
+    .ks-whatsapp {
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      width:100%; padding:12px; border:none; border-radius:10px;
+      background:#25D366; color:#fff; font-size:0.9rem; font-weight:700; cursor:pointer;
+      font-family:inherit; text-decoration:none; margin-bottom:8px;
+    }
+    .ks-new { width:100%; padding:11px; border:2px solid #E5E7EB; border-radius:10px; background:#fff; color:#6B7280; font-size:0.85rem; font-weight:600; cursor:pointer; font-family:inherit; }
+
+    @media (min-width:640px) {
+      .k-items { grid-template-columns:repeat(3,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="k-container">
+  <div class="k-header">
+    <h1>Luuv Fryxo</h1>
+    <div class="k-table">🪑 {{ selected_table or "Select Table" }}</div>
+  </div>
+
+  <div class="k-body">
+    <div class="k-cats" id="catBar">
+      <button class="c-btn active" data-cat="all" onclick="setCat('all')">All</button>
+      {% for g in menu_groups %}
+      <button class="c-btn" data-cat="{{ g.name|replace(' ','-') }}" onclick="setCat('{{ g.name|replace(' ','-') }}')">{{ g.name }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="k-items" id="itemGrid">
+      {% for g in menu_groups %}
+        {% for item in g["items"] %}
+        <div class="i-card" data-code="{{ item.code }}" data-cat="{{ item.group|replace(' ','-') }}" onclick="addItem('{{ item.code }}')">
+          <div class="i-qty-badge" id="qb-{{ item.code }}">0</div>
+          <div class="i-img">
+            {% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">
+            {% else %}{% set em = {'SPC-RICE':'🍚','KOTTU':'🥘','CHK-FRICE':'🍗','DEV-CHK':'🍛','MIX-SEAFOOD':'🦐','BEV':'🥤','F-JUICE':'🧃','ICE-CRM':'🍨'} %}<span>{{ em.get(item.code,'🍽️') }}</span>{% endif %}
+          </div>
+          <div class="i-name">{{ item.name }}</div>
+          <div class="i-price">LKR {{ '%.0f' % item.rate }}</div>
+        </div>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="k-bottom">
+    <div class="k-cart-bar" onclick="openDrawer()">
+      <span class="kcb-icon">🛒</span>
+      <div class="kcb-info">
+        <div class="kcb-count"><span id="cartCount">0</span> items</div>
+        <div class="kcb-total">LKR <span id="cartTotal">0</span></div>
+      </div>
+      <button class="kcb-btn" id="orderBtn" onclick="event.stopPropagation();openDrawer()" disabled>Review Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cart Drawer -->
+<div class="k-drawer" id="cartDrawer">
+  <div class="k-drawer-inner">
+    <div class="kd-handle"></div>
+    <div class="kd-header">
+      <h3>Your Order</h3>
+      <button class="kd-clear" onclick="clearCart()">Clear All</button>
+    </div>
+    <div class="kd-body" id="drawerItems">
+      <div class="kd-empty">🛒<br>Cart is empty</div>
+    </div>
+    <div class="kd-form" id="orderForm" style="display:none;">
+      <div class="f-row">
+        <input type="text" id="custName" placeholder="Your Name *" required>
+        <input type="tel" id="custPhone" placeholder="Phone *" required>
+      </div>
+      <div class="f-note">📱 We'll send your order confirmation via WhatsApp</div>
+      <button class="f-place" id="placeBtn" onclick="placeOrder()">📱 Place Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- Success Overlay -->
+<div class="k-success" id="successOverlay">
+  <div class="k-success-inner">
+    <div class="ks-icon">✅</div>
+    <div class="ks-title">Order Placed!</div>
+    <div class="ks-msg">Your order has been sent to the kitchen.</div>
+    <div class="ks-order" id="ksOrder">#—</div>
+    <div class="ks-table" id="ksTable">🪑 —</div>
+    <div class="ks-items" id="ksItems"></div>
+    <a class="ks-whatsapp" id="ksWhatsApp" href="#" target="_blank">📱 Send to WhatsApp</a>
+    <button class="ks-new" onclick="newOrder()">🔄 New Order</button>
+  </div>
+</div>
+
+  <script>window.frappe = window.frappe || {};</script>
+  <!-- csrf_token -->
+  <meta name="csrf-token" content="">
+  <script>
+    window.csrf_token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+                         (typeof frappe !== 'undefined' ? frappe.csrf_token : '') || '';
+  </script>
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.csrf_token || '';
+let cart = {};
+let activeCat = 'all';
+
+async function _get(url, args) {
+  const params = new URLSearchParams();
+  for (const [k,v] of Object.entries(args)) params.set(k, v);
+  const res = await fetch(url + '?' + params.toString(), { method:'GET', credentials:'include' });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt.substring(0,200));
+  }
+  return res.json();
+}
+
+function addItem(code) {
+  cart[code] = (cart[code] || 0) + 1;
+  render();
+}
+
+function updateQty(code, delta) {
+  if (!cart[code]) return;
+  cart[code] += delta;
+  if (cart[code] <= 0) delete cart[code];
+  render();
+}
+
+function clearCart() {
+  if (Object.keys(cart).length === 0) return;
+  if (!confirm('Clear entire order?')) return;
+  cart = {}; render();
+}
+
+function render() {
+  const entries = Object.entries(cart);
+  const totalItems = entries.reduce((s,[,q]) => s + q, 0);
+  let total = 0;
+  const rateMap = {};
+  document.querySelectorAll('.i-card').forEach(c => {
+    rateMap[c.dataset.code] = parseFloat(c.querySelector('.i-price').textContent.replace(/[^0-9.]/g,'')) || 0;
+  });
+  entries.forEach(([c,q]) => total += (rateMap[c]||0) * q);
+
+  document.getElementById('cartCount').textContent = totalItems;
+  document.getElementById('cartTotal').textContent = total.toLocaleString();
+  document.getElementById('orderBtn').disabled = totalItems === 0;
+
+  document.querySelectorAll('.i-card').forEach(c => {
+    const code = c.dataset.code;
+    const qty = cart[code] || 0;
+    c.classList.toggle('has-qty', qty > 0);
+    const badge = document.getElementById('qb-' + code);
+    if (badge) { badge.textContent = qty; badge.style.display = qty > 0 ? 'flex' : 'none'; }
+  });
+
+  // Drawer items
+  const drawer = document.getElementById('drawerItems');
+  const form = document.getElementById('orderForm');
+  if (totalItems === 0) {
+    drawer.innerHTML = '<div class="kd-empty">🛒<br>Cart is empty</div>';
+    form.style.display = 'none';
+    return;
+  }
+  form.style.display = 'block';
+  let dh = '';
+  entries.forEach(([code, qty]) => {
+    const nameEl = document.querySelector(`[data-code="${code}"] .i-name`);
+    const name = nameEl ? nameEl.textContent : code;
+    const rate = rateMap[code] || 0;
+    dh += `<div class="kd-item">
+      <span class="kd-name">${escapeHtml(name)}</span>
+      <span class="kd-rate">LKR ${(rate*qty).toLocaleString()}</span>
+      <div class="kd-qty">
+        <button class="kd-minus" onclick="updateQty('${code}',-1)">−</button>
+        <span>${qty}</span>
+        <button class="kd-plus" onclick="updateQty('${code}',1)">+</button>
+      </div>
+      <button class="kd-remove" onclick="updateQty('${code}',-${qty})">×</button>
+    </div>`;
+  });
+  dh += `<div class="kd-total"><span>Total</span><span>LKR ${total.toLocaleString()}</span></div>`;
+  drawer.innerHTML = dh;
+}
+
+function openDrawer() { document.getElementById('cartDrawer').classList.add('show'); }
+function closeDrawer() { document.getElementById('cartDrawer').classList.remove('show'); }
+
+function setCat(cat) {
+  activeCat = cat;
+  document.querySelectorAll('.c-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+  document.querySelectorAll('.i-card').forEach(c => {
+    const show = cat === 'all' || c.dataset.cat === cat;
+    c.style.display = show ? '' : 'none';
+  });
+}
+
+async function placeOrder() {
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const table = '{{ selected_table }}';
+
+  if (!name) { alert('Please enter your name'); return; }
+  if (!phone || phone.length < 10) { alert('Please enter a valid phone number'); return; }
+  if (Object.keys(cart).length === 0) return;
+
+  const btn = document.getElementById('placeBtn');
+  btn.disabled = true; btn.textContent = '⏳ Placing order...';
+
+  try {
+    const rateMap = {};
+    document.querySelectorAll('.i-card').forEach(c => {
+      rateMap[c.dataset.code] = parseFloat(c.querySelector('.i-price').textContent.replace(/[^0-9.]/g,'')) || 0;
+    });
+    const items = Object.entries(cart).map(([code, qty]) => ({ item: code, qty, rate: rateMap[code] || 0 }));
+
+    const res = await _get('/api/method/luuvcrm.api.kiosk_place_order', {
+      items: JSON.stringify(items),
+      table,
+      customer_name: name,
+      mobile: phone,
+    });
+    if (res.message && res.message.name) {
+      closeDrawer();
+      showSuccess(res.message, table, items, rateMap);
+    } else {
+      alert('Error: ' + (res.message || 'Failed to place order'));
+    }
+  } catch(e) {
+    alert('Network error. Please try again.');
+  }
+  btn.disabled = false; btn.textContent = '📱 Place Order';
+}
+
+function showSuccess(msg, table, items, rateMap) {
+  document.getElementById('ksOrder').textContent = 'Order #' + msg.name;
+  document.getElementById('ksTable').textContent = '🪑 ' + (table || '—');
+
+  const html = items.map(i => {
+    const nameEl = document.querySelector(`[data-code="${i.item}"] .i-name`);
+    const name = nameEl ? nameEl.textContent : i.item;
+    return `<div class="ksr"><span>${escapeHtml(name)} ×${i.qty}</span><span>LKR ${((rateMap[i.item]||0)*i.qty).toLocaleString()}</span></div>`;
+  }).join('');
+  document.getElementById('ksItems').innerHTML = html;
+
+  // WhatsApp link
+  const total = items.reduce((s,i) => s + (rateMap[i.item]||0)*i.qty, 0);
+  const msgText = `Order *${msg.name}* - Luuv Fryxo%0a%0a` +
+    items.map(i => {
+      const nameEl = document.querySelector(`[data-code="${i.item}"] .i-name`);
+      const name = nameEl ? nameEl.textContent : i.item;
+      return `${name} x${i.qty} - LKR ${((rateMap[i.item]||0)*i.qty).toLocaleString()}`;
+    }).join('%0a') +
+    `%0a%0a*Total:* LKR ${total.toLocaleString()}%0a*Table:* ${table || '—'}%0a*Status:* Pending ✅`;
+
+  const waLink = 'https://wa.me/94' + document.getElementById('custPhone').value.replace(/[^0-9]/g,'') + '?text=' + msgText;
+  document.getElementById('ksWhatsApp').href = waLink;
+  document.getElementById('successOverlay').classList.add('show');
+}
+
+function newOrder() {
+  document.getElementById('successOverlay').classList.remove('show');
+  cart = {}; render();
+  document.getElementById('custName').value = '';
+  document.getElementById('custPhone').value = '';
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s||'');
+  return d.innerHTML;
+}
+
+// Click outside drawer to close
+document.getElementById('cartDrawer').addEventListener('click', function(e) {
+  if (e.target === this) closeDrawer();
+});
+
+render();
+</script>
+</body>
+</html>

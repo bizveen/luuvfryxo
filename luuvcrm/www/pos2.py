@@ -11,7 +11,7 @@ def get_context(context):
 
     if frappe.session.user == "Guest":
         # Send guests to the dedicated POS login screen (/pos-login), not an inline form.
-        frappe.local.flags.redirect_location = "/pos-login?redirect=/pos"
+        frappe.local.flags.redirect_location = "/pos-login?redirect=/pos2"
         raise frappe.Redirect
 
     context.csrf_token = frappe.sessions.get_csrf_token()

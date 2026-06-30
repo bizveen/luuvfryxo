@@ -15,14 +15,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>POS | {{ restaurant.name if restaurant else "Luuv Fryxo" }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #F5F5F5;
-      color: #1F2937;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #faf9f5;
+      color: #1A1714;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
@@ -34,12 +35,12 @@
       height: -webkit-fill-available;
     }
     .pos-header {
-      background: #1F2937; color: #fff; padding: 10px 20px;
+      background: #1A1714; color: #fff; padding: 10px 20px;
       display: flex; align-items: center; gap: 16px; flex-shrink: 0; z-index: 20; flex-wrap: wrap;
     }
     .pos-header .brand { display: flex; align-items: center; gap: 8px; }
     .pos-header .brand h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.5px; }
-    .pos-header .brand .badge { background: #FF6B35; color: #fff; font-size: 0.6rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+    .pos-header .brand .badge { background: #F15207; color: #fff; font-size: 0.6rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
 
     .header-tabs { display: flex; gap: 4px; margin-left: 12px; }
     .header-tabs .tab-btn {
@@ -48,7 +49,7 @@
       font-family: inherit; transition: all 0.2s; white-space: nowrap;
     }
     .header-tabs .tab-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
-    .header-tabs .tab-btn.active { background: #FF6B35; color: #fff; }
+    .header-tabs .tab-btn.active { background: #F15207; color: #fff; }
     .header-tabs .tab-btn .count {
       background: rgba(255,255,255,0.2); padding: 1px 7px; border-radius: 8px;
       font-size: 0.65rem; margin-left: 4px;
@@ -67,7 +68,7 @@
       width: 8px; height: 8px; border-radius: 50%; display: inline-block;
     }
     .header-right .shift-badge .dot.open { background: #22C55E; }
-    .header-right .shift-badge .dot.closed { background: #EF4444; }
+    .header-right .shift-badge .dot.closed { background: #E23D3D; }
     .header-right .table-select {
       display: flex; align-items: center; gap: 6px;
       background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 6px;
@@ -77,15 +78,15 @@
       background: transparent; color: #fff; border: none; font-size: 0.85rem;
       font-weight: 600; outline: none; cursor: pointer; font-family: inherit;
     }
-    .header-right .table-select select option { background: #1F2937; color: #fff; }
+    .header-right .table-select select option { background: #1A1714; color: #fff; }
     .header-right .clock { font-size: 0.75rem; color: rgba(255,255,255,0.4); font-weight: 500; }
     .rawbt-btn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.5); font-size:0.7rem; padding:4px 8px; border-radius:5px; cursor:pointer; font-family:inherit; transition:all 0.2s; white-space:nowrap; }
     .rawbt-btn:hover { background:rgba(96,165,250,0.2); border-color:rgba(96,165,250,0.3); color:#60A5FA; }
-    .rawbt-btn.active { background:rgba(16,185,129,0.2); border-color:rgba(16,185,129,0.3); color:#10B981; }
+    .rawbt-btn.active { background:rgba(16,185,129,0.2); border-color:rgba(16,185,129,0.3); color:#1E9E5A; }
     .rawbt-setup { display:flex; gap:6px; align-items:center; margin-bottom:10px; }
-    .rawbt-setup input { flex:1; padding:7px 10px; border:1.5px solid #E5E7EB; border-radius:8px; font-size:0.82rem; font-family:inherit; outline:none; }
-    .rawbt-setup input:focus { border-color:#FF6B35; }
-    .rawbt-setup button { padding:7px 14px; border:none; border-radius:8px; background:#FF6B35; color:#fff; font-size:0.78rem; font-weight:600; cursor:pointer; font-family:inherit; }
+    .rawbt-setup input { flex:1; padding:7px 10px; border:1.5px solid #E5E0DB; border-radius:8px; font-size:0.82rem; font-family:inherit; outline:none; }
+    .rawbt-setup input:focus { border-color:#F15207; }
+    .rawbt-setup button { padding:7px 14px; border:none; border-radius:8px; background:#F15207; color:#fff; font-size:0.78rem; font-weight:600; cursor:pointer; font-family:inherit; }
 
     .pos-body { display: flex; flex: 1; overflow: hidden; min-width: 0; }
 
@@ -95,29 +96,29 @@
     #tab-pos .pos-left { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width:0; }
     #tab-pos .pos-toolbar {
       display: flex; align-items: center; gap: 12px; padding: 10px 20px;
-      background: #fff; border-bottom: 1px solid #E5E7EB; flex-shrink: 0;
+      background: #fff; border-bottom: 1px solid #E5E0DB; flex-shrink: 0;
     }
     #tab-pos .pos-toolbar .search-box { flex: 1; position: relative; }
     #tab-pos .pos-toolbar .search-box input {
-      width: 100%; padding: 9px 14px 9px 38px; border: 1.5px solid #E5E7EB;
+      width: 100%; padding: 9px 14px 9px 38px; border: 1.5px solid #E5E0DB;
       border-radius: 10px; font-size: 0.85rem; font-family: inherit; outline: none;
-      transition: border 0.2s; background: #F9FAFB;
+      transition: border 0.2s; background: #FAF8F6;
     }
-    #tab-pos .pos-toolbar .search-box input:focus { border-color: #FF6B35; background: #fff; }
-    #tab-pos .pos-toolbar .search-box .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9CA3AF; font-size: 0.9rem; }
+    #tab-pos .pos-toolbar .search-box input:focus { border-color: #F15207; background: #fff; }
+    #tab-pos .pos-toolbar .search-box .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #A89F96; font-size: 0.9rem; }
 
     #tab-pos .pos-categories {
       display: flex; gap: 6px; padding: 8px 20px; background: #fff;
-      border-bottom: 1px solid #E5E7EB; overflow-x: auto; flex-shrink: 0; scrollbar-width: none;
+      border-bottom: 1px solid #E5E0DB; overflow-x: auto; flex-shrink: 0; scrollbar-width: none;
     }
     #tab-pos .pos-categories::-webkit-scrollbar { display: none; }
     #tab-pos .pos-categories .cat-btn {
-      padding: 6px 16px; border-radius: 20px; border: 1.5px solid #E5E7EB;
-      background: #fff; font-size: 0.78rem; font-weight: 600; color: #6B7280;
+      padding: 6px 16px; border-radius: 20px; border: 1.5px solid #E5E0DB;
+      background: #fff; font-size: 0.78rem; font-weight: 600; color: #837A70;
       cursor: pointer; transition: all 0.2s; white-space: nowrap; font-family: inherit;
     }
-    #tab-pos .pos-categories .cat-btn:hover { border-color: #FF6B35; color: #FF6B35; }
-    #tab-pos .pos-categories .cat-btn.active { background: #FF6B35; border-color: #FF6B35; color: #fff; }
+    #tab-pos .pos-categories .cat-btn:hover { border-color: #F15207; color: #F15207; }
+    #tab-pos .pos-categories .cat-btn.active { background: #F15207; border-color: #F15207; color: #fff; }
 
     #tab-pos .pos-items {
       flex: 1; min-height: 0;
@@ -137,56 +138,56 @@
     #tab-pos .pos-items .item-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); transform: translateY(-1px); }
     #tab-pos .pos-items .item-card:active { transform: scale(0.96); }
     #tab-pos .pos-items .item-card.has-qty {
-      border-color: #FF6B35;
-      box-shadow: 0 0 0 1px #FF6B35, 0 4px 16px rgba(255,107,53,0.18);
+      border-color: #F15207;
+      box-shadow: 0 0 0 1px #F15207, 0 4px 16px rgba(255,107,53,0.18);
       background: #FFF8F5;
     }
     #tab-pos .pos-items .item-card .item-img {
       width: 60px; height: 60px; border-radius: 14px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.9rem; background: #FFF0E8; margin-bottom: 8px; overflow: hidden;
+      font-size: 1.9rem; background: #FFE2D2; margin-bottom: 8px; overflow: hidden;
       transition: transform 0.2s ease;
     }
     #tab-pos .pos-items .item-card:active .item-img { transform: scale(0.92); }
     #tab-pos .pos-items .item-card .item-img img { width: 100%; height: 100%; object-fit: cover; }
     #tab-pos .pos-items .item-card .item-name {
-      font-size: 0.8rem; font-weight: 600; color: #1F2937;
+      font-size: 0.8rem; font-weight: 600; color: #1A1714;
       line-height: 1.25; margin-bottom: 3px;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
       overflow: hidden; max-height: 2.5em;
     }
-    #tab-pos .pos-items .item-card .item-price { font-size: 0.95rem; font-weight: 700; color: #FF6B35; }
+    #tab-pos .pos-items .item-card .item-price { font-size: 0.95rem; font-weight: 700; color: #F15207; }
     #tab-pos .pos-items .item-card .item-qty-badge {
-      position: absolute; top: 6px; right: 6px; background: #FF6B35; color: #fff;
+      position: absolute; top: 6px; right: 6px; background: #F15207; color: #fff;
       font-size: 0.65rem; font-weight: 700; min-width: 22px; height: 22px;
       border-radius: 11px; display: none; align-items: center; justify-content: center;
       box-shadow: 0 2px 6px rgba(255,107,53,0.35);
     }
     #tab-pos .pos-items .item-card.has-qty .item-qty-badge { display: flex; }
     #tab-pos .pos-items .item-card .item-img-placeholder {
-      width: 60px; height: 60px; border-radius: 14px; background: #FFF0E8;
+      width: 60px; height: 60px; border-radius: 14px; background: #FFE2D2;
       display: flex; align-items: center; justify-content: center;
       font-size: 1.9rem; margin-bottom: 8px;
     }
-    #tab-pos .pos-items .empty-items { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #9CA3AF; }
+    #tab-pos .pos-items .empty-items { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #A89F96; }
 
     #tab-pos .pos-right {
       width: 360px; flex-shrink: 0; background: #fff;
-      border-left: 1px solid #E5E7EB; display: flex; flex-direction: column; overflow: hidden;
+      border-left: 1px solid #E5E0DB; display: flex; flex-direction: column; overflow: hidden;
     }
     #tab-pos .pos-right .cart-header {
-      padding: 14px 20px; border-bottom: 1px solid #E5E7EB;
+      padding: 14px 20px; border-bottom: 1px solid #E5E0DB;
       display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
     }
     #tab-pos .pos-right .cart-header h3 {
       font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px;
     }
     #tab-pos .pos-right .cart-header h3 .count {
-      background: #FF6B35; color: #fff; font-size: 0.65rem; padding: 2px 8px;
+      background: #F15207; color: #fff; font-size: 0.65rem; padding: 2px 8px;
       border-radius: 10px; font-weight: 600;
     }
     #tab-pos .pos-right .cart-header .clear-btn {
-      background: none; border: none; color: #EF4444; font-size: 0.78rem;
+      background: none; border: none; color: #E23D3D; font-size: 0.78rem;
       font-weight: 600; cursor: pointer; display: none; font-family: inherit;
     }
     #tab-pos .pos-right .cart-header .clear-btn:hover { text-decoration: underline; }
@@ -199,34 +200,34 @@
     .edit-banner .eb-cancel { background: none; border: 1px solid #C7D2FE; color: #4338CA; font-size: 0.72rem; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; }
     .edit-banner .eb-cancel:hover { background: #C7D2FE; }
     #tab-pos .pos-right .cart-items { flex: 1; min-height: 0; overflow-y: scroll; -webkit-overflow-scrolling: touch; padding: 4px 0; }
-    #tab-pos .pos-right .cart-empty { padding: 50px 20px; text-align: center; color: #D1D5DB; }
+    #tab-pos .pos-right .cart-empty { padding: 50px 20px; text-align: center; color: #D2CBC4; }
     #tab-pos .pos-right .cart-empty .icon { font-size: 2.5rem; margin-bottom: 6px; }
     #tab-pos .pos-right .cart-empty p { font-size: 0.85rem; }
 
     #tab-pos .pos-right .cart-item {
       display: flex; align-items: center; gap: 10px;
-      padding: 8px 20px; border-bottom: 1px solid #F3F4F6;
+      padding: 8px 20px; border-bottom: 1px solid #F2EFEC;
     }
     #tab-pos .pos-right .cart-item .ci-info { flex: 1; min-width: 0; }
     #tab-pos .pos-right .cart-item .ci-name { font-size: 0.82rem; font-weight: 600; }
-    #tab-pos .pos-right .cart-item .ci-rate { font-size: 0.78rem; color: #FF6B35; font-weight: 600; }
+    #tab-pos .pos-right .cart-item .ci-rate { font-size: 0.78rem; color: #F15207; font-weight: 600; }
     #tab-pos .pos-right .cart-item .ci-qty { display: flex; align-items: center; gap: 5px; }
     #tab-pos .pos-right .cart-item .ci-qty button {
       width: 26px; height: 26px; border-radius: 50%; border: none;
       font-size: 0.85rem; font-weight: 700; cursor: pointer;
       display: flex; align-items: center; justify-content: center; transition: all 0.15s;
     }
-    #tab-pos .pos-right .cart-item .ci-qty .ci-minus { background: #FFF0E8; color: #FF6B35; }
+    #tab-pos .pos-right .cart-item .ci-qty .ci-minus { background: #FFE2D2; color: #F15207; }
     #tab-pos .pos-right .cart-item .ci-qty .ci-minus:hover { background: #FFE4D6; }
-    #tab-pos .pos-right .cart-item .ci-qty .ci-plus { background: #FF6B35; color: #fff; }
-    #tab-pos .pos-right .cart-item .ci-qty .ci-plus:hover { background: #E55A2B; }
+    #tab-pos .pos-right .cart-item .ci-qty .ci-plus { background: #F15207; color: #fff; }
+    #tab-pos .pos-right .cart-item .ci-qty .ci-plus:hover { background: #D84804; }
     #tab-pos .pos-right .cart-item .ci-qty span { font-size: 0.85rem; font-weight: 700; min-width: 16px; text-align: center; }
-    #tab-pos .pos-right .cart-item .ci-remove { background: none; border: none; color: #D1D5DB; cursor: pointer; font-size: 1rem; padding: 2px; line-height: 1; }
-    #tab-pos .pos-right .cart-item .ci-remove:hover { color: #EF4444; }
+    #tab-pos .pos-right .cart-item .ci-remove { background: none; border: none; color: #D2CBC4; cursor: pointer; font-size: 1rem; padding: 2px; line-height: 1; }
+    #tab-pos .pos-right .cart-item .ci-remove:hover { color: #E23D3D; }
 
-    #tab-pos .pos-right .cart-footer { padding: 14px 20px; border-top: 1px solid #E5E7EB; flex-shrink: 0; }
-    #tab-pos .pos-right .cart-footer .total-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: #6B7280; margin-bottom: 3px; }
-    #tab-pos .pos-right .cart-footer .grand-total { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800; color: #1F2937; padding-top: 6px; margin-top: 6px; border-top: 2px solid #F3F4F6; }
+    #tab-pos .pos-right .cart-footer { padding: 14px 20px; border-top: 1px solid #E5E0DB; flex-shrink: 0; }
+    #tab-pos .pos-right .cart-footer .total-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: #837A70; margin-bottom: 3px; }
+    #tab-pos .pos-right .cart-footer .grand-total { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800; color: #1A1714; padding-top: 6px; margin-top: 6px; border-top: 2px solid #F2EFEC; }
     .header-right .table-select { transition: opacity 0.2s ease; }
     #tab-pos .pos-right .cart-footer .cart-actions { display: flex; gap: 8px; margin-top: 10px; }
     #tab-pos .pos-right .cart-footer .cart-actions button {
@@ -235,7 +236,7 @@
       font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px;
     }
     #tab-pos .pos-right .cart-footer .cart-actions .kitchen-btn {
-      background: linear-gradient(135deg, #F59E0B, #D97706); color: #fff;
+      background: linear-gradient(135deg, #F0A323, #D97706); color: #fff;
     }
     #tab-pos .pos-right .cart-footer .cart-actions .kitchen-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245,158,11,0.3); }
     #tab-pos .pos-right .cart-footer .cart-actions .kitchen-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
@@ -244,49 +245,49 @@
     /* ── Orders Tab ── */
     .orders-tab { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
     .orders-tab .orders-header {
-      padding: 14px 24px; background: #fff; border-bottom: 1px solid #E5E7EB;
+      padding: 14px 24px; background: #fff; border-bottom: 1px solid #E5E0DB;
       display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
     }
     .orders-tab .orders-header h2 { font-size: 1rem; font-weight: 700; }
     .orders-tab .orders-header .refresh-btn {
-      background: #F3F4F6; border: none; padding: 6px 14px; border-radius: 8px;
+      background: #F2EFEC; border: none; padding: 6px 14px; border-radius: 8px;
       font-size: 0.78rem; font-weight: 600; cursor: pointer; font-family: inherit;
       transition: all 0.2s; display: flex; align-items: center; gap: 6px;
     }
-    .orders-tab .orders-header .refresh-btn:hover { background: #E5E7EB; }
+    .orders-tab .orders-header .refresh-btn:hover { background: #E5E0DB; }
     .orders-tab .orders-body { flex: 1; overflow-y: auto; padding: 16px 24px; }
-    .orders-tab .orders-body .empty-state { text-align: center; padding: 60px 20px; color: #9CA3AF; }
+    .orders-tab .orders-body .empty-state { text-align: center; padding: 60px 20px; color: #A89F96; }
     .orders-tab .orders-body .empty-state .icon { font-size: 3rem; margin-bottom: 8px; }
 
     .order-card {
       background: #fff; border-radius: 12px; padding: 16px 20px;
       margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-      border: 1px solid #F3F4F6; display: flex; align-items: flex-start; gap: 20px;
+      border: 1px solid #F2EFEC; display: flex; align-items: flex-start; gap: 20px;
     }
     .order-card .oc-left { flex: 1; min-width: 0; }
     .order-card .oc-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
-    .order-card .oc-time { font-size: 0.75rem; color: #9CA3AF; white-space: nowrap; }
+    .order-card .oc-time { font-size: 0.75rem; color: #A89F96; white-space: nowrap; }
     .order-card .oc-table {
-      background: #FFF0E8; color: #FF6B35; padding: 3px 10px; border-radius: 6px;
+      background: #FFE2D2; color: #F15207; padding: 3px 10px; border-radius: 6px;
       font-size: 0.78rem; font-weight: 700; text-align: center; white-space: nowrap;
     }
     .order-card .oc-customer { }
     .order-card .oc-customer .name { font-size: 0.85rem; font-weight: 600; }
-    .order-card .oc-customer .phone { font-size: 0.72rem; color: #9CA3AF; }
+    .order-card .oc-customer .phone { font-size: 0.72rem; color: #A89F96; }
     .order-card .oc-items-list { margin: 6px 0; }
     .order-card .oc-item {
       display: flex; align-items: center; gap: 8px; padding: 2px 0;
       font-size: 0.78rem; color: #4B5563;
     }
     .order-card .oc-item .oi-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .order-card .oc-item .oi-qty { color: #9CA3AF; font-weight: 500; min-width: 24px; text-align: center; }
-    .order-card .oc-item .oi-total { font-weight: 600; color: #1F2937; min-width: 70px; text-align: right; }
+    .order-card .oc-item .oi-qty { color: #A89F96; font-weight: 500; min-width: 24px; text-align: center; }
+    .order-card .oc-item .oi-total { font-weight: 600; color: #1A1714; min-width: 70px; text-align: right; }
     .order-card .oc-total-row {
       display: flex; justify-content: space-between; align-items: center;
-      border-top: 1px solid #F3F4F6; padding-top: 6px; margin-top: 4px;
+      border-top: 1px solid #F2EFEC; padding-top: 6px; margin-top: 4px;
     }
-    .order-card .oc-total { font-size: 1rem; font-weight: 700; color: #1F2937; }
-    .order-card .oc-invoice { font-size: 0.7rem; color: #9CA3AF; }
+    .order-card .oc-total { font-size: 1rem; font-weight: 700; color: #1A1714; }
+    .order-card .oc-invoice { font-size: 0.7rem; color: #A89F96; }
     .order-card .oc-status {
       padding: 3px 12px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
       text-align: center; white-space: nowrap;
@@ -295,27 +296,27 @@
     .order-card .oc-status.served { background: #D1FAE5; color: #059669; }
     .order-card .oc-action { flex-shrink: 0; }
     .order-card .oc-action button {
-      background: #FF6B35; color: #fff; border: none; padding: 7px 16px;
+      background: #F15207; color: #fff; border: none; padding: 7px 16px;
       border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer;
       font-family: inherit; transition: all 0.2s;
     }
-    .order-card .oc-action button:hover { background: #E55A2B; }
+    .order-card .oc-action button:hover { background: #D84804; }
     .order-card .oc-action button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .order-card.ongoing { border-left: 3px solid #F59E0B; }
-    .order-card.served { border-left: 3px solid #10B981; }
-    .order-card.cancelled { border-left: 3px solid #EF4444; opacity:0.7; }
+    .order-card.ongoing { border-left: 3px solid #F0A323; }
+    .order-card.served { border-left: 3px solid #1E9E5A; }
+    .order-card.cancelled { border-left: 3px solid #E23D3D; opacity:0.7; }
 
     /* ── Payment Modal ── */
     .pmode-select { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
     #splitField { display:flex; gap:10px; margin-bottom:14px; }
     .pmode-btn {
-      flex: 1; padding: 10px; border-radius: 10px; border: 2px solid #E5E7EB;
+      flex: 1; padding: 10px; border-radius: 10px; border: 2px solid #E5E0DB;
       background: #fff; font-size: 0.85rem; font-weight: 600; cursor: pointer;
       transition: all 0.2s; font-family: inherit; text-align: center;
     }
-    .pmode-btn:hover { border-color: #FF6B35; }
-    .pmode-btn.active { border-color: #FF6B35; background: #FFF5F0; color: #FF6B35; }
+    .pmode-btn:hover { border-color: #F15207; }
+    .pmode-btn.active { border-color: #F15207; background: #FFF3EC; color: #F15207; }
     .change-amount { font-size: 1.5rem; font-weight: 800; color: #22C55E; }
     .change-row { display: none; }
     .change-row.show { display: flex; }
@@ -333,65 +334,65 @@
     @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     .modal-overlay .modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
     .modal-overlay .modal .field { margin-bottom: 14px; }
-    .modal-overlay .modal .field label { font-size: 0.82rem; font-weight: 600; color: #6B7280; display: block; margin-bottom: 4px; }
+    .modal-overlay .modal .field label { font-size: 0.82rem; font-weight: 600; color: #837A70; display: block; margin-bottom: 4px; }
     .modal-overlay .modal .field input, .modal-overlay .modal .field select {
-      width: 100%; padding: 10px 14px; border: 1.5px solid #E5E7EB; border-radius: 10px;
+      width: 100%; padding: 10px 14px; border: 1.5px solid #E5E0DB; border-radius: 10px;
       font-size: 0.9rem; font-family: inherit; outline: none; transition: border 0.2s;
     }
     /* ── Tables Sidebar (always visible) ── */
     #tab-pos { display:flex; flex-direction:row; min-width:0; }
-    .tables-sidebar { width:140px; flex-shrink:0; background:#fff; border-right:1px solid #E5E7EB; display:flex; flex-direction:column; overflow:hidden; }
+    .tables-sidebar { width:140px; flex-shrink:0; background:#fff; border-right:1px solid #E5E0DB; display:flex; flex-direction:column; overflow:hidden; }
     .tables-sidebar .ts-header { display:flex; align-items:center; gap:4px; padding:10px 8px 6px; flex-shrink:0; }
-    .tables-sidebar .ts-header span { font-size:0.72rem; font-weight:700; color:#1F2937; display:flex; align-items:center; gap:4px; }
-    .tables-sidebar .ts-header .ts-count { font-size:0.55rem; font-weight:600; background:#FF6B35; color:#fff; padding:1px 5px; border-radius:5px; }
+    .tables-sidebar .ts-header span { font-size:0.72rem; font-weight:700; color:#1A1714; display:flex; align-items:center; gap:4px; }
+    .tables-sidebar .ts-header .ts-count { font-size:0.55rem; font-weight:600; background:#F15207; color:#fff; padding:1px 5px; border-radius:5px; }
     .tables-sidebar .ts-body { flex:1; overflow-y:auto; padding:2px 6px 6px; }
-    .tables-sidebar .ts-empty { text-align:center; padding:16px 6px; color:#D1D5DB; font-size:0.72rem; }
+    .tables-sidebar .ts-empty { text-align:center; padding:16px 6px; color:#D2CBC4; font-size:0.72rem; }
     .ts-table-card { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:6px; margin-bottom:1px; cursor:pointer; transition:all 0.15s; border:1.5px solid transparent; }
-    .ts-table-card:hover { background:#F9FAFB; border-color:#E5E7EB; }
+    .ts-table-card:hover { background:#FAF8F6; border-color:#E5E0DB; }
     .ts-table-card:active { transform:scale(0.97); }
     .ts-table-card .ts-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-    .ts-table-card .ts-dot.active { background:#10B981; box-shadow:0 0 0 2px rgba(16,185,129,0.2); }
-    .ts-table-card .ts-dot.inactive { background:#D1D5DB; }
-    .ts-table-card .ts-name { font-size:0.7rem; font-weight:600; color:#1F2937; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ts-table-card .ts-dot.active { background:#1E9E5A; box-shadow:0 0 0 2px rgba(16,185,129,0.2); }
+    .ts-table-card .ts-dot.inactive { background:#D2CBC4; }
+    .ts-table-card .ts-name { font-size:0.7rem; font-weight:600; color:#1A1714; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .ts-table-card .ts-badge { font-size:0.52rem; font-weight:700; padding:1px 5px; border-radius:5px; flex-shrink:0; }
     .ts-table-card .ts-badge.pending { background:#FEF3C7; color:#D97706; }
     .ts-table-card .ts-badge.processing { background:#DBEAFE; color:#2563EB; }
     .ts-table-card .ts-badge.ready { background:#D1FAE5; color:#059669; }
-    .ts-table-card.active-card { background:#FFF5F0; border-color:#FF6B35; }
-    .ts-table-card.active-card .ts-name { color:#FF6B35; }
+    .ts-table-card.active-card { background:#FFF3EC; border-color:#F15207; }
+    .ts-table-card.active-card .ts-name { color:#F15207; }
     /* ── Compare View ── */
     .cmp-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    .cmp-side { border:1px solid #F3F4F6; border-radius:12px; padding:14px; }
+    .cmp-side { border:1px solid #F2EFEC; border-radius:12px; padding:14px; }
     .cmp-side.cancelled { background:#FEF2F2; border-color:#FECACA; }
     .cmp-side.new { background:#F0FDF4; border-color:#BBF7D0; }
     .cmp-side h4 { font-size:0.82rem; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
-    .cmp-side .cmp-label { font-size:0.68rem; color:#9CA3AF; margin-bottom:2px; }
-    .cmp-side .cmp-val { font-size:0.82rem; font-weight:600; color:#1F2937; margin-bottom:6px; }
-    .cmp-item { display:flex; justify-content:space-between; font-size:0.78rem; padding:3px 0; border-bottom:1px solid #F9FAFB; }
+    .cmp-side .cmp-label { font-size:0.68rem; color:#A89F96; margin-bottom:2px; }
+    .cmp-side .cmp-val { font-size:0.82rem; font-weight:600; color:#1A1714; margin-bottom:6px; }
+    .cmp-item { display:flex; justify-content:space-between; font-size:0.78rem; padding:3px 0; border-bottom:1px solid #FAF8F6; }
     .cmp-item:last-child { border-bottom:none; }
-    .cmp-total { font-size:0.9rem; font-weight:800; margin-top:6px; padding-top:6px; border-top:2px solid #E5E7EB; display:flex; justify-content:space-between; }
+    .cmp-total { font-size:0.9rem; font-weight:800; margin-top:6px; padding-top:6px; border-top:2px solid #E5E0DB; display:flex; justify-content:space-between; }
     .cmp-warn { background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; padding:10px 14px; margin-top:12px; font-size:0.78rem; color:#92400E; display:flex; align-items:center; gap:8px; }
     .cmp-warn .icon { font-size:1.1rem; }
     /* ── Table Orders (expanded) ── */
     .ts-orders { display:none; }
 
-    .modal-overlay .modal .field input:focus { border-color: #FF6B35; }
+    .modal-overlay .modal .field input:focus { border-color: #F15207; }
     .modal-overlay .modal .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
     .modal-overlay .modal .modal-actions button {
       flex: 1; padding: 11px; border-radius: 10px; font-size: 0.85rem;
       font-weight: 600; cursor: pointer; font-family: inherit; border: none; transition: all 0.2s;
     }
-    .modal-overlay .modal .modal-actions .btn-primary { background: #FF6B35; color: #fff; }
-    .modal-overlay .modal .modal-actions .btn-primary:hover { background: #E55A2B; }
-    .modal-overlay .modal .modal-actions .btn-secondary { background: #F3F4F6; color: #6B7280; }
-    .modal-overlay .modal .modal-actions .btn-secondary:hover { background: #E5E7EB; }
+    .modal-overlay .modal .modal-actions .btn-primary { background: #F15207; color: #fff; }
+    .modal-overlay .modal .modal-actions .btn-primary:hover { background: #D84804; }
+    .modal-overlay .modal .modal-actions .btn-secondary { background: #F2EFEC; color: #837A70; }
+    .modal-overlay .modal .modal-actions .btn-secondary:hover { background: #E5E0DB; }
     .modal-overlay .modal .modal-summary {
-      background: #F9FAFB; border-radius: 10px; padding: 16px; margin-bottom: 16px;
+      background: #FAF8F6; border-radius: 10px; padding: 16px; margin-bottom: 16px;
     }
     .modal-overlay .modal .modal-summary .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
-    .modal-overlay .modal .modal-summary .row.total { font-weight: 700; font-size: 1rem; border-top: 1px solid #E5E7EB; padding-top: 6px; margin-top: 6px; }
-    .modal-overlay .modal .modal-summary .row .label { color: #6B7280; }
-    .modal-overlay .modal .modal-summary .row .value { color: #1F2937; font-weight: 600; }
+    .modal-overlay .modal .modal-summary .row.total { font-weight: 700; font-size: 1rem; border-top: 1px solid #E5E0DB; padding-top: 6px; margin-top: 6px; }
+    .modal-overlay .modal .modal-summary .row .label { color: #837A70; }
+    .modal-overlay .modal .modal-summary .row .value { color: #1A1714; font-weight: 600; }
 
     .order-success-overlay {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
@@ -404,20 +405,20 @@
     }
     .order-success-overlay .modal .check { font-size: 3.5rem; margin-bottom: 10px; }
     .order-success-overlay .modal h3 { font-size: 1.2rem; margin-bottom: 6px; }
-    .order-success-overlay .modal p { color: #6B7280; font-size: 0.85rem; }
+    .order-success-overlay .modal p { color: #837A70; font-size: 0.85rem; }
     .order-success-overlay .modal .order-no {
-      font-weight: 700; color: #FF6B35; font-size: 1rem;
-      margin: 12px 0 4px; padding: 8px 16px; background: #FFF5F0;
+      font-weight: 700; color: #F15207; font-size: 1rem;
+      margin: 12px 0 4px; padding: 8px 16px; background: #FFF3EC;
       border-radius: 8px; display: inline-block;
     }
     .order-success-overlay .modal .invoice-no {
-      font-size: 0.78rem; color: #9CA3AF; margin-bottom: 16px;
+      font-size: 0.78rem; color: #A89F96; margin-bottom: 16px;
     }
     .order-success-overlay .modal .new-order-btn {
-      background: #FF6B35; color: #fff; border: none; padding: 11px 32px;
+      background: #F15207; color: #fff; border: none; padding: 11px 32px;
       border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; font-family: inherit;
     }
-    .order-success-overlay .modal .new-order-btn:hover { background: #E55A2B; }
+    .order-success-overlay .modal .new-order-btn:hover { background: #D84804; }
 
     @media (max-width: 900px) {
       #tab-pos .pos-right { width: 300px; }
@@ -431,7 +432,7 @@
       cursor: pointer; flex-shrink: 0; transition: background 0.2s;
     }
     .mobile-menu-btn:active { background: rgba(255,255,255,0.2); }
-    .mobile-current-tab-label { display: none; font-size: 0.8rem; font-weight: 700; color: #FF6B35; }
+    .mobile-current-tab-label { display: none; font-size: 0.8rem; font-weight: 700; color: #F15207; }
 
     .mobile-nav-backdrop {
       display: none; position: fixed; inset: 0; z-index: 150;
@@ -461,20 +462,20 @@
       -webkit-tap-highlight-color: transparent;
     }
     .mobile-nav-dropdown .mnav-item:active { background: rgba(255,255,255,0.06); }
-    .mobile-nav-dropdown .mnav-item.active { color: #FF6B35; background: rgba(255,107,53,0.08); }
+    .mobile-nav-dropdown .mnav-item.active { color: #F15207; background: rgba(255,107,53,0.08); }
     .mobile-nav-dropdown .mnav-item .mnav-icon { font-size: 1.15rem; width: 26px; text-align: center; flex-shrink: 0; }
     .mobile-nav-dropdown .mnav-item .mnav-label { flex: 1; }
     .mobile-nav-dropdown .mnav-item .mnav-count {
-      background: #FF6B35; color: #fff; font-size: 0.65rem; font-weight: 700;
+      background: #F15207; color: #fff; font-size: 0.65rem; font-weight: 700;
       padding: 2px 8px; border-radius: 10px; min-width: 22px; text-align: center;
     }
-    .mobile-nav-dropdown .mnav-item.active .mnav-count { background: rgba(255,107,53,0.3); color: #FF6B35; }
+    .mobile-nav-dropdown .mnav-item.active .mnav-count { background: rgba(255,107,53,0.3); color: #F15207; }
     .mobile-nav-dropdown .mnav-item.mnav-logout { border-top: 1px solid rgba(255,255,255,0.12); color: rgba(255,100,100,0.8); margin-top: 4px; }
     .mobile-nav-dropdown .mnav-item.mnav-logout:active { background: rgba(239,68,68,0.12); }
 
     /* user chip */
     .user-chip { display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);padding:5px 10px;border-radius:6px;flex-shrink:0; }
-    .user-chip .user-avatar-sm { width:28px;height:28px;border-radius:50%;background:#FF6B35;color:#fff;font-size:0.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+    .user-chip .user-avatar-sm { width:28px;height:28px;border-radius:50%;background:#F15207;color:#fff;font-size:0.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
     .user-chip .user-chip-name { font-size:0.78rem;font-weight:600;color:rgba(255,255,255,0.85);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
     .user-chip .logout-btn { background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.55);font-size:0.68rem;padding:3px 9px;border-radius:4px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.2s;text-decoration:none;display:inline-block; }
     .user-chip .logout-btn:hover { background:rgba(239,68,68,0.35);color:#fff;border-color:transparent; }
@@ -483,11 +484,11 @@
       /* ── Core layout fix: prevent flex min-width expansion ── */
       #tab-pos { flex-direction: column; min-width: 0; width: 100%; overflow: hidden; }
       #tab-pos .pos-left { min-width: 0; width: 100%; min-height: 0; flex: 1; flex-shrink: 1; overflow: hidden; }
-      .tables-sidebar { width:100%; max-height:100px; border-right:none; border-bottom:1px solid #E5E7EB; }
+      .tables-sidebar { width:100%; max-height:100px; border-right:none; border-bottom:1px solid #E5E0DB; }
       .tables-sidebar .ts-body { display:flex; flex-wrap:wrap; gap:3px; padding:3px 6px; overflow-y:hidden; overflow-x:auto; }
       .ts-table-card { flex-shrink:0; padding:4px 7px; }
       .ts-orders { display:none !important; }
-      #tab-pos .pos-right { min-width: 0; width: 100%; border-left: none; border-top: 1px solid #E5E7EB; max-height: 38vh; flex-shrink: 0; overflow: hidden; }
+      #tab-pos .pos-right { min-width: 0; width: 100%; border-left: none; border-top: 1px solid #E5E0DB; max-height: 38vh; flex-shrink: 0; overflow: hidden; }
 
       /* ── Item grid: 2 columns, touch scroll ── */
       #tab-pos .pos-items { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px 10px; touch-action: pan-y; }
@@ -535,6 +536,30 @@
       .order-card { flex-direction: column; align-items: stretch; }
       .modal-overlay .modal { padding: 20px 16px; max-width: 96vw; border-radius: 12px; }
     }
+
+    /* ════ Luuv Fryxo design-system skin — Poppins/DM Sans/DM Mono, warm shadows, rounder shapes ════ */
+    :root {
+      --ds-shadow-sm: 0 1px 3px rgba(20,18,16,.08), 0 1px 2px rgba(20,18,16,.04);
+      --ds-shadow-md: 0 4px 12px rgba(20,18,16,.08), 0 2px 4px rgba(20,18,16,.05);
+      --ds-shadow-lg: 0 12px 28px rgba(20,18,16,.12), 0 4px 8px rgba(20,18,16,.06);
+      --ds-shadow-brand: 0 8px 22px rgba(241,82,7,.30);
+    }
+    h1, h2, h3, .brand h1 { font-family: 'Poppins', 'DM Sans', sans-serif; letter-spacing: -0.01em; }
+    /* Tabular mono numerals for money */
+    .item-price, .ci-rate, #subtotal, #grandTotal, #scAmount, .oc-total, .grand-total,
+    #pmTotal, #amountTendered, #changeAmount, #splitSubtotal, #splitTotal, #splitScAmt,
+    #soSales, #soOpeningTot, #soExpectedTot, #soCountedTot, #soDiffTot, .recon-counted {
+      font-family: 'DM Mono', ui-monospace, 'Courier New', monospace;
+      font-feature-settings: "tnum" 1, "lnum" 1;
+    }
+    /* Rounder, warm-shadowed surfaces */
+    .item-card { border-radius: 20px !important; box-shadow: var(--ds-shadow-sm); }
+    .item-card:hover { box-shadow: var(--ds-shadow-md); }
+    .modal-overlay .modal { border-radius: 24px !important; box-shadow: var(--ds-shadow-lg); }
+    .cart-item, .order-card, .recon-row { border-radius: 14px !important; }
+    /* Pill primary actions + warm brand glow */
+    .btn-primary, .pmode-btn, .new-order-btn, .kitchen-btn, .tab-btn { border-radius: 999px !important; }
+    .btn-primary { box-shadow: var(--ds-shadow-brand); }
   </style>
 </head>
 <body>
@@ -574,15 +599,16 @@
       <button class="rawbt-btn" id="reprintShiftBtn" onclick="reprintShift()" title="Re-print last shift summary" style="font-size:0.65rem;padding:3px 6px;">&#x1F5A8; Summary</button>
       <div class="order-type-select">
         <select id="orderTypeSelect" style="background:rgba(255,255,255,0.1);color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;font-family:inherit;outline:none;cursor:pointer;">
-          <option value="Dine In" style="background:#1F2937;color:#fff;">&#x1FA91; Dine In</option>
-          <option value="Take Away" style="background:#1F2937;color:#fff;">&#x1F6CD; Take Away</option>
-          <option value="Delivery" style="background:#1F2937;color:#fff;">&#x1F6F5; Delivery</option>
+          <option value="Dine In" style="background:#1A1714;color:#fff;">&#x1FA91; Dine In</option>
+          <option value="Take Away" style="background:#1A1714;color:#fff;">&#x1F6CD; Take Away</option>
+          <option value="Delivery" style="background:#1A1714;color:#fff;">&#x1F6F5; Delivery</option>
         </select>
       </div>
       <div class="table-select" id="tableSelectWrap">
         <label>Table</label>
-        <select id="tableSelect">
+        <select id="tableSelect" onchange="onTableChange()">
           <option value="">&mdash; Select &mdash;</option>
+          <option value="__TAKEAWAY__">&#x1F961; Take Away</option>
           {% for t in tables %}
           <option value="{{ t.name }}">{{ t.short_name or t.name }}</option>
           {% endfor %}
@@ -597,7 +623,7 @@
         <span class="dot open" id="offlineDot" style="background:#22C55E;"></span>
         <span id="offlineLabel" style="font-size:0.72rem;">Online</span>
       </div>
-      <button class="rawbt-btn" id="syncBtn" onclick="runSync()" style="display:none;background:rgba(245,158,11,0.2);border-color:rgba(245,158,11,0.3);color:#F59E0B;">&#x23F0; Sync</button>
+      <button class="rawbt-btn" id="syncBtn" onclick="runSync()" style="display:none;background:rgba(245,158,11,0.2);border-color:rgba(245,158,11,0.3);color:#F0A323;">&#x23F0; Sync</button>
       <button class="rawbt-btn" id="rawbtBtn" onclick="toggleRawBT()" title="Bluetooth Printer (RawBT)">&#x1F5A8; BT</button>
       <span class="clock" id="clock"></span>
     </div>
@@ -665,7 +691,7 @@
           <div class="cart-empty" id="cartEmpty">
             <div class="icon">&#x1F9FA;</div>
             <p>Cart is empty</p>
-            <p style="font-size:0.78rem;color:#E5E7EB;margin-top:4px;">Tap items to add</p>
+            <p style="font-size:0.78rem;color:#E5E0DB;margin-top:4px;">Tap items to add</p>
           </div>
         </div>
         <div class="cart-footer" id="cartFooter" style="display:none;">
@@ -770,7 +796,7 @@
 </div>
 
 <!-- ═══ Toast Notification ═══ -->
-<div id="posToast" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;padding:14px 24px;border-radius:12px;font-size:0.88rem;font-weight:600;font-family:'Inter',sans-serif;color:#fff;box-shadow:0 8px 30px rgba(0,0,0,0.25);animation:toastFade 0.3s ease;max-width:90vw;text-align:center;pointer-events:none;"></div>
+<div id="posToast" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;padding:14px 24px;border-radius:12px;font-size:0.88rem;font-weight:600;font-family:'DM Sans',sans-serif;color:#fff;box-shadow:0 8px 30px rgba(0,0,0,0.25);animation:toastFade 0.3s ease;max-width:90vw;text-align:center;pointer-events:none;"></div>
 <style>
 @keyframes toastFade { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
 </style>
@@ -816,19 +842,42 @@
   </div>
 </div>
 
+<!-- ═══ Split Bill Modal ═══ -->
+<div class="modal-overlay" id="splitModal">
+  <div class="modal">
+    <h3>&#x1F9FE; Split Bill &mdash; <span id="splitOrderName" style="font-size:0.85rem;color:#837A70;"></span></h3>
+    <p style="font-size:0.76rem;color:#837A70;margin:-6px 0 12px;">Pick the items (qty) for this bill. Repeat for each customer.</p>
+    <div id="splitItems" style="max-height:38vh;overflow-y:auto;margin-bottom:10px;"></div>
+    <div class="modal-summary">
+      <div class="row"><span class="label">Subtotal</span><span class="value" id="splitSubtotal">LKR 0</span></div>
+      <div class="row" id="splitScRow" style="display:none;"><span class="label">Service Charge (<span id="splitScRate">0</span>%)</span><span class="value" id="splitScAmt">LKR 0</span></div>
+      <div class="row total"><span class="label">This Bill</span><span class="value" id="splitTotal">LKR 0</span></div>
+    </div>
+    <div class="pmode-select" id="splitPmode" style="margin-top:10px;">
+      <button class="pmode-btn active" data-mode="Cash" onclick="selectSplitMode('Cash')">&#x1F4B5; Cash</button>
+      <button class="pmode-btn" data-mode="Credit Card" onclick="selectSplitMode('Credit Card')">&#x1F4B3; Card</button>
+    </div>
+    <div class="shift-err" id="splitErr" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#DC2626;margin:10px 0 0;font-weight:500;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('splitModal')">Close</button>
+      <button class="btn-primary" id="splitPayBtn" onclick="paySplit()">&#x2705; Pay This Bill</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ Order Success Overlay ═══ -->
 <div class="order-success-overlay" id="successOverlay">
   <div class="modal" style="position:relative;">
-    <button onclick="newOrder()" style="position:absolute;top:8px;right:12px;background:none;border:none;color:#9CA3AF;font-size:1.2rem;cursor:pointer;padding:4px;line-height:1;">&times;</button>
+    <button onclick="newOrder()" style="position:absolute;top:8px;right:12px;background:none;border:none;color:#A89F96;font-size:1.2rem;cursor:pointer;padding:4px;line-height:1;">&times;</button>
     <div class="check">&#x2705;</div>
     <h3>Order Placed!</h3>
     <p>Order has been sent to the kitchen.</p>
     <div class="order-no" id="orderNo"></div>
     <div class="invoice-no" id="invoiceNo"></div>
-        <button class="new-order-btn" onclick="printReceipt()" style="background:#10B981;margin-top:8px;">&#x1F5A8; Print Receipt</button>
-        <button class="new-order-btn" onclick="printReceiptBrowser()" style="background:#374151;margin-top:4px;">&#x1F310; Browser Print</button>
+        <button class="new-order-btn" onclick="printReceipt()" style="background:#1E9E5A;margin-top:8px;">&#x1F5A8; Print Receipt</button>
+        <button class="new-order-btn" onclick="printReceiptBrowser()" style="background:#423D38;margin-top:4px;">&#x1F310; Browser Print</button>
         <button class="new-order-btn" onclick="iminPrint()" id="iminPrintBtn" style="display:none;background:#E11D48;margin-top:4px;">&#x1F5A8; iMin Print</button>
-        <button class="new-order-btn" onclick="printKOT()" style="background:#F59E0B;margin-top:4px;">&#x1F373; Print KOT</button>
+        <button class="new-order-btn" onclick="printKOT()" style="background:#F0A323;margin-top:4px;">&#x1F373; Print KOT</button>
         <button class="new-order-btn" onclick="flutterPrint()" id="flutterPrintBtn" style="display:none;background:#8B5CF6;margin-top:4px;">📱 Print App</button>
         <button class="new-order-btn" onclick="blePrint()" id="blePrintBtn" style="display:none;background:#60A5FA;margin-top:4px;">📡 BLE Print</button>
         <button class="new-order-btn" onclick="rawbtPrint()" id="rawbtPrintBtn" style="display:none;background:#8B5CF6;margin-top:4px;">📡 RawBT</button>
@@ -839,7 +888,7 @@
 </div>
 
 <!-- ═══ Incoming Order Toast (shows on any tab) ═══ -->
-<div class="order-toast" id="orderToast" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:linear-gradient(135deg,#FF6B35,#E55A2B);color:#fff;padding:12px 20px;cursor:pointer;box-shadow:0 4px 20px rgba(255,107,53,0.4);animation:toastSlide 0.3s ease;font-family:'Inter',sans-serif;" onclick="dismissToast()">
+<div class="order-toast" id="orderToast" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:linear-gradient(135deg,#F15207,#D84804);color:#fff;padding:12px 20px;cursor:pointer;box-shadow:0 4px 20px rgba(255,107,53,0.4);animation:toastSlide 0.3s ease;font-family:'DM Sans',sans-serif;" onclick="dismissToast()">
   <div style="display:flex;align-items:center;gap:12px;max-width:1200px;margin:0 auto;">
     <span style="font-size:1.5rem;">🔔</span>
     <div style="flex:1;">
@@ -857,11 +906,14 @@
 <div class="modal-overlay" id="shiftOpenModal">
   <div class="modal">
     <h3>&#x1F4B0; Open Shift</h3>
-    <p id="shiftOpenHint" style="display:none;font-size:0.78rem;color:#6B7280;margin:-6px 0 14px;">Open a shift to start taking orders.</p>
+    <p id="shiftOpenHint" style="display:none;font-size:0.78rem;color:#837A70;margin:-6px 0 14px;">Open a shift to start taking orders.</p>
     <div class="field">
-      <label>Opening Balance (LKR)</label>
-      <input type="number" id="openingBalance" value="0" min="0" step="0.01">
+      <label>POS Profile</label>
+      <select id="openProfile" onchange="renderOpeningModes()">
+        {% for p in pos_profiles %}<option value="{{ p.name }}">{{ p.name }}</option>{% endfor %}
+      </select>
     </div>
+    <div id="openingModes" style="margin-bottom:4px;"></div>
     <div class="shift-err" id="shiftOpenErr" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#DC2626;margin-bottom:12px;font-weight:500;"></div>
     <div class="modal-actions">
       <button class="btn-secondary" id="shiftOpenCancel" onclick="closeModal('shiftOpenModal')">Cancel</button>
@@ -875,14 +927,14 @@
   <div class="modal" style="max-width:420px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <h3 style="font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px;" id="tomTitle">&#x1FAAE; Table —</h3>
-      <button onclick="closeModal('tableOrdersModal')" style="background:none;border:none;font-size:1.2rem;color:#9CA3AF;cursor:pointer;padding:2px 6px;">&times;</button>
+      <button onclick="closeModal('tableOrdersModal')" style="background:none;border:none;font-size:1.2rem;color:#A89F96;cursor:pointer;padding:2px 6px;">&times;</button>
     </div>
     <div style="max-height:50vh;overflow-y:auto;margin-bottom:12px;" id="tomBody">
-      <div style="text-align:center;padding:30px;color:#9CA3AF;font-size:0.85rem;">Loading...</div>
+      <div style="text-align:center;padding:30px;color:#A89F96;font-size:0.85rem;">Loading...</div>
     </div>
     <div style="display:flex;gap:8px;">
-      <button onclick="tomNewOrder()" class="btn-primary" style="flex:1;padding:11px;border:none;border-radius:10px;background:#FF6B35;color:#fff;font-size:0.85rem;font-weight:700;cursor:pointer;font-family:inherit;">&#x2795; New Order</button>
-      <button onclick="closeModal('tableOrdersModal')" class="btn-secondary" style="flex:1;padding:11px;border:none;border-radius:10px;background:#F3F4F6;color:#6B7280;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:inherit;">Close</button>
+      <button onclick="tomNewOrder()" class="btn-primary" style="flex:1;padding:11px;border:none;border-radius:10px;background:#F15207;color:#fff;font-size:0.85rem;font-weight:700;cursor:pointer;font-family:inherit;">&#x2795; New Order</button>
+      <button onclick="closeModal('tableOrdersModal')" class="btn-secondary" style="flex:1;padding:11px;border:none;border-radius:10px;background:#F2EFEC;color:#837A70;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:inherit;">Close</button>
     </div>
   </div>
 </div>
@@ -892,10 +944,10 @@
   <div class="modal" style="max-width:640px;padding:24px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <h3 style="font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px;">&#x1F50D; Order Comparison</h3>
-      <button onclick="closeModal('compareModal')" style="background:none;border:none;font-size:1.2rem;color:#9CA3AF;cursor:pointer;padding:2px 6px;">&times;</button>
+      <button onclick="closeModal('compareModal')" style="background:none;border:none;font-size:1.2rem;color:#A89F96;cursor:pointer;padding:2px 6px;">&times;</button>
     </div>
     <div id="compareBody" style="max-height:60vh;overflow-y:auto;">
-      <div style="text-align:center;padding:30px;color:#9CA3AF;">Loading...</div>
+      <div style="text-align:center;padding:30px;color:#A89F96;">Loading...</div>
     </div>
   </div>
 </div>
@@ -913,25 +965,25 @@
     </div>
 
     <div id="bleConfig">
-      <p style="font-size:0.78rem;color:#6B7280;margin-bottom:10px;">Direct BLE printing via local <strong>BLE Print Service</strong>.</p>
+      <p style="font-size:0.78rem;color:#837A70;margin-bottom:10px;">Direct BLE printing via local <strong>BLE Print Service</strong>.</p>
       <div class="field">
         <label>Service URL</label>
         <input type="text" id="bleURL" placeholder="http://localhost:9100" style="font-weight:600;">
-        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Run: <code>python ble_print_service.py</code> on this PC</div>
+        <div style="font-size:0.7rem;color:#A89F96;margin-top:3px;">Run: <code>python ble_print_service.py</code> on this PC</div>
       </div>
       <div class="field">
         <label>Printer BLE Address</label>
         <input type="text" id="bleAddress" placeholder="00:11:22:33:44:55" style="font-weight:600;font-family:monospace;letter-spacing:1px;text-transform:uppercase;" maxlength="17">
-        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Run <code>--scan</code> to find printer address</div>
+        <div style="font-size:0.7rem;color:#A89F96;margin-top:3px;">Run <code>--scan</code> to find printer address</div>
       </div>
     </div>
 
     <div id="flutterConfig" style="display:none;">
-      <p style="font-size:0.78rem;color:#6B7280;margin-bottom:10px;">Print via the <strong>LuuvCRM Print App</strong> (Flutter utility) running on this PC.</p>
+      <p style="font-size:0.78rem;color:#837A70;margin-bottom:10px;">Print via the <strong>LuuvCRM Print App</strong> (Flutter utility) running on this PC.</p>
       <div class="field">
         <label>Print App URL</label>
         <input type="text" id="flutterURL" placeholder="http://localhost:9200" style="font-weight:600;">
-        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Default port: 9200. Run the app then configure here.</div>
+        <div style="font-size:0.7rem;color:#A89F96;margin-top:3px;">Default port: 9200. Run the app then configure here.</div>
       </div>
       <div style="margin-top:10px;padding:10px;background:#1E3A5F;border-radius:8px;">
         <div style="font-size:0.72rem;color:#93C5FD;margin-bottom:6px;">Don't have the app? Download below and install on your Android POS tablet.</div>
@@ -942,7 +994,7 @@
     </div>
 
     <div id="iminConfig" style="display:none;">
-      <p style="font-size:0.78rem;color:#6B7280;margin-bottom:10px;">Print to the built-in <strong>iMin</strong> thermal printer via the <strong>LuuvCRM Print App</strong>.</p>
+      <p style="font-size:0.78rem;color:#837A70;margin-bottom:10px;">Print to the built-in <strong>iMin</strong> thermal printer via the <strong>LuuvCRM Print App</strong>.</p>
       <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px;margin-bottom:10px;">
         <div style="font-size:0.82rem;font-weight:600;color:#DC2626;margin-bottom:4px;">&#x1F5A8; iMin Printer <span id="iminStatus" style="font-weight:400;font-size:0.78rem;">via Print App</span></div>
         <div style="font-size:0.72rem;color:#991B1B;">Uses the official iMin SDK inside the LuuvCRM Print App.</div>
@@ -950,7 +1002,7 @@
       <div class="field">
         <label>Print App URL</label>
         <input type="text" id="iminFlutterURL" placeholder="http://localhost:9200" style="font-weight:600;">
-        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Same URL as the Print App tab. Default port: 9200.</div>
+        <div style="font-size:0.7rem;color:#A89F96;margin-top:3px;">Same URL as the Print App tab. Default port: 9200.</div>
       </div>
       <div style="margin-top:10px;padding:10px;background:#312E81;border-radius:8px;">
         <div style="font-size:0.78rem;color:#E0E7FF;margin-bottom:6px;">📱 LuuvCRM Print Utility</div>
@@ -962,21 +1014,21 @@
     </div>
 
     <div id="rawbtConfig" style="display:none;">
-      <p style="font-size:0.78rem;color:#6B7280;margin-bottom:10px;">Install <strong>RawBT</strong> app on Android phone connected to Bluetooth printer.</p>
+      <p style="font-size:0.78rem;color:#837A70;margin-bottom:10px;">Install <strong>RawBT</strong> app on Android phone connected to Bluetooth printer.</p>
       <div class="field">
         <label>Phone IP Address (WiFi)</label>
         <input type="text" id="rawbtIP" placeholder="192.168.1.100" style="font-weight:600;">
-        <div style="font-size:0.7rem;color:#9CA3AF;margin-top:3px;">Phone must be on same WiFi. Default port: 8081</div>
+        <div style="font-size:0.7rem;color:#A89F96;margin-top:3px;">Phone must be on same WiFi. Default port: 8081</div>
       </div>
       <div class="field">
         <label>Printer Bluetooth MAC (optional)</label>
         <input type="text" id="rawbtMAC" placeholder="00:11:22:33:44:55" style="font-weight:600;text-transform:uppercase;font-family:monospace;letter-spacing:1px;" maxlength="17">
       </div>
-      <div style="font-size:0.7rem;color:#9CA3AF;">👉 RawBT → Settings → Network (Server) → Port 8081</div>
+      <div style="font-size:0.7rem;color:#A89F96;">👉 RawBT → Settings → Network (Server) → Port 8081</div>
     </div>
 
-    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #374151;">
-      <div onclick="toggleDebug()" style="cursor:pointer;font-size:0.78rem;color:#6B7280;margin-bottom:6px;">
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #423D38;">
+      <div onclick="toggleDebug()" style="cursor:pointer;font-size:0.78rem;color:#837A70;margin-bottom:6px;">
         🔧 <span id="debugToggleLabel">Show Debug</span>
       </div>
       <div id="debugSection" style="display:none;">
@@ -989,7 +1041,7 @@
           <button class="btn-secondary" onclick="copyDebugLogs()" style="flex:0.5;font-size:0.72rem;">Copy</button>
         </div>
         <div style="margin-top:6px;">
-          <textarea id="debugLogArea" readonly style="width:100%;height:120px;background:#0A0F1A;color:#4ADE80;border:1px solid #374151;border-radius:6px;padding:8px;font-size:0.72rem;font-family:monospace;resize:vertical;" placeholder="Click 'Fetch Logs' to get print logs from the tablet app..."></textarea>
+          <textarea id="debugLogArea" readonly style="width:100%;height:120px;background:#0A0F1A;color:#4ADE80;border:1px solid #423D38;border-radius:6px;padding:8px;font-size:0.72rem;font-family:monospace;resize:vertical;" placeholder="Click 'Fetch Logs' to get print logs from the tablet app..."></textarea>
         </div>
       </div>
     </div>
@@ -1006,17 +1058,20 @@
   <div class="modal">
     <h3>&#x1F4B5; Close Shift</h3>
     <div class="modal-summary" id="shiftSummary">
-      <div class="row"><span class="label">Opening Balance</span><span class="value" id="soOpening">LKR 0</span></div>
-      <div id="shiftPaymentRows"></div>
-      <div class="row" style="border-top:1px dashed #E5E7EB;padding-top:8px;margin-top:4px;"><span class="label">Total Sales</span><span class="value" id="soSales">LKR 0</span></div>
+      <div class="row"><span class="label">Cashier</span><span class="value" id="soCashier">&mdash;</span></div>
+      <div class="row"><span class="label">Started</span><span class="value" id="soStart">&mdash;</span></div>
       <div class="row"><span class="label">Order Count</span><span class="value" id="soOrders">0</span></div>
-      <div class="row total"><span class="label">Expected Balance</span><span class="value" id="soExpected">LKR 0</span></div>
+      <div class="row"><span class="label">Total Opening</span><span class="value" id="soOpeningTot">LKR 0</span></div>
+      <div class="row"><span class="label">Total Sales</span><span class="value" id="soSales">LKR 0</span></div>
+      <div class="row total"><span class="label">Total Expected</span><span class="value" id="soExpectedTot">LKR 0</span></div>
     </div>
-    <div class="field">
-      <label>Closing Balance (LKR)</label>
-      <input type="number" id="closingBalance" value="0" min="0">
+    <div style="font-size:0.72rem;font-weight:700;color:#837A70;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Payment Reconciliation</div>
+    <div id="closingModes"></div>
+    <div class="modal-summary" id="closeTotals" style="margin-top:10px;">
+      <div class="row"><span class="label">Total Counted</span><span class="value" id="soCountedTot">LKR 0</span></div>
+      <div class="row total"><span class="label">Difference</span><span class="value" id="soDiffTot">0</span></div>
     </div>
-    <div class="field">
+    <div class="field" style="margin-top:10px;">
       <label>Cashier Name</label>
       <input type="text" id="cashierName" placeholder="Enter cashier name" style="font-weight:600;">
     </div>
@@ -1034,7 +1089,42 @@
 <script>
   const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.csrf_token || '';
   const SERVICE_CHARGE_RATE = {{ service_charge_rate or 0 }};
+  const POS_PROFILE_PAYMENTS = {{ pos_profile_payments_json | safe }};
+  const PAY_ICONS = {'Cash':'\u{1F4B5}','Credit Card':'\u{1F4B3}','Card':'\u{1F4B3}','Bank Draft':'\u{1F3E6}','Cheque':'\u{1F4DD}','Wire Transfer':'\u{1F4F1}','Mobile':'\u{1F4F1}','QR':'\u{1F4F0}'};
+  const TAKEAWAY = '__TAKEAWAY__';
+  // Take Away orders (table = Take Away, or order type = Take Away) get NO service charge.
+  function isTakeAway() {
+    const t = document.getElementById('tableSelect');
+    const ot = document.getElementById('orderTypeSelect');
+    return (t && t.value === TAKEAWAY) || (ot && ot.value === 'Take Away');
+  }
+  function effectiveScRate() { return isTakeAway() ? 0 : SERVICE_CHARGE_RATE; }
+  function tableLabel() {
+    const v = document.getElementById('tableSelect').value;
+    return v === TAKEAWAY ? '\u{1F961} Take Away' : (v || '—');
+  }
+  // Service-charge base = subtotal of dine-in lines only (excludes order-level + per-item take-away).
+  function cartScBase() {
+    if (isTakeAway()) return 0;
+    let base = 0;
+    Object.keys(cart).forEach(function(code){
+      if (cartTA[code]) return;
+      const el = document.querySelector('.item-card[data-code="'+code+'"]');
+      const rate = parseFloat((el && el.querySelector('.item-price') ? el.querySelector('.item-price').textContent : '0').replace(/[^0-9.]/g, '')) || 0;
+      base += rate * (cart[code] || 0);
+    });
+    return base;
+  }
+  // Keep table dropdown + order-type selector in sync, then refresh the cart total.
+  function onTableChange() {
+    const ot = document.getElementById('orderTypeSelect');
+    if (document.getElementById('tableSelect').value === TAKEAWAY) { if (ot) ot.value = 'Take Away'; }
+    else if (ot && ot.value === 'Take Away') { ot.value = 'Dine In'; }
+    if (typeof render === 'function') render();
+  }
   let cart = {};
+  let cartTA = {};  // per-item take-away flags { itemCode: true }
+  function toggleItemTA(code) { cartTA[code] = !cartTA[code]; render(); }
   let activeCat = 'all';
   let searchQuery = '';
   let currentTab = 'pos';
@@ -1217,7 +1307,7 @@
     const cartFooter = document.getElementById('cartFooter');
 
     if (totalItems === 0) {
-      cartList.innerHTML = `<div class="cart-empty"><div class="icon">&#x1F9FA;</div><p>Cart is empty</p><p style="font-size:0.78rem;color:#E5E7EB;margin-top:4px;">Tap items to add</p></div>`;
+      cartList.innerHTML = `<div class="cart-empty"><div class="icon">&#x1F9FA;</div><p>Cart is empty</p><p style="font-size:0.78rem;color:#E5E0DB;margin-top:4px;">Tap items to add</p></div>`;
       cartFooter.style.display = 'none';
       return;
     }
@@ -1233,31 +1323,37 @@
       };
     });
 
+    Object.keys(cartTA).forEach(c => { if (!cart[c]) delete cartTA[c]; });  // drop stale flags
+    let scBase = 0;
+    const orderTA = isTakeAway();
     entries.forEach(([code, qty]) => {
       const d = itemData[code] || { name: code, rate: 0 };
       const lineTotal = d.rate * qty;
       subtotal += lineTotal;
+      const ta = !!cartTA[code];
+      if (!orderTA && !ta) scBase += lineTotal;
       html += `<div class="cart-item">
-        <div class="ci-info"><div class="ci-name">${d.name}</div><div class="ci-rate">LKR ${d.rate.toLocaleString()}</div></div>
+        <div class="ci-info"><div class="ci-name">${d.name}${ta ? ' <span style="color:#F0A323;font-size:0.62rem;font-weight:800;">🥡 TA</span>' : ''}</div><div class="ci-rate">LKR ${d.rate.toLocaleString()}</div></div>
         <div class="ci-qty">
           <button class="ci-minus" onclick="updateQty('${code}', -1)">−</button>
           <span>${qty}</span>
           <button class="ci-plus" onclick="updateQty('${code}', 1)">+</button>
         </div>
+        <button class="ci-ta" onclick="toggleItemTA('${code}')" title="Take away this item (no service charge)" style="background:${ta?'#F0A323':'transparent'};border:1px solid #F0A323;color:${ta?'#fff':'#F0A323'};border-radius:6px;min-width:30px;height:30px;cursor:pointer;font-size:0.9rem;padding:0;">🥡</button>
         <button class="ci-remove" onclick="updateQty('${code}', -${qty})">×</button>
       </div>`;
     });
     cartList.innerHTML = html;
-    const scAmount = Math.round(subtotal * SERVICE_CHARGE_RATE) / 100;
+    const scAmount = Math.round(scBase * SERVICE_CHARGE_RATE) / 100;
     const grandTotal = subtotal + scAmount;
     const st = document.getElementById('subtotal');
     if (st) st.textContent = 'LKR ' + subtotal.toLocaleString();
     const scRow = document.getElementById('scRow');
     const scAmt = document.getElementById('scAmount');
-    const scRate = document.getElementById('scRate');
-    if (scRow && SERVICE_CHARGE_RATE > 0) {
+    const scRateEl = document.getElementById('scRate');
+    if (scRow && SERVICE_CHARGE_RATE > 0 && scBase > 0) {
       scRow.style.display = '';
-      scRate.textContent = SERVICE_CHARGE_RATE;
+      scRateEl.textContent = SERVICE_CHARGE_RATE;
       scAmt.textContent = 'LKR ' + scAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
     } else if (scRow) {
       scRow.style.display = 'none';
@@ -1272,15 +1368,17 @@
 
   async function sendToKitchen() {
     if (Object.keys(cart).length === 0) { showToast('Cart is empty.', true); return; }
-    const orderType = document.getElementById('orderTypeSelect').value;
-    const table = document.getElementById('tableSelect').value;
+    const ta = isTakeAway();
+    const orderType = ta ? 'Take Away' : document.getElementById('orderTypeSelect').value;
+    let table = document.getElementById('tableSelect').value;
+    if (table === TAKEAWAY) table = '';
     if (orderType === 'Dine In' && !table) { showToast('Please select a table first.', true); document.getElementById('tableSelect').focus(); return; }
 
     const rateMap = {};
     document.querySelectorAll('.item-card').forEach(card => {
       rateMap[card.dataset.code] = parseFloat(card.querySelector('.item-price').textContent.replace(/[^0-9.]/g, ''));
     });
-    const items = Object.entries(cart).map(([code, qty]) => ({ item: code, qty, rate: rateMap[code] || 0 }));
+    const items = Object.entries(cart).map(([code, qty]) => ({ item: code, qty, rate: rateMap[code] || 0, takeaway: !!cartTA[code] }));
 
     const btn = document.getElementById('sendKitchenBtn');
     btn.disabled = true; btn.textContent = '⏳ Sending...';
@@ -1320,14 +1418,15 @@
     }
   }
 
-  // Order type toggle — disable table for Take Away / Delivery
+  // Order type toggle — keep the table dropdown in sync and refresh totals.
   document.getElementById('orderTypeSelect')?.addEventListener('change', function() {
-    const isDineIn = this.value === 'Dine In';
+    const v = this.value;
     const wrap = document.getElementById('tableSelectWrap');
     const sel = document.getElementById('tableSelect');
-    wrap.style.opacity = isDineIn ? '1' : '0.4';
-    sel.disabled = !isDineIn;
-    if (!isDineIn) sel.value = '';
+    if (v === 'Take Away') { sel.disabled = false; wrap.style.opacity = '1'; sel.value = TAKEAWAY; }
+    else if (v === 'Dine In') { sel.disabled = false; wrap.style.opacity = '1'; if (sel.value === TAKEAWAY) sel.value = ''; }
+    else { sel.disabled = true; wrap.style.opacity = '0.4'; sel.value = ''; }  // Delivery
+    if (typeof render === 'function') render();
   });
 
   // ─── Pay existing order ─────────────────────────────
@@ -1365,7 +1464,7 @@
     const total = document.getElementById('grandTotal').textContent.replace(/[^0-9.]/g, '');
     const parsedTotal = parseFloat(total) || 0;
     document.getElementById('pmItems').textContent = Object.keys(cart).length;
-    document.getElementById('pmTable').textContent = document.getElementById('tableSelect').value || '—';
+    document.getElementById('pmTable').textContent = tableLabel();
     document.getElementById('pmTotal').textContent = 'LKR ' + parsedTotal.toLocaleString();
     document.getElementById('amountTendered').value = parsedTotal;
     openModal('paymentModal');
@@ -1452,7 +1551,7 @@
       document.querySelectorAll('.item-card').forEach(card => {
         rateMap[card.dataset.code] = parseFloat(card.querySelector('.item-price').textContent.replace(/[^0-9.]/g, ''));
       });
-      const items = Object.entries(cart).map(([code, qty]) => ({ item: code, qty, rate: rateMap[code] || 0 }));
+      const items = Object.entries(cart).map(([code, qty]) => ({ item: code, qty, rate: rateMap[code] || 0, takeaway: !!cartTA[code] }));
 
       let res;
       if (isExistingPayment) {
@@ -1475,12 +1574,16 @@
       } else {
         const cashAmt = parseFloat(document.getElementById('cashAmount').value) || 0;
         const cardAmt = parseFloat(document.getElementById('cardAmount').value) || 0;
+        const ta = isTakeAway();
+        let tbl = document.getElementById('tableSelect').value;
+        if (tbl === TAKEAWAY) tbl = '';
         res = await _post('/api/method/luuvcrm.api.place_order', {
           items: JSON.stringify(items),
           payment_mode: mode,
           cash_amount: mode === 'Cash+Card' ? cashAmt : 0,
           card_amount: mode === 'Cash+Card' ? cardAmt : 0,
-          table: document.getElementById('tableSelect').value,
+          table: tbl,
+          order_type: ta ? 'Take Away' : document.getElementById('orderTypeSelect').value,
           order_source: 'Walk-in',
           customer_name: document.getElementById('pmCustomerName').value.trim(),
           mobile: document.getElementById('pmCustomerPhone').value.trim(),
@@ -1573,7 +1676,7 @@
       // Multiple orders → show popup
       document.getElementById('tomTitle').innerHTML = `&#x1FAAE; Table ${short}`;
       if (orders.length === 0) {
-        document.getElementById('tomBody').innerHTML = '<div style="text-align:center;padding:30px;color:#9CA3AF;"><div style="font-size:2rem;margin-bottom:8px;">&#x1F4ED;</div><p style="font-size:0.85rem;">No ongoing orders</p><p style="font-size:0.75rem;color:#D1D5DB;margin-top:4px;">Tap "New Order" to take an order</p></div>';
+        document.getElementById('tomBody').innerHTML = '<div style="text-align:center;padding:30px;color:#A89F96;"><div style="font-size:2rem;margin-bottom:8px;">&#x1F4ED;</div><p style="font-size:0.85rem;">No ongoing orders</p><p style="font-size:0.75rem;color:#D2CBC4;margin-top:4px;">Tap "New Order" to take an order</p></div>';
       } else {
         document.getElementById('tomBody').innerHTML = orders.map(o => {
           const items = (o.items || []).map(i =>
@@ -1585,19 +1688,19 @@
           const statusClass = (o.kitchen_status||'pending').toLowerCase();
           const escName = escapeHtml(o.customer_name || 'Walk-in');
           const escPhone = escapeHtml(o.mobile || '');
-          return `<div style="background:#fff;border:1px solid #F3F4F6;border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all 0.15s;" onclick="loadTableOrder('${o.name}','${o.restaurant_table||table}','${escName.replace(/'/g,"\\'")}','${escPhone.replace(/'/g,"\\'")}')" onmouseover="this.style.borderColor='#FF6B35';this.style.boxShadow='0 2px 8px rgba(255,107,53,0.12)'" onmouseout="this.style.borderColor='#F3F4F6';this.style.boxShadow='none'">
+          return `<div style="background:#fff;border:1px solid #F2EFEC;border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all 0.15s;" onclick="loadTableOrder('${o.name}','${o.restaurant_table||table}','${escName.replace(/'/g,"\\'")}','${escPhone.replace(/'/g,"\\'")}')" onmouseover="this.style.borderColor='#F15207';this.style.boxShadow='0 2px 8px rgba(255,107,53,0.12)'" onmouseout="this.style.borderColor='#F2EFEC';this.style.boxShadow='none'">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <span style="font-weight:700;font-size:0.82rem;color:#1F2937;">#${o.name}</span>
+              <span style="font-weight:700;font-size:0.82rem;color:#1A1714;">#${o.name}</span>
               <span style="font-size:0.68rem;font-weight:600;padding:2px 8px;border-radius:6px;
                 ${statusClass === 'pending' ? 'background:#FEF3C7;color:#D97706;' :
                   statusClass === 'processing' ? 'background:#DBEAFE;color:#2563EB;' :
                   statusClass === 'ready' ? 'background:#D1FAE5;color:#059669;' :
-                  'background:#F3F4F6;color:#6B7280;'}">${o.kitchen_status || 'Pending'}</span>
+                  'background:#F2EFEC;color:#837A70;'}">${o.kitchen_status || 'Pending'}</span>
             </div>
             <div style="margin-bottom:4px;">${items}</div>
-            <div style="font-size:0.68rem;color:#9CA3AF;display:flex;justify-content:space-between;">
+            <div style="font-size:0.68rem;color:#A89F96;display:flex;justify-content:space-between;">
               <span>${o.time_ago || ''} · ${o.waiter_name || ''}</span>
-              <span style="color:#FF6B35;font-weight:600;font-size:0.7rem;">Click to load →</span>
+              <span style="color:#F15207;font-weight:600;font-size:0.7rem;">Click to load →</span>
             </div>
           </div>`;
         }).join('');
@@ -1622,7 +1725,7 @@
     cards.forEach(c => c.style.outline = 'none');
     const target = document.querySelector(`.order-card[data-order="${orderName}"]`);
     if (target) {
-      target.style.outline = '2px solid #FF6B35';
+      target.style.outline = '2px solid #F15207';
       target.style.outlineOffset = '2px';
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setTimeout(() => { target.style.outline = 'none'; }, 3000);
@@ -1633,33 +1736,33 @@
 
   async function showCompareView(oldName, newName) {
     openModal('compareModal');
-    document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:30px;color:#9CA3AF;">Loading...</div>';
+    document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:30px;color:#A89F96;">Loading...</div>';
     try {
       const res = await _post('/api/method/luuvcrm.api.compare_orders', { old: oldName, new: newName });
       if (!res) return;
       const data = await res.json();
       const old = data.message?.old;
       const nw = data.message?.new;
-      if (!old || !nw) { document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444;">Order data not found</div>'; return; }
+      if (!old || !nw) { document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:20px;color:#E23D3D;">Order data not found</div>'; return; }
       function renderSide(label, order, cls) {
         const itemsHtml = (order.items || []).map(i => `<div class="cmp-item"><span>${escapeHtml(i.item_name || i.item)} x${i.qty}</span><span style="font-weight:600;">LKR ${(i.rate * i.qty).toLocaleString()}</span></div>`).join('');
         return `<div class="cmp-side ${cls}">
-          <h4>${label} <span style="font-size:0.7rem;font-weight:400;color:#9CA3AF;">#${escapeHtml(order.name)}</span></h4>
+          <h4>${label} <span style="font-size:0.7rem;font-weight:400;color:#A89F96;">#${escapeHtml(order.name)}</span></h4>
           <div class="cmp-label">Table</div><div class="cmp-val">${order.restaurant_table || '—'}</div>
           <div class="cmp-label">Customer</div><div class="cmp-val">${escapeHtml(order.customer_name || 'Walk-in')}</div>
           <div class="cmp-label">Waiter</div><div class="cmp-val">${escapeHtml(order.waiter_name || '—')}</div>
           <div class="cmp-label">Status</div><div class="cmp-val">${order.kitchen_status || '—'}</div>
-          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #E5E7EB;">${itemsHtml}</div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #E5E0DB;">${itemsHtml}</div>
           <div class="cmp-total"><span>Total</span><span>LKR ${(order.grand_total || 0).toLocaleString()}</span></div>
         </div>`;
       }
       const oldItemsTotal = (old.items || []).reduce((s, i) => s + (i.rate * i.qty), 0);
       const newItemsTotal = (nw.items || []).reduce((s, i) => s + (i.rate * i.qty), 0);
       const mismatch = oldItemsTotal !== newItemsTotal || (old.items || []).length !== (nw.items || []).length;
-      const warnHtml = mismatch ? `<div class="cmp-warn"><span class="icon">&#x26A0;&#xFE0F;</span><span>Order details mismatch! Items or totals differ between the cancelled and re-created order.</span></div>` : `<div style="text-align:center;margin-top:12px;font-size:0.78rem;color:#10B981;">&#x2705; Orders match — no discrepancies found</div>`;
+      const warnHtml = mismatch ? `<div class="cmp-warn"><span class="icon">&#x26A0;&#xFE0F;</span><span>Order details mismatch! Items or totals differ between the cancelled and re-created order.</span></div>` : `<div style="text-align:center;margin-top:12px;font-size:0.78rem;color:#1E9E5A;">&#x2705; Orders match — no discrepancies found</div>`;
       document.getElementById('compareBody').innerHTML = `<div class="cmp-grid">${renderSide('🗑 Cancelled', old, 'cancelled')}${renderSide('🔄 Re-created', nw, 'new')}</div>${warnHtml}`;
     } catch (e) {
-      document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444;">Failed to load comparison</div>';
+      document.getElementById('compareBody').innerHTML = '<div style="text-align:center;padding:20px;color:#E23D3D;">Failed to load comparison</div>';
     }
   }
 
@@ -1674,17 +1777,18 @@
         const rateText = itemEl?.querySelector('.item-price')?.textContent?.replace(/[^0-9.]/g, '') || '0';
         return sum + (parseFloat(rateText) || 0) * qty;
       }, 0);
-      const scAmount = Math.round(total * SERVICE_CHARGE_RATE) / 100;
+      const scBase = cartScBase();
+      const scAmount = Math.round(scBase * SERVICE_CHARGE_RATE) / 100;
       const grandTotal = total + scAmount;
       const footer = document.getElementById('cartFooter');
       if (!footer) return;
       footer.innerHTML = `
         <div class="total-row"><span>Subtotal</span><span id="subtotal">LKR ${total.toLocaleString()}</span></div>
-        ${SERVICE_CHARGE_RATE > 0 ? `<div class="total-row"><span>Service Charge (${SERVICE_CHARGE_RATE}%)</span><span id="scAmount">LKR ${scAmount.toLocaleString(undefined, {minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>` : ''}
+        ${(SERVICE_CHARGE_RATE > 0 && scBase > 0) ? `<div class="total-row"><span>Service Charge (${SERVICE_CHARGE_RATE}%)</span><span id="scAmount">LKR ${scAmount.toLocaleString(undefined, {minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>` : ''}
         <div class="grand-total"><span>Total</span><span id="grandTotal">LKR ${grandTotal.toLocaleString()}</span></div>
         <div class="cart-actions">
-          <button onclick="sendToKitchen()" style="flex:1;border:none;padding:12px;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#F59E0B,#D97706);color:#fff;">🍳 Update Kitchen</button>
-          <button onclick="payExistingOrderFromCart('${orderName}')" style="flex:1;border:none;padding:12px;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#FF6B35,#E55A2B);color:#fff;">💳 Pay LKR ${grandTotal.toLocaleString()}</button>
+          <button onclick="sendToKitchen()" style="flex:1;border:none;padding:12px;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#F0A323,#D97706);color:#fff;">🍳 Update Kitchen</button>
+          <button onclick="payExistingOrderFromCart('${orderName}')" style="flex:1;border:none;padding:12px;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#F15207,#D84804);color:#fff;">💳 Pay LKR ${grandTotal.toLocaleString()}</button>
         </div>`;
     }, 300);
   }
@@ -1696,10 +1800,10 @@
       const rateText = itemEl?.querySelector('.item-price')?.textContent?.replace(/[^0-9.]/g, '') || '0';
       return sum + (parseFloat(rateText) || 0) * qty;
     }, 0);
-    const scAmount = Math.round(subtotal * SERVICE_CHARGE_RATE) / 100;
+    const scAmount = Math.round(cartScBase() * SERVICE_CHARGE_RATE) / 100;
     const total = subtotal + scAmount;
     const itemCount = Object.keys(cart).length;
-    const table = document.getElementById('tableSelect').value || '—';
+    const table = tableLabel();
     const customerName = document.getElementById('pmCustomerName').value || '';
     const phone = document.getElementById('pmCustomerPhone').value || '';
 
@@ -1763,7 +1867,8 @@
 
     // Populate cart with order items
     cart = {};
-    items.forEach(i => { cart[i.item] = i.qty; });
+    cartTA = {};
+    items.forEach(i => { cart[i.item] = i.qty; if (i.takeaway) cartTA[i.item] = true; });
     render();
 
     // Set table & customer info
@@ -1818,7 +1923,7 @@
         });
         if (!isActive) {
           const btn = document.querySelector('.tab-btn[data-tab="kiosk"]');
-          if (btn) btn.style.background = '#FF6B35';
+          if (btn) btn.style.background = '#F15207';
         }
       }
       _knownKioskIds = new Set(orders.map(o => o.name));
@@ -1847,12 +1952,12 @@
       const data = await res.json();
       const log = data.message && data.message.changelog ? data.message.changelog : [];
       if (log.length === 0) { _cachedChangelogHtml = ''; return; }
-      let html = '<h4 style="font-size:0.78rem;font-weight:700;color:#6B7280;margin:8px 0 4px;display:flex;align-items:center;gap:6px;">&#x1F4CB; Change History</h4>';
+      let html = '<h4 style="font-size:0.78rem;font-weight:700;color:#837A70;margin:8px 0 4px;display:flex;align-items:center;gap:6px;">&#x1F4CB; Change History</h4>';
       log.forEach(v => {
-        html += `<div style="padding:4px 0;border-bottom:1px solid #F3F4F6;font-size:0.72rem;">
-          <div style="display:flex;justify-content:space-between;color:#9CA3AF;font-size:0.68rem;">${escapeHtml(v.owner)} | ${v.created ? new Date(v.created).toLocaleString() : ''}</div>`;
+        html += `<div style="padding:4px 0;border-bottom:1px solid #F2EFEC;font-size:0.72rem;">
+          <div style="display:flex;justify-content:space-between;color:#A89F96;font-size:0.68rem;">${escapeHtml(v.owner)} | ${v.created ? new Date(v.created).toLocaleString() : ''}</div>`;
         (v.changes || []).forEach(c => {
-          html += `<div style="color:#374151;">${escapeHtml(c.field)}: <span style="color:#EF4444;text-decoration:line-through;">${escapeHtml(String(c.old_value||''))}</span> <span style="color:#059669;font-weight:600;">${escapeHtml(String(c.new_value||''))}</span></div>`;
+          html += `<div style="color:#423D38;">${escapeHtml(c.field)}: <span style="color:#E23D3D;text-decoration:line-through;">${escapeHtml(String(c.old_value||''))}</span> <span style="color:#059669;font-weight:600;">${escapeHtml(String(c.new_value||''))}</span></div>`;
         });
         html += '</div>';
       });
@@ -1882,7 +1987,7 @@
         });
         if (!isActive) {
           const btn = document.querySelector('.tab-btn[data-tab="ongoing"]');
-          if (btn) btn.style.background = '#FF6B35';
+          if (btn) btn.style.background = '#F15207';
         }
       }
       _knownOngoingIds = new Set(orders.map(o => o.name));
@@ -1933,16 +2038,17 @@
         <div class="oc-items-list">${itemRows}</div>
         <div class="oc-total-row">
           <span class="oc-total">LKR ${(o.grand_total || 0).toLocaleString()}</span>
-          ${hasInvoice ? `<span class="oc-invoice">#${o.pos_invoice || o.invoice_name}</span>` : '<span class="oc-invoice" style="color:#F59E0B;">Unpaid</span>'}
+          ${hasInvoice ? `<span class="oc-invoice">#${o.pos_invoice || o.invoice_name}</span>` : '<span class="oc-invoice" style="color:#F0A323;">Unpaid</span>'}
         </div>
-        ${isCancelled && o.recreated_as ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #F3F4F6;font-size:0.75rem;color:#6366F1;display:flex;align-items:center;gap:4px;">&#x1F504; Re-created as <strong onclick="showCompareView('${escapeHtml(o.name)}','${escapeHtml(o.recreated_as)}')" style="cursor:pointer;color:#FF6B35;text-decoration:underline;">#${escapeHtml(o.recreated_as)}</strong> &nbsp;<span style="font-size:0.65rem;color:#9CA3AF;">(click to compare)</span></div>` : ''}
+        ${isCancelled && o.recreated_as ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #F2EFEC;font-size:0.75rem;color:#6366F1;display:flex;align-items:center;gap:4px;">&#x1F504; Re-created as <strong onclick="showCompareView('${escapeHtml(o.name)}','${escapeHtml(o.recreated_as)}')" style="cursor:pointer;color:#F15207;text-decoration:underline;">#${escapeHtml(o.recreated_as)}</strong> &nbsp;<span style="font-size:0.65rem;color:#A89F96;">(click to compare)</span></div>` : ''}
       </div>
       ${isOngoing ? `<div class="oc-action" style="display:flex;gap:6px;flex-wrap:wrap;">
-        <button onclick="printKOT('${o.name}')" style="background:#F59E0B;">&#x1F373; KOT</button>
+        <button onclick="printKOT('${o.name}')" style="background:#F0A323;">&#x1F373; KOT</button>
         ${!hasInvoice ? `<button onclick="printGuestCheck('${o.name}')" style="background:#6366F1;">&#x1F4CB; Guest</button>` : ''}
-        ${!hasInvoice ? `<button onclick="payExistingOrder('${o.name}')" style="background:#FF6B35;">&#x1F4B3; Pay</button>` : ''}
-        <button onclick="markServed('${o.name}')" style="background:#10B981;">&#x2705; Complete</button>
-        ${!hasInvoice ? `<button onclick="cancelOrder('${o.name}')" style="background:#EF4444;">&#x1F5D1; Amend</button>` : ''}
+        ${!hasInvoice ? `<button onclick="payExistingOrder('${o.name}')" style="background:#F15207;">&#x1F4B3; Pay</button>` : ''}
+        ${!hasInvoice ? `<button onclick="openSplitModal('${o.name}')" style="background:#8B5CF6;">&#x1F9FE; Split</button>` : ''}
+        <button onclick="markServed('${o.name}')" style="background:#1E9E5A;">&#x2705; Complete</button>
+        ${!hasInvoice ? `<button onclick="cancelOrder('${o.name}')" style="background:#E23D3D;">&#x1F5D1; Amend</button>` : ''}
       </div>` : ''}
     </div>`;
   }
@@ -1983,7 +2089,8 @@
         _currentOrderName = '';
         _amendedOrderName = orderName;
         cart = {};
-        orderItems.forEach(i => { cart[i.item] = i.qty; });
+        cartTA = {};
+        orderItems.forEach(i => { cart[i.item] = i.qty; if (i.takeaway) cartTA[i.item] = true; });
         if (table) document.getElementById('tableSelect').value = table;
         if (customer) document.getElementById('pmCustomerName').value = customer;
         if (phone) document.getElementById('pmCustomerPhone').value = phone;
@@ -2035,18 +2142,18 @@
             const recreateNote = newOrderRef ? newOrderRef.changes.find(c => c.field === 'note')?.new || '' : '';
             const cancelChanges = l.changes.filter(c => c.field !== 'amended_to' && c.field !== 'note');
             const cancelHtml = cancelChanges.map(c => {
-              if (c.field === 'kitchen_status') return `<div style="font-size:0.78rem;padding:1px 0;color:#D97706;">&#x1F373; ${escapeHtml(c.old)} → <span style="color:#EF4444;">${escapeHtml(c.new)}</span></div>`;
-              return `<div style="font-size:0.78rem;padding:1px 0;color:#6B7280;">${escapeHtml(c.field)}: ${escapeHtml(c.old)} → ${escapeHtml(c.new)}</div>`;
+              if (c.field === 'kitchen_status') return `<div style="font-size:0.78rem;padding:1px 0;color:#D97706;">&#x1F373; ${escapeHtml(c.old)} → <span style="color:#E23D3D;">${escapeHtml(c.new)}</span></div>`;
+              return `<div style="font-size:0.78rem;padding:1px 0;color:#837A70;">${escapeHtml(c.field)}: ${escapeHtml(c.old)} → ${escapeHtml(c.new)}</div>`;
             }).join('');
-            return `<div class="order-card" style="border-left:3px solid #EF4444;margin-bottom:8px;">
+            return `<div class="order-card" style="border-left:3px solid #E23D3D;margin-bottom:8px;">
               <div class="oc-left">
                 <div class="oc-top">
-                  <span class="oc-table" style="color:#EF4444;">&#x1F5D1; #${escapeHtml(l.order_name)} Cancelled</span>
+                  <span class="oc-table" style="color:#E23D3D;">&#x1F5D1; #${escapeHtml(l.order_name)} Cancelled</span>
                   <span class="oc-time">${l.time_ago || ''}</span>
-                  <span style="font-size:0.72rem;color:#9CA3AF;">by ${escapeHtml(l.owner)}</span>
+                  <span style="font-size:0.72rem;color:#A89F96;">by ${escapeHtml(l.owner)}</span>
                 </div>
                 <div style="margin-top:4px;">${cancelHtml}</div>
-                <div style="margin-top:4px;padding-top:4px;border-top:1px solid #F3F4F6;font-size:0.78rem;color:#6366F1;cursor:pointer;" onclick="showCompareView('${escapeHtml(l.order_name)}','${escapeHtml(linkTo.new)}')">&#x1F504; Re-created as <strong style="color:#FF6B35;text-decoration:underline;">#${escapeHtml(linkTo.new)}</strong> ${recreateNote ? '· ' + recreateNote : ''} &nbsp;<span style="font-size:0.65rem;color:#9CA3AF;">(compare)</span></div>
+                <div style="margin-top:4px;padding-top:4px;border-top:1px solid #F2EFEC;font-size:0.78rem;color:#6366F1;cursor:pointer;" onclick="showCompareView('${escapeHtml(l.order_name)}','${escapeHtml(linkTo.new)}')">&#x1F504; Re-created as <strong style="color:#F15207;text-decoration:underline;">#${escapeHtml(linkTo.new)}</strong> ${recreateNote ? '· ' + recreateNote : ''} &nbsp;<span style="font-size:0.65rem;color:#A89F96;">(compare)</span></div>
               </div>
             </div>`;
           }
@@ -2054,22 +2161,22 @@
         }
         const changesHtml = l.changes.map(c => {
           if (c.action === 'added') return `<div style="font-size:0.78rem;color:#059669;padding:2px 0;">&#x2795; ${c.count} item(s) added</div>`;
-          if (c.action === 'removed') return `<div style="font-size:0.78rem;color:#EF4444;padding:2px 0;">&#x2796; ${c.count} item(s) removed</div>`;
+          if (c.action === 'removed') return `<div style="font-size:0.78rem;color:#E23D3D;padding:2px 0;">&#x2796; ${c.count} item(s) removed</div>`;
           if (c.action === 'modified') return `<div style="font-size:0.78rem;color:#6366F1;padding:2px 0;">&#x270E; ${c.count} item(s) modified</div>`;
-          if (c.field === 'kitchen_status') return `<div style="font-size:0.78rem;padding:2px 0;color:#D97706;">&#x1F373; Status: <span style="color:#EF4444;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
-          if (c.field === 'grand_total') return `<div style="font-size:0.78rem;padding:2px 0;color:#6B7280;">&#x1F4B0; Total: <span style="color:#EF4444;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
-          if (c.field === 'note') return `<div style="font-size:0.78rem;padding:2px 0;color:#6B7280;">${escapeHtml(c.new)}</div>`;
+          if (c.field === 'kitchen_status') return `<div style="font-size:0.78rem;padding:2px 0;color:#D97706;">&#x1F373; Status: <span style="color:#E23D3D;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
+          if (c.field === 'grand_total') return `<div style="font-size:0.78rem;padding:2px 0;color:#837A70;">&#x1F4B0; Total: <span style="color:#E23D3D;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
+          if (c.field === 'note') return `<div style="font-size:0.78rem;padding:2px 0;color:#837A70;">${escapeHtml(c.new)}</div>`;
           if (c.field === 'amended_from') return `<div style="font-size:0.78rem;padding:2px 0;color:#6366F1;">&#x1F504; Re-created from <strong>#${escapeHtml(c.new)}</strong></div>`;
           if (c.field === 'table') return '';
           if (c.field === 'total') return '';
-          return `<div style="font-size:0.78rem;padding:2px 0;color:#6B7280;">${escapeHtml(c.field)}: <span style="color:#EF4444;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
+          return `<div style="font-size:0.78rem;padding:2px 0;color:#837A70;">${escapeHtml(c.field)}: <span style="color:#E23D3D;">${escapeHtml(c.old)}</span> → <span style="color:#059669;">${escapeHtml(c.new)}</span></div>`;
         }).join('');
         return `<div class="order-card" style="border-left:3px solid #6366F1;margin-bottom:8px;">
           <div class="oc-left">
             <div class="oc-top">
               <span class="oc-table">#${escapeHtml(l.order_name)}</span>
               <span class="oc-time">${l.time_ago || ''}</span>
-              <span style="font-size:0.72rem;color:#9CA3AF;">by ${escapeHtml(l.owner)}</span>
+              <span style="font-size:0.72rem;color:#A89F96;">by ${escapeHtml(l.owner)}</span>
             </div>
             <div style="margin-top:4px;">${changesHtml}</div>
           </div>
@@ -2103,27 +2210,80 @@
       if (!res) return;
       const data = await res.json();
       const shift = data.message && data.message.shift;
-
       if (shift && shift.status === 'open') {
-        document.getElementById('soOpening').textContent = 'LKR ' + (shift.opening_balance || 0).toLocaleString();
-        document.getElementById('soSales').textContent = 'LKR ' + (shift.total_sales || 0).toLocaleString();
+        const openTot = (shift.opening_details || []).reduce(function(s,d){ return s + (d.opening_amount || 0); }, 0);
+        const sales = shift.total_sales || 0;
+        document.getElementById('soCashier').textContent = shift.cashier || '—';
+        document.getElementById('soStart').textContent = shift.period_start ? _fmtTime(shift.period_start) : '—';
         document.getElementById('soOrders').textContent = shift.order_count || 0;
-        const pb = shift.payment_breakdown || {};
-        const modes = Object.keys(pb);
-        const rowsHtml = modes.map(function(m){
-          const icons = {'Cash':'&#x1F4B5;','Credit Card':'&#x1F4B3;','Card':'&#x1F4B3;','Mobile':'&#x1F4F1;','QR':'&#x1F4F0;'};
-          const icon = icons[m] || '&#x1F4B0;';
-          return '<div class="row"><span class="label">'+icon+' '+m+'</span><span class="value">LKR '+(pb[m]||0).toLocaleString()+'</span></div>';
-        }).join('');
-        document.getElementById('shiftPaymentRows').innerHTML = rowsHtml;
-        const expected = (shift.opening_balance || 0) + (shift.total_sales || 0);
-        document.getElementById('soExpected').textContent = 'LKR ' + expected.toLocaleString();
-        document.getElementById('closingBalance').value = expected;
+        document.getElementById('soOpeningTot').textContent = 'LKR ' + openTot.toLocaleString();
+        document.getElementById('soSales').textContent = 'LKR ' + sales.toLocaleString();
+        document.getElementById('soExpectedTot').textContent = 'LKR ' + (openTot + sales).toLocaleString();
+        buildClosingRows(shift);
+        _shiftErr('shiftCloseErr', '');
         openModal('shiftCloseModal');
       } else {
-        openModal('shiftOpenModal');
+        forceShiftOpen();
       }
-    } catch (e) { openModal('shiftOpenModal'); }
+    } catch (e) { forceShiftOpen(); }
+  }
+
+  // Per-mode reconciliation rows in the close modal (opening + sales = expected vs counted).
+  function buildClosingRows(shift) {
+    const opening = {}; (shift.opening_details || []).forEach(function(d){ opening[d.mode_of_payment] = d.opening_amount || 0; });
+    const sales = shift.payment_breakdown || {};
+    const modes = Array.from(new Set([].concat(Object.keys(opening), Object.keys(sales))));
+    if (!modes.length) modes.push('Cash');
+    document.getElementById('closingModes').innerHTML = modes.map(function(m){
+      const open = opening[m] || 0, sale = sales[m] || 0, expected = open + sale;
+      const icon = PAY_ICONS[m] || '\u{1F4B0}';
+      return '<div class="recon-row" style="border:1px solid #E5E0DB;border-radius:10px;padding:8px 10px;margin-bottom:8px;">'
+        + '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:0.85rem;margin-bottom:4px;"><span>'+icon+' '+m+'</span><span style="font-size:0.72rem;color:#837A70;font-weight:600;">Expected <b data-exp="'+expected+'">LKR '+expected.toLocaleString()+'</b></span></div>'
+        + '<div style="font-size:0.7rem;color:#A89F96;margin-bottom:6px;">Opening '+open.toLocaleString()+' + Sales '+sale.toLocaleString()+'</div>'
+        + '<div style="display:flex;align-items:center;gap:8px;"><label style="font-size:0.72rem;color:#837A70;white-space:nowrap;">Counted</label>'
+        + '<input type="number" class="recon-counted" data-mode="'+m+'" value="'+expected+'" min="0" step="0.01" oninput="updateReconDiff(this)" style="flex:1;padding:8px 10px;border:1.5px solid #E5E0DB;border-radius:8px;font-size:0.85rem;font-family:inherit;outline:none;">'
+        + '<span class="recon-diff" style="font-size:0.72rem;font-weight:700;min-width:64px;text-align:right;color:#1E9E5A;">0</span></div>'
+        + '</div>';
+    }).join('');
+    recalcCloseTotals();
+  }
+
+  function updateReconDiff(input) {
+    const row = input.closest('.recon-row');
+    const expected = parseFloat(row.querySelector('[data-exp]').getAttribute('data-exp')) || 0;
+    const diff = (parseFloat(input.value) || 0) - expected;
+    const el = row.querySelector('.recon-diff');
+    el.textContent = (diff >= 0 ? '+' : '') + diff.toLocaleString();
+    el.style.color = diff === 0 ? '#1E9E5A' : (diff > 0 ? '#3B82F6' : '#E23D3D');
+    recalcCloseTotals();
+  }
+
+  // Live total counted + difference across all payment modes.
+  function recalcCloseTotals() {
+    let counted = 0, expected = 0;
+    document.querySelectorAll('#closingModes .recon-row').forEach(function(row){
+      const inp = row.querySelector('.recon-counted');
+      const exp = parseFloat(row.querySelector('[data-exp]').getAttribute('data-exp')) || 0;
+      counted += parseFloat(inp.value) || 0;
+      expected += exp;
+    });
+    const diff = counted - expected;
+    document.getElementById('soCountedTot').textContent = 'LKR ' + counted.toLocaleString();
+    const de = document.getElementById('soDiffTot');
+    de.textContent = (diff >= 0 ? '+' : '') + diff.toLocaleString();
+    de.style.color = diff === 0 ? '#1E9E5A' : (diff > 0 ? '#3B82F6' : '#E23D3D');
+  }
+
+  // Render opening-amount inputs for the selected profile's payment modes.
+  function renderOpeningModes() {
+    const sel = document.getElementById('openProfile');
+    const profile = sel ? sel.value : '';
+    const modes = (POS_PROFILE_PAYMENTS[profile] || ['Cash']);
+    document.getElementById('openingModes').innerHTML = modes.map(function(m){
+      const icon = PAY_ICONS[m] || '\u{1F4B0}';
+      return '<div class="field"><label>'+icon+' '+m+' (opening)</label>'
+        + '<input type="number" class="open-amt" data-mode="'+m+'" value="0" min="0" step="0.01"></div>';
+    }).join('');
   }
 
   // ── shift modal helpers (inline error + button loading) ──
@@ -2152,12 +2312,19 @@
   }
 
   async function openShift() {
-    const balance = parseFloat(document.getElementById('openingBalance').value);
-    if (isNaN(balance) || balance < 0) { _shiftErr('shiftOpenErr', 'Enter a valid opening balance (0 or more).'); return; }
+    const profile = document.getElementById('openProfile').value;
+    const balance_details = [];
+    let bad = false;
+    document.querySelectorAll('#openingModes .open-amt').forEach(function(inp){
+      const v = parseFloat(inp.value);
+      if (isNaN(v) || v < 0) bad = true;
+      balance_details.push({ mode_of_payment: inp.getAttribute('data-mode'), opening_amount: isNaN(v) ? 0 : v });
+    });
+    if (bad) { _shiftErr('shiftOpenErr', 'Enter valid opening amounts (0 or more).'); return; }
     _shiftErr('shiftOpenErr', '');
     _btnLoad('shiftOpenBtn', true, 'Opening…', 'Open Shift');
     try {
-      const res = await _post('/api/method/luuvcrm.api.pos_open_shift', { opening_balance: balance });
+      const res = await _post('/api/method/luuvcrm.api.pos_open_shift', { pos_profile: profile, balance_details: JSON.stringify(balance_details) });
       if (!res) { _btnLoad('shiftOpenBtn', false, '', 'Open Shift'); return; }
       const data = await res.json();
       if (res.ok && data.message && data.message.shift) {
@@ -2171,18 +2338,23 @@
   }
 
   async function closeShift() {
-    const balance = parseFloat(document.getElementById('closingBalance').value);
-    if (isNaN(balance) || balance < 0) { _shiftErr('shiftCloseErr', 'Enter a valid closing balance (0 or more).'); return; }
+    const closing_details = [];
+    let bad = false;
+    document.querySelectorAll('#closingModes .recon-counted').forEach(function(inp){
+      const v = parseFloat(inp.value);
+      if (isNaN(v) || v < 0) bad = true;
+      closing_details.push({ mode_of_payment: inp.getAttribute('data-mode'), closing_amount: isNaN(v) ? 0 : v });
+    });
+    if (bad) { _shiftErr('shiftCloseErr', 'Enter valid counted amounts (0 or more).'); return; }
     const cashier = document.getElementById('cashierName').value.trim() || frappe.session?.user || 'Staff';
     _shiftErr('shiftCloseErr', '');
     _btnLoad('shiftCloseBtn', true, 'Closing…', 'Close Shift');
     try {
-      const res = await _post('/api/method/luuvcrm.api.pos_close_shift', { closing_balance: balance });
+      const res = await _post('/api/method/luuvcrm.api.pos_close_shift', { closing_details: JSON.stringify(closing_details) });
       if (!res) { _btnLoad('shiftCloseBtn', false, '', 'Close Shift'); return; }
       const data = await res.json();
       if (res.ok && data.message && data.message.shift) {
         window._lastShiftData = data.message.shift;
-        window._lastShiftData.closing_balance = balance;
         window._lastShiftData.cashier_name = cashier;
         updateShiftUI(data.message.shift);
         closeModal('shiftCloseModal');
@@ -2215,6 +2387,7 @@
     if (cancel) cancel.style.display = 'none';
     const hint = document.getElementById('shiftOpenHint');
     if (hint) hint.style.display = 'block';
+    renderOpeningModes();
     openModal('shiftOpenModal');
   }
 
@@ -2347,19 +2520,19 @@
       const items = (o.items || []).map(i =>
         `<div class="oc-item"><span class="oi-name">${escapeHtml(i.item || i.item_name || '')}</span><span class="oi-qty">x${i.qty||1}</span></div>`
       ).join('');
-      return `<div class="order-card ${statusCls}" style="border-left:3px solid #F59E0B;">
+      return `<div class="order-card ${statusCls}" style="border-left:3px solid #F0A323;">
         <div class="oc-left">
           <div class="oc-top">
             <span class="oc-table">&#x1F4E4; ${escapeHtml(o.local_id)}</span>
             <span class="oc-status ongoing" style="background:#FEF3C7;color:#D97706;">${o.status === 'syncing' ? '⏳ Syncing...' : '⏳ Pending'}</span>
           </div>
-          <div style="font-size:0.75rem;color:#6B7280;margin-bottom:4px;">${escapeHtml(o.customer_name||'Walk-in')} · ${escapeHtml(o.table||'—')}</div>
+          <div style="font-size:0.75rem;color:#837A70;margin-bottom:4px;">${escapeHtml(o.customer_name||'Walk-in')} · ${escapeHtml(o.table||'—')}</div>
           <div class="oc-items-list">${items}</div>
           <div class="oc-total-row"><span class="oc-total">LKR ${(parseFloat(o.grand_total)||0).toLocaleString()}</span></div>
-          <div style="font-size:0.68rem;color:#9CA3AF;margin-top:4px;">${new Date(o.created_at).toLocaleString()} · retries: ${o.retry_count||0}</div>
+          <div style="font-size:0.68rem;color:#A89F96;margin-top:4px;">${new Date(o.created_at).toLocaleString()} · retries: ${o.retry_count||0}</div>
         </div>
-        ${o.retry_count > 0 ? `<div class="oc-action"><button onclick="retryOrder('${o.local_id}')" style="background:#F59E0B;">&#x21BB; Retry</button></div>` : ''}
-        <div class="oc-action"><button onclick="deletePending('${o.local_id}')" style="background:#EF4444;">&#x1F5D1;</button></div>
+        ${o.retry_count > 0 ? `<div class="oc-action"><button onclick="retryOrder('${o.local_id}')" style="background:#F0A323;">&#x21BB; Retry</button></div>` : ''}
+        <div class="oc-action"><button onclick="deletePending('${o.local_id}')" style="background:#E23D3D;">&#x1F5D1;</button></div>
       </div>`;
     }).join('');
   }
@@ -2650,6 +2823,120 @@
     } catch(e) { alert('Print error: '+e.message); }
   }
 
+  // ─── Split Bill ──────────────────────────────────────
+  let _split = { order: null, items: [], mode: 'Cash' };
+
+  async function openSplitModal(orderName) {
+    _split = { order: orderName, items: [], mode: 'Cash' };
+    document.getElementById('splitOrderName').textContent = '#' + orderName;
+    _splitErr('');
+    try {
+      const res = await _post('/api/method/luuvcrm.api.get_order_items', { order_name: orderName });
+      if (!res) return;
+      const data = await res.json();
+      const items = (data.message && data.message.items) || [];
+      _split.items = items.filter(function(i){ return (i.remaining || 0) > 0; })
+        .map(function(i){ return { item: i.item, item_name: i.item_name, rate: i.rate, remaining: i.remaining, takeaway: i.takeaway, sel: 0 }; });
+      if (!_split.items.length) { showToast('Nothing left to bill on this order.', true); return; }
+      document.querySelectorAll('#splitPmode .pmode-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.mode === 'Cash'); });
+      renderSplitItems();
+      openModal('splitModal');
+    } catch(e) { showToast('Could not load order', true); }
+  }
+
+  function renderSplitItems() {
+    document.getElementById('splitItems').innerHTML = _split.items.map(function(it, idx){
+      const ta = it.takeaway ? ' <span style="color:#F0A323;font-size:0.6rem;font-weight:800;">🥡 TA</span>' : '';
+      return '<div style="display:flex;align-items:center;gap:8px;border:1px solid #E5E0DB;border-radius:10px;padding:8px 10px;margin-bottom:8px;">'
+        + '<div style="flex:1;"><div style="font-weight:700;font-size:0.85rem;">'+it.item_name+ta+'</div>'
+        + '<div style="font-size:0.7rem;color:#A89F96;">LKR '+it.rate.toLocaleString()+' · '+it.remaining+' left</div></div>'
+        + '<button onclick="splitQty('+idx+',-1)" style="width:30px;height:30px;border:1px solid #E5E0DB;border-radius:8px;background:#F2EFEC;font-size:1rem;cursor:pointer;">−</button>'
+        + '<span style="min-width:22px;text-align:center;font-weight:700;" id="sq-'+idx+'">'+it.sel+'</span>'
+        + '<button onclick="splitQty('+idx+',1)" style="width:30px;height:30px;border:1px solid #E5E0DB;border-radius:8px;background:#F2EFEC;font-size:1rem;cursor:pointer;">+</button>'
+        + '</div>';
+    }).join('');
+    computeSplitTotal();
+  }
+
+  function splitQty(idx, delta) {
+    const it = _split.items[idx];
+    it.sel = Math.max(0, Math.min(it.remaining, it.sel + delta));
+    document.getElementById('sq-' + idx).textContent = it.sel;
+    computeSplitTotal();
+  }
+
+  function computeSplitTotal() {
+    let subtotal = 0, scBase = 0;
+    _split.items.forEach(function(it){ const line = it.rate * it.sel; subtotal += line; if (!it.takeaway) scBase += line; });
+    const scAmount = Math.round(scBase * SERVICE_CHARGE_RATE) / 100;
+    document.getElementById('splitSubtotal').textContent = 'LKR ' + subtotal.toLocaleString();
+    const scRow = document.getElementById('splitScRow');
+    if (SERVICE_CHARGE_RATE > 0 && scBase > 0) {
+      scRow.style.display = '';
+      document.getElementById('splitScRate').textContent = SERVICE_CHARGE_RATE;
+      document.getElementById('splitScAmt').textContent = 'LKR ' + scAmount.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    } else { scRow.style.display = 'none'; }
+    document.getElementById('splitTotal').textContent = 'LKR ' + (subtotal + scAmount).toLocaleString();
+  }
+
+  function selectSplitMode(mode) {
+    _split.mode = mode;
+    document.querySelectorAll('#splitPmode .pmode-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.mode === mode); });
+  }
+
+  function _splitErr(msg) {
+    const el = document.getElementById('splitErr');
+    if (msg) { el.textContent = msg; el.style.display = 'block'; } else { el.style.display = 'none'; }
+  }
+
+  async function paySplit() {
+    const lines = _split.items.filter(function(it){ return it.sel > 0; }).map(function(it){ return { item: it.item, qty: it.sel }; });
+    if (!lines.length) { _splitErr('Select at least one item for this bill.'); return; }
+    _splitErr('');
+    const btn = document.getElementById('splitPayBtn');
+    btn.disabled = true; btn.textContent = 'Processing…';
+    const snapshot = { order: _split.order, items: _split.items.slice(), };
+    try {
+      const res = await _post('/api/method/luuvcrm.api.pay_split', { order_name: _split.order, lines: JSON.stringify(lines), payment_mode: _split.mode });
+      if (!res) { btn.disabled = false; btn.textContent = '✅ Pay This Bill'; return; }
+      const data = await res.json();
+      const d = data.message;
+      if (res.ok && d && d.invoice_name) {
+        printSplitReceipt(snapshot, d);
+        showToast('💰 Bill paid (LKR ' + (d.grand_total||0).toLocaleString() + ')');
+        if (d.fully_paid) {
+          closeModal('splitModal');
+          showToast('✅ Order fully paid');
+          loadOngoingOrders();
+        } else {
+          await openSplitModal(snapshot.order);
+        }
+      } else {
+        _splitErr(_serverMsg(data, 'Could not process this bill.'));
+      }
+    } catch(e) { _splitErr('Connection error. Try again.'); }
+    btn.disabled = false; btn.textContent = '✅ Pay This Bill';
+  }
+
+  function printSplitReceipt(split, d) {
+    const now = new Date();
+    const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+    const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    const lines = split.items.filter(function(it){ return it.sel > 0; });
+    let ih = lines.map(function(i){ return '<tr><td style="padding:4px 0;font-size:13px;">'+i.item_name+' x'+i.sel+'</td><td style="text-align:right;padding:4px 0;font-size:13px;">LKR '+(i.rate*i.sel).toLocaleString()+'</td></tr>'; }).join('');
+    const scHtml = (d.service_charge_amount && d.service_charge_amount > 0) ? '<div style="text-align:right;font-size:13px;padding:4px 0;">Service Charge ('+(d.service_charge_rate||0)+'%): LKR '+(d.service_charge_amount||0).toLocaleString()+'</div>' : '';
+    var w = window.open('','_blank','width=430,height=700');
+    w.document.write('<!DOCTYPE html><html><head><title>Split Bill - '+split.order+'</title><style>body{font-family:Courier New,monospace;font-size:12px;margin:0;padding:16px;color:#000;}.hdr{text-align:center;border-bottom:1px dashed #ccc;padding-bottom:12px;margin-bottom:12px;}.hdr h2{margin:0 0 4px;font-size:16px;}.hdr p{margin:2px 0;color:#555;}table{width:100%;border-collapse:collapse;}.items{border-bottom:1px dashed #ccc;padding-bottom:8px;margin-bottom:8px;}.grand{font-size:16px;font-weight:bold;border-top:1px solid #000;padding-top:4px;text-align:right;}.ftr{text-align:center;border-top:1px dashed #ccc;padding-top:12px;margin-top:12px;color:#888;font-size:11px;}</style></head><body>');
+    w.document.write('<div class="hdr"><h2>Luuv Fryxo</h2><p>SPLIT BILL &middot; #'+split.order+'</p><p>'+ds+' '+ts+'</p></div>');
+    w.document.write('<div style="margin-bottom:8px;font-size:12px;"><p style="margin:2px 0;">Payment: '+(d.payment_mode||'Cash')+'</p><p style="margin:2px 0;">Printed by: '+(window._currentUser || 'Staff')+'</p></div>');
+    w.document.write('<div class="items"><table>'+ih+'</table></div>');
+    w.document.write(scHtml);
+    w.document.write('<div class="grand">Total: LKR '+(d.grand_total||0).toLocaleString()+'</div>');
+    w.document.write('<div class="ftr"><p>Thank you!</p><p style="font-size:10px;">Invoice: '+(d.invoice_name||'---')+'</p></div>');
+    w.document.write('<script>window.onload=function(){window.print();window.close();}<'+'/script></body></html>');
+    w.document.close();
+  }
+
   async function printReceipt(orderName) {
     const name = orderName || window._lastPrintedOrder;
     if (!name) { alert('No order to print'); return; }
@@ -2759,7 +3046,7 @@
       const now = new Date();
       const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
       const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-      let ih = d.items.map(function(i){ return '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+'</td></tr>'; }).join('');
+      let ih = d.items.map(function(i){ var ta = i.takeaway ? ' <strong>[TAKE AWAY]</strong>' : ''; return '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+ta+'</td></tr>'; }).join('');
       var fr = document.getElementById('kotPrintFrame');
       if (!fr) {
         fr = document.createElement('iframe');
@@ -2770,7 +3057,12 @@
       var w = fr.contentWindow;
       w.document.write('<!DOCTYPE html><html><head><title>KOT - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .kl{font-size:11px;color:#333;font-weight:bold;margin:4px 0 0;}.hdr h3{margin:4px 0 0;font-size:14px;}.meta{text-align:center;margin-bottom:10px;font-size:13px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}.items{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin:8px 0;}hr{border:none;border-top:1px dashed #ccc;margin:8px 0;}.bl{text-align:center;margin:6px 0;font-size:11px;letter-spacing:1px;}.ftr{text-align:center;margin-top:10px;font-size:10px;color:#888;}</style></head><body>');
       w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');
-      w.document.write('<div class="meta"><p><strong>Table:</strong> '+(d.table||'---')+'</p><p><strong>Source:</strong> '+(d.order_source||'Walk-in')+'</p>');
+      var otype = (d.order_type||'').trim();
+      var headerLine;
+      if (otype === 'Take Away') headerLine = '<p style="font-size:16px;font-weight:bold;">&#x1F961; TAKE AWAY</p>';
+      else if (otype === 'Delivery') headerLine = '<p style="font-size:16px;font-weight:bold;">&#x1F6F5; DELIVERY</p>';
+      else headerLine = '<p><strong>Table:</strong> '+(d.table||'---')+'</p>';
+      w.document.write('<div class="meta">'+headerLine+'<p><strong>Source:</strong> '+(d.order_source||'Walk-in')+'</p>');
       if(d.waiter_name) w.document.write('<p><strong>Waiter:</strong> '+d.waiter_name+'</p>');
       w.document.write('<p><strong>Printed by:</strong> '+(window._currentUser || 'Staff')+'</p>');
       w.document.write('<p><strong>'+ds+' '+ts+'</strong></p></div>');
@@ -2812,7 +3104,7 @@
         document.body.appendChild(fr);
       }
       var w = fr.contentWindow;
-      w.document.write('<!DOCTYPE html><html><head><title>Guest Check - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .sub{font-size:11px;color:#EF4444;font-weight:bold;margin:4px 0 0;letter-spacing:1px;}.meta{text-align:center;margin-bottom:8px;font-size:12px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}th{font-size:11px;color:#6B7280;padding:3px 0;border-bottom:1px solid #000;}td{padding:3px 0;}hr{border:none;border-top:1px dashed #ccc;margin:6px 0;}.totals{text-align:right;margin-top:6px;font-size:13px;}.totals p{margin:2px 0;}.grand{font-size:16px;font-weight:700;border-top:2px solid #000;padding-top:4px;margin-top:4px;}.ftr{text-align:center;margin-top:12px;font-size:10px;color:#888;border-top:1px dashed #000;padding-top:8px;}.sig{text-align:center;margin-top:10px;font-size:11px;}</style></head><body>');
+      w.document.write('<!DOCTYPE html><html><head><title>Guest Check - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .sub{font-size:11px;color:#E23D3D;font-weight:bold;margin:4px 0 0;letter-spacing:1px;}.meta{text-align:center;margin-bottom:8px;font-size:12px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}th{font-size:11px;color:#837A70;padding:3px 0;border-bottom:1px solid #000;}td{padding:3px 0;}hr{border:none;border-top:1px dashed #ccc;margin:6px 0;}.totals{text-align:right;margin-top:6px;font-size:13px;}.totals p{margin:2px 0;}.grand{font-size:16px;font-weight:700;border-top:2px solid #000;padding-top:4px;margin-top:4px;}.ftr{text-align:center;margin-top:12px;font-size:10px;color:#888;border-top:1px dashed #000;padding-top:8px;}.sig{text-align:center;margin-top:10px;font-size:11px;}</style></head><body>');
       w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="sub">--- GUEST CHECK ---</div><h3>#'+d.order_name+'</h3></div>');
       w.document.write('<div class="meta"><p><strong>Table:</strong> '+(d.table||'---')+' | <strong>'+d.order_type+'</strong></p>');
       if(d.waiter_name) w.document.write('<p><strong>Waiter:</strong> '+d.waiter_name+'</p>');
@@ -2823,7 +3115,7 @@
       w.document.write('<p>Subtotal: LKR '+subtotal.toLocaleString()+'</p>');
       if(scAmt > 0) w.document.write('<p>Service Charge ('+scRate+'%): LKR '+scAmt.toLocaleString()+'</p>');
       w.document.write('<p class="grand">Grand Total: LKR '+d.grand_total.toLocaleString()+'</p></div>');
-      w.document.write('<div class="ftr"><p style="color:#EF4444;font-weight:700;">This is not a bill — for verification only</p>');
+      w.document.write('<div class="ftr"><p style="color:#E23D3D;font-weight:700;">This is not a bill — for verification only</p>');
       w.document.write('<p>Please verify all items before payment</p>');
       w.document.write('<p>Luuv Fryxo &middot; Thank you!</p></div>');
       w.document.close();
@@ -2853,9 +3145,11 @@
     var modes = pr.length ? pr : Object.keys(pb).map(function(m){ return {mode_of_payment:m,opening_amount:0,expected_amount:pb[m]||0,closing_amount:pb[m]||0,difference:0}; });
     var rows = modes.map(function(r){
       var mop = r.mode_of_payment || '';
-      return '<tr><td style="padding:3px 0;font-size:13px;">'+mop+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.opening_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.expected_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.closing_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;'+(r.difference<0?'color:#EF4444;':'')+'">'+(r.difference>=0?'+':'')+(r.difference||0).toLocaleString()+'</td></tr>';
+      return '<tr><td style="padding:3px 0;font-size:13px;">'+mop+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.opening_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.expected_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;">LKR '+(r.closing_amount||0).toLocaleString()+'</td><td style="padding:3px 0;font-size:13px;text-align:right;'+(r.difference<0?'color:#E23D3D;':'')+'">'+(r.difference>=0?'+':'')+(r.difference||0).toLocaleString()+'</td></tr>';
     }).join('');
-    var diff = (d.closing_balance||0) - ((d.opening_balance||0)+(d.total_sales||0));
+    var totExpected = modes.reduce(function(s,r){ return s+(r.expected_amount||0); }, 0);
+    var totClosing = modes.reduce(function(s,r){ return s+(r.closing_amount||0); }, 0);
+    var diff = totClosing - totExpected;
     var cashierName = d.cashier_name || d.cashier || '________________________';
     var fr = document.getElementById('kotPrintFrame');
     if (!fr) {
@@ -2876,9 +3170,9 @@
     w.document.write('<div style="text-align:right;font-size:14px;"><p><strong>Opening:</strong> LKR '+(d.opening_balance||0).toLocaleString()+'</p>');
     w.document.write('<p><strong>Total Sales:</strong> LKR '+(d.total_sales||0).toLocaleString()+'</p>');
     w.document.write('<p><strong>Order Count:</strong> '+(d.order_count||0)+'</p>');
-    w.document.write('<p class="total"><strong>Expected:</strong> LKR '+((d.opening_balance||0)+(d.total_sales||0)).toLocaleString()+'</p>');
-    w.document.write('<p><strong>Closing:</strong> LKR '+(d.closing_balance||0).toLocaleString()+'</p>');
-    w.document.write('<p style="'+(diff<0?'color:#EF4444;':'')+'"><strong>Difference:</strong> '+(diff>=0?'+':'')+diff.toLocaleString()+'</p></div>');
+    w.document.write('<p class="total"><strong>Expected:</strong> LKR '+totExpected.toLocaleString()+'</p>');
+    w.document.write('<p><strong>Counted:</strong> LKR '+totClosing.toLocaleString()+'</p>');
+    w.document.write('<p style="'+(diff<0?'color:#E23D3D;':'')+'"><strong>Difference:</strong> '+(diff>=0?'+':'')+diff.toLocaleString()+'</p></div>');
     w.document.write('<div class="sig"><strong>Cashier Signature:</strong><div class="sig-line">'+cashierName+'</div></div>');
     w.document.write('<div class="ftr"><p>Luuv Fryxo &middot; Shift Summary</p></div>');
     w.document.close();
@@ -2959,7 +3253,7 @@ function updateSyncUI() {
     const online = navigator.onLine;
     if (dot) {
       dot.className = 'dot ' + (online ? 'open' : 'closed');
-      dot.style.background = online ? '#22C55E' : '#EF4444';
+      dot.style.background = online ? '#22C55E' : '#E23D3D';
     }
     if (label) label.textContent = online ? (count > 0 ? 'Online (' + count + ' pending)' : 'Online') : 'Offline';
     if (syncBtn) syncBtn.style.display = (online && count > 0) ? 'inline-flex' : 'none';
