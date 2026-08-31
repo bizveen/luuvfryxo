@@ -10,6 +10,8 @@ app_include_css = "/assets/luuvcrm/css/luuvcrm_desk.css"
 extend_website_context = ["luuvcrm.overrides.branding.update_website_context"]
 boot_session = ["luuvcrm.overrides.branding.boot_session"]
 
+after_migrate = ["luuvcrm.setup_doctype.execute"]
+
 doc_events = {
     "WhatsApp Message": {
         "after_insert": "luuvcrm.api.process_wa_reply",

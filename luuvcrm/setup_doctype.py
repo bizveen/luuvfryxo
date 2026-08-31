@@ -14,7 +14,7 @@ def create_item_review_doctype():
         "doctype": "DocType",
         "name": "Item Review",
         "module": "Zeloura",
-        "custom": 0,
+        "custom": 1,
         "fields": [
             {"fieldname": "item", "label": "Item", "fieldtype": "Link", "options": "Item", "reqd": 1, "in_list_view": 1},
             {"fieldname": "customer_name", "label": "Customer Name", "fieldtype": "Data", "reqd": 1, "in_list_view": 1},
@@ -35,7 +35,12 @@ def add_custom_fields():
         {"dt": "Item", "fieldname": "speciality_tags", "label": "Speciality Tags", "fieldtype": "Small Text", "description": "Comma-separated: Chef's Special, Most Popular, Spicy, Vegan, Gluten-Free"},
         {"dt": "Item", "fieldname": "youtube_url", "label": "YouTube Video URL", "fieldtype": "Data"},
         {"dt": "Item", "fieldname": "prep_time", "label": "Preparation Time (mins)", "fieldtype": "Int"},
+        {"dt": "Item", "fieldname": "kitchen_group", "label": "Kitchen Group", "fieldtype": "Data"},
+        {"dt": "POS Order", "fieldname": "order_type", "label": "Order Type", "fieldtype": "Data", "default": "Dine-In"},
+        {"dt": "POS Order Item", "fieldname": "sent_qty", "label": "Sent Qty", "fieldtype": "Int", "default": 0},
+        {"dt": "POS Order Item", "fieldname": "notes", "label": "Notes", "fieldtype": "Small Text"},
         {"dt": "Restaurant", "fieldname": "service_charge", "label": "Service Charge (%)", "fieldtype": "Percent", "description": "Service charge percentage added to all orders", "insert_after": "phone"},
+        {"dt": "Restaurant", "fieldname": "guide_commission_percent", "label": "Guide Commission (%)", "fieldtype": "Percent", "description": "Guide commission percentage"},
     ]
     for f in fields:
         if not frappe.db.exists("Custom Field", {"dt": f["dt"], "fieldname": f["fieldname"]}):
@@ -45,8 +50,10 @@ def add_custom_fields():
                 "fieldname": f["fieldname"],
                 "label": f["label"],
                 "fieldtype": f["fieldtype"],
+                "options": f.get("options", ""),
                 "description": f.get("description", ""),
-                "insert_after": "image",
+                "default": f.get("default", ""),
+                "insert_after": f.get("insert_after", ""),
             })
             cf.insert()
             print(f"Added {f['fieldname']} to {f['dt']}")

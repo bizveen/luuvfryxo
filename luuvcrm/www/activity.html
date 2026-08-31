@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Activity · Luuv Fryxo</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<meta name="theme-color" content="#F15207">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="/lferr.js?v=1" data-app="activity"></script>
+<style>
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;
+  --gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
+  --gray-500:#837A70;--gray-700:#423D38;--gray-900:#1A1714;--ink:#141210;
+  --green-500:#1E9E5A;--amber-500:#F0A323;--red-500:#E23D3D;--blue-500:#2D74D6;--indigo-500:#5B5BD6;
+  --color-primary:var(--orange-500);--text-strong:var(--gray-900);--text-body:var(--gray-700);
+  --text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);
+  --border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;
+  --color-warning:var(--amber-500);--color-warning-subtle:#FDF1DC;
+  --color-success:var(--green-500);--color-success-subtle:#E6F5EC;
+  --color-info:var(--blue-500);--color-info-subtle:#E6EFFB;
+  --font-display:'Poppins',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;--font-mono:'DM Mono',ui-monospace,monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-pill:999px;
+  --shadow-xs:0 1px 2px rgba(20,18,16,.06);
+  --shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
+  --shadow-lg:0 12px 28px rgba(20,18,16,.12),0 4px 8px rgba(20,18,16,.06);
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0;font-family:var(--font-body);color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased;}
+button,input,select{font-family:inherit;}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px 70px;}
+header{display:flex;align-items:center;gap:14px;padding:22px 0 18px;}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);font-family:var(--font-display);font-weight:800;font-size:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 3px var(--orange-50);}
+.iconbtn{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer;text-decoration:none;}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+.stat{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow-xs);}
+.stat.alert{border-left:4px solid var(--color-danger);}
+.stat .l{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);}
+.stat .v{font-family:var(--font-mono);font-size:26px;color:var(--text-strong);margin-top:4px;}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;}
+.chip{border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff;}
+.chip.flagchip.on{background:var(--color-danger);border-color:var(--color-danger);}
+select,input[type=search]{border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:7px 13px;font-size:13px;font-weight:600;outline:none;}
+input[type=search]{min-width:200px;font-weight:500;}
+.tag{display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:11px;line-height:1;letter-spacing:.02em;padding:5px 9px;border-radius:var(--radius-pill);}
+.row{display:flex;align-items:flex-start;gap:12px;background:var(--surface-card);border:1px solid var(--border-subtle);border-left:4px solid var(--border-subtle);border-radius:var(--radius-md);padding:11px 14px;margin-bottom:7px;box-shadow:var(--shadow-xs);}
+.row.flagged{border-left-color:var(--color-danger);background:#fffaf9;}
+.row.flagged.done{opacity:.5;border-left-color:var(--color-success);background:var(--surface-card);}
+.row .t{font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted);width:64px;flex:none;padding-top:2px;}
+.row .who{font-size:12.5px;font-weight:700;color:var(--text-body);width:96px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-top:2px;}
+.row .body{flex:1;min-width:0;}
+.row .lbl{font-size:14px;font-weight:700;color:var(--text-strong);line-height:1.3;}
+.row .sub{font-size:12.5px;color:var(--text-muted);margin-top:3px;word-break:break-word;}
+.row .amt{font-family:var(--font-mono);font-size:14px;color:var(--text-strong);text-align:right;flex:none;min-width:120px;padding-top:1px;}
+.row .amt .delta{display:block;font-size:11.5px;color:var(--text-muted);margin-top:2px;}
+.up{color:var(--color-danger);}.down{color:var(--color-success);}
+.act{border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:6px 13px;font-size:12.5px;font-weight:700;cursor:pointer;}
+.act.primary{background:var(--color-success);border-color:var(--color-success);color:#fff;}
+.act.ghost{border-color:var(--border-subtle);color:var(--text-muted);}
+.linkish{color:var(--color-primary);font-weight:700;cursor:pointer;text-decoration:none;}
+.empty{text-align:center;color:var(--text-muted);padding:44px 0;font-size:14px;}
+/* bill trail drawer */
+.ov{position:fixed;inset:0;background:rgba(20,18,16,.42);display:none;align-items:flex-end;justify-content:center;z-index:60;}
+.ov.on{display:flex;}
+.sheet{background:var(--surface-card);width:100%;max-width:760px;max-height:88vh;border-radius:var(--radius-xl) var(--radius-xl) 0 0;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);}
+.sheet h3{font-family:var(--font-display);font-size:18px;color:var(--text-strong);margin:0;}
+.sheet .head{padding:18px 20px 12px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:flex-start;gap:12px;}
+.sheet .scroll{overflow-y:auto;padding:14px 20px 24px;}
+.tl{position:relative;padding-left:20px;}
+.tl::before{content:'';position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--border-subtle);}
+.tli{position:relative;padding:8px 0;}
+.tli::before{content:'';position:absolute;left:-19px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--border-default);border:2px solid var(--surface-card);}
+.tli.flagged::before{background:var(--color-danger);}
+.tli .l1{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;}
+.tli .tm{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);}
+.tli .nm{font-size:14px;font-weight:700;color:var(--text-strong);}
+.tli .mv{font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted);margin-left:auto;}
+.tli .l2{font-size:12.5px;color:var(--text-muted);margin-top:2px;}
+pre{background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px;font-family:var(--font-mono);font-size:11.5px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-word;color:var(--text-body);margin:7px 0 0;}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:80;box-shadow:var(--shadow-lg);}
+@media(max-width:640px){
+  .row{flex-wrap:wrap;}
+  .row .who{width:auto;}
+  .row .amt{min-width:0;margin-left:auto;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="avatar">{{ (current_user_full[0]|upper) if current_user_full else "A" }}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);line-height:1.15;">Staff activity</div>
+      <div style="font-size:12.5px;color:var(--text-muted);" id="subline">Who did what, on which bill</div>
+    </div>
+    <a href="/manager" class="iconbtn" title="Manager"><i data-lucide="line-chart" style="width:18px;height:18px;"></i></a>
+    <a href="/admin" class="iconbtn" title="Admin hub"><i data-lucide="layout-grid" style="width:18px;height:18px;"></i></a>
+  </header>
+
+  <div class="stats">
+    <div class="stat alert"><div class="l">Needs a look</div><div class="v" id="stFlags">—</div></div>
+    <div class="stat"><div class="l">Actions</div><div class="v" id="stRows">—</div></div>
+    <div class="stat"><div class="l">Staff</div><div class="v" id="stUsers">—</div></div>
+    <div class="stat"><div class="l">Apps</div><div class="v" id="stApps">—</div></div>
+  </div>
+
+  <div class="chips">
+    <button class="chip flagchip" id="chipFlag" onclick="toggleFlag()">⚠ Flags</button>
+    <span id="chipApps" style="display:contents;"></span>
+  </div>
+  <div class="chips">
+    <select id="selUser" onchange="load()"><option value="all">Everyone</option></select>
+    <select id="selDays" onchange="load()">
+      <option value="1">Today</option>
+      <option value="3">Last 3 days</option>
+      <option value="7">Last 7 days</option>
+      <option value="30">Last 30 days</option>
+    </select>
+    <input type="search" id="q" placeholder="Bill no, item, staff…" onkeydown="if(event.key==='Enter')load()">
+    <button class="act" onclick="load()">Search</button>
+    <button class="act ghost" onclick="openTrailPrompt()">Open a bill trail</button>
+  </div>
+
+  <div id="list"><div class="empty">Loading…</div></div>
+
+  <div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap;">
+    <button class="act" onclick="load()">Refresh</button>
+    <button class="act ghost" onclick="clearLog('reviewed')">Clear reviewed</button>
+    <button class="act ghost" onclick="clearLog('unflagged')">Clear un-flagged</button>
+  </div>
+</div>
+
+<div class="ov" id="ov" onclick="if(event.target===this)closeTrail()">
+  <div class="sheet">
+    <div class="head">
+      <div style="flex:1;min-width:0;">
+        <h3 id="trailTitle">Bill trail</h3>
+        <div style="font-size:12.5px;color:var(--text-muted);" id="trailSub"></div>
+      </div>
+      <button class="iconbtn" onclick="closeTrail()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="scroll" id="trailBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+const PRESET_BILL = {{ (preset_bill or "")|tojson }};
+const PRESET_ORDER = {{ (preset_order or "")|tojson }};
+let state = { app:'all', flagged:0, rows:[], labels:{} };
+
+function icons(){ try{ lucide.createIcons(); }catch(e){} }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2300); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function nfmt(n){ return (Math.round(Number(n)||0)).toLocaleString(); }
+function hhmm(s){ const d=new Date((s||'').replace(' ','T')); return isNaN(d)?'':d.toTimeString().slice(0,5); }
+function hms(s){ const d=new Date((s||'').replace(' ','T')); return isNaN(d)?'':d.toTimeString().slice(0,8); }
+
+async function call(method, params){
+  const body = new URLSearchParams(params||{});
+  const r = await fetch('/api/method/luuvcrm.activity.'+method, {
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/x-www-form-urlencoded','X-Frappe-CSRF-Token':CSRF},
+    body: body.toString()
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error((j.exc_type||'')+' '+(j._server_messages||r.status));
+  return j.message || {};
+}
+
+/* ── list ─────────────────────────────────────────────────────────────── */
+async function load(){
+  const params = {
+    app: state.app, flagged: state.flagged,
+    user: document.getElementById('selUser').value,
+    days: document.getElementById('selDays').value,
+    search: document.getElementById('q').value.trim(),
+    limit: 250
+  };
+  try{
+    const d = await call('get_activity', params);
+    state.rows = d.rows||[]; state.labels = d.flag_labels||{};
+    document.getElementById('stFlags').textContent = d.flag_count||0;
+    document.getElementById('stRows').textContent = state.rows.length;
+    document.getElementById('stUsers').textContent = (d.users||[]).length;
+    document.getElementById('stApps').textContent = (d.apps||[]).length;
+    renderApps(d.apps||[]);
+    renderUsers(d.users||[]);
+    renderList();
+  }catch(e){ document.getElementById('list').innerHTML='<div class="empty">Could not load the activity log.</div>'; }
+}
+
+function renderApps(apps){
+  const wrap = document.getElementById('chipApps');
+  wrap.innerHTML = ['all'].concat(apps).map(a=>
+    `<button class="chip ${state.app===a?'on':''}" onclick="setApp('${esc(a)}')">${a==='all'?'All apps':esc(a)}</button>`
+  ).join('');
+}
+function renderUsers(users){
+  const sel = document.getElementById('selUser'); const cur = sel.value;
+  sel.innerHTML = '<option value="all">Everyone</option>' +
+    users.map(u=>`<option value="${esc(u.user)}">${esc(u.name)}</option>`).join('');
+  if([...sel.options].some(o=>o.value===cur)) sel.value = cur;
+}
+function setApp(a){ state.app=a; load(); }
+function toggleFlag(){
+  state.flagged = state.flagged?0:1;
+  document.getElementById('chipFlag').classList.toggle('on', !!state.flagged);
+  load();
+}
+
+function moneyCell(r){
+  const a = r.amount, b = r.total_before, af = r.total_after;
+  let main = (a===null||a===undefined||a==='') ? '' : (a<0?'−':'')+nfmt(Math.abs(a));
+  let delta = '';
+  if(b!==null&&b!==undefined&&af!==null&&af!==undefined&&(b||af)){
+    const up = af>b;
+    delta = `<span class="delta ${up?'up':'down'}">${nfmt(b)} → ${nfmt(af)}</span>`;
+  }
+  return main||delta ? `<div class="amt">${main}${delta}</div>` : '';
+}
+
+function rowHtml(r){
+  const bits = [];
+  if(r.bill_no) bits.push(`<span class="linkish" onclick="event.stopPropagation();openTrail('${esc(r.ref_name)}','${esc(r.bill_no)}')">#${esc(r.bill_no)}</span>`);
+  if(r.table) bits.push(esc((r.table||'').split('-').pop()));
+  if(r.item_name) bits.push(esc(r.item_name) + (r.qty?(' ×'+nfmt(Math.abs(r.qty))):''));
+  if(r.source==='client') bits.push('tap');
+  if(!r.ok) bits.push('<span style="color:var(--color-danger);font-weight:700;">failed</span>');
+  const flag = r.flag ? `<span class="tag" style="background:var(--color-danger-subtle);color:var(--color-danger);">⚠ ${esc(r.flag_label||'')}</span>` : '';
+  const note = r.flag && r.flag_note ? `<div class="sub" style="color:var(--color-danger);">${esc(r.flag_note)}</div>` : '';
+  const btn = r.flag ? `<button class="act ${r.reviewed?'ghost':'primary'}" style="margin-top:7px;" onclick="event.stopPropagation();review('${r.name}',${r.reviewed?0:1})">${r.reviewed?'Un-tick':'Checked'}</button>` : '';
+  return `<div class="row ${r.flag?'flagged':''} ${r.reviewed?'done':''}" onclick="openTrail('${esc(r.ref_name)}','${esc(r.bill_no)}')">
+    <div class="t">${hhmm(r.creation)}</div>
+    <div class="who">${esc(r.who)}</div>
+    <div class="body">
+      <div class="lbl">${esc(r.label||r.action)} ${flag}</div>
+      ${bits.length?`<div class="sub">${bits.join(' · ')}</div>`:''}
+      ${note}${btn}
+    </div>
+    ${moneyCell(r)}
+  </div>`;
+}
+
+function renderList(){
+  const el = document.getElementById('list');
+  if(!state.rows.length){ el.innerHTML='<div class="empty">Nothing logged for this filter.</div>'; return; }
+  let out = '', lastDay = '';
+  state.rows.forEach(r=>{
+    const day = (r.creation||'').slice(0,10);
+    if(day!==lastDay){ lastDay=day;
+      out += `<div style="font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin:16px 0 8px;">${esc(day)}</div>`; }
+    out += rowHtml(r);
+  });
+  el.innerHTML = out; icons();
+}
+
+async function review(name, on){
+  try{ await call('review_activity_flag', {name:name, reviewed:on}); toast(on?'Marked checked':'Re-opened'); load(); }
+  catch(e){ toast('Could not save'); }
+}
+
+async function clearLog(scope){
+  const what = scope==='reviewed' ? 'checked-off rows' : 'un-flagged rows';
+  if(!window.confirm('Delete all '+what+'? This cannot be undone.')) return;
+  try{ const d = await call('clear_activity', {scope:scope}); toast('Deleted '+(d.deleted||0)); load(); }
+  catch(e){ toast('Could not clear'); }
+}
+
+/* ── one bill, tap by tap ─────────────────────────────────────────────── */
+function openTrailPrompt(){
+  const b = window.prompt('Bill number (the # on the receipt)');
+  if(b && b.trim()) openTrail('', b.trim());
+}
+
+async function openTrail(order, bill){
+  if(!order && !bill) return;
+  document.getElementById('ov').classList.add('on');
+  document.getElementById('trailTitle').textContent = bill ? ('Bill #'+bill) : 'Bill trail';
+  document.getElementById('trailSub').textContent = '';
+  document.getElementById('trailBody').innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const d = await call('get_bill_trail', {order:order||'', bill:bill||''});
+    renderTrail(d);
+  }catch(e){ document.getElementById('trailBody').innerHTML='<div class="empty">Could not load this bill.</div>'; }
+}
+function closeTrail(){ document.getElementById('ov').classList.remove('on'); }
+
+function renderTrail(d){
+  const h = d.head||{};
+  if(h.order){
+    document.getElementById('trailSub').textContent =
+      [h.table?('Table '+String(h.table).split('-').pop()):'', h.opened_by?('opened by '+h.opened_by):'',
+       h.grand_total?('LKR '+nfmt(h.grand_total)):''].filter(Boolean).join(' · ');
+  }
+  const rows = d.rows||[];
+  if(!rows.length){ document.getElementById('trailBody').innerHTML='<div class="empty">No activity recorded for this bill.<br><span style="font-size:12.5px;">Bills created before the activity trail went live will be empty.</span></div>'; return; }
+  let out = '<div class="tl">';
+  rows.forEach(r=>{
+    const mv = (r.total_before!==null&&r.total_after!==null&&(r.total_before||r.total_after))
+      ? `${nfmt(r.total_before)} → ${nfmt(r.total_after)}` : (r.amount?nfmt(r.amount):'');
+    const sub = [];
+    if(r.item_name) sub.push(esc(r.item_name)+(r.qty?(' ×'+nfmt(Math.abs(r.qty))):''));
+    if(r.who) sub.push(esc(r.who));
+    if(r.source==='client') sub.push('tap'); else if(r.source==='request') sub.push('api');
+    if(r.flag && r.flag_note) sub.push(`<span style="color:var(--color-danger);font-weight:700;">⚠ ${esc(r.flag_label)} — ${esc(r.flag_note)}</span>`);
+    out += `<div class="tli ${r.flag?'flagged':''}">
+      <div class="l1"><span class="tm">${hms(r.creation)}</span>
+        <span class="nm">${esc(r.label||r.action)}</span>
+        <span class="mv">${mv}</span></div>
+      ${sub.length?`<div class="l2">${sub.join(' · ')}</div>`:''}
+    </div>`;
+  });
+  out += '</div>';
+  document.getElementById('trailBody').innerHTML = out; icons();
+}
+
+/* ── init ─────────────────────────────────────────────────────────────── */
+icons();
+load();
+setInterval(load, 30000);
+if(PRESET_BILL || PRESET_ORDER) openTrail(PRESET_ORDER, PRESET_BILL);
+</script>
+</body>
+</html>

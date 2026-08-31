@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Errors · Luuv Fryxo</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<meta name="theme-color" content="#F15207">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="/lferr.js?v=1" data-app="errors"></script>
+<style>
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;
+  --gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
+  --gray-500:#837A70;--gray-700:#423D38;--gray-900:#1A1714;--ink:#141210;
+  --green-500:#1E9E5A;--amber-500:#F0A323;--red-500:#E23D3D;--blue-500:#2D74D6;
+  --color-primary:var(--orange-500);--text-strong:var(--gray-900);--text-body:var(--gray-700);
+  --text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);
+  --border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;
+  --color-warning:var(--amber-500);--color-warning-subtle:#FDF1DC;
+  --color-success:var(--green-500);--color-success-subtle:#E6F5EC;
+  --color-info:var(--blue-500);--color-info-subtle:#E6EFFB;
+  --font-display:'Poppins',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;--font-mono:'DM Mono',ui-monospace,monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-pill:999px;
+  --shadow-xs:0 1px 2px rgba(20,18,16,.06);
+  --shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
+  --shadow-lg:0 12px 28px rgba(20,18,16,.12),0 4px 8px rgba(20,18,16,.06);
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0;font-family:var(--font-body);color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased;}
+button{font-family:inherit;}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.wrap{max-width:1060px;margin:0 auto;padding:0 22px 70px;}
+header{display:flex;align-items:center;gap:14px;padding:22px 0 18px;}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);font-family:var(--font-display);font-weight:800;font-size:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 3px var(--orange-50);}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;}
+.stat{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow-xs);}
+.stat .l{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);}
+.stat .v{font-family:var(--font-mono);font-size:26px;color:var(--text-strong);margin-top:4px;}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
+.chip{border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff;}
+.tag{display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:11px;line-height:1;letter-spacing:.02em;padding:5px 9px;border-radius:var(--radius-pill);}
+.card{background:var(--surface-card);border:1px solid var(--border-subtle);border-left:4px solid var(--border-default);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow-xs);margin-bottom:11px;}
+.card.resolved{opacity:.55;}
+.msg{font-family:var(--font-mono);font-size:13.5px;color:var(--text-strong);word-break:break-word;line-height:1.5;margin:9px 0 7px;}
+.meta{font-size:12px;color:var(--text-muted);word-break:break-all;}
+.act{border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:6px 13px;font-size:12.5px;font-weight:700;cursor:pointer;}
+.act.primary{background:var(--color-success);border-color:var(--color-success);color:#fff;}
+pre{background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:11px;font-family:var(--font-mono);font-size:12px;line-height:1.55;overflow-x:auto;white-space:pre-wrap;word-break:break-word;color:var(--text-body);margin:10px 0 0;}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:50;box-shadow:var(--shadow-lg);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="avatar">{{ (current_user_full[0]|upper) if current_user_full else "A" }}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);line-height:1.15;">Front-end errors</div>
+      <div style="font-size:12.5px;color:var(--text-muted);" id="subline">What actually broke on the staff's phones</div>
+    </div>
+    <a href="/admin" title="Admin hub" style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="layout-grid" style="width:18px;height:18px;"></i></a>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="l">Open</div><div class="v" id="stOpen">—</div></div>
+    <div class="stat"><div class="l">Total hits</div><div class="v" id="stHits">—</div></div>
+    <div class="stat"><div class="l">Apps affected</div><div class="v" id="stApps">—</div></div>
+    <div class="stat"><div class="l">Showing</div><div class="v" id="stShown">—</div></div>
+  </div>
+
+  <div class="chips" id="chipStatus"></div>
+  <div class="chips" id="chipApp"></div>
+
+  <div id="list"></div>
+
+  <div style="display:flex;gap:10px;margin-top:22px;">
+    <button class="act" onclick="load()"><i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:-2px;"></i> Refresh</button>
+    <button class="act" onclick="clearResolved()">Delete resolved rows</button>
+  </div>
+  <div style="font-size:12px;color:var(--text-faint);margin-top:14px;line-height:1.6;">
+    Identical errors are grouped — “hits” is how many times it happened. Marking one fixed hides it;
+    if it happens again it comes back on its own. Errors inside a <span class="mono">catch(e){}</span>
+    that the app swallows silently cannot be seen here.
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+let fStatus='open', fApp='', rows=[], apps=[], openIds={};
+function icons(){ try{ window.lucide&&window.lucide.createIcons(); }catch(e){} }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2600); }
+async function _post(url,data){
+  try{
+    const b=new URLSearchParams(); b.set('csrf_token',CSRF);
+    for(const[k,v] of Object.entries(data||{})) b.set(k,v);
+    const r=await fetch(url,{method:'POST',credentials:'include',headers:{'X-Frappe-CSRF-Token':CSRF,'Content-Type':'application/x-www-form-urlencoded'},body:b.toString()});
+    if(r.status===401||r.status===403){ location.href='/pos-login?redirect=/errors'; return null; }
+    return r.json();
+  }catch(e){ return null; }
+}
+
+const KIND={
+  js:      ['var(--color-danger)','var(--color-danger-subtle)','crash'],
+  promise: ['var(--color-danger)','var(--color-danger-subtle)','promise'],
+  api:     ['#9a6207','var(--color-warning-subtle)','server'],
+  resource:['var(--color-info)','var(--color-info-subtle)','asset'],
+  console: ['var(--text-muted)','var(--gray-100)','logged'],
+  manual:  ['var(--color-success)','var(--color-success-subtle)','app'],
+};
+// A crash and a failed asset load are not the same emergency — colour the left rail by kind.
+function railOf(k){ return (KIND[k]||KIND.js)[0]; }
+
+function chips(){
+  const st=[['open','Open'],['resolved','Fixed'],['','All']];
+  document.getElementById('chipStatus').innerHTML=st.map(([v,l])=>
+    `<button class="chip ${fStatus===v?'on':''}" onclick="setStatus('${v}')">${l}</button>`).join('');
+  const all=[''].concat(apps);
+  document.getElementById('chipApp').innerHTML=all.length>1?all.map(a=>
+    `<button class="chip ${fApp===a?'on':''}" onclick="setApp('${esc(a)}')">${a?esc(a):'Every app'}</button>`).join(''):'';
+}
+function setStatus(v){ fStatus=v; load(); }
+function setApp(v){ fApp=v; load(); }
+function toggle(name){ openIds[name]=!openIds[name]; render(); }
+
+function render(){
+  document.getElementById('stShown').textContent=rows.length;
+  document.getElementById('stHits').textContent=rows.reduce((a,r)=>a+(r.hits||1),0);
+  document.getElementById('stApps').textContent=new Set(rows.map(r=>r.app)).size;
+  document.getElementById('list').innerHTML=rows.length?rows.map(r=>{
+    const k=KIND[r.kind]||KIND.js, open=!!openIds[r.name];
+    const where=[r.source?esc(r.source):'', r.line?('line '+r.line):''].filter(Boolean).join(' · ');
+    return `<div class="card ${r.status==='resolved'?'resolved':''}" style="border-left-color:${railOf(r.kind)};">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="tag" style="background:${k[1]};color:${k[0]};">${k[2]}</span>
+        <span class="tag" style="background:var(--orange-50);color:var(--orange-700);">${esc(r.app)}</span>
+        ${(r.hits||1)>1?`<span class="tag mono" style="background:var(--gray-100);color:var(--text-body);">×${r.hits}</span>`:''}
+        <span style="flex:1;"></span>
+        <span style="font-size:12px;color:var(--text-muted);">${esc(r.when)}</span>
+      </div>
+      <div class="msg">${esc(r.message)}</div>
+      <div class="meta">${where||'—'}${r.page?(' · '+esc(r.page)):''}${r.user?(' · '+esc(r.user)):''}</div>
+      <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap;">
+        <button class="act" onclick="toggle('${esc(r.name)}')">${open?'Hide details':'Details'}</button>
+        ${r.status==='resolved'
+          ? `<button class="act" onclick="mark('${esc(r.name)}','open')">Reopen</button>`
+          : `<button class="act primary" onclick="mark('${esc(r.name)}','resolved')">Mark fixed</button>`}
+      </div>
+      ${open?`<pre>${esc(r.stack||'(no stack captured)')}\n\nDevice: ${esc(r.ua||'—')}\nScreen: ${esc(r.screen||'—')}\nFirst seen: ${esc(r.first_seen||'—')}\nLast seen: ${esc(r.last_seen||'—')}</pre>`:''}
+    </div>`; }).join('')
+    : `<div style="text-align:center;padding:60px 20px;color:var(--text-faint);">
+         <div style="font-size:34px;">✅</div>
+         <div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);margin-top:8px;">Nothing here</div>
+         <div style="font-size:13px;margin-top:4px;">No ${fStatus==='resolved'?'fixed':'open'} front-end errors${fApp?(' in '+esc(fApp)):''}.</div>
+       </div>`;
+  icons();
+}
+
+async function load(){
+  const d=await _post('/api/method/luuvcrm.api.get_client_errors',{status:fStatus,app:fApp,limit:150});
+  if(!d||!d.message) return;
+  const m=d.message;
+  rows=m.errors||[]; apps=m.apps||[];
+  document.getElementById('stOpen').textContent=m.open_count||0;
+  chips(); render();
+}
+async function mark(name,status){
+  const d=await _post('/api/method/luuvcrm.api.resolve_client_error',{name:name,status:status});
+  if(d&&d.message&&d.message.ok){ toast(status==='resolved'?'Marked fixed':'Reopened'); load(); }
+  else toast('Could not update');
+}
+async function clearResolved(){
+  if(!confirm('Delete every row already marked fixed? This cannot be undone.')) return;
+  const d=await _post('/api/method/luuvcrm.api.clear_client_errors',{scope:'resolved'});
+  if(d&&d.message&&d.message.ok){ toast('Deleted '+d.message.deleted+' row(s)'); load(); }
+  else toast('Could not clear');
+}
+
+chips(); load(); setInterval(load,30000); icons();
+</script>
+</body>
+</html>
