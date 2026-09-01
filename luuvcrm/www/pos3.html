@@ -87,6 +87,12 @@
       HTML in a browser. Frappe Print Formats are bypassed when a doc loads.
     - LFTemplate.DEFAULTS : built-in copies of the three docs, so the layout
       applies even before a doc is shared / when Google is down.
+    - line.sizePt (2026-08-31) : the doc's own font size in pt, carried from
+      the Google Docs HTML export through to the Android bridge payload, so a
+      manager editing 11pt -> 20pt in the doc changes the paper. Additive and
+      backward compatible: the old `size:'title'|null` flag is unchanged and
+      still sent, an app that does not know sizePt keeps its current output.
+      Browser print (toHTML) deliberately ignores it and is byte-identical.
     - LFTemplate.FLAT_COLUMNS (TEMPORARY) : app 1.1.0 prints column rows blank
       (printColumnsText font size 0), so "a | b" rows are folded into one
       plain line with a dot leader for the bridge only. Set false once the
@@ -153,6 +159,39 @@
 *,*::before,*::after{box-sizing:border-box;}
 body{margin:0;font-family:var(--font-body);font-size:16px;line-height:1.5;color:var(--text-body);background:var(--gray-50);-webkit-font-smoothing:antialiased;}
 input,select,button{font-family:inherit;}
+/* Touch till: the WebView paints its own focus ring AND a grey tap-highlight
+   rectangle on every press, which reads as a stray border around buttons.
+   Drop both for pointer input — .lf-btn:active already gives feedback via
+   scale(.97) — but keep a real ring on :focus-visible so keyboard / USB
+   scanner navigation stays visible. Text inputs keep their own ring below. */
+html{-webkit-tap-highlight-color:transparent;}
+button:focus,a:focus{outline:none;}
+button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+
+/* ── flexbox gap fallback ────────────────────────────────────────────────
+   The till's System WebView is Chromium 83 (Android 11, rk3566). Flexbox
+   `gap` shipped in Chrome 84, so on this device EVERY `gap:` on a flex
+   container is silently ignored — which is why the topbar read "LF New order",
+   the tables legend read "*Free*Occupied" and a card read "Table 01Occupied".
+   Grid `gap` is fine (Chrome 66), so the menu tiles and the tables grid keep
+   their spacing; only flex rows collapse.
+
+   flexGapSupported() below adds .nogap to <html> when the engine lacks it.
+   Margins are equivalent here and understood by every engine; modern browsers
+   never see these rules and keep using gap, so nothing double-spaces.
+   NOTE: :focus-visible above is Chrome 86, so on this device the focus ring is
+   simply absent rather than restored for keyboard use — acceptable on a touch
+   till, and the stray tap rectangle (the actual complaint) is still gone. */
+.nogap .tb-brand > * + *{margin-left:13px;}
+.nogap .tb-nav > * + *{margin-left:4px;}
+.nogap .tb-right > * + *{margin-left:var(--tb-rgap,14px);}
+.nogap .tbl-legend > * + *{margin-left:28px;}
+.nogap .lg-dot{margin-right:8px;}
+.nogap .cart-head > * + *{margin-top:10px;}
+.nogap .tcard-head > * + *{margin-left:10px;}
+.nogap .lf-btn > * + *{margin-left:8px;}
+.nogap #orderTabs > *{margin:0 7px 7px 0;}
+.nogap #cartItems > * + *{margin-top:14px;}
 ::selection{background:var(--orange-200);color:var(--gray-900);}
 .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
 
@@ -211,7 +250,7 @@ input,select,button{font-family:inherit;}
 
     <!-- topbar -->
     <header class="topbar" style="display:flex;align-items:center;gap:var(--tb-gap,22px);padding:var(--tb-pad,13px 28px);background:var(--surface-card);border-bottom:1px solid var(--border-subtle);flex:none;">
-      <div style="display:flex;align-items:center;gap:13px;flex:none;">
+      <div class="tb-brand" style="display:flex;align-items:center;gap:13px;flex:none;">
         <div class="tb-logo" style="width:46px;height:46px;border-radius:var(--radius-md);background:var(--color-primary);color:#fff;font-family:var(--font-display);font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-brand);">LF</div>
         <div>
           <div class="tb-title" style="font-family:var(--font-display);font-weight:800;font-size:var(--tb-title,22px);letter-spacing:-.01em;color:var(--text-strong);line-height:1.12;">New order</div>
@@ -299,13 +338,13 @@ input,select,button{font-family:inherit;}
             <div id="orderTabs" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"></div>
           </div>
 
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+          <div class="cart-head" style="display:flex;flex-direction:column;gap:10px;">
             <div style="min-width:0;">
               <div id="cartTtl" style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);">New order</div>
             </div>
-            <label style="flex:none;display:flex;align-items:center;gap:8px;max-width:172px;border:1.5px solid var(--border-default);background:var(--surface-card);border-radius:var(--radius-pill);padding:4px 10px 4px 7px;cursor:pointer;">
-              <span style="width:26px;height:26px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);font-family:var(--font-display);font-weight:800;font-size:11px;display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="armchair" style="width:13px;height:13px;"></i></span>
-              <select id="tableSel" onchange="onTableChange()" style="border:none;outline:none;background:transparent;font-family:var(--font-display);font-weight:700;font-size:14px;color:var(--text-strong);cursor:pointer;max-width:120px;">
+            <label style="display:flex;align-items:center;gap:10px;width:100%;border:1.5px solid var(--border-default);background:var(--surface-card);border-radius:var(--radius-pill);padding:6px 14px 6px 8px;cursor:pointer;">
+              <span style="width:28px;height:28px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);font-family:var(--font-display);font-weight:800;font-size:11px;display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="armchair" style="width:14px;height:14px;"></i></span>
+              <select id="tableSel" onchange="onTableChange()" style="border:none;outline:none;background:transparent;font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--text-strong);cursor:pointer;flex:1;min-width:0;width:100%;">
                 <option value="">Select table</option>
                 {% for t in tables %}<option value="{{ t.name }}">Table {{ t.short_name or t.name }}</option>{% endfor %}
               </select>
@@ -339,17 +378,17 @@ input,select,button{font-family:inherit;}
 
     <!-- TABLES SCREEN -->
     <div id="screenTables" style="flex:1;overflow-y:auto;padding:24px 28px;display:none;">
-      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:22px;">
-        <span style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--text-muted);"><span style="width:10px;height:10px;border-radius:50%;background:var(--gray-300);"></span> Free</span>
-        <span style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--text-muted);"><span style="width:10px;height:10px;border-radius:50%;background:var(--color-primary);"></span> Occupied</span>
+      <div class="tbl-legend" style="display:flex;gap:28px;flex-wrap:wrap;margin-bottom:20px;">
+        <span class="lg-item" style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--text-muted);"><span class="lg-dot" style="width:10px;height:10px;border-radius:50%;background:var(--gray-300);"></span> Free</span>
+        <span class="lg-item" style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--text-muted);"><span class="lg-dot" style="width:10px;height:10px;border-radius:50%;background:var(--color-primary);"></span> Occupied</span>
       </div>
-      <div id="tablesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:16px;"></div>
+      <div id="tablesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:13px;"></div>
     </div>
 
     <!-- ORDERS SCREEN -->
     <div id="screenOrders" style="flex:1;overflow-y:auto;padding:24px 28px;display:none;">
       <div id="ordStats" style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;"></div>
-      <div id="ticketList" style="display:flex;flex-direction:column;gap:12px;max-width:980px;"></div>
+      <div id="ticketList" style="display:flex;flex-direction:column;gap:12px;width:100%;"></div>
     </div>
 
   </main>
@@ -498,6 +537,11 @@ input,select,button{font-family:inherit;}
     <div class="field"><label>Receipt template</label><select id="pfReceipt"><option value="">Built-in (default)</option></select></div>
     <div class="field"><label>Guest check template</label><select id="pfGuestCheck"><option value="">Built-in (default)</option></select></div>
     <div class="field"><label>Kitchen ticket (KOT) template</label><select id="pfKot"><option value="">Built-in (default)</option></select></div>
+    <div class="field"><label>Divider width (characters)</label>
+      <input type="number" id="divWidth" min="10" max="120" step="1" placeholder="82">
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Blank = 82, measured on this printer. Only change it for a different paper roll — print the ruler and enter the longest run that still fits on ONE line.</div>
+    </div>
+    <div class="field"><button class="lf-btn lf-btn--ghost lf-btn--md" style="width:100%;" onclick="lfDividerRuler()">Print divider ruler</button></div>
   </div>
   <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('settingsModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" onclick="saveSettings()">Save</button></div>
 </div></div>
@@ -597,6 +641,27 @@ input,select,button{font-family:inherit;}
   const CAT_EMOJI = {burger:'🍔',chicken:'🍗',fries:'🍟',side:'🍟',salad:'🥗',drink:'🥤',beverage:'🥤',juice:'🧃',tea:'🍵',coffee:'☕',mojito:'🍹',dessert:'🍰',sweet:'🍦',ice:'🍦',biryani:'🍛',rice:'🍚',naan:'🫓',kottu:'🍜',noodle:'🍜',pizza:'🍕',sandwich:'🥪',wrap:'🌯',soup:'🍲',seafood:'🦐',fish:'🐟',combo:'🍱',meal:'🍱'};
   function emojiFor(name){ const n=(name||'').toLowerCase(); for(const k in CAT_EMOJI){ if(n.includes(k)) return CAT_EMOJI[k]; } return '🍽️'; }
 
+  // ── flexbox gap support probe ────────────────────────────────────────────
+  // Chromium 83 (this terminal's WebView) ignores `gap` on flex containers —
+  // Chrome 84 shipped it. Measure it rather than sniff the UA: lay out two 1px
+  // rows with a 1px row-gap and see whether the parent is 2px or 3px tall.
+  // No support -> .nogap on <html>, which turns on the margin fallbacks in the
+  // stylesheet above. Runs before the first render so nothing reflows visibly.
+  (function flexGapProbe(){
+    try{
+      var f=document.createElement('div');
+      f.style.cssText='display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden;';
+      var a=document.createElement('div'), b=document.createElement('div');
+      a.style.height='1px'; b.style.height='1px';
+      f.appendChild(a); f.appendChild(b);
+      document.documentElement.appendChild(f);
+      var supported=(f.scrollHeight===3);
+      f.parentNode.removeChild(f);
+      if(!supported) document.documentElement.classList.add('nogap');
+      console.log('[pos3] flex gap supported:',supported);
+    }catch(e){ document.documentElement.classList.add('nogap'); }
+  })();
+
   function show(id){ document.getElementById(id).classList.add('show'); }
   function hide(id){ document.getElementById(id).classList.remove('show'); }
   function _smsg(d,f){ try{ const m=d&&d._server_messages&&JSON.parse(d._server_messages); if(m&&m.length){ return JSON.parse(m[0]).message||f; } }catch(e){} return f; }
@@ -632,15 +697,15 @@ input,select,button{font-family:inherit;}
     const grid=document.getElementById('tablesGrid');
     grid.innerHTML=TABLES.map(t=>{ const o=byTable[t.name]; const occ=!!o; const isW=occ&&o.w; const tone=occ?'lf-badge--solid':'lf-badge--success';
       const bd=isW?'border:1.5px solid #6366F1;background:#EEF2FF;':(occ?'border:1.5px solid var(--color-primary);background:var(--orange-50);':'border:1px solid var(--border-subtle);background:var(--surface-card);');
-      return `<button onclick="openTable('${t.name}')" style="display:flex;flex-direction:column;align-items:flex-start;border-radius:var(--radius-lg);padding:18px 20px;cursor:pointer;text-align:left;box-shadow:var(--shadow-xs);${bd}">
-        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-          <span style="font-family:var(--font-display);font-weight:800;font-size:26px;color:var(--text-strong);">Table ${t.short}</span>
-          <span class="lf-badge ${tone}">${occ?'Occupied':'Free'}</span>
+      return `<button onclick="openTable('${t.name}')" style="display:flex;flex-direction:column;align-items:flex-start;border-radius:var(--radius-lg);padding:13px 15px;cursor:pointer;text-align:left;box-shadow:var(--shadow-xs);${bd}">
+        <div class="tcard-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
+          <span style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);white-space:nowrap;">Table ${t.short}</span>
+          <span class="lf-badge ${tone}" style="flex:none;">${occ?'Occupied':'Free'}</span>
         </div>
-        ${isW?'<div style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#4F46E5;background:#E0E7FF;padding:2px 8px;border-radius:var(--radius-pill);margin-top:8px;">👤 Waiter</div>':''}
-        ${occ?`<div style="display:flex;align-items:center;gap:6px;color:var(--color-primary);font-size:14px;font-weight:700;margin-top:12px;"><i data-lucide="receipt" style="width:14px;height:14px;"></i> ${o.n} order${o.n>1?'s':''}</div>`:'<div style="color:var(--text-faint);font-size:14px;margin-top:12px;">Available</div>'}
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;width:100%;margin-top:14px;">
-          <span class="mono" style="font-weight:500;font-size:20px;color:${occ?'var(--text-strong)':'var(--text-faint)'};">${occ?nfmt(o.amt):'—'}</span>
+        ${isW?'<div style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#4F46E5;background:#E0E7FF;padding:2px 7px;border-radius:var(--radius-pill);margin-top:6px;">👤 Waiter</div>':''}
+        ${occ?`<div style="display:flex;align-items:center;gap:5px;color:var(--color-primary);font-size:13px;font-weight:700;margin-top:8px;"><i data-lucide="receipt" style="width:13px;height:13px;"></i> ${o.n} order${o.n>1?'s':''}</div>`:'<div style="color:var(--text-faint);font-size:13px;margin-top:8px;">Available</div>'}
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;width:100%;margin-top:9px;">
+          <span class="mono" style="font-weight:500;font-size:17px;color:${occ?'var(--text-strong)':'var(--text-faint)'};">${occ?nfmt(o.amt):'—'}</span>
         </div></button>`; }).join('');
     icons();
   }
@@ -666,7 +731,7 @@ input,select,button{font-family:inherit;}
         <div style="display:flex;align-items:center;gap:7px;color:var(--text-faint);font-size:14px;width:120px;flex:none;"><i data-lucide="clock" style="width:15px;height:15px;"></i> ${o.time_ago||o.completed_at||''}</div>
         <span class="lf-badge ${tone}">${stat}</span>
         <div class="mono" style="font-weight:500;font-size:18px;color:var(--text-strong);width:84px;text-align:right;flex:none;">${nfmt(o.grand_total||0)}</div>
-        ${o._done?`<button onclick="printReceipt('${o.name}')" title="Reprint bill" style="flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="printer" style="width:18px;height:18px;"></i></button>`:'<div style="width:40px;flex:none;"></div>'}
+        ${o._done?`<button onclick="printReceipt('${o.name}')" title="Reprint bill" style="flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="printer" style="width:18px;height:18px;"></i></button>`:`<button onclick="reprintKOT('${o.name}')" title="Reprint the kitchen ticket (does not re-fire items)" style="flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="chef-hat" style="width:18px;height:18px;"></i></button>`}
       </div>`; }).join('') || '<div style="color:var(--text-faint);text-align:center;padding:40px;">No orders this shift.</div>';
     icons();
   }
@@ -1053,6 +1118,54 @@ input,select,button{font-family:inherit;}
   }
   function dupeShow(title,sub,rows,foot){ document.getElementById('dupeTitle').textContent=title; document.getElementById('dupeSub').textContent=sub;
     document.getElementById('dupeRows').innerHTML=rows; document.getElementById('dupeFoot').innerHTML=foot; show('dupeModal'); icons(); }
+  // ── yes/no that actually works inside the app shell ──────────────────────
+  // window.confirm() is dead on the iMin tablet: MainActivity sets a
+  // WebViewClient but never a WebChromeClient, and without one the Android
+  // WebView suppresses JS dialogs and returns false IMMEDIATELY — no dialog is
+  // ever drawn. Every confirm() on this page therefore reads as "Cancel" on the
+  // device while working fine in a desktop browser. Anything needing a decision
+  // on the tablet must use a real in-page dialog; this reuses dupeModal and
+  // resolves true/false so callers can `await` it exactly like confirm().
+  var _lfcResolve=null;
+  function lfConfirm(title,sub,okLabel,cancelLabel){
+    return new Promise(function(resolve){
+      _lfcResolve=resolve;
+      dupeShow(title,sub,'',
+        '<button class="lf-btn lf-btn--ghost lf-btn--md" onclick="lfConfirmDone(false)">'+(cancelLabel||'Cancel')+'</button>'
+       +'<button class="lf-btn lf-btn--primary lf-btn--md" onclick="lfConfirmDone(true)">'+(okLabel||'OK')+'</button>');
+    });
+  }
+  function lfConfirmDone(v){ hide('dupeModal'); var r=_lfcResolve; _lfcResolve=null; if(r) r(v); }
+
+  // ── divider calibration ──────────────────────────────────────────────────
+  // The width is now known (78 on the 80mm Falcon 1, measured — see PAPER_COLS),
+  // so this is only needed for a till on different paper. It prints numbered
+  // runs around the configured width; the longest one that still fits on ONE
+  // line is the number to save in Settings.
+  window.lfDividerRuler=function(){
+    var ch=LFTemplate.divCh(), base=LFTemplate.cols();
+    var lens=[-12,-8,-4,-2,0,2,4,8].map(function(d){ return base+d; }).filter(function(n){ return n>=10 && n<=120; });
+    var lines=[{cols:['DIVIDER RULER'],aligns:[1],bold:true,size:'title'},
+               {cols:['current width: '+base],aligns:[1],bold:false}];
+    lens.forEach(function(n){
+      lines.push({cols:[String(n)],aligns:[0],bold:false});
+      lines.push({cols:[new Array(n+1).join(ch)],aligns:[0],bold:false});
+    });
+    lines.push({cols:[''],aligns:[0],bold:false});
+    lines.push({cols:['Longest run still on ONE line ->'],aligns:[0],bold:false});
+    lines.push({cols:['Settings > Divider width.'],aligns:[0],bold:false});
+    if(!LFPrint.has()){ printDoc(LFTemplate.toHTML(lines)); return true; }
+    var p={version:1,jobId:'ruler:'+Date.now(),type:'PRINT',copies:1,
+           restaurant:{name:'Luuv Fryxo',address:'DIVIDER RULER'},
+           invoice:{number:'RULER',date:''},
+           items:[{name:'ruler',qty:1,unitPrice:0,total:0}],
+           lines:lines};
+    try{ var res=JSON.parse(window.iMinPOS.printReceipt(JSON.stringify(p)));
+      if(res && res.success) return true;
+      toast(LFPrint.err(res&&res.code,res&&res.message)); return false;
+    }catch(e){ console.error('ruler: bridge threw',e); toast('Ruler failed: '+(e&&e.message||e)); return false; }
+  };
+
   // After a payment: any remaining unpaid bill on the table sharing ≥50% of the paid
   // items is a suspected duplicate → offer a one-tap void request to the manager.
   function maybeWarnZombies(table,paidCodes){
@@ -1275,13 +1388,20 @@ input,select,button{font-family:inherit;}
     const row=i=>`<tr><td style="vertical-align:top;">${i.qty}×</td><td>${i.takeaway?'(takeaway) ':''}${i.item_name||i.item}${i.notes?`<div style="font-size:12px;font-style:italic;">↳ ${escq(i.notes)}</div>`:''}</td></tr>`;
     const items=sectionRows(d.items||[],row);
     const loc=d.order_type==='Take Away'?'TAKE AWAY':(d.order_type==='Delivery'?'DELIVERY':('TABLE '+((d.table||'').split('-').pop()||'-')));
-    return `<h2>KOT — ${d.order_name||''}</h2><div class="loc">${loc}</div><table>${items}</table><div class="t">${new Date().toLocaleString()}</div>`; }
+    return `<h2>KOT — ${d.order_name||''}${d.reprint?' (REPRINT)':''}</h2><div class="loc">${loc}</div><table>${items}</table><div class="t">${new Date().toLocaleString()}</div>`; }
   function buildReceipt(d){
     const row=i=>`<tr><td>${i.qty}× ${i.takeaway?'(takeaway) ':''}${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`;
     const items=sectionRows(d.items||[],row);
+    let tenderHtml = '';
+    if(d.tendered && Number(d.tendered) > 0){
+      tenderHtml += `<div class="tot">Tendered: ${Number(d.tendered).toLocaleString()}</div>`;
+    }
+    if(d.change && Number(d.change) > 0){
+      tenderHtml += `<div class="tot"><b>Balance / Change: ${Number(d.change).toLocaleString()}</b></div>`;
+    }
     return `<h2>Luuv Fryxo</h2><div class="loc">Receipt — ${d.order_name||''}</div><table>${items}</table>
       <div class="tot">Service charge: ${(d.service_charge_amount||0).toLocaleString()}</div><div class="tot"><b>Total: LKR ${(d.grand_total||0).toLocaleString()}</b></div>
-      <div class="tot">${(d.payment_mode||'')}</div><div class="t">${new Date().toLocaleString()}</div>`; }
+      <div class="tot">${(d.payment_mode||'')}</div>${tenderHtml}<div class="t">${new Date().toLocaleString()}</div>`; }
   // Print via a hidden iframe (popups opened after an await get blocked by the browser).
   function printDoc(html){
     let f=document.getElementById('__printFrame');
@@ -1316,6 +1436,7 @@ input,select,button{font-family:inherit;}
       // Guest check slot lists only bill formats; KOT slot lists only kitchen formats — can't cross-pick.
       fillPF('pfGuestCheck',(m.order||[]).filter(f=>!isKotPF(f.name)),PF_KEYS.guest_check);
       fillPF('pfKot',(m.order||[]).filter(f=>isKotPF(f.name)),PF_KEYS.kot); } }catch(e){}
+    document.getElementById('divWidth').value=localStorage.getItem('lf_divider_cols')||'';
     show('settingsModal'); icons();
   }
   function fillPF(id,list,key){ const s=document.getElementById(id);
@@ -1328,7 +1449,12 @@ input,select,button{font-family:inherit;}
     localStorage.setItem(PF_KEYS.receipt,document.getElementById('pfReceipt').value);
     localStorage.setItem(PF_KEYS.guest_check,document.getElementById('pfGuestCheck').value);
     localStorage.setItem(PF_KEYS.kot,document.getElementById('pfKot').value);
-    toast('Settings saved'); hide('settingsModal');
+    // Stored as an absolute character count — what the ruler shows the cashier.
+    // Blank falls back to PAPER_COLS (78, measured).
+    var dw=parseInt(document.getElementById('divWidth').value,10);
+    if(dw>=10 && dw<=120) localStorage.setItem('lf_divider_cols',String(dw));
+    else localStorage.removeItem('lf_divider_cols');
+    toast('Settings saved — reload the page for the divider to change'); hide('settingsModal');
   }
 
   // ── Order actions drawer ──
@@ -1710,6 +1836,9 @@ input,select,button{font-family:inherit;}
       } else its=isKot?kotItems(d.items):billItems(d.items);
       var sub=its.reduce(function(a,b){ return a+(b.total||0); },0);
       var subtitle={kot:'KITCHEN ORDER',guest_check:'GUEST CHECK',receipt:'',zreport:'Z-REPORT'}[kind];
+      // An explicit reprint has to be obvious on paper, or the kitchen
+      // works a ticket twice. ASCII only — see kotItems().
+      if(opts.reprint && subtitle) subtitle+=' (REPRINT)';
       var p={
         version:1,
         // Unique per ATTEMPT, not per bill — §5, or a genuine second print
@@ -1777,7 +1906,7 @@ input,select,button{font-family:inherit;}
   //
   // Syntax (one doc line = one paper line):
   //   // c      comment     = t  title      > t  centred     * t  bold
-  //   ----      divider     a | b  columns   double-brace var
+  //   ----      divider (auto-fits the paper)   a | b  columns   double-brace var
   //   double-brace #if v .. /if  (drop line)   #items #food #beverages #takeaway blocks
   // (spelled out in words because this file is a Jinja template before it is
   //  JS — a literal "{" + "#" here would open a Jinja comment and 417 the page)
@@ -1851,6 +1980,11 @@ input,select,button{font-family:inherit;}
     // columns again. Set true only if an older app is ever reinstalled.
     var FLAT_COLUMNS=false;
     function flatten(lines){
+      // `divider` is a browser-side hint (toHTML draws an <hr> for it). The
+      // bridge parses this payload strictly, so it must not travel — the line
+      // already carries the dash text the native printer needs.
+      lines=lines.map(function(l){ if(!l.divider) return l;
+        var c={}; for(var k in l){ if(k!=='divider') c[k]=l[k]; } return c; });
       if(!FLAT_COLUMNS) return lines;
       var isAmt=function(s){ return /^-?\s*(Rs\.?|LKR)?\s*[\d,.#]+$/.test(s); };
       return lines.map(function(l){
@@ -1859,15 +1993,17 @@ input,select,button{font-family:inherit;}
         var body;
         if(!left){ body=right; }                                  // "  | > note"  → indented note
         else if(isAmt(right)){                                    // label/item      amount
-          // space-between (user's call, 2026-08-26): pad to the 32-char line so
+          // space-between (user's call, 2026-08-26): pad to the PAPER_COLS line
           // the amount sits at the right edge. The printer font is proportional,
           // so this is approximate until the app prints real columns again.
-          var gap=Math.max(2, 32-left.length-right.length);
+          var gap=Math.max(2, PAPER_COLS-left.length-right.length);
           body=left+new Array(gap+1).join(' ')+right; }
         else if(/^\d+\s*x$/i.test(left)){ body=left+'  '+right; } // "2 x  Chicken Fries"
         else { body=left+': '+right; }                            // "Table: Table 04", "Date: 26 Aug"
         if(mid) body=left+'  '+mid+'  '+right;
-        return {cols:[!left?('    '+body):body],aligns:[0],bold:!!l.bold,size:l.size||null};
+        var f={cols:[!left?('    '+body):body],aligns:[0],bold:!!l.bold,size:l.size||null};
+        if(l.sizePt) f.sizePt=l.sizePt;
+        return f;
       });
     }
 
@@ -1924,8 +2060,15 @@ input,select,button{font-family:inherit;}
         time:two(now.getHours())+':'+two(now.getMinutes()),
         subtotal:money(sub), discount:disc?money(disc):'', service:sc?money(sc):'',
         service_rate:d.service_charge_rate||(sc?SC_RATE:'')||'',   // cart previews carry no rate; the page does
-        total:money(gt), payment_mode:ascii(mode), paid:mode?money(gt):'', change:'',
+        total:money(gt), payment_mode:ascii(mode),
+        // `paid` is what the customer actually HANDED OVER, not the bill: cash 1000
+        // against an 840 bill prints "Cash Rs.1,000" + "Balance Rs.160". Without a
+        // recorded tender (card, or cash paid exact) it falls back to the total.
+        paid:mode?money(Number(d.tendered)>0?Number(d.tendered):gt):'',
+        tendered:d.tendered?money(d.tendered):'', change:d.change?money(d.change):'',
         order_notes:ascii(d.notes||''), has_takeaway:items.some(function(i){ return i._ta; })?1:'',
+        reprint:opts.reprint?'REPRINT':'',   // for [#]if reprint blocks in the doc
+
         items:items, food:items.filter(function(i){ return !i._ta&&!i._bev; }),
         beverages:items.filter(function(i){ return !i._ta&&i._bev; }), takeaway:items.filter(function(i){ return i._ta; })
       };
@@ -1970,13 +2113,69 @@ input,select,button{font-family:inherit;}
       }
       return out;
     }
+    // ── dividers ───────────────────────────────────────────────────────
+    // A "----" doc line is NOT a string of dashes — it is a divider, and the
+    // two printers draw one differently:
+    //   • browser → an <hr>, the only thing that truly fits the paper whatever
+    //               its width (toHTML below).
+    //   • iMin    → the bridge only takes text, so it still gets dashes; the
+    //               count now comes from PAPER_COLS instead of a literal 32, so
+    //               an 80mm roll is no longer left half-drawn. Centred, because
+    //               the native font is proportional and a run that falls short
+    //               should fall short evenly at both ends, not look cut off.
+    // Characters per line on the 80mm head (576 dots at 203 dpi, ~7.4 dots per
+    // glyph). The SDK exposes no chars-per-line API, so this can only be
+    // measured — see the DebugTools ruler hot-spot in the Android app.
+    //
+    // 82 — MEASURED on the Falcon 1 through this payload path on 2026-08-30, by
+    // printing the Settings > "Print divider ruler" ladder and reading off the
+    // longest run that stayed on one line.
+    //
+    // NOT 78. The Android side carries SampleReceipt.LINE_CHARS = 78 and
+    // DebugTools claims "78 prints as one line, 79 wraps", but through the
+    // `lines` payload 78 and 80 both fell short without wrapping. Trust 82 here;
+    // the native constant wants re-measuring the same way before the two are
+    // assumed to agree.
+    //
+    // Settings > Divider width overrides this per till, no rebuild needed.
+    //
+    // The measurement also settles an old assumption in this file: the ESC/POS
+    // text font is effectively MONOSPACE, not proportional. A fixed count could
+    // not land exactly on the edge otherwise, so the padding maths below is
+    // exact rather than approximate — it was only ever using the wrong constant.
+    //
+    // A 58mm roll is ~32:  localStorage.setItem('lf_paper_cols','32')
+    var PAPER_COLS=(function(){ var n=parseInt(localStorage.getItem('lf_paper_cols'),10);
+      return (n>=20 && n<=120)?n:82; })();
+    // Divider glyph. Defaults to '-' at PAPER_COLS, which is byte-for-byte what
+    // the app prints for its own dividers (SampleReceipt.DIVIDER = "-".repeat(78))
+    // and what the 78 was measured with — so the web-rendered rule and the
+    // native one are the same line.
+    //
+    // Kept Latin-1 by the guard below, and that is not cosmetic: ascii() above
+    // rewrites an em dash back to '-' and turns U+2501 into '?', and per
+    // WEB_INTEGRATION.md a single character above U+00FF flips the WHOLE receipt
+    // to the bitmap renderer, which on the Falcon 1 feeds and cuts the paper but
+    // prints it BLANK. A "heavier" box glyph would cost the bill its paper.
+    //
+    // '_' is available and joins into an unbroken rule (same advance in a
+    // monospace font); set it from Settings or:
+    //   localStorage.setItem('lf_divider_char','_')
+    //   localStorage.setItem('lf_divider_cols','32')   // 58mm roll
+    var DIVIDER_CH=(function(){ var c=localStorage.getItem('lf_divider_char');
+      return (c && c.length===1 && c.charCodeAt(0)<=0xff) ? c : '-'; })();
+    // Absolute count from Settings wins; otherwise the full measured line.
+    var DIVIDER_COLS=(function(){ var n=parseInt(localStorage.getItem('lf_divider_cols'),10);
+      return (n>=10 && n<=120) ? n : 0; })();
+    function dashes(n){ return new Array(Math.max(1,DIVIDER_COLS||n)+1).join(DIVIDER_CH); }
+
     // Text line → printer line (markers → cols/aligns/bold/size).
     function toLine(t){
       var meta=metaOf(t); t=bodyOf(t);                 // doc styling, if this came from the HTML export
       t=ascii(t).replace(/\s+$/,'');
       if(meta && !t.trim() && t.indexOf(CSEP)<0) return {cols:[''],aligns:[0],bold:false};   // empty doc row → blank line
       if(/^\s*\/\//.test(t)) return null;
-      if(/^\s*-{3,}\s*$/.test(t)) return {cols:['--------------------------------'],aligns:[0],bold:false};
+      if(/^\s*-{3,}\s*$/.test(t)) return {cols:[dashes(PAPER_COLS)],aligns:[0],bold:false,divider:true};
       var bold=false, size=null, align=0, markedAlign=false;
       if(/^=\s?/.test(t)){ t=t.replace(/^=\s?/,''); bold=true; size='title'; align=1; markedAlign=true; }
       else if(/^>\s?/.test(t)){ t=t.replace(/^>\s?/,''); align=1; markedAlign=true; }
@@ -1991,10 +2190,13 @@ input,select,button{font-family:inherit;}
                                       if(/^\*\s?/.test(x)){ bold=true; return x.replace(/^\*\s?/,''); } return x; });
         var line={cols:cols,aligns:aligns,bold:bold||!!(meta&&meta.b)};
         if(meta&&meta.w) line.widths=meta.w;             // the doc's column widths
+        if(meta&&meta.pt) line.sizePt=meta.pt;           // the doc's font size, in pt
         return line;
       }
       if(meta){ if(!markedAlign && meta.a) align=meta.a[0]||0; if(meta.b) bold=true; if(meta.s&&!size) size=meta.s; }
-      return {cols:[t],aligns:[align],bold:bold,size:size};
+      var out={cols:[t],aligns:[align],bold:bold,size:size};
+      if(meta&&meta.pt) out.sizePt=meta.pt;
+      return out;
     }
     // Table docs → "left | right" rows.
     // Google's txt export of a two-column table is NOT one line per row. It is
@@ -2037,7 +2239,14 @@ input,select,button{font-family:inherit;}
           Array.prototype.forEach.call(td.querySelectorAll('span'),function(s){ if(!s.textContent.trim()) return;
             var fw=prop(map,s.className,'font-weight'); if(fw&&parseInt(fw,10)>=600) bold=true;
             var fs=prop(map,s.className,'font-size'); if(fs) size=Math.max(size,parseFloat(fs)||0); });
-          return { text:text, align:({left:0,center:1,right:2})[align]||0, bold:bold, size:size,
+          // Docs only wraps text in a styled <span> when the run differs from
+          // the paragraph. A cell typed at one size carries font-size on the
+          // <p> (or the cell) class alone, so without this fallback the size
+          // reads 0 and the doc's pt never reaches the printer. Kept OUT of
+          // `size` on purpose: that feeds the >=13 title flag the browser
+          // rendition uses, and browser output must not shift here.
+          var pt=size||parseFloat(prop(map,p&&p.className,'font-size')||prop(map,td.className,'font-size')||'0')||0;
+          return { text:text, align:({left:0,center:1,right:2})[align]||0, bold:bold, size:size, pt:pt,
                    span:parseInt(td.getAttribute('colspan')||'1',10)||1,
                    w:parseFloat(prop(map,td.className,'width')||'0')||0 };
         }));
@@ -2048,12 +2257,16 @@ input,select,button{font-family:inherit;}
       var filled=cells.filter(function(c){ return c.text; });
       if(!filled.length) return M0+'{}'+M0;                              // empty row → blank line
       var meta;
+      // pt = the doc's own font size for the row (max across its cells). `s`
+      // stays the old title/null flag so nothing that reads it changes; `pt`
+      // is what carries a real 11 → 20 edit through to the Android printer.
+      var pt=filled.reduce(function(a,c){ return Math.max(a,c.pt||0); },0)||null;
       if(filled.length===1){                                             // one cell → a plain line
-        var c=filled[0]; meta={a:[c.align],b:c.bold,s:c.size>=13?'title':null};
+        var c=filled[0]; meta={a:[c.align],b:c.bold,s:c.size>=13?'title':null,pt:pt};
         return M0+JSON.stringify(meta)+M0+c.text; }
       var sum=cells.reduce(function(a,c){ return a+(c.w||0); },0);       // real columns → weights out of 8
       var w=sum?cells.map(function(c){ return Math.max(1,Math.round((c.w||0)/sum*8)); }):null;
-      meta={a:cells.map(function(c){ return c.align; }), b:cells.some(function(c){ return c.bold; }), w:w};
+      meta={a:cells.map(function(c){ return c.align; }), b:cells.some(function(c){ return c.bold; }), w:w, pt:pt};
       return M0+JSON.stringify(meta)+M0+cells.map(function(c){ return c.text; }).join(CSEP);
     }
     // The text part of a (possibly styled) line — what markers/blocks look at.
@@ -2091,6 +2304,10 @@ input,select,button{font-family:inherit;}
     function toHTML(lines){
       var esc=function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
       var rows=lines.map(function(l){
+        // a divider is drawn, not typed: an <hr> spans the paper exactly, at
+        // 58mm or 80mm, where the bridge's dash run can only approximate it
+        if(l.divider) return '<tr><td colspan="3" style="padding:0;">'
+          +'<hr style="border:none;border-top:1px dashed #000;margin:5px 0;"></td></tr>';
         if(l.cols.length>1){ var tds=l.cols.map(function(c,i){ var a=['left','center','right'][l.aligns[i]||0];
             return '<td style="text-align:'+a+';vertical-align:top;'+(i===l.cols.length-1?'white-space:nowrap;':'')+'">'+esc(c)+'</td>'; }).join('');
           return '<tr'+(l.bold?' style="font-weight:700"':'')+'>'+tds+'</tr>'; }
@@ -2098,7 +2315,8 @@ input,select,button{font-family:inherit;}
         return '<tr><td colspan="3" style="'+st+'">'+(esc(l.cols[0])||'&nbsp;')+'</td></tr>'; }).join('');
       return '<table style="width:100%;border-collapse:collapse;font-size:13px;">'+rows+'</table>';
     }
-    return { load:load, ready:ready, source:source, render:render, toHTML:toHTML, ctx:ctx, flatten:flatten };
+    return { load:load, ready:ready, source:source, render:render, toHTML:toHTML, ctx:ctx, flatten:flatten,
+             cols:function(){ return PAPER_COLS; }, divCh:function(){ return DIVIDER_CH; } };
   })();
 
   // ── real-order print paths, bridge-aware ────────────────────────────────
@@ -2114,16 +2332,59 @@ input,select,button{font-family:inherit;}
     // to the old iframe builders when there is neither a bridge nor a template.
     function legacy(kind){ return !LFPrint.has() && !LFTemplate.ready(kind); }
 
-    printKOT = async function(name){
-      if(legacy('kot')) return _printKOT(name);
-      var r=await _post('/api/method/luuvcrm.api.get_kot_print_data',{order_name:name});
-      if(!r){ toast('KOT print failed — no connection'); return; }
+    // opts.reprint — re-fire the WHOLE ticket on paper (lost or unreadable KOT).
+    // It asks the server for every line via include_sent=1, stamps the paper
+    // REPRINT, and deliberately does NOT call mark_kot_printed: sent_qty must
+    // stay where it is, or the next real KOT would drop items that were never
+    // actually cooked. Returns whether paper is on its way.
+    //
+    // sent_qty moves ONLY on a successful normal fire. A refused job (paper
+    // out, printer not ready) leaves the lines unfired so the next KOT still
+    // carries them — the old code marked them regardless and lost them.
+    printKOT = async function(name,opts){
+      opts=opts||{};
+      var reprint=!!opts.reprint;
+      // Legacy = no bridge AND no Google-Docs template, i.e. a plain browser.
+      // Only a NORMAL fire may take that shortcut: _printKOT() is the original
+      // function, it posts {order_name} with no include_sent, so a reprint sent
+      // through it would ask for unfired lines only and get [] straight back —
+      // the exact dead end this whole change exists to remove. A reprint always
+      // takes the path below, which carries the flag.
+      if(legacy('kot') && !reprint) return _printKOT(name);
+      var body={order_name:name, include_sent: reprint ? 1 : 0};
+      var r=await _post('/api/method/luuvcrm.api.get_kot_print_data',body);
+      if(!r){ toast('KOT print failed — no connection'); return false; }
       var d=await r.json();
-      if(!r.ok){ console.error('print: get_kot_print_data',d); toast('KOT print failed — '+_smsg(d,'server error')); return; }
+      if(!r.ok){ console.error('print: get_kot_print_data',d); toast('KOT print failed — '+_smsg(d,'server error')); return false; }
       var m=d.message||{};
-      LFPrint.send('kot',m,{cashier:CASHIER,orderType:m.order_type||''});
-      try{ await _post('/api/method/luuvcrm.api.mark_kot_printed',{order_name:name}); }catch(e){}
+      // get_kot_print_data returns ONLY unfired lines, so an order that has
+      // already been sent to the kitchen comes back with items:[]. That is a
+      // normal state, not a fault — but the bridge refuses an empty ticket as
+      // INVALID_REQUEST, which surfaced to the cashier as the useless
+      // "Print data error — tell support". Never hand the bridge a payload it
+      // is guaranteed to reject; offer the thing the cashier actually wanted.
+      if(!(m.items||[]).length){
+        if(reprint){ toast('Nothing to reprint — this order has no items'); return false; }
+        // total_items separates "all lines are already in the kitchen" from
+        // "this order has no lines at all" — only the first is reprintable.
+        if(!Number(m.total_items||0)){ toast('This order has no items'); return false; }
+        if(!(await lfConfirm('Every item is already in the kitchen',
+              'Meke items okkoma dæn kitchen ekata gihin. Full KOT eka reprint karannada? Nothing will be re-fired.',
+              'Reprint full KOT','Cancel'))){
+          toast('No new items to fire'); return false; }
+        return printKOT(name,{reprint:true});
+      }
+      var ok=LFPrint.send('kot',m,{cashier:CASHIER,orderType:m.order_type||'',
+                                   reprint:reprint,banner:reprint?'REPRINT':''},
+                          function(){ printDoc(buildKOT(m)); });
+      // Only mark the lines fired once paper is actually on its way. Marking
+      // them after a refusal (paper out, printer not ready) would drop them
+      // from the next KOT for good — the kitchen would never see them.
+      if(ok && !reprint){ try{ await _post('/api/method/luuvcrm.api.mark_kot_printed',{order_name:name}); }catch(e){} }
+      return ok;
     };
+    // Explicit reprint entry point for the ticket list button.
+    window.reprintKOT = function(name){ return printKOT(name,{reprint:true}); };
 
     printReceipt = async function(name){
       if(legacy('receipt')) return _printReceipt(name);
