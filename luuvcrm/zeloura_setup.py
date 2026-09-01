@@ -9,9 +9,8 @@ def create_doctype(doctype_name, module, fields, is_child=0, is_single=0):
         "module": module,
         "custom": 1,
         "is_submittable": 0,
-        "is_child_table": is_child,
         "istable": is_child,
-        "is_single": is_single,
+        "issingle": is_single,
         "in_create": 0 if is_child else 1,
         "fields": fields,
         "permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1}]

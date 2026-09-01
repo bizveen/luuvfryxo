@@ -32,7 +32,7 @@ from frappe.utils import now_datetime, cint, flt
 DOCTYPE = "LF Activity Log"
 
 # Apps we accept in the `app` column. Anything else is stored as "other".
-KNOWN_APPS = {"pos2", "pos3", "waiter", "manager", "kitchen", "purchases", "admin",
+KNOWN_APPS = {"app", "app2", "pos2", "pos3", "waiter", "manager", "kitchen", "purchases", "admin",
               "cus", "kiosk", "guide", "qrpromo", "errors", "activity", "server"}
 
 # ─── Flag rules (the "human error" detector) ──────────────────────────────

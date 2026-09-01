@@ -87,6 +87,12 @@
       HTML in a browser. Frappe Print Formats are bypassed when a doc loads.
     - LFTemplate.DEFAULTS : built-in copies of the three docs, so the layout
       applies even before a doc is shared / when Google is down.
+    - line.sizePt (2026-08-31) : the doc's own font size in pt, carried from
+      the Google Docs HTML export through to the Android bridge payload, so a
+      manager editing 11pt -> 20pt in the doc changes the paper. Additive and
+      backward compatible: the old `size:'title'|null` flag is unchanged and
+      still sent, an app that does not know sizePt keeps its current output.
+      Browser print (toHTML) deliberately ignores it and is byte-identical.
     - LFTemplate.FLAT_COLUMNS (TEMPORARY) : app 1.1.0 prints column rows blank
       (printColumnsText font size 0), so "a | b" rows are folded into one
       plain line with a dot leader for the bridge only. Set false once the
@@ -1386,9 +1392,16 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
   function buildReceipt(d){
     const row=i=>`<tr><td>${i.qty}× ${i.takeaway?'(takeaway) ':''}${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`;
     const items=sectionRows(d.items||[],row);
+    let tenderHtml = '';
+    if(d.tendered && Number(d.tendered) > 0){
+      tenderHtml += `<div class="tot">Tendered: ${Number(d.tendered).toLocaleString()}</div>`;
+    }
+    if(d.change && Number(d.change) > 0){
+      tenderHtml += `<div class="tot"><b>Balance / Change: ${Number(d.change).toLocaleString()}</b></div>`;
+    }
     return `<h2>Luuv Fryxo</h2><div class="loc">Receipt — ${d.order_name||''}</div><table>${items}</table>
       <div class="tot">Service charge: ${(d.service_charge_amount||0).toLocaleString()}</div><div class="tot"><b>Total: LKR ${(d.grand_total||0).toLocaleString()}</b></div>
-      <div class="tot">${(d.payment_mode||'')}</div><div class="t">${new Date().toLocaleString()}</div>`; }
+      <div class="tot">${(d.payment_mode||'')}</div>${tenderHtml}<div class="t">${new Date().toLocaleString()}</div>`; }
   // Print via a hidden iframe (popups opened after an await get blocked by the browser).
   function printDoc(html){
     let f=document.getElementById('__printFrame');
@@ -1988,7 +2001,9 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         else if(/^\d+\s*x$/i.test(left)){ body=left+'  '+right; } // "2 x  Chicken Fries"
         else { body=left+': '+right; }                            // "Table: Table 04", "Date: 26 Aug"
         if(mid) body=left+'  '+mid+'  '+right;
-        return {cols:[!left?('    '+body):body],aligns:[0],bold:!!l.bold,size:l.size||null};
+        var f={cols:[!left?('    '+body):body],aligns:[0],bold:!!l.bold,size:l.size||null};
+        if(l.sizePt) f.sizePt=l.sizePt;
+        return f;
       });
     }
 
@@ -2045,7 +2060,12 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         time:two(now.getHours())+':'+two(now.getMinutes()),
         subtotal:money(sub), discount:disc?money(disc):'', service:sc?money(sc):'',
         service_rate:d.service_charge_rate||(sc?SC_RATE:'')||'',   // cart previews carry no rate; the page does
-        total:money(gt), payment_mode:ascii(mode), paid:mode?money(gt):'', change:'',
+        total:money(gt), payment_mode:ascii(mode),
+        // `paid` is what the customer actually HANDED OVER, not the bill: cash 1000
+        // against an 840 bill prints "Cash Rs.1,000" + "Balance Rs.160". Without a
+        // recorded tender (card, or cash paid exact) it falls back to the total.
+        paid:mode?money(Number(d.tendered)>0?Number(d.tendered):gt):'',
+        tendered:d.tendered?money(d.tendered):'', change:d.change?money(d.change):'',
         order_notes:ascii(d.notes||''), has_takeaway:items.some(function(i){ return i._ta; })?1:'',
         reprint:opts.reprint?'REPRINT':'',   // for [#]if reprint blocks in the doc
 
@@ -2170,10 +2190,13 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
                                       if(/^\*\s?/.test(x)){ bold=true; return x.replace(/^\*\s?/,''); } return x; });
         var line={cols:cols,aligns:aligns,bold:bold||!!(meta&&meta.b)};
         if(meta&&meta.w) line.widths=meta.w;             // the doc's column widths
+        if(meta&&meta.pt) line.sizePt=meta.pt;           // the doc's font size, in pt
         return line;
       }
       if(meta){ if(!markedAlign && meta.a) align=meta.a[0]||0; if(meta.b) bold=true; if(meta.s&&!size) size=meta.s; }
-      return {cols:[t],aligns:[align],bold:bold,size:size};
+      var out={cols:[t],aligns:[align],bold:bold,size:size};
+      if(meta&&meta.pt) out.sizePt=meta.pt;
+      return out;
     }
     // Table docs → "left | right" rows.
     // Google's txt export of a two-column table is NOT one line per row. It is
@@ -2216,7 +2239,14 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
           Array.prototype.forEach.call(td.querySelectorAll('span'),function(s){ if(!s.textContent.trim()) return;
             var fw=prop(map,s.className,'font-weight'); if(fw&&parseInt(fw,10)>=600) bold=true;
             var fs=prop(map,s.className,'font-size'); if(fs) size=Math.max(size,parseFloat(fs)||0); });
-          return { text:text, align:({left:0,center:1,right:2})[align]||0, bold:bold, size:size,
+          // Docs only wraps text in a styled <span> when the run differs from
+          // the paragraph. A cell typed at one size carries font-size on the
+          // <p> (or the cell) class alone, so without this fallback the size
+          // reads 0 and the doc's pt never reaches the printer. Kept OUT of
+          // `size` on purpose: that feeds the >=13 title flag the browser
+          // rendition uses, and browser output must not shift here.
+          var pt=size||parseFloat(prop(map,p&&p.className,'font-size')||prop(map,td.className,'font-size')||'0')||0;
+          return { text:text, align:({left:0,center:1,right:2})[align]||0, bold:bold, size:size, pt:pt,
                    span:parseInt(td.getAttribute('colspan')||'1',10)||1,
                    w:parseFloat(prop(map,td.className,'width')||'0')||0 };
         }));
@@ -2227,12 +2257,16 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
       var filled=cells.filter(function(c){ return c.text; });
       if(!filled.length) return M0+'{}'+M0;                              // empty row → blank line
       var meta;
+      // pt = the doc's own font size for the row (max across its cells). `s`
+      // stays the old title/null flag so nothing that reads it changes; `pt`
+      // is what carries a real 11 → 20 edit through to the Android printer.
+      var pt=filled.reduce(function(a,c){ return Math.max(a,c.pt||0); },0)||null;
       if(filled.length===1){                                             // one cell → a plain line
-        var c=filled[0]; meta={a:[c.align],b:c.bold,s:c.size>=13?'title':null};
+        var c=filled[0]; meta={a:[c.align],b:c.bold,s:c.size>=13?'title':null,pt:pt};
         return M0+JSON.stringify(meta)+M0+c.text; }
       var sum=cells.reduce(function(a,c){ return a+(c.w||0); },0);       // real columns → weights out of 8
       var w=sum?cells.map(function(c){ return Math.max(1,Math.round((c.w||0)/sum*8)); }):null;
-      meta={a:cells.map(function(c){ return c.align; }), b:cells.some(function(c){ return c.bold; }), w:w};
+      meta={a:cells.map(function(c){ return c.align; }), b:cells.some(function(c){ return c.bold; }), w:w, pt:pt};
       return M0+JSON.stringify(meta)+M0+cells.map(function(c){ return c.text; }).join(CSEP);
     }
     // The text part of a (possibly styled) line — what markers/blocks look at.

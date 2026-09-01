@@ -118,7 +118,7 @@ def get_context(context):
         active_menu = restaurant.active_menu
         price_list = _get_pos_price_list()
 
-        if active_menu:
+        if active_menu and frappe.db.exists("Restaurant Menu", active_menu):
             menu = frappe.get_doc("Restaurant Menu", active_menu)
             if menu.enabled:
                 # add-on mappings (POS Item Addon rows; manage from Desk: /app/pos-item-addon)
@@ -152,6 +152,36 @@ def get_context(context):
                 for key, group in groupby(items, key=lambda x: x["group"]):
                     groups.append({"name": key, "items": list(group)})
                 context.menu_groups = groups
+
+    if not context.items_flat:
+        # Fallback: load active items directly from Item master when no restaurant menu exists
+        price_list = _get_pos_price_list()
+        addon_map = {}
+        if frappe.db.exists("DocType", "POS Item Addon"):
+            for r in frappe.get_all("POS Item Addon", filters={"enabled": 1},
+                                    fields=["item", "addon_item"]):
+                addon_map.setdefault(r.item, []).append(r.addon_item)
+        all_items = frappe.get_all("Item", filters={"disabled": 0}, fields=["name", "item_code", "item_name", "description", "image", "standard_rate", "item_group"])
+        items = []
+        for item_doc in all_items:
+            item_code = item_doc.item_code or item_doc.name
+            entry = {
+                "code": item_code,
+                "name": item_doc.item_name or item_code,
+                "description": item_doc.description or "",
+                "image": item_doc.image or "",
+                "rate": _resolve_item_rate(item_code, item_doc.standard_rate, price_list),
+                "group": item_doc.item_group or "General",
+                "addons": ",".join(addon_map.get(item_code, [])),
+            }
+            items.append(entry)
+        items.sort(key=lambda x: (x.get("group", ""), x.get("rate", 0)))
+        context.items_flat = items
+        from itertools import groupby
+        groups = []
+        for key, group in groupby(items, key=lambda x: x["group"]):
+            groups.append({"name": key, "items": list(group)})
+        context.menu_groups = groups
 
     _tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
     for t in _tables:

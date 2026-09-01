@@ -27,6 +27,9 @@ scheduler_events = {
     ],
 }
 
+# Idempotent field/DocType provisioning on every migrate (praveen branch).
+after_migrate = ["luuvcrm.setup_doctype.execute"]
+
 doc_events = {
     "WhatsApp Message": {
         "after_insert": "luuvcrm.api.process_wa_reply",
