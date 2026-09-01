@@ -1,5 +1,7 @@
 import frappe
+from frappe import _
 from itertools import groupby
+from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
 
@@ -25,6 +27,16 @@ def get_context(context):
         return
 
     user = frappe.session.user
+
+    # Role gate: mirror /pos (www/pos.py). Only floor/POS staff may open the waiter
+    # app. Blocks customer accounts (created via /cus) that would otherwise reach it,
+    # since the waiter APIs bypass DocType permissions and enforce nothing themselves.
+    allowed_roles = {'System Manager', 'Administrator', 'POS User', 'Sales User',
+                     'Cashier', 'Waiter', 'Restaurant Manager'}
+    if not (set(frappe.get_roles(user)) & allowed_roles):
+        frappe.throw(_("You do not have permission to access the Waiter app"),
+                     frappe.PermissionError)
+
     context.current_user_full = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()
 
     restaurant_name = frappe.get_value("Restaurant", {}, "name")
@@ -47,7 +59,7 @@ def get_context(context):
                         "code": row.item,
                         "name": doc.item_name or row.item,
                         "image": doc.image or "",
-                        "rate": row.rate or 0,
+                        "rate": _resolve_item_rate(row.item, row.rate, _get_pos_price_list()),
                         "group": doc.item_group or "General",
                     })
                 items.sort(key=lambda x: (x["group"], x["rate"]))
@@ -56,4 +68,8 @@ def get_context(context):
                     groups.append({"name": key, "items": list(grp)})
                 context.menu_groups = groups
 
-    context.tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
+    _tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
+    for t in _tables:
+        parts = t.name.split("-")
+        t["short_name"] = parts[-1] if len(parts) > 1 else t.name   # "Luuv-Fryxo-15" -> "15"
+    context.tables = _tables

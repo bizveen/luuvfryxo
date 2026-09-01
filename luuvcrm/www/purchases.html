@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Luuv Fryxo Purchases</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First script on the page so it is listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="purchases"></script>
 <link rel="manifest" href="/purchases_manifest.json">
 <meta name="theme-color" content="#F15207">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -78,20 +80,36 @@ input,button{font-family:inherit;}
   <!-- body -->
   <div style="flex:1;overflow-y:auto;padding:18px 20px 150px;">
     <div id="tabList"><div id="expList"></div></div>
+    <div id="tabExpenses" style="display:none;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="zap" style="width:16px;height:16px;color:var(--color-primary);"></i> Utility bills, rent and other non-stock payments.</div>
+      <div id="expenseList"></div>
+    </div>
+    <div id="tabDue" style="display:none;">
+      <div style="background:var(--ink);color:#fff;border-radius:var(--radius-xl);padding:18px 20px;box-shadow:var(--shadow-lg);margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;opacity:.8;letter-spacing:.03em;"><i data-lucide="alarm-clock" style="width:16px;height:16px;"></i> Owed to vendors</div>
+        <div class="mono" style="font-weight:500;font-size:34px;letter-spacing:-.02em;margin-top:4px;">Rs <span id="dueTotal">0</span></div>
+        <div style="font-size:12px;opacity:.65;margin-top:3px;"><span id="dueCount">0</span> approved bill(s) not yet paid</div>
+        <div id="dueVendors" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:12px;"><i data-lucide="info" style="width:15px;height:15px;color:var(--color-primary);flex:none;"></i> Approved bills waiting to be paid. Tap “Mark paid” once the vendor is settled.</div>
+      <div id="dueList"></div>
+    </div>
     <div id="tabPrices" style="display:none;">
       <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="book-open" style="width:16px;height:16px;color:var(--color-primary);"></i> Current purchasing price per item. Updates when a bill is approved.</div>
       <div id="priceList" style="display:flex;flex-direction:column;gap:9px;"></div>
     </div>
   </div>
 
-  <!-- Add FAB (Expenses tab only) -->
+  <!-- Add FAB — acts on whichever list you're looking at; hidden on the price book -->
   <div id="fab" style="position:fixed;left:50%;transform:translateX(-50%);width:390px;max-width:calc(100% - 40px);bottom:88px;z-index:25;">
-    <button class="lf-btn" onclick="openAdd()"><i data-lucide="camera" style="width:20px;height:20px;"></i> Add bill / expense</button>
+    <button class="lf-btn" id="fabBtn" onclick="fabClick()"><i data-lucide="camera" id="fabIcon" style="width:20px;height:20px;"></i> <span id="fabLabel">Add bill</span></button>
   </div>
 
   <!-- bottom nav -->
   <div style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:10px 8px 14px;gap:4px;">
-    <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Expenses</span></button>
+    <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Bills</span></button>
+    <button class="navb" data-tab="due" onclick="setTab('due')"><span style="position:relative;display:inline-flex;"><i data-lucide="alarm-clock"></i><span id="dueBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-danger);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Due</span></button>
+    <button class="navb" data-tab="expenses" onclick="setTab('expenses')"><span style="position:relative;display:inline-flex;"><i data-lucide="zap"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Expenses</span></button>
     <button class="navb" data-tab="prices" onclick="setTab('prices')"><span style="position:relative;display:inline-flex;"><i data-lucide="book-open"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Price book</span></button>
   </div>
 </div></div>
@@ -104,14 +122,19 @@ input,button{font-family:inherit;}
     <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Add each item and its purchase price — it goes to the manager for approval.</div>
 
     <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">1 · Receipt photo <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
-    <label id="photoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:20px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
-      <span id="photoHint">📷 Tap to add receipt photo</span>
+    <label id="photoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:8px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
+      <span id="photoHint">📷 Tap to snap receipt</span>
       <img id="photoImg" style="display:none;width:100%;height:100%;object-fit:cover;">
-      <input id="photoInput" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this)">
+      <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" onchange="uploadReceipt(this,'bill')">
     </label>
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--color-primary);cursor:pointer;margin-bottom:20px;"><i data-lucide="image" style="width:15px;height:15px;"></i> Choose from gallery instead
+      <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this,'bill')">
+    </label>
+    <div id="scanRow" style="display:none;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-primary);margin:-10px 0 16px;"><i data-lucide="sparkles" style="width:15px;height:15px;"></i> <span>Reading bill…</span></div>
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">2 · Items &amp; purchase prices</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
     <div id="lineRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
+    <div id="aiUnmatchedWrap"></div>
 
     <button onclick="togglePicker()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="plus" id="pickerIcon" style="width:17px;height:17px;"></i> <span id="pickerLabel">Add item from list</span></button>
     <div id="pickerWrap" style="display:none;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:10px;overflow:hidden;"></div>
@@ -119,8 +142,8 @@ input,button{font-family:inherit;}
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Bill total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="billTotal">0</span></span></div>
 
     <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px;">
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="e.g. Green Valley Farms"></div>
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fNote" class="inp" placeholder="Anything the manager should know"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="e.g. Green Valley Farms" oninput="saveDraft()"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fNote" class="inp" placeholder="Anything the manager should know" oninput="saveDraft()"></div>
     </div>
     <div id="formErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="formErrMsg"></span></div>
     <div style="display:flex;gap:10px;margin-top:20px;">
@@ -130,39 +153,176 @@ input,button{font-family:inherit;}
   </div>
 </div>
 
+<!-- Add expense sheet -->
+<div id="expOverlay" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeExp()">
+  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
+    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New expense</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">A utility bill, gas, rent — anything that isn't a stock purchase. It goes to the manager for approval.</div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">1 · Bill photo <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
+    <label id="expPhotoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:8px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
+      <span id="expPhotoHint">📷 Tap to snap the bill</span>
+      <img id="expPhotoImg" style="display:none;width:100%;height:100%;object-fit:cover;">
+      <input id="expPhotoInput" type="file" accept="image/*" capture="environment" style="display:none;" onchange="uploadReceipt(this,'exp')">
+    </label>
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--color-primary);cursor:pointer;margin-bottom:20px;"><i data-lucide="image" style="width:15px;height:15px;"></i> Choose from gallery instead
+      <input id="expPhotoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this,'exp')">
+    </label>
+    <div id="expScanRow" style="display:none;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-primary);margin:-10px 0 16px;"><i data-lucide="sparkles" style="width:15px;height:15px;"></i> <span>Reading bill…</span></div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">2 · What was it for?</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Category</div><select id="eCategory" class="inp" onchange="saveDraft()"></select></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Paid to</div><input id="ePayee" class="inp" placeholder="e.g. CEB, Water Board" oninput="saveDraft()"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Amount</div><input id="eAmount" class="inp mono" type="number" inputmode="decimal" placeholder="0" oninput="paintExpTotal();saveDraft()"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Bill / account no <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="eBillRef" class="inp" placeholder="e.g. 0412345678" oninput="saveDraft()"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Date</div><input id="eDate" class="inp" type="date" onchange="saveDraft()"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="eNote" class="inp" placeholder="Anything the manager should know" oninput="saveDraft()"></div>
+    </div>
+
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Expense total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="expTotal">0</span></span></div>
+    <div style="margin-top:10px;display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text-muted);background:var(--surface-sunken);border-radius:var(--radius-md);padding:10px 12px;line-height:1.5;"><i data-lucide="info" style="width:14px;height:14px;flex:none;margin-top:2px;"></i> <span>This is a record for the manager — it does not change the cash drawer count. If you paid out of the till, still count the drawer as you always have.</span></div>
+
+    <div id="expErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="expErrMsg"></span></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button onclick="closeExp()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
+      <div style="flex:1;"><button class="lf-btn" id="expSubmitBtn" onclick="submitExpense()">Send for approval</button></div>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='';
+  let expStats={}, billStats={}, newExpReceipt='', expCats=[];
+  let aiUnmatched=[], aiPendingPrice=null, extractSeq=0;
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
   function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2800); }
   async function _api(u,o){ o=o||{}; o.headers=o.headers||{}; o.headers['X-Frappe-CSRF-Token']=CSRF; o.credentials='include'; try{ const r=await fetch(u,o); if(r.status===403||r.status===401){ location.href='/login?redirect-to=/purchases'; return null;} return r;}catch(e){ return null; } }
   async function _post(u,d){ const fd=new URLSearchParams(); fd.set('csrf_token',CSRF); for(const[k,v] of Object.entries(d||{})) fd.set(k,v); return _api(u,{method:'POST',body:fd}); }
+  // Frappe errors arrive as _server_messages / exception, not message.message — dig the real text out.
+  function srvMsg(d,fallback){ try{
+      if(d && d._server_messages){ const a=JSON.parse(d._server_messages); if(a.length){ const m=JSON.parse(a[0]); const t=(m.message||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); if(t) return t; } }
+      if(d && d.exception){ const t=String(d.exception).replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); const i=t.indexOf(':'); return (i>-1?t.slice(i+1):t).trim().slice(0,160)||fallback; }
+    }catch(e){} return fallback; }
   const CAT_EMOJI={tomato:'🍅',lettuce:'🥬',onion:'🧅',potato:'🥔',veg:'🥬',chicken:'🍗',beef:'🥩',meat:'🥩',fish:'🐟',cheese:'🧀',milk:'🥛',dairy:'🥛',bun:'🍞',bread:'🍞',oil:'🛢️',gas:'⛽',box:'📦',cup:'🥤',pack:'📦',rice:'🍚',flour:'🌾',egg:'🥚',sugar:'🧂',salt:'🧂',spice:'🌶️',sauce:'🥫',drink:'🥤',water:'💧'};
   function emojiFor(s){ const n=(s||'').toLowerCase(); for(const k in CAT_EMOJI){ if(n.includes(k)) return CAT_EMOJI[k]; } return '🧾'; }
 
   function setTab(t){ tab=t; document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
     document.getElementById('tabList').style.display=t==='list'?'block':'none';
+    document.getElementById('tabDue').style.display=t==='due'?'block':'none';
+    document.getElementById('tabExpenses').style.display=t==='expenses'?'block':'none';
     document.getElementById('tabPrices').style.display=t==='prices'?'block':'none';
-    document.getElementById('fab').style.display=t==='list'?'block':'none';
-    if(t==='prices') loadPriceBook(); icons(); }
+    document.getElementById('fab').style.display=(t==='prices'||t==='due')?'none':'block';
+    document.getElementById('fabLabel').textContent=t==='expenses'?'Add expense':'Add bill';
+    document.getElementById('fabIcon').setAttribute('data-lucide',t==='expenses'?'zap':'camera');
+    if(t==='prices') loadPriceBook();
+    if(t==='expenses') loadExpenses();
+    if(t==='due') loadDue();
+    paintStats(); icons(); }
+  function fabClick(){ if(tab==='expenses') openExp(); else openAdd(); }
 
-  async function loadBills(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
+  // The three header tiles describe whichever list is on screen — bills and expenses are
+  // separate pots of money and summing them into one figure would mean nothing.
+  function paintStats(){ const m=(tab==='expenses'?expStats:billStats)||{};
     document.getElementById('stApproved').textContent=nfmt(m.approved_today||0);
     document.getElementById('stPending').textContent=nfmt(m.pending_amt||0);
-    document.getElementById('stWeek').textContent=nfmt(m.week||0);
+    document.getElementById('stWeek').textContent=nfmt(m.week||0); }
+
+  function paintDueBadge(){ const n=(billStats&&billStats.due_count)||0; const b=document.getElementById('dueBadge');
+    if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
+  async function loadBills(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
+    billStats=m; paintStats(); paintDueBadge();
     const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
     document.getElementById('expList').innerHTML=(m.bills||[]).length?(m.bills||[]).map(b=>{ const t=TONE[b.status]||TONE.pending;
       return `<div style="display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
-        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${b.receipt_image}" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
+        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${b.receipt_image}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
         <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.vendor}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
         <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${b.time}</div>
         <span class="badge ${t[0]}">${t[1]}</span></div></div>`; }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No bills yet. Tap “Add bill / expense”.</div>';
     icons();
   }catch(e){} }
+
+  const EXP_EMOJI={electric:'⚡',water:'💧',gas:'🔥',rent:'🏠',internet:'📶',phone:'📶',salar:'👥',wage:'👥',repair:'🔧',mainten:'🔧',transport:'🚚',fuel:'⛽',clean:'🧽',consum:'🧽',licen:'📄',fee:'📄'};
+  function expEmoji(c){ const n=(c||'').toLowerCase(); for(const k in EXP_EMOJI){ if(n.includes(k)) return EXP_EMOJI[k]; } return '🧾'; }
+
+  async function loadExpenses(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expenses',{}); if(!r) return; const d=await r.json(); const m=d.message||{expenses:[]};
+    expStats=m; if(tab==='expenses') paintStats();
+    const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
+    document.getElementById('expenseList').innerHTML=(m.expenses||[]).length?(m.expenses||[]).map(e=>{ const t=TONE[e.status]||TONE.pending;
+      const sub=[e.payee,e.bill_ref?('#'+e.bill_ref):'',e.when].filter(Boolean).map(esc).join(' · ');
+      return `<div style="display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${e.receipt_image?`<img src="${esc(e.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:expEmoji(e.category)}</div>
+        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.category)}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(e.amount)}</span></div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sub}</div>
+        <span class="badge ${t[0]}">${t[1]}</span></div></div>`; }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No expenses yet. Tap “Add expense”.</div>';
+    icons();
+  }catch(e){} }
+
+  async function loadExpCats(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); if(!r) return; const d=await r.json();
+    expCats=(d.message&&d.message.categories)||[];
+    document.getElementById('eCategory').innerHTML=expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  }catch(e){} }
+
+  function paintExpTotal(){ document.getElementById('expTotal').textContent=nfmt(parseFloat(document.getElementById('eAmount').value)||0); }
+  async function openExp(){
+    ['ePayee','eAmount','eBillRef','eNote'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('eDate').value=new Date().toISOString().slice(0,10);
+    newExpReceipt=''; extractSeq++; scanMsg(true,false); const img=document.getElementById('expPhotoImg'); img.style.display='none'; img.removeAttribute('src');
+    const _eph=document.getElementById('expPhotoHint'); _eph.style.display='block'; _eph.textContent='📷 Tap to snap the bill';
+    document.getElementById('expErr').style.display='none'; paintExpTotal();
+    document.getElementById('expOverlay').style.display='flex'; icons(); saveDraft();
+    // Tapping the FAB right after load can beat the initial category fetch — await it here rather
+    // than hand the staffer an empty dropdown.
+    const sel=document.getElementById('eCategory');
+    if(!expCats.length){ sel.innerHTML='<option value="">Loading…</option>'; await loadExpCats(); }
+    if(!expCats.length){ sel.innerHTML='<option value="">No categories</option>';
+      expErrMsg2('Could not load categories — check your connection and reopen.'); } }
+  function expErrMsg2(t){ const e=document.getElementById('expErr'); document.getElementById('expErrMsg').textContent=t; e.style.display='flex'; icons(); }
+  function closeExp(){ document.getElementById('expOverlay').style.display='none'; extractSeq++; clearDraft(); }
+
+  async function submitExpense(){ const err=document.getElementById('expErr'), em=document.getElementById('expErrMsg');
+    const category=document.getElementById('eCategory').value;
+    const amount=parseFloat(document.getElementById('eAmount').value)||0;
+    if(!category){ em.textContent='Pick a category.'; err.style.display='flex'; return; }
+    if(amount<=0){ em.textContent='Enter how much was paid.'; err.style.display='flex'; return; }
+    const btn=document.getElementById('expSubmitBtn'); btn.disabled=true; err.style.display='none';
+    try{ const r=await _post('/api/method/luuvcrm.api.create_expense',{category:category,amount:amount,
+        payee:document.getElementById('ePayee').value.trim(),
+        bill_ref:document.getElementById('eBillRef').value.trim(),
+        expense_date:document.getElementById('eDate').value,
+        note:document.getElementById('eNote').value.trim(), receipt_image:newExpReceipt}); if(!r){ btn.disabled=false; return; }
+      const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeExp(); loadExpenses(); }
+      else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; }
+    }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
+
+  // ── Due bills (approved, not yet paid to the vendor) ──
+  async function loadDue(){ try{ const r=await _post('/api/method/luuvcrm.api.get_due_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
+    document.getElementById('dueTotal').textContent=nfmt(m.total_due||0);
+    document.getElementById('dueCount').textContent=m.count||0;
+    document.getElementById('dueVendors').innerHTML=(m.vendors||[]).slice(0,6).map(v=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:var(--radius-pill);padding:5px 11px;">${esc(v.vendor)} <span class="mono" style="opacity:.8;">Rs ${nfmt(v.amount)}</span></span>`).join('');
+    document.getElementById('dueList').innerHTML=(m.bills||[]).length?(m.bills||[]).map(b=>`
+      <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div style="display:flex;gap:13px;">
+          <div style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
+          <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</span><span class="mono" style="font-size:16px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${esc(b.time)}${b.by?(' · '+esc(b.by)):''}</div></div>
+        </div>
+        <button onclick="markPaid('${esc(b.name)}',this)" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid</button>
+      </div>`).join(''):'<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:56px 20px;text-align:center;color:var(--text-faint);"><span style="width:60px;height:60px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:28px;height:28px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);">All settled 🎉</div><div style="font-size:13px;max-width:230px;line-height:1.5;">No approved bills waiting to be paid.</div></div>';
+    icons();
+  }catch(e){} }
+  async function markPaid(name,btn){ if(btn){ btn.disabled=true; btn.innerHTML='<i data-lucide="loader" style="width:16px;height:16px;"></i> Saving…'; icons(); }
+    try{ const r=await _post('/api/method/luuvcrm.api.mark_bill_paid',{name:name,paid:1}); if(!r){ if(btn) btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Marked paid ✓'); loadDue(); loadBills(); }
+      else { toast(srvMsg(d,'Could not update')); if(btn){ btn.disabled=false; btn.innerHTML='<i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid'; icons(); } }
+    }catch(e){ toast('Connection error'); if(btn){ btn.disabled=false; btn.innerHTML='<i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid'; icons(); } } }
 
   async function loadPriceBook(){ try{ const r=await _post('/api/method/luuvcrm.api.get_price_book',{}); if(!r) return; const d=await r.json(); const items=(d.message&&d.message.items)||[];
     document.getElementById('priceList').innerHTML=items.length?items.map(p=>`<div style="display:flex;align-items:center;gap:12px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow-xs);"><span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(p.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${p.name}</div><div style="font-size:12px;color:var(--text-muted);">per ${p.unit}</div></div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt(p.price)}</div></div>`).join(''):'<div style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">No purchase items yet.</div>';
@@ -173,22 +333,27 @@ input,button{font-family:inherit;}
   // ── Add bill ──
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
   function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
-    document.getElementById('photoImg').style.display='none'; document.getElementById('photoHint').style.display='block'; document.getElementById('formErr').style.display='none';
+    aiUnmatched=[]; aiPendingPrice=null; extractSeq++; scanMsg(false,false); renderUnmatched();
+    document.getElementById('photoImg').style.display='none'; const _ph=document.getElementById('photoHint'); _ph.style.display='block'; _ph.textContent='📷 Tap to snap receipt'; document.getElementById('formErr').style.display='none';
     if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
-    document.getElementById('addOverlay').style.display='flex'; icons(); }
-  function closeAdd(){ document.getElementById('addOverlay').style.display='none'; }
+    document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
+  function closeAdd(){ document.getElementById('addOverlay').style.display='none'; extractSeq++; clearDraft(); }
   function togglePicker(){ pickerOpen=!pickerOpen; renderPicker(); }
-  function addLine(item){ const c=catalog.find(x=>x.item===item); if(!c) return; formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,qty:'1',price:String(c.price)}); renderLines(); renderPicker(); }
-  function removeLine(i){ formLines.splice(i,1); renderLines(); renderPicker(); }
-  function setQty(i,v){ formLines[i].qty=v; updateTotal(); }
-  function setPrice(i,v){ formLines[i].price=v; renderLines(); }
+  function addLine(item){ const c=catalog.find(x=>x.item===item); if(!c) return; formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,qty:'1',price:String(c.price)}); renderLines(); renderPicker(); saveDraft(); }
+  function removeLine(i){ formLines.splice(i,1); renderLines(); renderPicker(); saveDraft(); }
+  // NB: oninput must NOT re-render the line list — rebuilding wrap.innerHTML while the
+  // user types destroys the focused input, so the mobile keyboard closes after every digit.
+  // Keep typing light (model + total only); refresh the Up/Down badge, border and line
+  // total on blur via onchange="renderLines()" on the inputs (focus already gone by then).
+  function setQty(i,v){ formLines[i].qty=v; formLines[i].low=0; updateTotal(); saveDraft(); }
+  function setPrice(i,v){ formLines[i].price=v; formLines[i].low=0; updateTotal(); saveDraft(); }
   function renderLines(){ const wrap=document.getElementById('lineRows');
     wrap.innerHTML=formLines.map((l,i)=>{ const price=parseFloat(l.price)||0; const changed=l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
-      return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 12px;background:var(--surface-card);">
-        <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${l.name}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${l.unit}</div></div><button onclick="removeLine(${i})" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
+      return `<div style="border:1.5px solid ${l.low?'var(--color-warning)':'var(--border-default)'};border-radius:var(--radius-md);padding:11px 12px;background:var(--surface-card);">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${l.name}${l.low?' <span class="badge warning">⚠ check</span>':''}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${l.unit}</div></div><button onclick="removeLine(${i})" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
         <div style="display:flex;gap:8px;align-items:flex-end;">
-          <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${l.unit})</div><input value="${l.qty}" oninput="setQty(${i},this.value)" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
-          <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">New price / ${l.unit}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${l.price}" oninput="setPrice(${i},this.value)" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
+          <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${l.unit})</div><input value="${l.qty}" oninput="setQty(${i},this.value)" onchange="renderLines()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
+          <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">New price / ${l.unit}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${l.price}" oninput="setPrice(${i},this.value)" onchange="renderLines()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
           <div style="flex:none;text-align:right;padding-bottom:9px;min-width:72px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Line</div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt((parseFloat(l.qty)||0)*price)}</div></div>
         </div>
         ${changed?`<div style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:${up?'var(--color-danger)':'var(--color-success)'};margin-top:9px;background:${up?'var(--color-danger-subtle)':'var(--color-success-subtle)'};border-radius:var(--radius-pill);padding:3px 10px;"><i data-lucide="${up?'trending-up':'trending-down'}" style="width:12px;height:12px;"></i> ${up?'Up':'Down'} Rs ${nfmt(diff)} from current</div>`:''}
@@ -229,12 +394,156 @@ input,button{font-family:inherit;}
     try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ const it=d.message;
         if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:''});
-        pickerQuery=''; addLine(it.item); toast(it.existed?'Item already existed — added':'Item created & added'); }
-      else { toast((d.message&&d.message.message)||'Could not create item'); btn.disabled=false; } }
+        pickerQuery=''; addLine(it.item);
+        // Came from an AI-read line the price book didn't know — carry over the qty/price
+        // the model read off the receipt, still flagged for a human check.
+        if(aiPendingPrice){ const L=formLines[formLines.length-1];
+          if(L&&L.item===it.item){ if(aiPendingPrice.price!=null) L.price=String(aiPendingPrice.price);
+            if(aiPendingPrice.qty!=null) L.qty=String(aiPendingPrice.qty); L.low=1; renderLines(); saveDraft(); }
+          aiPendingPrice=null; }
+        toast(it.existed?'Item already existed — added':'Item created & added'); }
+      else { toast((d.message&&d.message.message)||srvMsg(d,'Could not create item')); btn.disabled=false; } }
     catch(e){ toast('Connection error'); btn.disabled=false; } }
-  async function uploadReceipt(input){ const f=input.files&&input.files[0]; if(!f) return;
+  // ── Draft persistence ──
+  // Low-RAM Androids kill this tab the moment the camera app opens; the page
+  // reloads from scratch when the staffer comes back. Every form change is
+  // snapshotted to localStorage so the reload can put the sheet back exactly
+  // as it was. Cancel / backdrop-tap / successful submit clear the draft.
+  const DRAFT_KEY='lf_purch_draft';
+  let restoringDraft=false;
+  function sheetOpen(id){ return document.getElementById(id).style.display==='flex'; }
+  function saveDraft(){ if(restoringDraft) return; try{
+      let d=null;
+      if(sheetOpen('addOverlay')) d={sheet:'bill',lines:formLines,receipt:newReceipt,unmatched:aiUnmatched,
+        vendor:document.getElementById('fVendor').value,note:document.getElementById('fNote').value,at:Date.now()};
+      else if(sheetOpen('expOverlay')) d={sheet:'exp',receipt:newExpReceipt,
+        category:document.getElementById('eCategory').value,payee:document.getElementById('ePayee').value,
+        amount:document.getElementById('eAmount').value,billref:document.getElementById('eBillRef').value,
+        date:document.getElementById('eDate').value,note:document.getElementById('eNote').value,at:Date.now()};
+      if(d) localStorage.setItem(DRAFT_KEY,JSON.stringify(d));
+    }catch(e){} }
+  function clearDraft(){ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} }
+  async function restoreDraft(){ let d=null; try{ d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null'); }catch(e){}
+    if(!d||!d.at||Date.now()-d.at>12*3600*1000){ if(d) clearDraft(); return; }
+    restoringDraft=true;
+    try{
+      if(d.sheet==='bill'){
+        openAdd();
+        formLines=Array.isArray(d.lines)?d.lines:[]; newReceipt=d.receipt||'';
+        aiUnmatched=Array.isArray(d.unmatched)?d.unmatched:[];
+        document.getElementById('fVendor').value=d.vendor||'';
+        document.getElementById('fNote').value=d.note||'';
+        if(newReceipt){ const img=document.getElementById('photoImg'); img.src=newReceipt; img.style.display='block'; document.getElementById('photoHint').style.display='none'; }
+        renderLines(); renderPicker(); renderUnmatched();
+      } else if(d.sheet==='exp'){
+        setTab('expenses');
+        await openExp();
+        newExpReceipt=d.receipt||'';
+        document.getElementById('eCategory').value=d.category||'';
+        document.getElementById('ePayee').value=d.payee||'';
+        document.getElementById('eAmount').value=d.amount||'';
+        document.getElementById('eBillRef').value=d.billref||'';
+        if(d.date) document.getElementById('eDate').value=d.date;
+        document.getElementById('eNote').value=d.note||'';
+        if(newExpReceipt){ const img=document.getElementById('expPhotoImg'); img.src=newExpReceipt; img.style.display='block'; document.getElementById('expPhotoHint').style.display='none'; }
+        paintExpTotal();
+      }
+    }catch(e){}
+    restoringDraft=false; saveDraft();
+    toast('Draft restored — continue where you left off');
+  }
+
+  // Camera photos are 3–10 MB; decoding + uploading one at full size is what
+  // pushes a 1–2 GB phone over the edge. Downscale to ≤2000px JPEG (~300–500 KB)
+  // before upload — small enough for a weak connection, still legible enough for the
+  // AI read on a long thermal receipt. Any failure falls back to the original file.
+  async function shrinkPhoto(f){
+    if(!/^image\//.test(f.type||'')||f.size<400*1024) return f;
+    try{
+      const bmp=await createImageBitmap(f,{imageOrientation:'from-image'});
+      const MAX=2000, sc=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
+      const w=Math.round(bmp.width*sc), h=Math.round(bmp.height*sc);
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(bmp,0,0,w,h); if(bmp.close) bmp.close();
+      const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.85));
+      if(blob&&blob.size<f.size) return new File([blob],((f.name||'receipt').replace(/\.\w+$/,'')||'receipt')+'.jpg',{type:'image/jpeg'});
+    }catch(e){}
+    return f;
+  }
+
+  // ── AI receipt read (prefill only — the staffer always reviews before submitting) ──
+  function scanMsg(exp,on,text){ const el=document.getElementById(exp?'expScanRow':'scanRow');
+    if(!el) return; el.style.display=on?'flex':'none'; if(on&&text) el.querySelector('span').textContent=text; icons(); }
+  // Lines the receipt had but the price book doesn't — tapping one opens the existing
+  // new-item flow prefilled, so the staffer never has to retype the name.
+  function renderUnmatched(){ const w=document.getElementById('aiUnmatchedWrap'); if(!w) return;
+    if(!aiUnmatched.length){ w.innerHTML=''; return; }
+    w.innerHTML=`<div style="border:1.5px dashed var(--color-warning);border-radius:var(--radius-md);padding:11px 12px;margin-bottom:12px;background:var(--color-warning-subtle);">
+      <div style="font-size:12.5px;font-weight:700;color:#9a6207;margin-bottom:8px;">Read off the bill but not in the price book — tap to add</div>
+      ${aiUnmatched.map((u,i)=>`<button onclick="addUnmatched(${i})" style="width:100%;display:flex;align-items:center;gap:8px;border:none;background:transparent;cursor:pointer;text-align:left;padding:6px 0;color:var(--text-strong);font-size:13.5px;font-weight:600;"><i data-lucide="plus-circle" style="width:16px;height:16px;color:var(--color-primary);flex:none;"></i> <span style="flex:1;min-width:0;">${esc(u.raw_name)}</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);flex:none;">${u.qty!=null?u.qty:'?'} × Rs ${u.price!=null?nfmt(u.price):'?'}</span></button>`).join('')}
+    </div>`;
+    icons(); }
+  function addUnmatched(i){ const u=aiUnmatched[i]; if(!u) return;
+    aiPendingPrice={qty:u.qty,price:u.price};
+    aiUnmatched.splice(i,1); renderUnmatched();
+    pickerQuery=u.raw_name; pickerOpen=true; renderPicker(); openNewItem(); saveDraft(); }
+
+  async function runExtract(which){ const exp=which==='exp'; const url=exp?newExpReceipt:newReceipt;
+    if(!url) return; const seq=++extractSeq;
+    scanMsg(exp,true,'✨ Reading bill…');
+    try{ const r=await _post('/api/method/luuvcrm.api.extract_receipt',{file_url:url,kind:exp?'expense':'bill'});
+      if(seq!==extractSeq) return;                 // sheet closed / new photo — drop this result
+      if(!r){ scanMsg(exp,false); return; }
+      const d=await r.json(); const m=d.message||{};
+      if(seq!==extractSeq) return;
+      scanMsg(exp,false);
+      if(!m.ok||!m.data){ toast(m.message||srvMsg(d,'Auto-read failed — type it manually')); return; }
+      if(exp) applyExpenseExtract(m.data); else applyBillExtract(m.data);
+    }catch(e){ if(seq===extractSeq) scanMsg(exp,false); } }
+
+  function applyBillExtract(x){ let added=0; aiUnmatched=[];
+    for(const it of (x.items||[])){
+      const c=it.matched_item_code?catalog.find(k=>k.item===it.matched_item_code):null;
+      if(!c){ if(it.raw_name) aiUnmatched.push({raw_name:it.raw_name,qty:it.qty,price:it.price}); continue; }
+      if(formLines.some(l=>l.item===c.item)) continue;   // already on the sheet — don't double it
+      // Unreadable price falls back to the current price book rate; flagged either way.
+      formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,
+        qty:it.qty!=null?String(it.qty):'1', price:it.price!=null?String(it.price):String(c.price),
+        low:(it.confidence==='low'||it.qty==null||it.price==null)?1:0});
+      added++; }
+    const v=document.getElementById('fVendor'); if(x.vendor&&!v.value.trim()) v.value=x.vendor;
+    const n=document.getElementById('fNote');
+    const bits=[x.overall_note,x.bill_no?('Bill no '+x.bill_no):''].filter(Boolean).join(' · ');
+    if(bits&&!n.value.trim()) n.value=bits;
+    renderLines(); renderPicker(); renderUnmatched(); saveDraft();
+    toast(added?`Read ${added} item${added===1?'':'s'} — please check`:'Nothing readable — type it in'); }
+
+  function applyExpenseExtract(x){ const set=(id,val)=>{ const el=document.getElementById(id);
+      if(el&&val!=null&&val!==''&&!String(el.value).trim()) el.value=val; };
+    const amt=x.expense_amount!=null?x.expense_amount:x.total;
+    if(amt!=null){ const el=document.getElementById('eAmount'); if(!String(el.value).trim()){ el.value=amt; paintExpTotal(); } }
+    set('ePayee',x.vendor); set('eBillRef',x.bill_no); set('eNote',x.overall_note);
+    if(x.date&&/^\d{4}-\d{2}-\d{2}$/.test(x.date)) document.getElementById('eDate').value=x.date;
+    if(x.expense_category_guess){ const sel=document.getElementById('eCategory');
+      const hit=expCats.find(c=>c.toLowerCase()===String(x.expense_category_guess).toLowerCase());
+      if(hit) sel.value=hit; }
+    saveDraft();
+    toast(amt!=null?'Bill read — please check the amount':'Nothing readable — type it in'); }
+
+  // Shared by both sheets — `which` says whether the upload belongs to the bill or the expense.
+  async function uploadReceipt(input,which){ let f=input.files&&input.files[0]; input.value=''; if(!f) return;
+    const exp=which==='exp';
+    const hint=document.getElementById(exp?'expPhotoHint':'photoHint'); const hintIdle=exp?'📷 Tap to snap the bill':'📷 Tap to snap receipt'; hint.textContent='⏳ Uploading…';
+    f=await shrinkPhoto(f);
     const fd=new FormData(); fd.append('file',f,f.name); fd.append('is_private',0); fd.append('csrf_token',CSRF);
-    try{ const r=await _api('/api/method/upload_file',{method:'POST',body:fd}); if(!r) return; const d=await r.json(); const url=d.message&&(d.message.file_url||d.message.file_name); if(url){ newReceipt=url; const img=document.getElementById('photoImg'); img.src=url; img.style.display='block'; document.getElementById('photoHint').style.display='none'; toast('Receipt added'); } }catch(e){ toast('Upload failed'); } }
+    try{ const r=await _api('/api/method/upload_file',{method:'POST',body:fd}); if(!r){ hint.textContent=hintIdle; return; }
+      const d=await r.json(); const url=d.message&&(d.message.file_url||d.message.file_name);
+      if(!url){ hint.textContent=hintIdle; toast('Upload failed — try again'); return; }
+      if(exp) newExpReceipt=url; else newReceipt=url;
+      const img=document.getElementById(exp?'expPhotoImg':'photoImg'); img.src=url; img.style.display='block';
+      hint.style.display='none'; toast('Receipt added'); saveDraft();
+      runExtract(which);                     // fire-and-forget; the form stays usable meanwhile
+    }catch(e){ hint.textContent=hintIdle; toast('Upload failed'); } }
   async function submitBill(){ const err=document.getElementById('formErr'); const em=document.getElementById('formErrMsg');
     const vendor=document.getElementById('fVendor').value.trim();
     if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
@@ -244,13 +553,13 @@ input,button{font-family:inherit;}
     const btn=document.getElementById('submitBtn'); btn.disabled=true; err.style.display='none';
     try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:vendor,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); }
-      else { em.textContent=(d.message&&d.message.message)||'Could not submit'; err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
+      else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
 
   // init
   icons();
   document.getElementById('subline').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · {{ current_user_full or "Staff" }}';
-  loadBills(); loadCatalog();
-  setInterval(()=>{ loadBills(); }, 9000);
+  loadBills(); loadCatalog(); loadExpCats(); restoreDraft();
+  setInterval(()=>{ if(sheetOpen('addOverlay')||sheetOpen('expOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); }, 20000);
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
 </script>
 </body>

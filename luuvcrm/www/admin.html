@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Admin · Luuv Fryxo</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First script on the page so it is listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="admin"></script>
+<meta name="theme-color" content="#F15207">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-300:#FF9E68;
+  --orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;
+  --gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
+  --gray-500:#837A70;--gray-700:#423D38;--gray-900:#1A1714;--ink:#141210;
+  --green-500:#1E9E5A;--red-500:#E23D3D;--blue-500:#2D74D6;
+  --color-primary:var(--orange-500);--text-strong:var(--gray-900);--text-body:var(--gray-700);
+  --text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);--surface-brand:var(--orange-500);
+  --border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;
+  --font-display:'Poppins',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;--font-mono:'DM Mono',ui-monospace,monospace;
+  --radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-pill:999px;
+  --shadow-xs:0 1px 2px rgba(20,18,16,.06);
+  --shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
+  --shadow-lg:0 12px 28px rgba(20,18,16,.12),0 4px 8px rgba(20,18,16,.06);
+  --shadow-brand:0 8px 22px rgba(241,82,7,.30);
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0;font-family:var(--font-body);color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased;}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.wrap{max-width:1060px;margin:0 auto;padding:0 22px 110px;}
+header{display:flex;align-items:center;gap:14px;padding:22px 0 18px;}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);font-family:var(--font-display);font-weight:800;font-size:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 3px var(--orange-50);}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:26px;}
+.stat{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow-xs);}
+.stat .l{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);}
+.stat .v{font-family:var(--font-mono);font-size:26px;color:var(--text-strong);margin-top:4px;}
+.grp{font-family:var(--font-display);font-weight:800;font-size:15px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin:26px 0 12px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}
+.appc{display:flex;align-items:flex-start;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);text-decoration:none;color:inherit;transition:box-shadow .15s,transform .15s,border-color .15s;}
+.appc:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);border-color:var(--orange-200);}
+.appc .ic{width:46px;height:46px;border-radius:13px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:24px;flex:none;}
+.appc .nm{font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);line-height:1.2;}
+.appc .ds{font-size:12.5px;color:var(--text-muted);margin-top:3px;line-height:1.4;}
+.badge{display:none;min-width:20px;height:20px;border-radius:10px;background:var(--color-danger);color:#fff;font-size:11.5px;font-weight:800;align-items:center;justify-content:center;padding:0 6px;margin-left:auto;flex:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="avatar">{{ (current_user_full[0]|upper) if current_user_full else "A" }}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);line-height:1.15;">Luuv Fryxo · Admin</div>
+      <div style="font-size:12.5px;color:var(--text-muted);" id="subline">{{ current_user_full }}</div>
+    </div>
+    <a href="/api/method/logout" title="Sign out" onclick="return confirm('Sign out?')" style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
+  </header>
+
+  <!-- live strip (full dashboards live in the Manager app) -->
+  <div class="stats">
+    <div class="stat"><div class="l">Revenue today</div><div class="v">Rs <span id="stRev">—</span></div></div>
+    <div class="stat"><div class="l">Sales</div><div class="v" id="stSales">—</div></div>
+    <div class="stat"><div class="l">Voids</div><div class="v" id="stVoids">—</div></div>
+    <a class="stat" href="/manager" target="_blank" style="text-decoration:none;color:inherit;"><div class="l" style="display:flex;align-items:center;gap:7px;">Approvals <span class="badge" id="stApprBadge"></span></div><div class="v" id="stAppr">—</div></a>
+  </div>
+  <div style="font-size:12.5px;color:var(--text-faint);margin:-14px 0 4px;">Full dashboard, reports & cash drawer → <a href="/manager" target="_blank" style="color:var(--color-primary);font-weight:700;">Manager app</a></div>
+
+  <!-- FUTURE: a fuller dashboard section (outlet-wise, charts) slots in here -->
+
+  <div class="grp">Operations</div>
+  <div class="grid">
+    <a class="appc" href="/pos2" target="_blank"><span class="ic">🍔</span><span><span class="nm">POS</span><span class="ds" style="display:block;">Billing counter — tables, KOT, payments, shifts</span></span></a>
+    <a class="appc" href="/kitchen" target="_blank"><span class="ic">👨‍🍳</span><span><span class="nm">Kitchen Display</span><span class="ds" style="display:block;">Live ticket queue by kitchen station</span></span></a>
+    <a class="appc" href="/waiter" target="_blank"><span class="ic">🤵</span><span><span class="nm">Waiter</span><span class="ds" style="display:block;">Take table orders from the floor</span></span></a>
+    <a class="appc" href="/kiosk" target="_blank"><span class="ic">🖥️</span><span><span class="nm">Kiosk</span><span class="ds" style="display:block;">Self-service ordering screen</span></span></a>
+  </div>
+
+  <div class="grp">Management</div>
+  <div class="grid">
+    <a class="appc" href="/manager" target="_blank"><span class="ic">📊</span><span><span class="nm">Manager</span><span class="ds" style="display:block;">Today's sales, reports, cash drawer, approvals</span></span></a>
+    <a class="appc" href="/purchases" target="_blank"><span class="ic">🧾</span><span><span class="nm">Purchases</span><span class="ds" style="display:block;">Record supplier purchase bills</span></span></a>
+    <a class="appc" href="/qrpromo" target="_blank"><span class="ic">🎁</span><span><span class="nm">QR Promo Stickers</span><span class="ds" style="display:block;">Free-meal campaign — batches, printing, stats</span></span></a>
+    <a class="appc" href="/qrcodes" target="_blank"><span class="ic">🪑</span><span><span class="nm">Table QR Codes</span><span class="ds" style="display:block;">Per-table QR codes for kiosk ordering</span></span></a>
+    <a class="appc" href="/app/pos-item-addon" target="_blank"><span class="ic">➕</span><span><span class="nm">Item Add-ons</span><span class="ds" style="display:block;">Map add-ons (sauce, salad…) to menu items — Desk</span></span></a>
+    <a class="appc" href="/activity" target="_blank"><span class="ic">👀</span><span style="flex:1;min-width:0;"><span class="nm" style="display:flex;align-items:center;gap:8px;">Staff activity <span class="badge" id="actBadge"></span></span><span class="ds" style="display:block;">Who did what on every bill — taps, voids, discounts, drawer, shift variance</span></span></a>
+    <a class="appc" href="/errors" target="_blank"><span class="ic">🐞</span><span style="flex:1;min-width:0;"><span class="nm" style="display:flex;align-items:center;gap:8px;">Error log <span class="badge" id="errBadge"></span></span><span class="ds" style="display:block;">Crashes on the staff's phones — POS, waiter, purchases, manager</span></span></a>
+  </div>
+
+  <div class="grp">Customer</div>
+  <div class="grid">
+    <a class="appc" href="/cus" target="_blank"><span class="ic">📱</span><span><span class="nm">Customer App</span><span class="ds" style="display:block;">Order, track, rewards — installable PWA</span></span></a>
+    <a class="appc" href="/order" target="_blank"><span class="ic">🛵</span><span><span class="nm">Online Order</span><span class="ds" style="display:block;">Web ordering page</span></span></a>
+    <a class="appc" href="/track" target="_blank"><span class="ic">📍</span><span><span class="nm">Track Order</span><span class="ds" style="display:block;">Customer order tracking</span></span></a>
+    <a class="appc" href="/home" target="_blank"><span class="ic">🏠</span><span><span class="nm">Home Site</span><span class="ds" style="display:block;">Public restaurant site & menu</span></span></a>
+  </div>
+</div>
+
+  <!-- Android App Download Banner -->
+  <div id="apkBanner" style="display:none; position:fixed; bottom:0; left:0; right:0; background:var(--surface-card); border-top:1px solid var(--border-default); box-shadow:0 -4px 20px rgba(20,18,16,.1); padding:14px 22px; z-index:100; align-items:center; justify-content:space-between; gap:16px;">
+    <div style="display:flex; align-items:center; gap:14px; min-width:0;">
+      <div style="width:42px; height:42px; border-radius:12px; background:var(--orange-50); color:var(--orange-700); display:flex; align-items:center; justify-content:center; font-size:22px; flex:none;">🤖</div>
+      <div style="min-width:0;">
+        <div style="font-family:var(--font-display); font-weight:800; font-size:14.5px; color:var(--text-strong);">Download iMin POS App</div>
+        <div style="font-size:12px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">Install Luuv Fryxo iMin POS APK directly</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; flex:none;">
+      <button onclick="cpDownloadApk(event)" style="background:var(--color-primary); color:#fff; border:none; padding:9px 16px; border-radius:var(--radius-pill); font-family:var(--font-display); font-weight:700; font-size:13px; cursor:pointer; box-shadow:var(--shadow-xs);">Download APK</button>
+      <button onclick="dismissApkBanner(event)" title="Close" style="background:transparent; border:none; color:var(--text-muted); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px;">×</button>
+    </div>
+  </div>
+
+<script>
+const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+function nfmt(n){ return (Math.round(n||0)).toLocaleString('en-US'); }
+async function _post(url,data){ try{ const b=new URLSearchParams(); b.set('csrf_token',CSRF); for(const[k,v] of Object.entries(data||{})) b.set(k,v);
+  const r=await fetch(url,{method:'POST',credentials:'include',headers:{'X-Frappe-CSRF-Token':CSRF,'Content-Type':'application/x-www-form-urlencoded'},body:b.toString()});
+  if(r.status===401||r.status===403){ location.href='/pos-login?redirect=/admin'; return null; } return r.json(); }catch(e){ return null; } }
+async function loadErrors(){
+  // limit=1 — we only want open_count for the badge, not the rows.
+  const d=await _post('/api/method/luuvcrm.api.get_client_errors',{status:'open',limit:1});
+  const n=(d&&d.message&&d.message.open_count)||0; const b=document.getElementById('errBadge');
+  if(n>0){ b.style.display='inline-flex'; b.textContent=n; } else b.style.display='none';
+}
+async function loadStrip(){
+  const d=await _post('/api/method/luuvcrm.api.get_manager_dashboard'); if(!d||!d.message) return; const m=d.message;
+  document.getElementById('stRev').textContent=nfmt(m.revenue);
+  document.getElementById('stSales').textContent=m.sales_count;
+  document.getElementById('stVoids').textContent=m.void_count;
+  const pend=(m.approvals||[]).filter(a=>a.status==='pending').length;
+  document.getElementById('stAppr').textContent=pend;
+  const b=document.getElementById('stApprBadge'); if(pend>0){ b.style.display='inline-flex'; b.textContent=pend; } else b.style.display='none';
+}
+async function loadActFlags(){
+  // Unreviewed "human error" flags from today — see /activity.
+  const d=await _post('/api/method/luuvcrm.activity.get_activity_flags',{days:1});
+  const n=(d&&d.message&&d.message.count)||0; const b=document.getElementById('actBadge');
+  if(n>0){ b.style.display='inline-flex'; b.textContent=n; } else b.style.display='none';
+}
+function cpDownloadApk(e){
+  if(e) e.preventDefault();
+  const a=document.createElement('a');
+  a.href='/files/app-release.apk';
+  a.download='app-release.apk';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+function dismissApkBanner(e){
+  if(e) e.stopPropagation();
+  const b=document.getElementById('apkBanner');
+  if(b) b.style.display='none';
+  localStorage.setItem('luuv_hide_apk_banner', '1');
+}
+if(localStorage.getItem('luuv_hide_apk_banner')!=='1'){
+  const b=document.getElementById('apkBanner');
+  if(b) b.style.display='flex';
+}
+loadStrip(); setInterval(loadStrip,60000);
+loadErrors(); setInterval(loadErrors,60000);
+loadActFlags(); setInterval(loadActFlags,60000);
+try{ window.lucide&&window.lucide.createIcons(); }catch(e){}
+</script>
+</body>
+</html>

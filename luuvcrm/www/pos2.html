@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Luuv Fryxo POS</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First script on the page so it is listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="pos2"></script>
+<script src="/lfact.js?v=1" data-app="pos2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
 <script src="https://unpkg.com/lucide@latest"></script>
@@ -157,7 +160,7 @@ input,select,button{font-family:inherit;}
         <div style="flex:1;overflow-y:auto;padding-bottom:8px;">
           <div id="menuGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;align-content:start;">
             {% for g in menu_groups %}{% for it in g['items'] %}
-            <button class="mcard" data-code="{{ it.code }}" data-name="{{ it.name }}" data-rate="{{ it.rate }}" data-group="{{ g.name }}" onclick="addToCart('{{ it.code }}')"
+            <button class="mcard" data-code="{{ it.code }}" data-name="{{ it.name }}" data-rate="{{ it.rate }}" data-group="{{ g.name }}" data-addons="{{ it.addons }}" onclick="addToCart('{{ it.code }}')"
               style="position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:16px;min-height:134px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);cursor:pointer;text-align:left;box-shadow:var(--shadow-xs);">
               <div style="font-size:38px;line-height:1;">{% if it.image %}<img src="{{ it.image }}" style="width:40px;height:40px;object-fit:cover;border-radius:8px;" loading="lazy">{% else %}🍽️{% endif %}</div>
               <div style="font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--text-strong);line-height:1.2;margin-top:auto;">{{ it.name }}</div>
@@ -270,9 +273,39 @@ input,select,button{font-family:inherit;}
     </div>
     <div class="field" id="tenderField"><label>Amount tendered</label><input type="number" id="tendered" value="0" oninput="calcChange()"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:10px 14px;background:var(--orange-50);border-radius:var(--radius-md);"><span style="font-size:15px;font-weight:700;color:var(--text-body);">Return / Change</span><span class="mono" id="changeDue" style="font-size:28px;font-weight:900;line-height:1;color:var(--color-primary);">0</span></div></div>
     <div id="ccFields" style="display:none;"><div class="field"><label>Cash</label><input type="number" id="ccCash" value="0"></div><div class="field"><label>Card</label><input type="number" id="ccCard" value="0"></div></div>
+    <div id="gdWrap" style="margin-top:10px;border-top:1px dashed var(--border-default);padding-top:8px;">
+      <button type="button" onclick="gdToggle()" style="background:none;border:none;cursor:pointer;font-size:13px;font-weight:700;color:var(--text-muted);padding:0;">🧭 Tour guide cashback <span id="gdCount"></span></button>
+      <div id="gdBody" style="display:none;margin-top:8px;">
+        <div style="display:flex;gap:6px;">
+          <input type="tel" id="gdNum" placeholder="Guide WhatsApp e.g. 0771234567" onkeydown="if(event.key==='Enter'){event.preventDefault();gdFind();}" style="flex:1;padding:9px 10px;border:1px solid var(--border-default);border-radius:var(--radius-md);font-size:14px;">
+          <button type="button" class="lf-btn lf-btn--secondary lf-btn--md" onclick="gdFind()">Find</button>
+        </div>
+        <div id="gdAddRow" style="display:none;margin-top:6px;gap:6px;flex-wrap:wrap;">
+          <input type="text" id="gdName" placeholder="Name (optional)" style="flex:1;min-width:120px;padding:9px 10px;border:1px solid var(--border-default);border-radius:var(--radius-md);font-size:14px;">
+          <select id="gdRole" style="padding:9px 10px;border:1px solid var(--border-default);border-radius:var(--radius-md);font-size:14px;background:var(--surface-card);"><option>Guide</option><option>Driver</option><option>Helper</option></select>
+          <button type="button" class="lf-btn lf-btn--primary lf-btn--md" onclick="gdAdd()">Add + invite</button>
+        </div>
+        <div id="gdChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+        <div id="gdRedeemRow" style="display:none;align-items:center;gap:8px;margin-top:8px;background:var(--orange-50);border-radius:var(--radius-md);padding:8px 10px;font-size:13px;font-weight:700;color:var(--text-body);">
+          <span>Balance pays Rs</span>
+          <input type="number" id="gdRedeemAmt" oninput="gdRedeemInput()" style="width:92px;padding:6px 8px;border:1px solid var(--border-default);border-radius:8px;font-size:14px;">
+          <span style="margin-left:auto;">To pay: <span class="mono" id="gdNetDue" style="font-weight:900;color:var(--color-primary);">0</span></span>
+        </div>
+        <div id="gdMsg" style="font-size:12px;color:var(--text-muted);margin-top:4px;"></div>
+      </div>
+    </div>
     <div class="merr" id="payErr"></div>
   </div>
   <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('payModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="payConfirm" onclick="confirmPay()">Confirm payment</button></div>
+</div></div>
+
+<!-- Kitchen note dialog (per-item note → cart line + KOT) -->
+<div class="lf-dialog__overlay" id="noteModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Kitchen note</h3><p class="lf-dialog__desc" id="noteItemName">—</p></div>
+  <div class="lf-dialog__body">
+    <div class="field"><label>Note for the kitchen</label><input type="text" id="noteText" placeholder="e.g. no onions, extra spicy, less salt" maxlength="140" onkeydown="if(event.key==='Enter'){event.preventDefault();saveNote();}"></div>
+  </div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('noteModal')">Cancel</button><button class="lf-btn lf-btn--secondary lf-btn--md" onclick="saveNote(true)">Clear</button><button class="lf-btn lf-btn--primary lf-btn--md" onclick="saveNote()">Save note</button></div>
 </div></div>
 
 <!-- Order actions bottom-sheet -->
@@ -330,6 +363,13 @@ input,select,button{font-family:inherit;}
   <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('moveModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="moveConfirm" onclick="confirmMove()">Move order</button></div>
 </div></div>
 
+<!-- Duplicate / zombie bill dialog (open bills on a table at pay/create moments) -->
+<div class="lf-dialog__overlay" id="dupeModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title" id="dupeTitle">Open bills on this table</h3><p class="lf-dialog__desc" id="dupeSub"></p></div>
+  <div class="lf-dialog__body"><div id="dupeRows" style="display:flex;flex-direction:column;gap:10px;"></div></div>
+  <div class="lf-dialog__foot" id="dupeFoot"></div>
+</div></div>
+
 <!-- POS settings dialog -->
 <div class="lf-dialog__overlay" id="settingsModal"><div class="lf-dialog">
   <div class="lf-dialog__head"><h3 class="lf-dialog__title">POS settings</h3><p class="lf-dialog__desc">Display & printing preferences for this device.</p></div>
@@ -377,6 +417,22 @@ input,select,button{font-family:inherit;}
   <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('discountModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="discConfirm" onclick="confirmDiscount()">Request approval</button></div>
 </div></div>
 
+<!-- Add-ons picker (opens after adding an item that has POS Item Addon rows) -->
+<div id="addonOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:1000;" onclick="closeAddons()">
+  <div onclick="event.stopPropagation()" style="width:440px;max-width:94vw;max-height:80vh;background:var(--surface-card);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);padding:22px;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <span style="width:38px;height:38px;border-radius:11px;background:var(--orange-50);color:var(--color-primary);display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="plus-circle" style="width:19px;height:19px;"></i></span>
+      <div id="addonTitle" style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);flex:1;min-width:0;">Add-ons</div>
+    </div>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:8px;">Extra sauce, salad wage dewal — each becomes its own line on the ticket.</div>
+    <div id="addonList" style="overflow-y:auto;min-height:0;"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;flex:none;">
+      <button onclick="closeAddons()" style="flex:1;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;">Skip</button>
+      <button onclick="confirmAddons()" style="flex:1;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;box-shadow:var(--shadow-brand);">Add to order</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <style>
@@ -401,6 +457,8 @@ input,select,button{font-family:inherit;}
 .drow .dlbl{flex:1;font-size:16px;font-weight:700;color:var(--text-strong);}
 .drow .dchev{width:18px;height:18px;color:var(--text-faint);}
 .spl-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);}
+@keyframes tabsPulse{0%{box-shadow:0 0 0 0 rgba(241,82,7,.45);}100%{box-shadow:0 0 0 12px rgba(241,82,7,0);}}
+.tabs-pulse{animation:tabsPulse .6s ease-out 3;border-radius:var(--radius-md);}
 </style>
 
 <script>
@@ -408,11 +466,14 @@ input,select,button{font-family:inherit;}
   const SC_RATE = {{ service_charge_rate or 0 }};
   const PROFILE_PAY = {{ pos_profile_payments_json | safe }};
   const TABLES = [{% for t in tables %}{name:"{{ t.name }}",short:"{{ t.short_name or t.name }}"},{% endfor %}];
-  let cart = {}, cartTA = {}, orderType = 'Dine In', payCtx = null, payMode = 'Cash';
+  let cart = {}, cartTA = {}, cartNotes = {}, orderType = 'Dine In', payCtx = null, payMode = 'Cash';
   let currentOrder = null;     // null = new ticket; else resumed POS Order name
   let editBaseline = {};       // item->qty snapshot when a sent order is resumed (to detect deletions)
   let firedBaseline = {};      // item->qty already fired to the kitchen (sent_qty); removing below this needs approval
+  let firedTABaseline = {};    // item->fired TAKEAWAY qty (subset of firedBaseline); fired lines can't switch dine-in/TA
   let _saveTimer = null, _saving = false, _saveAgain = false;  // debounced ticket autosave
+  let _saveEpoch = 0;          // bumped on every table/ticket switch; an autosave response from a previous ticket must not touch state (order-swap bug)
+  let _prevTable = '';         // table selected before the current change — a typed cart belongs to THAT table, not the newly picked one
   let tableOrders = [];        // cached open orders for the selected table
   let _openOrders = [];        // cached ongoing orders (rail) — used to resume takeaway tickets
   let currentDiscount = null;  // manager-approved discount on the current order: {amount, note}
@@ -431,7 +492,8 @@ input,select,button{font-family:inherit;}
   function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2600); }
 
   const itemMap = {};
-  document.querySelectorAll('.mcard').forEach(c => { itemMap[c.dataset.code] = { name:c.dataset.name, rate:parseFloat(c.dataset.rate)||0 }; });
+  document.querySelectorAll('.mcard').forEach(c => { itemMap[c.dataset.code] = { name:c.dataset.name, rate:parseFloat(c.dataset.rate)||0,
+    addons:(c.dataset.addons||'').split(',').filter(a=>a) }; });
   // category pill emojis
   document.querySelectorAll('.catp[data-cat]').forEach(p=>{ if(p.dataset.cat!=='__all__'){ const e=p.querySelector('.cemoji'); if(e) e.textContent=emojiFor(p.dataset.cat); } });
 
@@ -451,15 +513,16 @@ input,select,button{font-family:inherit;}
   // ── Tables screen ──
   async function loadTables(){
     let orders=[]; try{ const r=await _post('/api/method/luuvcrm.api.get_ongoing_orders',{}); if(r){ const d=await r.json(); orders=(d.message&&d.message.orders)||[]; } }catch(e){}
-    const byTable={}; orders.forEach(o=>{ if(o.restaurant_table){ const t=byTable[o.restaurant_table]||{amt:0,n:0}; t.amt+=(o.grand_total||0); t.n+=1; byTable[o.restaurant_table]=t; } });
+    const byTable={}; orders.forEach(o=>{ if(o.restaurant_table){ const t=byTable[o.restaurant_table]||{amt:0,n:0,w:false}; t.amt+=(o.grand_total||0); t.n+=1; if(o.order_source==='Waiter') t.w=true; byTable[o.restaurant_table]=t; } });
     const grid=document.getElementById('tablesGrid');
-    grid.innerHTML=TABLES.map(t=>{ const o=byTable[t.name]; const occ=!!o; const tone=occ?'lf-badge--solid':'lf-badge--success';
-      const bd=occ?'border:1.5px solid var(--color-primary);background:var(--orange-50);':'border:1px solid var(--border-subtle);background:var(--surface-card);';
+    grid.innerHTML=TABLES.map(t=>{ const o=byTable[t.name]; const occ=!!o; const isW=occ&&o.w; const tone=occ?'lf-badge--solid':'lf-badge--success';
+      const bd=isW?'border:1.5px solid #6366F1;background:#EEF2FF;':(occ?'border:1.5px solid var(--color-primary);background:var(--orange-50);':'border:1px solid var(--border-subtle);background:var(--surface-card);');
       return `<button onclick="openTable('${t.name}')" style="display:flex;flex-direction:column;align-items:flex-start;border-radius:var(--radius-lg);padding:18px 20px;cursor:pointer;text-align:left;box-shadow:var(--shadow-xs);${bd}">
         <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
           <span style="font-family:var(--font-display);font-weight:800;font-size:26px;color:var(--text-strong);">Table ${t.short}</span>
           <span class="lf-badge ${tone}">${occ?'Occupied':'Free'}</span>
         </div>
+        ${isW?'<div style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#4F46E5;background:#E0E7FF;padding:2px 8px;border-radius:var(--radius-pill);margin-top:8px;">👤 Waiter</div>':''}
         ${occ?`<div style="display:flex;align-items:center;gap:6px;color:var(--color-primary);font-size:14px;font-weight:700;margin-top:12px;"><i data-lucide="receipt" style="width:14px;height:14px;"></i> ${o.n} order${o.n>1?'s':''}</div>`:'<div style="color:var(--text-faint);font-size:14px;margin-top:12px;">Available</div>'}
         <div style="display:flex;align-items:flex-end;justify-content:space-between;width:100%;margin-top:14px;">
           <span class="mono" style="font-weight:500;font-size:20px;color:${occ?'var(--text-strong)':'var(--text-faint)'};">${occ?nfmt(o.amt):'—'}</span>
@@ -494,7 +557,34 @@ input,select,button{font-family:inherit;}
   }
 
   // ── cart ──
-  function addToCart(code){ cart[code]=(cart[code]||0)+1; renderCart(); scheduleSave(); }
+  function addToCart(code){ cart[code]=(cart[code]||0)+1; renderCart(); scheduleSave();
+    const im=itemMap[code]; if(im && (im.addons||[]).length) openAddons(code); }
+
+  // ── add-ons: main item added → offer its POS Item Addon rows (extra lines on the ticket) ──
+  let addonSel={}, addonFor='';
+  function openAddons(code){
+    const im=itemMap[code]; const list=(im.addons||[]).filter(a=>itemMap[a]);
+    if(!list.length) return;
+    addonFor=code; addonSel={};
+    document.getElementById('addonTitle').textContent='Add-ons · '+im.name;
+    document.getElementById('addonList').innerHTML=list.map(a=>{
+      const ai=itemMap[a];
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+        <div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;color:var(--text-strong);">${ai.name}</div>
+        <div class="mono" style="font-size:13px;color:var(--color-primary);">+ ${nfmt(ai.rate)}</div></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button onclick="addonQty('${a}',-1)" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);font-size:17px;cursor:pointer;">−</button>
+          <span class="mono" id="aq-${a}" style="width:22px;text-align:center;font-size:16px;color:var(--text-strong);">0</span>
+          <button onclick="addonQty('${a}',1)" style="width:34px;height:34px;border-radius:50%;border:none;background:var(--color-primary);color:#fff;font-size:17px;cursor:pointer;">+</button>
+        </div></div>`; }).join('');
+    document.getElementById('addonOverlay').style.display='flex'; icons();
+  }
+  function addonQty(a,d){ addonSel[a]=Math.max(0,(addonSel[a]||0)+d); const el=document.getElementById('aq-'+a); if(el) el.textContent=addonSel[a]; }
+  function confirmAddons(){
+    let n=0; Object.entries(addonSel).forEach(([a,q])=>{ if(q>0){ cart[a]=(cart[a]||0)+q; n+=q; } });
+    closeAddons(); if(n){ renderCart(); scheduleSave(); toast(n+' add-on'+(n>1?'s':'')+' added'); }
+  }
+  function closeAddons(){ document.getElementById('addonOverlay').style.display='none'; addonSel={}; addonFor=''; }
   function setQty(code,d){
     if(d<0 && ((cart[code]||0)+d) < (firedBaseline[code]||0)){ requestFiredRemoval(code,-d); return; }
     cart[code]=(cart[code]||0)+d; if(cart[code]<=0){ delete cart[code]; delete cartTA[code]; } else if((cartTA[code]||0)>cart[code]){ cartTA[code]=cart[code]; } renderCart(); scheduleSave(); }
@@ -502,41 +592,54 @@ input,select,button{font-family:inherit;}
     if((firedBaseline[code]||0)>0){ requestFiredRemoval(code,(cart[code]||0)); return; }
     delete cart[code]; delete cartTA[code]; renderCart(); scheduleSave(); }
   function toggleTA(code){
-    if((firedBaseline[code]||0)>0){ toast('Already sent to kitchen — edit via the order'); return; }
+    // Fired units keep their dine-in/TA routing (already cooking); only the UNFIRED units may switch.
     const total=cart[code]||0;
-    if(total<=1){ if(cartTA[code]) delete cartTA[code]; else cartTA[code]=1; renderCart(); scheduleSave(); return; }
-    openTASplit(code); }
+    const firedAll=firedBaseline[code]||0;
+    const firedTA=Math.min(firedTABaseline[code]||0,firedAll);
+    const firedDine=firedAll-firedTA;
+    const minTA=firedTA, maxTA=total-firedDine;
+    if(maxTA<=minTA){ toast('All units already sent to kitchen — add another unit to take one away'); return; }
+    if(total<=1 && firedAll===0){ if(cartTA[code]) delete cartTA[code]; else cartTA[code]=1; renderCart(); scheduleSave(); return; }
+    openTASplit(code,minTA,maxTA); }
   // Takeaway split popup: choose how many of an item's units are takeaway (dine-in keeps service charge).
-  let _taSplitCode=null, _taSplitTotal=0, _taSplitN=0;
-  function openTASplit(code){ const it=itemMap[code]||{name:code}; _taSplitCode=code; _taSplitTotal=cart[code]||0; _taSplitN=Math.min(cartTA[code]||0,_taSplitTotal);
+  let _taSplitCode=null, _taSplitTotal=0, _taSplitN=0, _taMin=0, _taMax=0;
+  function openTASplit(code,minTA,maxTA){ const it=itemMap[code]||{name:code}; _taSplitCode=code; _taSplitTotal=cart[code]||0;
+    _taMin=minTA||0; _taMax=(maxTA==null)?_taSplitTotal:maxTA;
+    _taSplitN=Math.max(_taMin,Math.min(_taMax,Math.min(cartTA[code]||0,_taSplitTotal)));
     document.getElementById('taSplitItem').textContent=it.name+' × '+_taSplitTotal; renderTASplit(); show('taSplitModal'); }
-  function taSplitStep(d){ _taSplitN=Math.max(0,Math.min(_taSplitTotal,_taSplitN+d)); renderTASplit(); }
+  function taSplitStep(d){ _taSplitN=Math.max(_taMin,Math.min(_taMax,_taSplitN+d)); renderTASplit(); }
   function renderTASplit(){ document.getElementById('taSplitVal').textContent=_taSplitN;
-    document.getElementById('taSplitHint').innerHTML='Dine-in: <b>'+(_taSplitTotal-_taSplitN)+'</b> (service charge) &nbsp;·&nbsp; Takeaway: <b>'+_taSplitN+'</b> (no service charge)'; }
+    let hint='Dine-in: <b>'+(_taSplitTotal-_taSplitN)+'</b> (service charge) &nbsp;·&nbsp; Takeaway: <b>'+_taSplitN+'</b> (no service charge)';
+    if(_taMin>0||_taMax<_taSplitTotal){ const fTA=_taMin, fDine=_taSplitTotal-_taMax;
+      hint+='<br><span style="color:var(--text-muted);font-size:11px;">Fired units locked ('+fDine+' dine-in, '+fTA+' takeaway already in kitchen)</span>'; }
+    document.getElementById('taSplitHint').innerHTML=hint; }
   function confirmTASplit(){ if(_taSplitCode){ if(_taSplitN>0) cartTA[_taSplitCode]=_taSplitN; else delete cartTA[_taSplitCode]; } hide('taSplitModal'); renderCart(); scheduleSave(); }
 
   // ── ticket autosave: auto-create a draft order on first item, persist as the cashier builds ──
   function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(autosaveTicket,600); }
-  async function autosaveTicket(){
+  async function autosaveTicket(forTable){
     if(_saving){ _saveAgain=true; return; }
-    const table=document.getElementById('tableSel').value;
+    const table=forTable||document.getElementById('tableSel').value;
     if(orderType==='Dine In' && !table) return;   // need a table first; onTableChange retries
     const codes=Object.keys(cart);
+    const ep=_saveEpoch;   // ticket/table switched while this save was in flight → the response is stale
     _saving=true;
     try{
       if(!codes.length){
         // emptied with nothing fired → drop the draft
         if(currentOrder && !Object.values(firedBaseline).some(q=>q>0)){
           await _post('/api/method/luuvcrm.api.delete_draft_order',{order_name:currentOrder});
-          currentOrder=null; firedBaseline={}; editBaseline={}; if(table) await refreshTableTabs(table);
+          if(ep===_saveEpoch){ currentOrder=null; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); }
         }
       } else if(!currentOrder){
         const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'', draft:1 };
         const r=await _post('/api/method/luuvcrm.api.send_to_kitchen',body);
-        if(r){ const d=await r.json(); if(d.message&&d.message.name){ currentOrder=d.message.name; editBaseline={}; if(table){ await refreshTableTabs(table); } else { renderOrderTabs(); } } }
+        // Stale response must NOT stomp currentOrder — that's how table A's order got table B's items.
+        if(r && ep===_saveEpoch){ const d=await r.json(); if(d.message&&d.message.name){ currentOrder=d.message.name; editBaseline={}; if(table){ await refreshTableTabs(table); } else { renderOrderTabs(); } } }
       } else {
-        await _post('/api/method/luuvcrm.api.update_order',{ order_name:currentOrder, items:JSON.stringify(cartItemsPayload()) });
-        if(table) await refreshTableTabs(table);
+        const r=await _post('/api/method/luuvcrm.api.update_order',{ order_name:currentOrder, items:JSON.stringify(cartItemsPayload()), expected_table:(orderType==='Dine In'?table:'') });
+        if(r && !r.ok && ep===_saveEpoch){ const t=await r.text().catch(()=>''); if(t.includes('order-table-mismatch')){ toast('Order moved — refreshing table'); currentOrder=null; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); renderCart(); } }
+        else if(r && r.ok && ep===_saveEpoch && table) await refreshTableTabs(table);
       }
     }catch(e){}
     _saving=false;
@@ -573,11 +676,21 @@ input,select,button{font-family:inherit;}
       // otherwise a fast switch (draft still being created) leaves it orphaned → a second order/bill.
       clearTimeout(_saveTimer); let g=0; while(_saving && g++<60){ await new Promise(r=>setTimeout(r,40)); }
       const tbl=document.getElementById('tableSel').value;
-      if(currentOrder){ await _post('/api/method/luuvcrm.api.delete_draft_order',{order_name:currentOrder}).catch(()=>{}); }
-      currentOrder=null; firedBaseline={}; editBaseline={};
-      document.getElementById('tableSel').value='';
+      let wasPrinted=false;
+      if(currentOrder){
+        // If the dine-in guest check is already on the table, the converted order must
+        // supersede it on paper too — else the customer holds two conflicting bills.
+        try{ wasPrinted=!!(await getOrderFlags(currentOrder)).check_printed; }catch(e){}
+        await _post('/api/method/luuvcrm.api.delete_draft_order',{order_name:currentOrder}).catch(()=>{});
+      }
+      _saveEpoch++;   // converting to takeaway — drop any in-flight dine-in autosave response
+      currentOrder=null; firedBaseline={}; firedTABaseline={}; editBaseline={};
+      document.getElementById('tableSel').value=''; _prevTable='';
       if(tbl) refreshTableTabs(tbl);
-      if(Object.keys(cart).length) scheduleSave();
+      if(Object.keys(cart).length){
+        if(wasPrinted){ await autosaveTicket(); if(currentOrder) await printGuestCheck(currentOrder,true); }
+        else scheduleSave();
+      }
     }
     updateTabsVisibility(); renderCart(); }
   function cartTotals(){ let sub=0,scBase=0; Object.keys(cart).forEach(c=>{ const it=itemMap[c]||{rate:0}; const total=cart[c]; sub+=it.rate*total; const taN=(orderType==='Take Away')?total:Math.min(cartTA[c]||0,total); scBase+=it.rate*(total-taN); });
@@ -589,13 +702,40 @@ input,select,button{font-family:inherit;}
   function updateTabsVisibility(){ const tableVal=document.getElementById('tableSel').value; const wrap=document.getElementById('orderTabsWrap');
     wrap.style.display=(orderType==='Dine In' && tableVal)?'block':'none'; }
   async function onTableChange(){ const tableVal=document.getElementById('tableSel').value;
+    // Flush guard (same as setOrderType/placeOrder): a pending or in-flight autosave still
+    // belongs to the PREVIOUS table/ticket — without this the debounced save fires against
+    // the newly selected table and the order "moves" between tables.
+    clearTimeout(_saveTimer); let g=0; while(_saving && g++<60){ await new Promise(r=>setTimeout(r,40)); }
+    // Items typed while a table was already selected belong to THAT table — save the draft
+    // there before switching. Cart-carry only applies when no table had been picked yet.
+    if(!currentOrder && Object.keys(cart).length && _prevTable && _prevTable!==tableVal && orderType==='Dine In'){
+      await autosaveTicket(_prevTable);
+    }
+    _saveEpoch++;   // anything still in flight is for the old ticket — its response must be dropped
+    _prevTable=tableVal;
     // Keep the in-progress cart when assigning a table to a NEW ticket (so items added
     // before picking the table aren't lost). Only clear when leaving a resumed order.
-    if(currentOrder){ cart={}; cartTA={}; }
-    currentOrder=null; firedBaseline={};
-    if(orderType==='Dine In' && tableVal){ await refreshTableTabs(tableVal); } else { tableOrders=[]; updateTabsVisibility(); }
+    if(currentOrder){ cart={}; cartTA={}; cartNotes={}; }
+    currentOrder=null; firedBaseline={}; firedTABaseline={};
+    if(orderType==='Dine In' && tableVal){
+      await refreshTableTabs(tableVal);
+      // Empty cart on a table that already has an open order → resume it, don't start a
+      // duplicate (tapping items would otherwise autosave a NEW draft — the 00758 bug).
+      if(!Object.keys(cart).length){
+        if(tableOrders.length===1){ selectOrderTab(tableOrders[0].name); toast('Resumed order #'+shortNo(tableOrders[0].name)+' on this table'); return; }
+        if(tableOrders.length>1){ toast(tableOrders.length+' open orders on this table — tap one to add to it, or + for a new order'); pulseTabs(); }
+      }
+    } else { tableOrders=[]; updateTabsVisibility(); }
     renderCart();
-    if(Object.keys(cart).length) scheduleSave(); }
+    if(Object.keys(cart).length){
+      // Cart already has items and this table has open bill(s) → ask merge-or-new instead
+      // of silently autosaving a duplicate draft (how the 00933 duplicate was born).
+      if(orderType==='Dine In' && tableVal && tableOrders.length){ offerMerge(tableVal); }
+      else scheduleSave();
+    } }
+  function pulseTabs(){ const w=document.getElementById('orderTabsWrap'); if(!w) return;
+    w.classList.remove('tabs-pulse'); void w.offsetWidth; w.classList.add('tabs-pulse');
+    setTimeout(()=>w.classList.remove('tabs-pulse'),2000); }
   async function refreshTableTabs(tableVal){
     tableVal=tableVal||document.getElementById('tableSel').value;
     if(!tableVal){ tableOrders=[]; updateTabsVisibility(); return; }
@@ -607,24 +747,40 @@ input,select,button{font-family:inherit;}
     const lbl=document.getElementById('orderTabsLabel'); const tabsEl=document.getElementById('orderTabs');
     const shortT=tableVal?(document.getElementById('tableSel').options[document.getElementById('tableSel').selectedIndex].text):'';
     lbl.textContent='Orders on '+shortT;
-    const chips=tableOrders.map(o=>{ const active=currentOrder===o.name; const n=(o.items&&o.items.length)||0;
-      const st=active?'border:1.5px solid var(--color-primary);background:var(--color-primary);color:#fff;':'border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-strong);';
-      const badge=active?'background:rgba(255,255,255,.25);color:#fff;':'background:var(--orange-50);color:var(--color-primary);';
-      return `<button onclick="selectOrderTab('${o.name}')" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:14px;${st}">#${shortNo(o.name)}<span style="font-size:11px;font-weight:800;padding:1px 6px;border-radius:var(--radius-pill);${badge}">${n}</span></button>`; }).join('');
+    const chips=tableOrders.map(o=>{ const active=currentOrder===o.name; const n=(o.items&&o.items.length)||0; const isW=o.order_source==='Waiter';
+      const st=active?'border:1.5px solid var(--color-primary);background:var(--color-primary);color:#fff;':(isW?'border:1.5px solid #6366F1;background:#EEF2FF;color:#3730A3;':'border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-strong);');
+      const badge=active?'background:rgba(255,255,255,.25);color:#fff;':(isW?'background:#E0E7FF;color:#4F46E5;':'background:var(--orange-50);color:var(--color-primary);');
+      return `<button onclick="selectOrderTab('${o.name}')" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:14px;${st}" title="${isW?'Waiter order':''}">${isW?'👤 ':''}#${shortNo(o.name)}<span style="font-size:11px;font-weight:800;padding:1px 6px;border-radius:var(--radius-pill);${badge}">${n}</span></button>`; }).join('');
     const newActive=!currentOrder; const newSt=newActive?'border:1.5px solid var(--color-primary);background:var(--orange-50);color:var(--color-primary);':'border:1.5px dashed var(--border-default);background:transparent;color:var(--color-primary);';
     const plus=`<button onclick="newTicketForTable()" title="New order on this table" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:21px;font-weight:700;line-height:1;${newSt}">+</button>`;
     tabsEl.innerHTML=chips+plus; icons();
   }
   function selectOrderTab(name){ const o=tableOrders.find(x=>x.name===name); if(!o) return;
-    currentOrder=name; cart={}; cartTA={}; firedBaseline={}; (o.items||[]).forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.takeaway) cartTA[i.item]=(cartTA[i.item]||0)+i.qty; if(i.sent_qty) firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; });
+    _saveEpoch++;   // switching tickets — drop any in-flight autosave response
+    currentOrder=name; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; (o.items||[]).forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.takeaway) cartTA[i.item]=(cartTA[i.item]||0)+i.qty; if(i.sent_qty){ firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; if(i.takeaway) firedTABaseline[i.item]=(firedTABaseline[i.item]||0)+i.sent_qty; } addCartNote(i.item,i.notes); });
     currentDiscount=(o.discount_amount>0)?{amount:o.discount_amount,note:o.discount_note||''}:null;
     editBaseline={...firedBaseline};   // only items already fired to the kitchen need approval to remove
     orderType='Dine In'; document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active');
     renderOrderTabs(); renderCart(); }
-  function newTicketForTable(){ currentOrder=null; cart={}; cartTA={}; editBaseline={}; firedBaseline={}; currentDiscount=null; renderOrderTabs(); renderCart(); }
-  async function resumeOrder(name,table){ setNav('sale'); const sel=document.getElementById('tableSel'); if(table){ sel.value=table; }
+  function newTicketForTable(){ _saveEpoch++; currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; renderOrderTabs(); renderCart(); }
+  async function resumeOrder(name,table){ setNav('sale'); const sel=document.getElementById('tableSel'); if(table){ sel.value=table; _prevTable=table; }
     orderType='Dine In'; document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active');
     await refreshTableTabs(table); selectOrderTab(name); }
+
+  // Collect distinct, non-empty per-item notes for a code (the waiter's kitchen instructions),
+  // shown read-only under the cart line. pos2's cart folds by code, so lines' notes are merged.
+  function addCartNote(code,note){ const n=(note||'').trim(); if(!n) return; const arr=cartNotes[code]||(cartNotes[code]=[]); if(!arr.includes(n)) arr.push(n); }
+  // ── per-item kitchen note editor (📝 on the cart line; prints on the KOT) ──
+  let _noteCode=null;
+  function editNote(code){ _noteCode=code; const it=itemMap[code]||{name:code};
+    document.getElementById('noteItemName').textContent=it.name;
+    document.getElementById('noteText').value=(cartNotes[code]||[]).join('; ');
+    show('noteModal'); setTimeout(()=>{ try{ document.getElementById('noteText').focus(); }catch(e){} },60); }
+  function saveNote(clearIt){ if(!_noteCode){ hide('noteModal'); return; }
+    const t=clearIt?'':document.getElementById('noteText').value.trim();
+    if(t) cartNotes[_noteCode]=[t]; else delete cartNotes[_noteCode];
+    hide('noteModal'); renderCart(); scheduleSave(); }
+  function escq(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
   function renderCart(){
     const codes=Object.keys(cart); const wrap=document.getElementById('cartItems');
@@ -635,7 +791,9 @@ input,select,button{font-family:inherit;}
     if(!codes.length){ wrap.innerHTML='<div style="color:var(--text-muted);font-size:16px;padding:52px 12px;text-align:center;">Nothing here yet — tap items to start the ticket.</div>'; document.getElementById('subFoot').style.display='none'; document.getElementById('chargeLbl').textContent='Charge 0'; document.getElementById('chargeBtn').disabled=true; return; }
     let html='';
     codes.forEach(code=>{ const it=itemMap[code]||{name:code,rate:0}; const qty=cart[code]; const lt=it.rate*qty;
-      const fired=(firedBaseline[code]||0)>0; const isTAo=(orderType==='Take Away');
+      const notes=cartNotes[code]||[]; const noteHtml=notes.length?`<div onclick="editNote('${code}')" style="font-size:12px;font-weight:600;color:#9a6207;background:var(--color-warning-subtle);border-radius:8px;padding:5px 9px;line-height:1.4;cursor:pointer;">${notes.map(n=>'📝 '+escq(n)).join('<br>')}</div>`:'';
+      const isTAo=(orderType==='Take Away');
+      const hasUnfired=qty>(firedBaseline[code]||0); // TA toggle stays for the units not yet in the kitchen
       const taN=isTAo?qty:Math.min(cartTA[code]||0,qty); const dineN=qty-taN; const hasTA=taN>0;
       const badge=(taN>0&&dineN>0)?(dineN+' dine-in · '+taN+' 🛍️ takeaway'):(taN>0?'🛍️ takeaway':'');
       const taStyle=hasTA?'background:var(--color-warning-subtle);border:1.5px solid var(--amber-500);color:#9a6207;':'background:transparent;border:1.5px solid var(--border-default);color:var(--text-muted);';
@@ -645,12 +803,14 @@ input,select,button{font-family:inherit;}
             <span style="font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--text-strong);min-width:0;overflow-wrap:anywhere;word-break:break-word;">${it.name}</span>
             ${badge?`<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#9a6207;background:var(--color-warning-subtle);padding:2px 8px;border-radius:var(--radius-pill);">${badge}</span>`:''}
           </div>
+          <button onclick="editNote('${code}')" title="Kitchen note" style="flex:none;width:30px;height:30px;border-radius:var(--radius-md);border:none;background:${notes.length?'var(--color-warning-subtle)':'transparent'};color:${notes.length?'#9a6207':'var(--text-faint)'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;">📝</button>
           <button onclick="removeItem('${code}')" title="Remove" style="flex:none;width:30px;height:30px;border-radius:var(--radius-md);border:none;background:transparent;color:var(--text-faint);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
         </div>
+        ${noteHtml}
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <span style="font-size:14px;color:var(--text-muted);">${nfmt(it.rate)} ea</span>
-            ${(fired||isTAo)?'':`<button onclick="toggleTA('${code}')" title="Takeaway split (no service charge)" style="width:30px;height:30px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${taStyle}"><i data-lucide="shopping-bag" style="width:14px;height:14px;"></i></button>`}
+            ${(isTAo||!hasUnfired)?'':`<button onclick="toggleTA('${code}')" title="Takeaway split (no service charge)" style="width:30px;height:30px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${taStyle}"><i data-lucide="shopping-bag" style="width:14px;height:14px;"></i></button>`}
           </div>
           <div class="lf-qty lf-qty--sm"><button class="lf-qty__btn" onclick="setQty('${code}',-1)">−</button><span class="lf-qty__val">${qty}</span><button class="lf-qty__btn" onclick="setQty('${code}',1)">+</button></div>
           <div class="mono" style="font-weight:500;font-size:16px;color:var(--text-strong);min-width:60px;text-align:right;">${nfmt(lt)}</div>
@@ -675,10 +835,11 @@ input,select,button{font-family:inherit;}
   // cartTA[code] holds the NUMBER of takeaway units (0..qty); a Take Away order is all-takeaway.
   function linesFor(code,total){
     const rate=(itemMap[code]||{rate:0}).rate;
+    const nt=(cartNotes[code]||[]).join('; ');
     const taN=(orderType==='Take Away')?total:Math.min(cartTA[code]||0,total);
     const dineN=total-taN; const out=[];
-    if(dineN>0) out.push({item:code,qty:dineN,rate:rate,takeaway:0});
-    if(taN>0) out.push({item:code,qty:taN,rate:rate,takeaway:1});
+    if(dineN>0) out.push({item:code,qty:dineN,rate:rate,takeaway:0,notes:nt});
+    if(taN>0) out.push({item:code,qty:taN,rate:rate,takeaway:1,notes:nt});
     return out;
   }
   function cartItemsPayload(){ const out=[]; Object.keys(cart).forEach(code=>{ linesFor(code,cart[code]).forEach(l=>out.push(l)); }); return out; }
@@ -709,7 +870,15 @@ input,select,button{font-family:inherit;}
           if(!flags.check_printed){ toast('Print the guest check first — tap “Print guest check”'); return; }
         }
         const o=tableOrders.find(x=>x.name===currentOrder); openPayForOrder(currentOrder,(o&&o.grand_total)||cartTotals().gt,Object.keys(cart).length,table);
-      } else { openPayForCart(); }
+      } else {
+        // New cart on a table that already has open bill(s) → confirm before charging a
+        // possible duplicate (place_order would create a SECOND order for this table).
+        if(orderType!=='Take Away' && table){
+          await refreshTableTabs(table);
+          if(tableOrders.length && _dupeAck!==table){ offerPayChoice(table); return; }
+        }
+        openPayForCart();
+      }
       return; }
     // Editing a sent order: deleting/reducing items needs a manager approval (KOT already fired / check printed).
     if(currentOrder){
@@ -719,14 +888,16 @@ input,select,button{font-family:inherit;}
     }
     try{
       let res;
-      if(currentOrder){ res=await _post('/api/method/luuvcrm.api.update_order',{ order_name:currentOrder, items:JSON.stringify(cartItemsPayload()) }); }
+      if(currentOrder){ res=await _post('/api/method/luuvcrm.api.update_order',{ order_name:currentOrder, items:JSON.stringify(cartItemsPayload()), expected_table:(orderType==='Dine In'?table:'') }); }
       else { const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'' };
         res=await _post('/api/method/luuvcrm.api.send_to_kitchen',body); }
       if(!res) return; const data=await res.json();
       if(res.ok && data.message && data.message.name){ const nm=data.message.name; currentOrder=nm; toast('Sent to kitchen #'+nm); printKOT(nm);
         // KOT fired → these items are now in the kitchen; keep the order open so more can be added.
         firedBaseline={...cart}; editBaseline={...cart};
+        firedTABaseline={}; Object.keys(cart).forEach(c=>{ const n=(orderType==='Take Away')?cart[c]:Math.min(cartTA[c]||0,cart[c]); if(n>0) firedTABaseline[c]=n; });
         const t=(orderType==='Take Away')?'':table; if(t){ await refreshTableTabs(t); } loadOpenOrders(); }
+      else if(JSON.stringify(data).includes('order-table-mismatch')){ toast('Order moved — refreshing table'); _saveEpoch++; currentOrder=null; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); renderCart(); }
       else toast('Error: '+_smsg(data,'could not send'));
     }catch(e){ toast('Connection error'); }
   }
@@ -746,8 +917,74 @@ input,select,button{font-family:inherit;}
       else if(s==='rejected'){ clearInterval(iv); toast('Edit rejected — restoring order'); cart={...editBaseline}; renderCart(); }
     }catch(e){} }, 3000); }
   // clearTicket: reset the active ticket but keep the table selected (so its tabs stay)
-  function clearTicket(){ currentOrder=null; cart={}; cartTA={}; editBaseline={}; firedBaseline={}; currentDiscount=null; renderCart(); renderOrderTabs(); }
-  function clearCart(){ currentOrder=null; cart={}; cartTA={}; editBaseline={}; firedBaseline={}; currentDiscount=null; document.getElementById('tableSel').value=''; tableOrders=[]; updateTabsVisibility(); renderCart(); }
+  function clearTicket(){ currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; renderCart(); renderOrderTabs(); }
+  function clearCart(){ currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; document.getElementById('tableSel').value=''; tableOrders=[]; updateTabsVisibility(); renderCart(); }
+
+  // ── duplicate / zombie bill guards (the 00932/00933 incident) ──
+  // A re-rung bill leaves the original open on its table for hours. Surface open bills
+  // at the moments that matter: assigning a table to a full cart, charging a new cart,
+  // and right after a payment that leaves a suspiciously-similar bill unpaid.
+  let _dupeList=[], _dupeAck='';
+  function dupeRowHtml(o,btn){
+    const its=(o.items||[]).map(i=>i.qty+'× '+(i.item_name||i.item)).join(', ');
+    return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px 14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">#${shortNo(o.name)}</span>
+        <span class="mono" style="font-size:15px;font-weight:500;color:var(--text-strong);">${nfmt(o.grand_total||0)}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${its||'—'}</div>
+      <div style="font-size:12px;color:var(--text-faint);margin-top:2px;">${o.time_ago||''}</div>
+      ${btn}</div>`;
+  }
+  function dupeShow(title,sub,rows,foot){ document.getElementById('dupeTitle').textContent=title; document.getElementById('dupeSub').textContent=sub;
+    document.getElementById('dupeRows').innerHTML=rows; document.getElementById('dupeFoot').innerHTML=foot; show('dupeModal'); icons(); }
+  // After a payment: any remaining unpaid bill on the table sharing ≥50% of the paid
+  // items is a suspected duplicate → offer a one-tap void request to the manager.
+  function maybeWarnZombies(table,paidCodes){
+    if(!table || !(tableOrders||[]).length) return;
+    if(_dupeAck===table){ _dupeAck=''; return; }   // cashier already said "separate bill"
+    const paid=new Set(paidCodes||[]); if(!paid.size) return;
+    _dupeList=tableOrders.filter(o=>{ const codes=(o.items||[]).map(i=>i.item); if(!codes.length) return false;
+      const ov=codes.filter(c=>paid.has(c)).length; return ov/Math.min(codes.length,paid.size)>=0.5; });
+    if(!_dupeList.length) return;
+    dupeShow('Unpaid bill'+(_dupeList.length>1?'s':'')+' still on this table',
+      'Payment eka gaththa — me table eke thawa unpaid bill ekak thiyenawa, items okkoma wage same. Duplicate ekak nam void request eka dæn yawanna.',
+      _dupeList.map((o,i)=>dupeRowHtml(o,`<button class="lf-btn lf-btn--primary lf-btn--md" style="margin-top:10px;width:100%;" onclick="voidZombie(${i})">Send void request · #${shortNo(o.name)}</button>`)).join(''),
+      `<button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('dupeModal')">Keep — separate bill</button>`);
+  }
+  async function voidZombie(i){
+    const o=_dupeList[i]; if(!o) return;
+    const lines=(o.items||[]).map(it=>({qtyStr:it.qty+'×',name:it.item_name||it.item,totalStr:nfmt((it.rate||0)*it.qty)}));
+    const details=JSON.stringify({lines:lines,footer_label:'Order total',footer_value:'Rs '+nfmt(o.grand_total||0)});
+    const tShort=o.restaurant_table?(' · Table '+o.restaurant_table.split('-').pop()):'';
+    try{ const r=await _post('/api/method/luuvcrm.api.create_approval',{approval_type:'void',pos_order:o.name,title:'Void approval',subhead:'Order #'+shortNo(o.name)+tShort,flag_text:'Possible duplicate — another bill on this table was just paid',details_json:details,action:'void'});
+      if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Void sent to manager 📱'); hide('dupeModal'); pollApproval(d.message.name); }
+      else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
+  // Table picked while the cart already has items → merge into the open bill or go separate.
+  function offerMerge(table){
+    _dupeList=tableOrders.slice();
+    dupeShow('This table already has an open bill','Aluth items tika parana bill ekata ekathu karannada, wenama bill ekak hadannada?',
+      _dupeList.map((o,i)=>dupeRowHtml(o,`<button class="lf-btn lf-btn--primary lf-btn--md" style="margin-top:10px;width:100%;" onclick="mergeIntoBill(${i})">Add items to #${shortNo(o.name)}</button>`)).join(''),
+      `<button class="lf-btn lf-btn--ghost lf-btn--md" onclick="dupeNewBill('${table}')">New separate bill</button>`);
+  }
+  function dupeNewBill(table){ _dupeAck=table||document.getElementById('tableSel').value; hide('dupeModal'); scheduleSave(); }
+  function mergeIntoBill(i){
+    const o=_dupeList[i]; if(!o) return; hide('dupeModal');
+    const addCart={...cart}, addTA={...cartTA};
+    selectOrderTab(o.name);   // load the existing bill, then stack the new items on top
+    Object.keys(addCart).forEach(c=>{ cart[c]=(cart[c]||0)+addCart[c]; if(addTA[c]) cartTA[c]=(cartTA[c]||0)+addTA[c]; });
+    renderCart(); scheduleSave(); toast('Items added to #'+shortNo(o.name)); }
+  // Charging a NEW cart on a table that has open bills → pay the existing one or go new.
+  function offerPayChoice(table){
+    _dupeList=tableOrders.slice();
+    dupeShow('This table already has an open bill','Charge karanna kalin — meka e bill ekamada? Duplicate ekak charge kalama parana eka table eke ellila thiyenawa.',
+      _dupeList.map((o,i)=>dupeRowHtml(o,`<button class="lf-btn lf-btn--primary lf-btn--md" style="margin-top:10px;width:100%;" onclick="payExistingBill(${i})">Pay #${shortNo(o.name)} · ${nfmt(o.grand_total||0)}</button>`)).join(''),
+      `<button class="lf-btn lf-btn--ghost lf-btn--md" onclick="dupePayNew('${table}')">New bill — charge my cart</button>`);
+  }
+  function dupePayNew(table){ _dupeAck=table; hide('dupeModal'); openPayForCart(); }
+  function payExistingBill(i){ const o=_dupeList[i]; if(!o) return; hide('dupeModal');
+    openPayForOrder(o.name,o.grand_total||0,(o.items||[]).length,document.getElementById('tableSel').value); }
 
   // ── payment ──
   function openPayForCart(){ const t=cartTotals(); const table=document.getElementById('tableSel').value;
@@ -755,47 +992,107 @@ input,select,button{font-family:inherit;}
     document.getElementById('pmItems').textContent=Object.values(cart).reduce((a,b)=>a+b,0);
     document.getElementById('pmCtx').textContent=orderType==='Take Away'?'Order':'Table';
     document.getElementById('pmTable').textContent=orderType==='Take Away'?'Take Away':(table||'—');
-    document.getElementById('pmTotal').textContent=fmt(t.gt); setPayMode('Cash'); mErr('payErr',''); show('payModal'); }
+    document.getElementById('pmTotal').textContent=fmt(t.gt); setPayMode('Cash'); mErr('payErr',''); gdReset(); show('payModal'); }
   function openPayForOrder(name,total,itemsCount,table){ payCtx={ kind:'existing', orderName:name, total:total, table:table };
     document.getElementById('pmItems').textContent=itemsCount; document.getElementById('pmCtx').textContent='Table';
     document.getElementById('pmTable').textContent=table||'—'; document.getElementById('pmTotal').textContent=fmt(total);
-    setPayMode('Cash'); mErr('payErr',''); show('payModal'); }
+    setPayMode('Cash'); mErr('payErr',''); gdReset(); show('payModal'); }
   function setPayMode(m){ payMode=m; document.querySelectorAll('#pmodes .pmode').forEach(p=>p.classList.toggle('active',p.dataset.m===m));
     const tf=document.getElementById('tenderField'), cc=document.getElementById('ccFields');
-    if(m==='Cash'){ tf.style.display='block'; cc.style.display='none'; document.getElementById('tendered').value=Math.round(payCtx.total); calcChange(); }
-    else if(m==='Cash+Card'){ tf.style.display='none'; cc.style.display='block'; document.getElementById('ccCash').value=0; document.getElementById('ccCard').value=Math.round(payCtx.total); }
+    if(m==='Cash'){ tf.style.display='block'; cc.style.display='none'; document.getElementById('tendered').value=Math.round(effTotal()); calcChange(); }
+    else if(m==='Cash+Card'){ tf.style.display='none'; cc.style.display='block'; document.getElementById('ccCash').value=0; document.getElementById('ccCard').value=Math.round(effTotal()); }
     else { tf.style.display='none'; cc.style.display='none'; } }
-  function calcChange(){ const ch=(parseFloat(document.getElementById('tendered').value)||0)-payCtx.total; document.getElementById('changeDue').textContent=fmt(ch>0?ch:0); }
+  function calcChange(){ const ch=(parseFloat(document.getElementById('tendered').value)||0)-effTotal(); document.getElementById('changeDue').textContent=fmt(ch>0?ch:0); }
   async function confirmPay(){
     const body={ payment_mode:payMode };
+    if(payGuides.length) body.guides=JSON.stringify(payGuides.map(g=>g.name));
+    if(payRedeem&&payRedeem.amount>0) body.guide_redeem=JSON.stringify({guide:payRedeem.name,amount:payRedeem.amount});
     if(payMode==='Cash'){ body.tendered=parseFloat(document.getElementById('tendered').value)||0; }
     if(payMode==='Cash+Card'){ const c=parseFloat(document.getElementById('ccCash').value)||0, k=parseFloat(document.getElementById('ccCard').value)||0;
-      if(Math.abs((c+k)-payCtx.total)>1){ mErr('payErr','Cash + Card must equal '+fmt(payCtx.total)); return; } body.cash_amount=c; body.card_amount=k; }
+      if(Math.abs((c+k)-effTotal())>1){ mErr('payErr','Cash + Card must equal '+fmt(effTotal())); return; } body.cash_amount=c; body.card_amount=k; }
     const btn=document.getElementById('payConfirm'); btn.disabled=true; mErr('payErr','');
     try{ let res;
       if(payCtx.kind==='new'){ Object.assign(body,{ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':payCtx.table), order_type:orderType, order_source:'Walk-in', customer_name:'' }); res=await _post('/api/method/luuvcrm.api.place_order',body); }
       else { body.order_name=payCtx.orderName; res=await _post('/api/method/luuvcrm.api.process_payment',body); }
       if(!res){ btn.disabled=false; return; } const data=await res.json();
       if(res.ok && data.message && data.message.name){ toast('Charged #'+data.message.name); printReceipt(data.message.name); hide('payModal');
-        const tbl=payCtx.table; if(payCtx.kind==='new') clearCart(); else { clearTicket(); }
-        if(tbl){ await refreshTableTabs(tbl); } loadOpenOrders(); loadShift(); }
+        const tbl=payCtx.table; const paidCodes=Object.keys(cart);
+        if(payCtx.kind==='new') clearCart(); else { clearTicket(); }
+        if(tbl){ await refreshTableTabs(tbl); maybeWarnZombies(tbl,paidCodes); } loadOpenOrders(); loadShift(); }
       else mErr('payErr', _smsg(data,'payment failed'));
     }catch(e){ mErr('payErr','Connection error'); }
     btn.disabled=false;
   }
+
+  // ── tour guide cashback (optional block inside payModal) ──
+  let payGuides=[], payRedeem=null;   // payRedeem = {name, amount, max} when a guide pays from balance
+  function effTotal(){ return Math.max(0,(payCtx?payCtx.total:0)-(payRedeem?payRedeem.amount:0)); }
+  function gdToggle(){ const b=document.getElementById('gdBody'); b.style.display=(b.style.display==='none'?'block':'none'); }
+  function gdReset(){ payGuides=[]; payRedeem=null; const b=document.getElementById('gdBody'); if(!b) return;
+    b.style.display='none'; document.getElementById('gdNum').value=''; document.getElementById('gdName').value='';
+    document.getElementById('gdAddRow').style.display='none'; document.getElementById('gdMsg').textContent=''; gdRender(); }
+  function gdRender(){ const w=document.getElementById('gdChips'); if(!w) return;
+    w.innerHTML=payGuides.map((g,i)=>{ const bal=g.cashback_balance||0; const active=payRedeem&&payRedeem.name===g.name;
+      const balTxt=bal>0?(' · Rs '+fmt(bal)):'';
+      const use=bal>0?` <a onclick="gdToggleRedeem(${i})" style="cursor:pointer;text-decoration:underline;font-weight:800;">${active?'balance ✓':'use balance'}</a>`:'';
+      const tone=active?'color:#B23A05;background:#FFE2D2;':'color:#4F46E5;background:#E0E7FF;';
+      return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;${tone}padding:4px 10px;border-radius:var(--radius-pill);">${g.guide_name||g.whatsapp} · ${g.role} · ${g.cashback_percent}%${balTxt}${use} <span onclick="gdRemove(${i})" style="cursor:pointer;font-weight:900;padding:0 2px;">×</span></span>`; }).join('');
+    const rd=document.getElementById('gdRedeemRow');
+    if(rd){ if(payRedeem){ rd.style.display='flex'; document.getElementById('gdRedeemAmt').value=payRedeem.amount;
+        document.getElementById('gdNetDue').textContent=fmt(effTotal()); } else rd.style.display='none'; }
+    document.getElementById('gdCount').textContent=payGuides.length?('('+payGuides.length+')'):'';
+    gdSyncPay(); }
+  function gdToggleRedeem(i){ const g=payGuides[i]; if(!g) return;
+    payRedeem=(payRedeem&&payRedeem.name===g.name)?null:(function(){ const m=Math.min(g.cashback_balance||0,payCtx.total); return {name:g.name,amount:Math.round(m*100)/100,max:Math.round(m*100)/100}; })();
+    gdRender(); }
+  function gdRedeemInput(){ if(!payRedeem) return; let v=parseFloat(document.getElementById('gdRedeemAmt').value)||0;
+    if(v<0)v=0; if(v>payRedeem.max)v=payRedeem.max; payRedeem.amount=Math.round(v*100)/100;
+    document.getElementById('gdNetDue').textContent=fmt(effTotal()); gdSyncPay(); }
+  function gdSyncPay(){ if(!payCtx) return;
+    if(payMode==='Cash'){ document.getElementById('tendered').value=Math.round(effTotal()); calcChange(); }
+    else if(payMode==='Cash+Card'){ document.getElementById('ccCash').value=0; document.getElementById('ccCard').value=Math.round(effTotal()); } }
+  function gdRemove(i){ const g=payGuides[i]; if(payRedeem&&g&&payRedeem.name===g.name) payRedeem=null; payGuides.splice(i,1); gdRender(); }
+  function gdPush(g){ const msg=document.getElementById('gdMsg');
+    if(payGuides.some(x=>x.name===g.name)){ msg.textContent='Already added'; return; }
+    if(payGuides.length>=3){ msg.textContent='Max 3 partners per bill'; return; }
+    payGuides.push(g); gdRender(); msg.textContent=''; }
+  async function gdFind(){ const num=document.getElementById('gdNum').value.trim(); const msg=document.getElementById('gdMsg');
+    if(!num){ msg.textContent='Enter the WhatsApp number'; return; }
+    msg.textContent='Searching…';
+    try{ const r=await _post('/api/method/luuvcrm.api.guide_search',{mobile:num}); if(!r){ msg.textContent=''; return; }
+      const d=await r.json(); const m=d.message||{};
+      if(r.ok && m.found){ gdPush(m); document.getElementById('gdNum').value=''; document.getElementById('gdAddRow').style.display='none'; }
+      else if(r.ok){ msg.textContent='Not registered — add & invite via WhatsApp:'; document.getElementById('gdAddRow').style.display='flex'; }
+      else msg.textContent=_smsg(d,'search failed');
+    }catch(e){ msg.textContent='Connection error'; } }
+  async function gdAdd(){ const num=document.getElementById('gdNum').value.trim(); const msg=document.getElementById('gdMsg');
+    const name=document.getElementById('gdName').value.trim(); const role=document.getElementById('gdRole').value;
+    msg.textContent='Adding…';
+    try{ const r=await _post('/api/method/luuvcrm.api.guide_quick_add',{mobile:num,name:name,role:role}); if(!r){ msg.textContent=''; return; }
+      const d=await r.json(); const m=d.message||{};
+      if(r.ok && m.found){ gdPush(m); document.getElementById('gdAddRow').style.display='none';
+        document.getElementById('gdNum').value=''; document.getElementById('gdName').value='';
+        if(m.invite_text){ window.open('https://wa.me/'+m.whatsapp+'?text='+encodeURIComponent(m.invite_text),'_blank'); } }
+      else msg.textContent=_smsg(d,'could not add');
+    }catch(e){ msg.textContent='Connection error'; } }
 
   // ── open orders rail ──
   async function loadOpenOrders(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_ongoing_orders',{}); if(!r) return; const d=await r.json();
       const orders=(d.message&&d.message.orders)||[]; _openOrders=orders; const wrap=document.getElementById('openOrders');
       document.getElementById('ordCnt').textContent=orders.length;
-      wrap.innerHTML=orders.map(o=>{ const ta=o.order_type==='Take Away'; const label=ta?('#'+(o.name||'').split('-').pop()):('Table '+(o.restaurant_table?o.restaurant_table.split('-').pop():'—')); const bIcon=ta?'shopping-bag':'utensils-crossed';
-        return `<button onclick="railClick('${o.name}','${(o.restaurant_table||'').replace(/'/g,'')}',${o.grand_total||0},${o.items_count||0})" style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:11px 12px;border-radius:var(--radius-md);border:1.5px solid var(--border-default);background:var(--surface-card);cursor:pointer;width:100%;text-align:left;">
+      wrap.innerHTML=orders.map(o=>{ const ta=o.order_type==='Take Away'; const isW=o.order_source==='Waiter'; const label=ta?('#'+(o.name||'').split('-').pop()):('Table '+(o.restaurant_table?o.restaurant_table.split('-').pop():'—')); const bIcon=ta?'shopping-bag':'utensils-crossed';
+        const cardBd=isW?'border:1.5px solid #6366F1;background:#EEF2FF;':'border:1.5px solid var(--border-default);background:var(--surface-card);';
+        const wtag=isW?'<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:700;color:#4F46E5;background:#E0E7FF;padding:2px 7px;border-radius:var(--radius-pill);">👤 Waiter</span>':'';
+        return `<button onclick="railClick('${o.name}','${(o.restaurant_table||'').replace(/'/g,'')}',${o.grand_total||0},${o.items_count||0})" style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:11px 12px;border-radius:var(--radius-md);${cardBd}cursor:pointer;width:100%;text-align:left;">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:6px;">
             <span style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);">${label}</span>
             <span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--color-primary);background:var(--orange-50);padding:2px 7px;border-radius:var(--radius-pill);"><i data-lucide="${bIcon}" style="width:11px;height:11px;"></i>${o.items_count||0}</span>
           </div>
-          <span class="mono" style="font-size:14px;font-weight:500;color:var(--color-primary);">${nfmt(o.grand_total||0)}</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:6px;">
+            <span class="mono" style="font-size:14px;font-weight:500;color:var(--color-primary);">${nfmt(o.grand_total||0)}</span>
+            ${wtag}
+          </div>
         </button>`; }).join('') || '<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:28px 8px;line-height:1.5;">No open orders yet.</div>';
       icons();
     }catch(e){}
@@ -811,10 +1108,11 @@ input,select,button{font-family:inherit;}
     orderType='Take Away';
     document.getElementById('segDine').classList.remove('active');
     document.getElementById('segTake').classList.add('active');
-    document.getElementById('tableSel').value='';
-    currentOrder=name; cart={}; cartTA={}; firedBaseline={};
+    document.getElementById('tableSel').value=''; _prevTable='';
+    _saveEpoch++;   // switching tickets — drop any in-flight autosave response
+    currentOrder=name; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={};
     let items=[]; try{ items=JSON.parse(o.items_json||'[]'); }catch(e){}
-    items.forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.sent_qty) firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; });
+    items.forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.sent_qty){ firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; if(i.takeaway) firedTABaseline[i.item]=(firedTABaseline[i.item]||0)+i.sent_qty; } addCartNote(i.item,i.notes); });
     currentDiscount=(o.discount_amount>0)?{amount:o.discount_amount,note:o.discount_note||''}:null;
     editBaseline={...firedBaseline};
     tableOrders=[]; updateTabsVisibility(); renderCart();
@@ -836,19 +1134,36 @@ input,select,button{font-family:inherit;}
     if(kot && !isKotPF(kot)) localStorage.removeItem(PF_KEYS.kot);      // → built-in KOT
   })();
   // Render the selected Frappe Print Format; fall back to the built-in builder if none chosen.
-  async function printWithFormat(name,kind,fallback){
+  // prefix: optional HTML prepended to the rendered format (e.g. the "UPDATED" banner).
+  async function printWithFormat(name,kind,fallback,prefix){
     const pf=localStorage.getItem(PF_KEYS[kind]) || PF_DEFAULTS[kind];
     if(pf){ try{ const r=await _post('/api/method/luuvcrm.api.render_pos_print',{order_name:name,kind:kind,print_format:pf});
-      if(r){ const d=await r.json(); if(d.message&&d.message.html){ printRaw(d.message.html); return; } } }catch(e){} }
-    await fallback();
+      if(r){ const d=await r.json(); if(d.message&&d.message.html){ printRaw((prefix||'')+d.message.html); return; } } }catch(e){ console.error('print: format render failed ('+kind+')',e); } }
+    // Format render failed/empty → built-in layout. If THAT also fails, tell the cashier —
+    // silent print failures hid the order-swap bug for a whole service.
+    try{ await fallback(); }catch(e){ console.error('print: fallback failed ('+kind+')',e); toast('Print failed — '+kind); }
   }
-  async function printKOT(name){ await printWithFormat(name,'kot',async()=>{ try{ const r=await _post('/api/method/luuvcrm.api.get_kot_print_data',{order_name:name}); if(!r) return; const d=await r.json(); printDoc(buildKOT(d.message||{})); }catch(e){} });
+  async function printKOT(name){ await printWithFormat(name,'kot',async()=>{ const r=await _post('/api/method/luuvcrm.api.get_kot_print_data',{order_name:name}); if(!r){ toast('KOT print failed — no connection'); return; } const d=await r.json(); if(!r.ok){ console.error('print: get_kot_print_data',d); toast('KOT print failed — '+_smsg(d,'server error')); return; } printDoc(buildKOT(d.message||{})); });
     try{ await _post('/api/method/luuvcrm.api.mark_kot_printed',{order_name:name}); }catch(e){} }
-  async function printReceipt(name){ await printWithFormat(name,'receipt',async()=>{ try{ const r=await _post('/api/method/luuvcrm.api.get_receipt_print_data',{order_name:name}); if(!r) return; const d=await r.json(); printDoc(buildReceipt(d.message||{})); }catch(e){} }); }
-  function buildKOT(d){ const items=(d.items||[]).map(i=>`<tr><td>${i.qty}×</td><td>${i.item_name||i.item}${i.takeaway?' <b>[TA]</b>':''}</td></tr>`).join('');
+  async function printReceipt(name){ await printWithFormat(name,'receipt',async()=>{ const r=await _post('/api/method/luuvcrm.api.get_receipt_print_data',{order_name:name}); if(!r){ toast('Receipt print failed — no connection'); return; } const d=await r.json(); if(!r.ok){ console.error('print: get_receipt_print_data',d); toast('Receipt print failed — '+_smsg(d,'server error')); return; } printDoc(buildReceipt(d.message||{})); }); }
+  // KOT + bills print in three sections: kitchen food / beverages / takeaway.
+  function printSections(items){
+    const ta=(items||[]).filter(i=>i.takeaway), bev=(items||[]).filter(i=>!i.takeaway&&i.beverage), food=(items||[]).filter(i=>!i.takeaway&&!i.beverage);
+    return [['FOOD',food],['BEVERAGES',bev],['TAKEAWAY',ta]].filter(s=>s[1].length);
+  }
+  function sectionRows(items,row){
+    const secs=printSections(items);
+    if(secs.length<=1) return (items||[]).map(row).join('');
+    return secs.map(([h,arr])=>`<tr><td colspan="2" class="sec">— ${h} —</td></tr>`+arr.map(row).join('')).join('');
+  }
+  function buildKOT(d){
+    const row=i=>`<tr><td style="vertical-align:top;">${i.qty}×</td><td>${i.takeaway?'(takeaway) ':''}${i.item_name||i.item}${i.notes?`<div style="font-size:12px;font-style:italic;">↳ ${escq(i.notes)}</div>`:''}</td></tr>`;
+    const items=sectionRows(d.items||[],row);
     const loc=d.order_type==='Take Away'?'TAKE AWAY':(d.order_type==='Delivery'?'DELIVERY':('TABLE '+((d.table||'').split('-').pop()||'-')));
     return `<h2>KOT — ${d.order_name||''}</h2><div class="loc">${loc}</div><table>${items}</table><div class="t">${new Date().toLocaleString()}</div>`; }
-  function buildReceipt(d){ const items=(d.items||[]).map(i=>`<tr><td>${i.qty}× ${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`).join('');
+  function buildReceipt(d){
+    const row=i=>`<tr><td>${i.qty}× ${i.takeaway?'(takeaway) ':''}${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`;
+    const items=sectionRows(d.items||[],row);
     return `<h2>Luuv Fryxo</h2><div class="loc">Receipt — ${d.order_name||''}</div><table>${items}</table>
       <div class="tot">Service charge: ${(d.service_charge_amount||0).toLocaleString()}</div><div class="tot"><b>Total: LKR ${(d.grand_total||0).toLocaleString()}</b></div>
       <div class="tot">${(d.payment_mode||'')}</div><div class="t">${new Date().toLocaleString()}</div>`; }
@@ -858,9 +1173,9 @@ input,select,button{font-family:inherit;}
     if(!f){ f=document.createElement('iframe'); f.id='__printFrame'; f.setAttribute('aria-hidden','true');
       f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'; document.body.appendChild(f); }
     const doc=f.contentWindow.document; doc.open();
-    doc.write(`<html><head><title>Print</title><style>@page{margin:0;}body{font-family:'DM Mono',monospace;width:280px;padding:8px;color:#000;margin:0;}h2{text-align:center;margin:4px 0}.loc{text-align:center;font-weight:700;margin:6px 0;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px}table{width:100%;font-size:13px}td.r{text-align:right}.tot{margin-top:6px;font-size:13px}.t{margin-top:8px;font-size:11px;text-align:center;color:#555}</style></head><body>${html}</body></html>`);
+    doc.write(`<html><head><title>Print</title><style>@page{margin:0;}body{font-family:'DM Mono',monospace;width:280px;padding:8px;color:#000;margin:0;}h2{text-align:center;margin:4px 0}.loc{text-align:center;font-weight:700;margin:6px 0;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px}table{width:100%;font-size:13px}td.r{text-align:right}td.sec{font-weight:700;font-size:11.5px;letter-spacing:.6px;text-align:center;border-top:1px dashed #000;padding:5px 0 2px;}.tot{margin-top:6px;font-size:13px}.t{margin-top:8px;font-size:11px;text-align:center;color:#555}</style></head><body>${html}</body></html>`);
     doc.close();
-    setTimeout(()=>{ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){} }, 350);
+    setTimeout(()=>{ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){ console.error('print: iframe print() failed',e); toast('Print failed — check the printer/browser'); } }, 350);
   }
   // Print pre-rendered HTML (Frappe Print Format) as-is — its own CSS handles sizing.
   function printRaw(html){
@@ -870,7 +1185,7 @@ input,select,button{font-family:inherit;}
     const doc=f.contentWindow.document; doc.open();
     doc.write(`<html><head><title>Print</title><style>@page{margin:0;}</style></head><body>${html}</body></html>`);
     doc.close();
-    setTimeout(()=>{ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){} }, 350);
+    setTimeout(()=>{ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){ console.error('print: iframe print() failed',e); toast('Print failed — check the printer/browser'); } }, 350);
   }
 
   // ── Print settings ──
@@ -966,16 +1281,17 @@ input,select,button{font-family:inherit;}
     }catch(e){} }, 3000); }
 
   // Guest check (pre-bill) print
-  async function printGuestCheck(name){ try{
+  async function printGuestCheck(name,updated){ try{
+    const banner=updated?'<div style="text-align:center;font-weight:700;border:2px solid #000;padding:5px;margin:0 0 8px;font-family:monospace;">UPDATED — REPLACES PREVIOUS BILL</div>':'';
     await printWithFormat(name,'guest_check',async()=>{ const r=await _post('/api/method/luuvcrm.api.get_guest_check_data',{order_name:name}); if(!r) return; const d=await r.json(); const x=d.message||{};
-      const items=(x.items||[]).map(i=>`<tr><td>${i.qty}× ${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`).join('');
-      printDoc(`<h2>Luuv Fryxo</h2><div class="loc">GUEST CHECK — ${x.order_name||''}</div><table>${items}</table>
+      const items=sectionRows(x.items||[],i=>`<tr><td>${i.qty}× ${i.takeaway?'(takeaway) ':''}${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`);
+      printDoc(`${banner}<h2>Luuv Fryxo</h2><div class="loc">GUEST CHECK — ${x.order_name||''}</div><table>${items}</table>
         <div class="tot">Subtotal: ${(((x.grand_total||0)-(x.service_charge_amount||0))).toLocaleString()}</div>
         <div class="tot">Service charge: ${(x.service_charge_amount||0).toLocaleString()}</div>
         <div class="tot"><b>Total: LKR ${(x.grand_total||0).toLocaleString()}</b></div>
-        <div class="t">Not a tax invoice · ${new Date().toLocaleString()}</div>`); });
+        <div class="t">Not a tax invoice · ${new Date().toLocaleString()}</div>`); },banner);
     try{ await _post('/api/method/luuvcrm.api.mark_check_printed',{order_name:name}); }catch(e){}
-    toast('Guest check printed');
+    toast(updated?'Updated guest check printed — collect the old bill':'Guest check printed');
   }catch(e){ toast('Connection error'); } }
 
   // Split bill (and "split takeaway" — bills only the takeaway items, no service charge)
@@ -1058,8 +1374,20 @@ input,select,button{font-family:inherit;}
     try{ const res=await _post('/api/method/luuvcrm.api.pos_close_shift',{closing_details:JSON.stringify(details)}); if(!res){ btn.disabled=false; return; } const d=await res.json();
       if(res.ok && d.message && d.message.shift){ const z=d.message.shift; hide('shiftCloseModal'); toast('Shift closed — '+(z.order_count||0)+' orders, '+fmt(z.total_sales||0)); if(z.consolidated===false){ toast('Shift closed, but daily invoice consolidation is pending — a manager can retry it.'); } printZReport(z); await loadShift(); loadOpenOrders(); openShiftModal(); } else mErr('closeErr', _smsg(d,'could not close shift'));
     }catch(e){ mErr('closeErr','Connection error'); } btn.disabled=false; }
-  function printZReport(z){ const rows=(z.payment_reconciliation||[]).map(r=>`<tr><td>${r.mode_of_payment}</td><td class="r">${(r.closing_amount||0).toLocaleString()}</td></tr>`).join('');
-    printDoc(`<h2>Z-Report</h2><div class="loc">${z.cashier||''}</div><div class="tot">Orders: ${z.order_count||0}</div><div class="tot">Total sales: LKR ${(z.total_sales||0).toLocaleString()}</div><table>${rows}</table><div class="t">${z.period_start||''} → ${z.period_end||''}</div>`); }
+  function printZReport(z){
+    // Per-mode rows are SALES (float excluded) so they always sum to "Total sales".
+    // The drawer/float figures print separately below — the opening float is NOT sales.
+    const pb=z.payment_breakdown||{}, rec=z.payment_reconciliation||[];
+    const modes=rec.length?rec.map(r=>r.mode_of_payment):Object.keys(pb);
+    const rows=modes.map(m=>{ const r=rec.find(x=>x.mode_of_payment===m)||{};
+      const sales=(pb[m]!=null)?pb[m]:((r.expected_amount||0)-(r.opening_amount||0));
+      return `<tr><td>${m} sales</td><td class="r">${(sales||0).toLocaleString()}</td></tr>`; }).join('');
+    const cash=rec.find(r=>r.mode_of_payment==='Cash');
+    const drawer=`<div class="tot">Opening float: ${(z.opening_balance||0).toLocaleString()}</div>`+
+      (cash?`<div class="tot">Cash in drawer (expected): ${(cash.expected_amount||0).toLocaleString()}</div>
+        <div class="tot">Cash in drawer (counted): ${(cash.closing_amount||0).toLocaleString()}</div>`+
+        (((cash.difference||0)!==0)?`<div class="tot"><b>Cash difference: ${(cash.difference||0).toLocaleString()}</b></div>`:''):'');
+    printDoc(`<h2>Z-Report</h2><div class="loc">${z.cashier||''}</div><div class="tot">Orders: ${z.order_count||0}</div><div class="tot"><b>Total sales: LKR ${(z.total_sales||0).toLocaleString()}</b></div><table>${rows}</table>${drawer}<div class="t">${z.period_start||''} → ${z.period_end||''}</div>`); }
   function toggleShift(){ if(shiftOpen) openCloseModal(); else openShiftModal(); }
   // Logout is tied to the shift: a shift must be closed before logging out. From the header,
   // an open shift routes to the close-shift flow; after close the open-shift modal offers Log out.
@@ -1069,8 +1397,41 @@ input,select,button{font-family:inherit;}
 
   function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
 
+  // ── ambient refresh: pull in new orders (esp. waiter-fired ones) without a manual action ──
+  // pos2 has no realtime/socket; without this a waiter order only appears when the cashier next
+  // re-selects the table or switches views (the "big delay"). This ticks every 8s but never
+  // touches the cashier's in-progress cart.
+  async function ambientRefresh(){
+    if(document.querySelector('.lf-dialog__overlay.show')) return; // a dialog is open — don't churn under it
+    if(_saving) return;                                            // mid-autosave — skip this tick
+    loadOpenOrders();                                              // open-orders rail (read-only, safe anytime)
+    const navp=document.querySelector('.navp.active');
+    if(navp && navp.dataset.nav==='tables') loadTables();          // floor grid, only while viewing Tables
+    // Only when the cashier isn't mid-ticket (empty cart): refreshTableTabs re-renders the tab strip
+    // but never selects/overwrites the active cart, and an empty cart means no autosave race.
+    const tbl=document.getElementById('tableSel').value;
+    if(orderType==='Dine In' && tbl && !Object.keys(cart).length) refreshTableTabs(tbl);
+  }
+
+  // ── activity trail (lfact.js) ──
+  // Wrapped, not edited: the cart handlers above are untouched, LFAct calls the
+  // original first and logs the bill total on either side of the tap. This is
+  // what makes "the bill was Rs 2,000 more" answerable — see /activity.
+  try{ if(window.LFAct){
+    LFAct.wrapCart({
+      total:()=>cartTotals().gt,
+      order:()=>currentOrder||null,
+      table:()=>document.getElementById('tableSel').value||null,
+      name:c=>(itemMap[c]||{}).name||c,
+      rate:c=>(itemMap[c]||{}).rate||0
+    },{ addToCart:'cart.add', setQty:'@qty', removeItem:'cart.remove',
+        toggleTA:'cart.takeaway', confirmAddons:'cart.addons',
+        clearTicket:'cart.clear', newTicketForTable:'ticket.new' });
+  } }catch(e){}
+
   // ── init ──
   setNav('sale'); setOrderType('Dine In'); setInterval(tick,1000); tick(); icons();
+  setInterval(ambientRefresh,8000);
   applyCatLayout(localStorage.getItem(CAT_LAYOUT_KEY)||'stack');
   renderCart();
   (async()=>{ await loadShift(); loadOpenOrders(); if(!shiftOpen) openShiftModal(); })();

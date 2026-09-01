@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Luuv Fryxo Manager</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First script on the page so it is listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="manager"></script>
+<script src="/lfact.js?v=1" data-app="manager"></script>
 <link rel="manifest" href="/manager_manifest.json">
 <meta name="theme-color" content="#F15207">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -47,10 +50,34 @@ input,button{font-family:inherit;}
 .card{width:430px;max-width:100%;min-height:100vh;background:var(--surface-card);position:relative;box-shadow:0 0 60px rgba(20,18,16,.07);display:flex;flex-direction:column;}
 .navb{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;border:none;background:transparent;cursor:pointer;padding:6px 0;color:var(--text-muted);}
 .navb.active{color:var(--color-primary);}
+.moreRow{display:flex;align-items:center;gap:13px;width:100%;border:none;background:transparent;cursor:pointer;padding:13px 2px;border-bottom:1px solid var(--border-subtle);font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-strong);-webkit-tap-highlight-color:transparent;}
+.moreRow:last-of-type{border-bottom:none;}
+.moreIco{width:40px;height:40px;border-radius:11px;background:var(--orange-50);color:var(--color-primary);display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:19px;}
+.moreIco i{width:19px;height:19px;}
+button[disabled]{opacity:.4;cursor:not-allowed;}
 .navb i{width:23px;height:23px;}
 .rangeBtn{border:none;background:transparent;color:var(--text-muted);font-family:var(--font-display);font-weight:700;font-size:13px;padding:7px 15px;border-radius:var(--radius-pill);cursor:pointer;}
 .rangeBtn.active{background:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
+
+/* ── Desktop / tablet-landscape (≥900px): widen the shell, two-column content.
+     Phones are untouched — everything below only applies on large screens. ── */
+@media (min-width:900px){
+  .card{width:100%;max-width:1260px;margin:0 24px;}
+  /* dashboard-style tabs flow into two masonry columns; cards never split */
+  #tabToday,#tabReports,#tabCash,#tabPurchases,#tabSettings{column-count:2;column-gap:16px;}
+  #tabToday>*,#tabReports>*,#tabCash>*,#tabPurchases>*,#tabSettings>*{break-inside:avoid;}
+  /* approvals feed becomes a two-column grid of cards */
+  .apprGrid{display:grid !important;grid-template-columns:1fr 1fr;gap:14px !important;align-items:start;}
+  /* bottom nav: keep the buttons phone-sized and centred instead of stretching */
+  .navb{flex:0 1 150px;}
+  .navb:first-child{margin-left:auto;}
+  .navb:last-child{margin-right:auto;}
+}
+@media (min-width:1400px){
+  .card{max-width:1560px;}
+  #tabToday,#tabReports{column-count:3;}
+}
 </style>
 </head>
 <body>
@@ -110,7 +137,7 @@ input,button{font-family:inherit;}
         </div>
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
           <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:16px;">Sales by hour</div>
-          <div id="hourly" style="display:flex;align-items:flex-end;gap:7px;height:110px;"></div>
+          <div id="hourly" style="display:flex;align-items:flex-end;gap:7px;min-height:110px;"></div>
         </div>
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);">
           <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:6px;">Top items today</div>
@@ -123,8 +150,9 @@ input,button{font-family:inherit;}
         <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Cash drawer</div>
         <div style="font-size:13.5px;color:var(--text-muted);margin-bottom:16px;" id="cashSub">—</div>
         <div style="background:var(--ink);color:#fff;border-radius:var(--radius-xl);padding:20px 22px;box-shadow:var(--shadow-lg);margin-bottom:14px;">
-          <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;opacity:.78;letter-spacing:.04em;"><i data-lucide="wallet" style="width:16px;height:16px;"></i> Expected in drawer</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;opacity:.78;letter-spacing:.04em;"><i data-lucide="wallet" style="width:16px;height:16px;"></i> Cash in drawer (expected)</div>
           <div class="mono" style="font-weight:500;font-size:36px;letter-spacing:-.02em;margin-top:5px;">Rs <span id="drawerExpected">0</span></div>
+          <div style="font-size:11px;opacity:.6;margin-top:4px;">= float + cash sales + cash in − cash out · not a sales figure</div>
           <div style="display:flex;gap:8px;margin-top:14px;">
             <div style="flex:1;background:rgba(255,255,255,.08);border-radius:var(--radius-md);padding:10px 12px;"><div style="font-size:11.5px;opacity:.72;">Opening float</div><div class="mono" style="font-size:15px;margin-top:2px;">Rs <span id="cashFloat">0</span></div></div>
             <div style="flex:1;background:rgba(255,255,255,.08);border-radius:var(--radius-md);padding:10px 12px;"><div style="font-size:11.5px;opacity:.72;">Cash sales</div><div class="mono" style="font-size:15px;margin-top:2px;">Rs <span id="cashSales">0</span></div></div>
@@ -176,10 +204,41 @@ input,button{font-family:inherit;}
             <div><div style="font-size:12px;opacity:.82;">Best day</div><div class="mono" style="font-weight:500;font-size:18px;" id="repBest">—</div></div>
           </div>
         </div>
+        <!-- revenue breakdown: net sales vs service charge vs other charges -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Revenue breakdown</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:14px;">Service charge shown separately · this period</div>
+          <div id="repBreakdown" style="display:flex;flex-direction:column;gap:14px;"></div>
+        </div>
+        <!-- food cost vs sales (approved purchases + wastage over the range) -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Sales vs costs</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">Food cost · overheads · profit — this period</div>
+          <div id="foodCostBody" style="display:flex;flex-direction:column;gap:14px;"></div>
+        </div>
         <!-- daily chart -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:16px;">Daily sales</div>
-          <div id="dailyChart" style="display:flex;align-items:flex-end;gap:5px;height:140px;overflow-x:auto;padding-bottom:2px;"></div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Daily sales</div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--text-muted);flex:none;"><svg width="20" height="6" style="overflow:visible;"><line x1="0" y1="3" x2="20" y2="3" stroke="var(--gray-700)" stroke-width="2" stroke-dasharray="5 4"/></svg> 7-day avg</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">Tap a day for the full breakdown</div>
+          <div id="dailyChart" style="overflow-x:auto;padding-bottom:2px;"></div>
+        </div>
+        <!-- sales by weekday (computed from the daily series) -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Sales by weekday</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;" id="wkSub">Average per day over the range</div>
+          <div id="weekdayBars" style="display:flex;flex-direction:column;gap:12px;"></div>
+        </div>
+        <!-- monthly sales (last 12 months, independent of the range toggle) -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Monthly sales</div>
+            <span class="mono" style="font-size:12.5px;color:var(--text-faint);">12 months</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;" id="monSub">—</div>
+          <div id="monthlyChart" style="overflow-x:auto;padding-bottom:2px;"></div>
         </div>
         <!-- item-wise -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);">
@@ -190,14 +249,98 @@ input,button{font-family:inherit;}
           <div id="repItems" style="display:flex;flex-direction:column;"></div>
         </div>
       </div>
+
+      <div id="tabPurchases" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px;">
+          <div>
+            <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Purchases</div>
+            <div style="font-size:13.5px;color:var(--text-muted);" id="purchSub">—</div>
+          </div>
+        </div>
+        <!-- range toggle -->
+        <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;margin-bottom:12px;" id="pRangeToggle">
+          <button class="rangeBtn active" data-days="7" onclick="setPRange(7)">7 days</button>
+          <button class="rangeBtn" data-days="30" onclick="setPRange(30)">30 days</button>
+          <button class="rangeBtn" data-days="90" onclick="setPRange(90)">90 days</button>
+        </div>
+        <!-- granularity toggle -->
+        <div style="display:flex;margin-bottom:16px;">
+          <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="pGranToggle">
+            <button class="rangeBtn active" data-gran="daily" onclick="setPGran('daily')">Daily</button>
+            <button class="rangeBtn" data-gran="weekly" onclick="setPGran('weekly')">Weekly</button>
+          </div>
+        </div>
+        <!-- summary -->
+        <div style="background:var(--surface-brand);color:#fff;border-radius:var(--radius-xl);padding:20px 22px;box-shadow:var(--shadow-brand);margin-bottom:14px;">
+          <div style="font-size:13px;font-weight:600;opacity:.85;letter-spacing:.04em;">Total spend</div>
+          <div class="mono" style="font-weight:500;font-size:34px;letter-spacing:-.02em;margin-top:4px;">Rs <span id="purchSpend">0</span></div>
+          <div style="display:flex;gap:18px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.22);">
+            <div><div style="font-size:12px;opacity:.82;">Bills</div><div class="mono" style="font-weight:500;font-size:18px;" id="purchBills">0</div></div>
+            <div><div style="font-size:12px;opacity:.82;">Avg bill</div><div class="mono" style="font-weight:500;font-size:18px;">Rs <span id="purchAvg">0</span></div></div>
+            <div><div style="font-size:12px;opacity:.82;">Biggest day</div><div class="mono" style="font-weight:500;font-size:18px;" id="purchBest">—</div></div>
+          </div>
+        </div>
+        <!-- spend chart -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);" id="purchChartTitle">Daily spend</div>
+            <span id="purchAvgLegend" style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--text-muted);flex:none;"><svg width="20" height="6" style="overflow:visible;"><line x1="0" y1="3" x2="20" y2="3" stroke="var(--gray-700)" stroke-width="2" stroke-dasharray="5 4"/></svg> 7-day avg</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">Approved purchase bills only</div>
+          <div id="purchChart" style="overflow-x:auto;padding-bottom:2px;"></div>
+        </div>
+        <!-- top vendors -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Top vendors</div>
+            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="purchVendorCount"></span>
+          </div>
+          <div id="purchVendors" style="display:flex;flex-direction:column;"></div>
+        </div>
+        <!-- top items bought -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Top items bought</div>
+            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="purchItemCount"></span>
+          </div>
+          <div id="purchItems" style="display:flex;flex-direction:column;"></div>
+        </div>
+        <!-- recent bills (tap one → full breakdown sheet) -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-top:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Recent bills</div>
+            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="purchBillCount"></span>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:6px;">Tap a bill to see its items, prices and receipt</div>
+          <div id="purchBillList" style="display:flex;flex-direction:column;"></div>
+        </div>
+      </div>
+
+      <!-- SETTINGS (menu items: add / rename / reprice — POS reads these on its next refresh) -->
+      <div id="tabSettings" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
+        <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Menu settings</div>
+        <div style="font-size:13.5px;color:var(--text-muted);margin-bottom:14px;" id="setSub">—</div>
+        <button onclick="openItemAdd()" style="display:flex;align-items:center;justify-content:center;gap:8px;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);padding:13px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;width:100%;box-shadow:var(--shadow-brand);margin-bottom:14px;"><i data-lucide="plus" style="width:17px;height:17px;"></i> Add menu item</button>
+        <div style="display:flex;align-items:center;gap:10px;background:var(--surface-card);border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 14px;margin-bottom:4px;">
+          <i data-lucide="search" style="width:17px;height:17px;color:var(--text-muted);flex:none;"></i>
+          <input id="setSearch" oninput="renderSetList()" placeholder="Search items…" style="border:none;outline:none;background:transparent;font-size:15px;color:var(--text-strong);width:100%;">
+        </div>
+        <div id="setList"></div>
+        <div style="display:flex;align-items:flex-start;gap:8px;color:var(--text-faint);font-size:12px;margin-top:18px;line-height:1.5;"><i data-lucide="info" style="width:15px;height:15px;flex:none;margin-top:1px;"></i> Name and price changes reach the POS, kiosk and customer app the next time those screens refresh.</div>
+        <div style="border-top:1px solid var(--border-subtle);margin-top:22px;padding-top:18px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:3px;">Tour guides</div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;">Partner cashback balances, payouts and rates</div>
+          <button onclick="openGuides()" style="display:flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-strong);border-radius:var(--radius-pill);padding:13px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;width:100%;">🧭 Manage tour guides</button>
+        </div>
+      </div>
     </div>
 
     <!-- bottom nav -->
     <div style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:10px 12px 14px;gap:4px;">
       <button class="navb active" data-tab="today" onclick="setTab('today')"><span style="position:relative;display:inline-flex;"><i data-lucide="bar-chart-3"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Today</span></button>
-      <button class="navb" data-tab="reports" onclick="setTab('reports')"><span style="position:relative;display:inline-flex;"><i data-lucide="line-chart"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Reports</span></button>
-      <button class="navb" data-tab="cash" onclick="setTab('cash')"><span style="position:relative;display:inline-flex;"><i data-lucide="wallet"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Cash</span></button>
       <button class="navb" data-tab="approvals" onclick="setTab('approvals')"><span style="position:relative;display:inline-flex;"><i data-lucide="bell"></i><span id="navBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-danger);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Approvals</span></button>
+      <button class="navb" data-tab="cash" onclick="setTab('cash')"><span style="position:relative;display:inline-flex;"><i data-lucide="wallet"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Cash</span></button>
+      <button class="navb" data-tab="more" onclick="openMore()"><span style="position:relative;display:inline-flex;"><i data-lucide="menu"></i><span id="actFlagDot" style="display:none;position:absolute;top:-3px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--color-danger);color:#fff;font-family:var(--font-mono);font-size:10px;font-weight:700;line-height:16px;text-align:center;"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">More</span></button>
     </div>
   </div>
 </div></div>
@@ -216,6 +359,170 @@ input,button{font-family:inherit;}
   </div>
 </div>
 
+<!-- Menu item edit / add sheet -->
+<div id="itemOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideItem()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 16px;"></div>
+    <div id="itemTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);margin-bottom:2px;">Edit item</div>
+    <div id="itemCodeLine" style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px;">&nbsp;</div>
+    <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;">Item name</label>
+    <input id="itemName" type="text" placeholder="e.g. Cheese Kottu" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-size:15px;color:var(--text-strong);outline:none;margin-bottom:14px;">
+    <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;">Price (Rs)</label>
+    <input id="itemRate" type="number" inputmode="decimal" min="0" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-family:var(--font-mono);font-size:18px;color:var(--text-strong);outline:none;margin-bottom:14px;">
+    <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;">Guide commission % <span style="font-weight:600;color:var(--text-faint);">(0 = guide's own rate)</span></label>
+    <input id="itemGdPct" type="number" inputmode="decimal" min="0" max="50" placeholder="0" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-family:var(--font-mono);font-size:16px;color:var(--text-strong);outline:none;margin-bottom:14px;">
+    <div id="itemGroupWrap">
+      <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;">Category</label>
+      <select id="itemGroup" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-size:15px;color:var(--text-strong);outline:none;margin-bottom:14px;background:var(--surface-card);appearance:none;"></select>
+    </div>
+    <div id="itemErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin-bottom:12px;"></div>
+    <button class="lf-btn" id="itemSave" onclick="saveItem()">Save</button>
+    <div style="display:flex;align-items:center;gap:7px;color:var(--text-faint);font-size:12px;margin-top:12px;justify-content:center;"><i data-lucide="monitor" style="width:14px;height:14px;"></i> POS picks this up on its next refresh</div>
+  </div>
+</div>
+
+<!-- Day drill-down sheet -->
+<div id="dayOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideDay()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;max-height:82vh;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;display:flex;flex-direction:column;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;flex:none;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex:none;">
+      <div id="dayTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);flex:1;">—</div>
+      <button onclick="hideDay()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div id="dayBody" style="overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Sales bill drill-down sheet (opens above the day sheet) -->
+<div id="saleOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1050;" onclick="hideSaleBill()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;max-height:82vh;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;display:flex;flex-direction:column;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;flex:none;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex:none;">
+      <div style="flex:1;min-width:0;">
+        <div id="saleTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);">Bill</div>
+        <div id="saleMeta" style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">—</div>
+      </div>
+      <button onclick="hideSaleBill()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div id="saleBody" style="overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Purchase bill drill-down sheet -->
+<div id="billOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideBill()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;max-height:82vh;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;display:flex;flex-direction:column;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;flex:none;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex:none;">
+      <div style="flex:1;min-width:0;">
+        <div id="billTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</div>
+        <div id="billMeta" style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">—</div>
+      </div>
+      <button onclick="hideBill()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div id="billBody" style="overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- More menu drawer (bottom bar overflow: Reports / Purchases / Settings / Tour guides) -->
+<div id="moreDrawer" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideMore()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:18px 22px 30px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;"></div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);margin-bottom:12px;">More</div>
+    <button onclick="moreGo('reports')" class="moreRow"><span class="moreIco"><i data-lucide="line-chart"></i></span><span style="flex:1;text-align:left;">Reports</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+    <button onclick="moreGo('purchases')" class="moreRow"><span class="moreIco"><i data-lucide="shopping-cart"></i></span><span style="flex:1;text-align:left;">Purchases</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+    <button onclick="moreGo('settings')" class="moreRow"><span class="moreIco"><i data-lucide="settings"></i></span><span style="flex:1;text-align:left;">Menu settings</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+    <button onclick="hideMore();openGuides()" class="moreRow"><span class="moreIco">🧭</span><span style="flex:1;text-align:left;">Tour guides</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+    <button onclick="hideMore();openWastage()" class="moreRow"><span class="moreIco">🗑️</span><span style="flex:1;text-align:left;">Wastage</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+    <button onclick="location.href='/activity'" class="moreRow"><span class="moreIco">👀</span><span style="flex:1;text-align:left;">Staff activity</span><span id="actFlagPill" style="display:none;font-family:var(--font-mono);font-size:11.5px;font-weight:700;color:#fff;background:var(--color-danger);border-radius:var(--radius-pill);padding:3px 9px;margin-right:6px;"></span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+  </div>
+</div>
+
+<!-- Wastage sheet: record spoiled/discarded raw materials (costed from the price book) -->
+<div id="wasteOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideWastage()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;max-height:88vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 16px;"></div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);margin-bottom:2px;">Wastage</div>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px;">Spoiled or thrown-away stock — costed from the buying price book, feeds the Food-cost report</div>
+    <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;">Item</label>
+    <select id="wsItem" onchange="wsItemChange()" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-size:15px;color:var(--text-strong);outline:none;margin-bottom:12px;background:var(--surface-card);appearance:none;"></select>
+    <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;">Quantity <span id="wsUnit" style="font-weight:600;color:var(--text-faint);"></span></label>
+    <input id="wsQty" type="number" inputmode="decimal" min="0" step="0.1" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-family:var(--font-mono);font-size:17px;color:var(--text-strong);outline:none;margin-bottom:12px;">
+    <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;">Reason (optional)</label>
+    <input id="wsReason" type="text" placeholder="e.g. spoiled, burnt, dropped" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-size:14px;color:var(--text-strong);outline:none;margin-bottom:14px;">
+    <div id="wsErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin-bottom:12px;"></div>
+    <button class="lf-btn" id="wsSave" onclick="saveWastage()">Record wastage</button>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin:20px 0 6px;">
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);">Recent</div>
+      <span class="mono" id="wsTotal" style="font-size:12.5px;color:var(--color-danger);font-weight:700;"></span>
+    </div>
+    <div id="wsRows"></div>
+  </div>
+</div>
+
+<!-- Fullscreen image viewer (approval receipt photos etc.) — pinch/double-tap zoom + pan -->
+<div id="imgViewer" style="position:fixed;inset:0;background:rgba(10,9,8,.96);display:none;align-items:center;justify-content:center;z-index:1300;overflow:hidden;touch-action:none;">
+  <img id="imgViewerImg" draggable="false" style="max-width:96vw;max-height:88vh;object-fit:contain;border-radius:10px;transform-origin:center center;will-change:transform;user-select:none;-webkit-user-select:none;">
+  <button onclick="closeImgViewer()" style="position:absolute;top:14px;right:14px;width:40px;height:40px;border:none;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:19px;font-weight:700;cursor:pointer;line-height:1;z-index:2;">✕</button>
+  <div style="position:absolute;bottom:20px;left:0;right:0;text-align:center;color:#fff;font-size:12.5px;opacity:.7;pointer-events:none;">Pinch or double-tap to zoom · drag to move · tap outside to close</div>
+</div>
+
+<!-- Tour guides sheet (Settings → manage partner cashback) -->
+<div id="guideOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideGuides()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;max-height:88vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 16px;"></div>
+    <div id="gvList">
+      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);margin-bottom:2px;">Tour guides</div>
+      <div id="gvSub" style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;">Loading…</div>
+      <div style="display:flex;align-items:center;gap:10px;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:11px 14px;margin-bottom:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:13.5px;color:var(--text-strong);">Global cashback %</div>
+          <div style="font-size:11px;color:var(--text-faint);">Every newly registered guide starts at this rate</div>
+        </div>
+        <input id="gvGlobalPct" type="number" inputmode="decimal" min="0" max="50" style="width:70px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px 8px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);outline:none;text-align:center;">
+        <button onclick="saveGlobalPct()" style="border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);padding:9px 16px;cursor:pointer;font-family:var(--font-display);font-size:12.5px;font-weight:700;">Save</button>
+      </div>
+      <div style="background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px 14px;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:13.5px;color:var(--text-strong);">Invite codes</div>
+          <button onclick="genGuideCode()" style="border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);padding:7px 14px;cursor:pointer;font-family:var(--font-display);font-size:12.5px;font-weight:700;">+ New code</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:8px;">New guides register on WhatsApp with a code — one code, one guide. Share sends the code + our WhatsApp link.</div>
+        <div id="gvCodeRows"></div>
+      </div>
+      <div id="gvRows"></div>
+    </div>
+    <div id="gvDetail" style="display:none;">
+      <button onclick="gvBack()" style="background:none;border:none;color:var(--text-muted);font-size:13px;font-weight:700;cursor:pointer;padding:0;margin-bottom:10px;font-family:var(--font-display);">← All guides</button>
+      <div id="gvName" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);"></div>
+      <div id="gvMeta" style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+        <div style="background:var(--orange-50);border-radius:var(--radius-md);padding:10px 11px;"><div style="font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--orange-700);font-family:var(--font-display);">Balance</div><div class="mono" id="gvBal" style="font-size:16px;font-weight:800;color:var(--text-strong);margin-top:2px;">0</div></div>
+        <div style="background:var(--surface-sunken);border-radius:var(--radius-md);padding:10px 11px;"><div style="font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--text-muted);font-family:var(--font-display);">Earned</div><div class="mono" id="gvEarned" style="font-size:16px;font-weight:800;color:var(--text-strong);margin-top:2px;">0</div></div>
+        <div style="background:var(--surface-sunken);border-radius:var(--radius-md);padding:10px 11px;"><div style="font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--text-muted);font-family:var(--font-display);">Paid</div><div class="mono" id="gvPaid" style="font-size:16px;font-weight:800;color:var(--text-strong);margin-top:2px;">0</div></div>
+      </div>
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:8px;">Record payout</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="gvPayAmt" type="number" inputmode="decimal" placeholder="Rs" style="flex:1;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px 14px;font-family:var(--font-mono);font-size:16px;color:var(--text-strong);outline:none;">
+        <button class="lf-btn" id="gvPayBtn" onclick="recordPayout()" style="width:auto;padding:0 22px;height:auto;font-size:14.5px;">Pay</button>
+      </div>
+      <input id="gvPayNote" type="text" placeholder="Note (e.g. cash paid at counter)" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px 14px;font-size:14px;color:var(--text-strong);outline:none;margin-bottom:16px;">
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:8px;">Edit guide</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="gvEditName" type="text" placeholder="Name" style="flex:1;min-width:0;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px 14px;font-size:14px;color:var(--text-strong);outline:none;">
+        <select id="gvEditRole" style="border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px 10px;font-size:14px;color:var(--text-strong);outline:none;background:var(--surface-card);"><option>Guide</option><option>Driver</option><option>Helper</option></select>
+        <input id="gvEditPct" type="number" inputmode="decimal" min="0" max="50" placeholder="%" style="width:74px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px 10px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);outline:none;">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="lf-btn" onclick="saveGuideEdit()" style="height:auto;padding:12px;font-size:14.5px;background:var(--surface-card);color:var(--text-body);border:1.5px solid var(--border-default);box-shadow:none;">Save changes</button>
+        <button class="lf-btn" onclick="resetGuidePw()" style="height:auto;padding:12px;font-size:14.5px;background:var(--surface-card);color:var(--text-body);border:1.5px solid var(--border-default);box-shadow:none;">Send login link</button>
+      </div>
+      <div id="gvErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin-bottom:12px;"></div>
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:6px;">History</div>
+      <div id="gvTxns"></div>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -223,6 +530,8 @@ input,button{font-family:inherit;}
   const MANAGER_PIN = "{{ manager_pin }}";
   let tab='today';
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
+  // Charts render nearly twice as tall on desktop (≥900px) — recomputed on render.
+  function chartH(base){ return window.innerWidth>=900? Math.round(base*1.9) : base; }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
   function kfmt(n){ n=Math.round(n||0); if(n>=1000) return (n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k'; return ''+n; }
   function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2600); }
@@ -251,17 +560,22 @@ input,button{font-family:inherit;}
       if(r.ok && d.message && d.message.ok){ toast((cashDir==='in'?'Cash in':'Cash out')+' recorded'); hideCash(); loadDashboard(); }
       else { err.textContent=(d.message&&d.message.message)||'Could not record'; err.style.display='block'; } }catch(e){ err.textContent='Connection error'; err.style.display='block'; } btn.disabled=false; }
 
-  function setTab(t){ tab=t; document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  function setTab(t){ tab=t; const bar=(t==='reports'||t==='purchases'||t==='settings')?'more':t;
+    document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===bar));
     document.getElementById('tabToday').style.display=t==='today'?'block':'none';
     document.getElementById('tabReports').style.display=t==='reports'?'block':'none';
     document.getElementById('tabCash').style.display=t==='cash'?'block':'none';
     document.getElementById('tabApprovals').style.display=t==='approvals'?'block':'none';
+    document.getElementById('tabPurchases').style.display=t==='purchases'?'block':'none';
+    document.getElementById('tabSettings').style.display=t==='settings'?'block':'none';
+    if(t==='purchases') loadPurchases();
     if(t==='approvals') loadApprovals();
+    if(t==='settings') loadSettings();
     if(t==='reports') loadReports(); icons(); }
 
   function hourLabel(h){ const ap=h<12?'a':'p'; let hh=h%12; if(hh===0) hh=12; return hh+ap; }
 
-  async function loadAll(){ await loadDashboard(); await loadApprovals(); }
+  async function loadAll(){ await loadDashboard(); await loadApprovals(); loadActivityFlags(); }
   async function loadDashboard(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_dashboard',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       document.getElementById('revenue').textContent=nfmt(m.revenue);
@@ -274,10 +588,11 @@ input,button{font-family:inherit;}
       const paySum=(m.payments||[]).reduce((a,p)=>a+p.amount,0)||1;
       document.getElementById('payMix').innerHTML=(m.payments||[]).map(p=>{ const k=palette[p.mode]||['smartphone','var(--color-primary)','var(--orange-50)']; const pct=Math.round(p.amount/paySum*100);
         return `<div><div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;"><span style="width:30px;height:30px;border-radius:9px;background:${k[2]};color:${k[1]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${k[0]}" style="width:16px;height:16px;"></i></span><span style="font-size:14px;font-weight:700;color:var(--text-strong);flex:1;">${p.mode}</span><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(p.amount)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:38px;text-align:right;">${pct}%</span></div><div style="height:8px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:${k[1]};border-radius:var(--radius-pill);"></div></div></div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;">No payments yet.</div>';
-      // hourly
+      // hourly (fixed y-axis + gridlines)
       const hmax=Math.max(1,...(m.hourly||[]).map(h=>h.amount));
-      document.getElementById('hourly').innerHTML=(m.hourly||[]).length?(m.hourly||[]).map(h=>{ const pk=h.amount===hmax;
-        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%;justify-content:flex-end;"><div title="Rs ${nfmt(h.amount)}" style="width:100%;height:${Math.round(h.amount/hmax*100)}%;min-height:5px;background:${pk?'var(--color-primary)':'var(--orange-200)'};border-radius:5px 5px 3px 3px;"></div><span class="mono" style="font-size:11px;color:var(--text-faint);">${hourLabel(h.hour)}</span></div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;align-self:center;">No sales yet.</div>';
+      const hy=niceCeil(hmax), HB=chartH(80), HH=HB+5+13;
+      document.getElementById('hourly').innerHTML=(m.hourly||[]).length?`<div style="display:flex;gap:6px;width:100%;">${axisCol(hy,HB,0,HH)}<div style="flex:1;min-width:0;position:relative;display:flex;align-items:flex-end;gap:7px;height:${HH}px;">${gridLines(hy,HB,0)}${(m.hourly||[]).map(h=>{ const pk=h.amount===hmax;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;"><div title="Rs ${nfmt(h.amount)}" style="width:100%;height:${Math.max(4,Math.round(h.amount/hy*HB))}px;background:${pk?'var(--color-primary)':'var(--orange-200)'};border-radius:5px 5px 3px 3px;"></div><span class="mono" style="font-size:11px;color:var(--text-faint);height:13px;line-height:13px;">${hourLabel(h.hour)}</span></div>`; }).join('')}</div></div>`:'<div style="color:var(--text-faint);font-size:13px;align-self:center;">No sales yet.</div>';
       // top items
       document.getElementById('topItems').innerHTML=(m.top_items||[]).length?(m.top_items||[]).map(t=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);"><span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${t.name}</div><div style="font-size:12.5px;color:var(--text-muted);">${t.qty} sold</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(t.revenue)}</span></div>`).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No sales yet.</div>';
       // cash
@@ -295,52 +610,65 @@ input,button{font-family:inherit;}
   }
 
   // approvals
-  const TONE={ price:['tag','var(--orange-50)','var(--color-primary)'], void:['ban','var(--color-danger-subtle)','var(--color-danger)'], item:['camera','var(--orange-50)','var(--color-primary)'], bill:['receipt','var(--color-info-subtle)','var(--color-info)'], discount:['percent','var(--orange-50)','var(--color-primary)'], edit:['pencil','var(--color-warning-subtle)','#9a6207'] };
+  const TONE={ price:['tag','var(--orange-50)','var(--color-primary)'], void:['ban','var(--color-danger-subtle)','var(--color-danger)'], item:['camera','var(--orange-50)','var(--color-primary)'], bill:['receipt','var(--color-info-subtle)','var(--color-info)'], discount:['percent','var(--orange-50)','var(--color-primary)'], edit:['pencil','var(--color-warning-subtle)','#9a6207'], expense:['zap','var(--color-warning-subtle)','#9a6207'] };
   async function loadApprovals(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_pending_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[],pending:0};
       const pend=m.pending||0; document.getElementById('pendingCount').textContent=pend;
       const badge=document.getElementById('navBadge'); if(pend>0){ badge.style.display='flex'; badge.textContent=pend; } else badge.style.display='none';
       const feed=document.getElementById('approvalFeed');
       if(!(m.approvals||[]).length){ feed.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;padding:64px 20px;text-align:center;color:var(--text-faint);"><span style="width:64px;height:64px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:30px;height:30px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-body);">All caught up 🎉</div><div style="font-size:13.5px;max-width:240px;line-height:1.5;">Nothing waiting on you. New requests from the POS will pop up here.</div></div>'; icons(); return; }
-      feed.innerHTML='<div style="display:flex;flex-direction:column;gap:13px;">'+(m.approvals||[]).map(a=>{ const t=TONE[a.type]||TONE.item; const pending=a.status==='pending';
-        const lines=(a.lines||[]).map(li=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:13.5px;"><span style="color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
+      feed.innerHTML='<div class="apprGrid" style="display:flex;flex-direction:column;gap:13px;">'+(m.approvals||[]).map(a=>{ const t=TONE[a.type]||TONE.item; const pending=a.status==='pending';
+        const st=pending?(apprState[a.name]=apprState[a.name]||{ticks:{},comment:''}):{ticks:{},comment:''};
+        const nLines=(a.lines||[]).length;
+        const lines=(a.lines||[]).map((li,ix)=>`<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
         const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
         const flag=a.flag_text?`<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-pill);padding:6px 12px;">${a.flag_text}</div>`:'';
+        const img=a.image?`<img src="${esc(a.image)}" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:11px;"><div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;text-align:center;">Tap the photo to inspect it full screen</div>`:'';
         let actions='';
-        if(pending) actions=`<div style="display:flex;gap:9px;margin-top:13px;"><button onclick="resolve('${a.name}','approved')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check" style="width:16px;height:16px;"></i> Approve</button><button onclick="resolve('${a.name}','rejected')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject</button></div>`;
+        if(pending){ const ticked=Object.values(st.ticks).filter(Boolean).length; const ok=!nLines||ticked>=nLines;
+          actions=`<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
+          ${nLines?`<div id="cnt_${a.name}" style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">Tick every line to enable Approve · ${ticked}/${nLines} checked</div>`:''}
+          <div style="display:flex;gap:9px;margin-top:10px;"><button id="app_${a.name}" ${ok?'':'disabled'} onclick="resolve('${a.name}','approved')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check" style="width:16px;height:16px;"></i> Approve</button><button onclick="resolve('${a.name}','rejected')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject</button></div>`; }
         else if(a.status==='approved') actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-success);background:var(--color-success-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approved · sent back to POS</div>`;
         else actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="x-circle" style="width:16px;height:16px;"></i> Rejected · counter notified</div>`;
+        if(!pending&&a.manager_comment) actions+=`<div style="margin-top:8px;font-size:12.5px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:8px 12px;">💬 ${esc(a.manager_comment)}</div>`;
         return `<div style="background:var(--surface-card);border:1px solid ${pending?'var(--border-default)':'var(--border-subtle)'};border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow-sm);animation:mgrUp var(--duration-base) var(--ease-out);">
           <div style="display:flex;gap:12px;"><span style="width:42px;height:42px;border-radius:11px;background:${t[1]};color:${t[2]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${t[0]}" style="width:20px;height:20px;"></i></span>
           <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);">${a.title}</span><span style="font-size:11.5px;color:var(--text-faint);flex:none;">${a.time||''}</span></div><div style="font-size:12.5px;color:var(--text-muted);line-height:1.4;margin-top:2px;">${a.subhead||''}</div></div></div>
           ${(lines||footer)?`<div style="margin-top:11px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);padding:10px 12px;display:flex;flex-direction:column;gap:6px;">${lines}${footer}</div>`:''}
-          ${flag}${actions}</div>`; }).join('')+'</div>';
+          ${img}${flag}${actions}</div>`; }).join('')+'</div>';
       icons();
     }catch(e){}
   }
+  // Per-approval review state survives the 8s polling re-render (ticks + typed comment).
+  const apprState={};
+  function apprTick(name,ix,el,total){ const st=apprState[name]=apprState[name]||{ticks:{},comment:''}; st.ticks[ix]=el.checked;
+    const ticked=Object.values(st.ticks).filter(Boolean).length;
+    const btn=document.getElementById('app_'+name); if(btn) btn.disabled=ticked<total;
+    const cnt=document.getElementById('cnt_'+name); if(cnt) cnt.textContent='Tick every line to enable Approve · '+ticked+'/'+total+' checked'; }
+  function apprCmt(name,v){ (apprState[name]=apprState[name]||{ticks:{},comment:''}).comment=v; }
   async function resolve(name,decision){
-    try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision}); if(!r) return; const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
+    const comment=((apprState[name]||{}).comment||'').trim();
+    try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:comment}); if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ delete apprState[name]; toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
       else toast('Could not resolve'); }catch(e){ toast('Connection error'); } }
 
   // ── Reports (daily sales trend + item-wise sales) ──
   let repDays=7, repLoaded=false;
-  function setRange(d){ repDays=d; document.querySelectorAll('.rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadReports(true); }
+  function setRange(d){ repDays=d; document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadReports(true); }
   async function loadReports(force){
     if(repLoaded && !force) return; repLoaded=true;
+    loadFoodCost();
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_sales_report',{days:repDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       document.getElementById('reportSub').textContent='Last '+m.days+' days · '+(m.start||'')+' → '+(m.end||'');
       document.getElementById('repRevenue').textContent=nfmt(m.total_revenue);
       document.getElementById('repSales').textContent=m.total_sales;
       document.getElementById('repAvg').textContent=nfmt(m.avg_ticket);
       document.getElementById('repBest').textContent=m.best_day&&m.best_day.revenue>0?m.best_day.label:'—';
-      // daily bar chart — give each bar a min width so long ranges scroll horizontally
-      const daily=m.daily||[]; const dmax=Math.max(1,...daily.map(x=>x.revenue));
-      const many=daily.length>14; const bw=many?'minWidth:26px;':'flex:1;';
-      document.getElementById('dailyChart').innerHTML=daily.length?daily.map((x,i)=>{ const pk=x.revenue===dmax&&x.revenue>0;
-        const short=(x.label||'').split(' ')[0]; const lab=many?((i%5===0||pk)?short:''):x.label;
-        const showVal=(!many||pk)&&x.revenue>0; const val=showVal?kfmt(x.revenue):'';
-        return `<div style="${bw}display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;"><span class="mono" style="font-size:9.5px;font-weight:500;color:${pk?'var(--color-primary)':'var(--text-muted)'};white-space:nowrap;height:12px;line-height:12px;">${val}</span><div title="${x.label}: Rs ${nfmt(x.revenue)} (${x.count} sales)" style="width:100%;max-width:30px;height:${Math.max(2,Math.round(x.revenue/dmax*100))}%;min-height:3px;background:${pk?'var(--color-primary)':'var(--orange-200)'};border-radius:5px 5px 3px 3px;"></div><span class="mono" style="font-size:10px;color:var(--text-faint);white-space:nowrap;height:13px;">${lab}</span></div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;align-self:center;margin:0 auto;">No sales in this period.</div>';
+      renderRevenueBreakdown(m.revenue_breakdown);
+      // daily bar chart + 7-day moving-average line (full labels, tap a bar to drill down)
+      repDaily=m.daily||[]; if(selDay && !repDaily.some(x=>x.date===selDay)) selDay=null;
+      renderDailyChart(); renderWeekdays(); loadMonthly();
       // item-wise list with share bars
       const items=m.items||[]; const irev=m.items_revenue||1;
       document.getElementById('repItemCount').textContent=items.length?(items.length+' items'):'';
@@ -350,7 +678,618 @@ input,button{font-family:inherit;}
     }catch(e){}
   }
 
-  function startPolling(){ setInterval(()=>{ loadApprovals(); }, 8000); }
+  // ── Sales vs costs (food cost + overheads + profit over the range) ──
+  async function loadFoodCost(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_food_cost_report',{days:repDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      const fcTone=m.food_cost_pct>40?'var(--color-danger)':(m.food_cost_pct>32?'var(--color-warning)':'var(--color-success)');
+      const pTone=(m.profit||0)>=0?'var(--color-success)':'var(--color-danger)';
+      const bar=(label,amt,pct,color,sub)=>`<div><div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;"><span style="font-size:14px;font-weight:700;color:var(--text-strong);flex:1;">${label}</span><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(amt)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:46px;text-align:right;">${pct}%</span></div><div style="height:10px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${Math.max(0,Math.min(100,pct))}%;background:${color};border-radius:var(--radius-pill);"></div></div>${sub?`<div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;">${sub}</div>`:''}</div>`;
+      document.getElementById('foodCostBody').innerHTML=
+        `<div style="display:flex;gap:26px;margin-bottom:2px;">
+          <div><div class="mono" style="font-family:var(--font-display);font-weight:900;font-size:30px;color:${fcTone};">${m.food_cost_pct}%</div><div style="font-size:11.5px;color:var(--text-faint);">food cost</div></div>
+          <div><div class="mono" style="font-family:var(--font-display);font-weight:900;font-size:30px;color:var(--color-info);">${m.overhead_pct}%</div><div style="font-size:11.5px;color:var(--text-faint);">overheads</div></div>
+          <div><div class="mono" style="font-family:var(--font-display);font-weight:900;font-size:30px;color:${pTone};">${m.profit_pct}%</div><div style="font-size:11.5px;color:var(--text-faint);">profit margin</div></div>
+        </div>`
+        +bar('Total sales',m.revenue,100,'var(--color-primary)')
+        +bar('Food cost',m.food_cost,m.food_cost_pct,'var(--color-warning)','Purchases Rs '+nfmt(m.purchases)+' · Wastage Rs '+nfmt(m.wastage))
+        +bar('Overheads',m.overhead,m.overhead_pct,'var(--color-info)','Approved expenses — rent, salaries, utilities…')
+        +bar('Profit',Math.abs(m.profit),Math.abs(m.profit_pct),pTone,((m.profit||0)<0?'LOSS — costs exceeded sales this period':''));
+    }catch(e){}
+  }
+
+  // ── Revenue breakdown: net sales vs service charge vs other charges (Reports tab) ──
+  function renderRevenueBreakdown(b){
+    const wrap=document.getElementById('repBreakdown'); if(!wrap) return;
+    if(!b || (b.total||0)<=0){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;">No sales in this period.</div>'; return; }
+    const total=b.total||1;
+    const rows=[
+      {label:'Net sales',      icon:'utensils',   amount:b.net_sales||0,      fg:'var(--color-primary)', bg:'var(--orange-50)'},
+      {label:'Service charge', icon:'receipt',    amount:b.service_charge||0, fg:'var(--color-warning)', bg:'var(--color-warning-subtle)'},
+      {label:'Other charges',  icon:'plus-circle',amount:b.other_charges||0,  fg:'var(--text-muted)',    bg:'var(--surface-sunken)'},
+    ];
+    wrap.innerHTML=rows.map(r=>{ const pct=Math.round(r.amount/total*100);
+      return `<div><div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;"><span style="width:30px;height:30px;border-radius:9px;background:${r.bg};color:${r.fg};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${r.icon}" style="width:16px;height:16px;"></i></span><span style="font-size:14px;font-weight:700;color:var(--text-strong);flex:1;">${r.label}</span><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(r.amount)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:38px;text-align:right;">${pct}%</span></div><div style="height:8px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${Math.max(0,pct)}%;background:${r.fg};border-radius:var(--radius-pill);"></div></div></div>`; }).join('')+
+      `<div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:12px;margin-top:2px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);">Total revenue</span><span class="mono" style="font-size:15px;font-weight:500;color:var(--text-strong);">Rs ${nfmt(total)}</span></div>`;
+    icons();
+  }
+
+  // ── Daily chart: full-detail bars + 7-day moving-average overlay + y-axis ──
+  let repDaily=[], selDay=null;
+  function movingAvg(arr,w){ return arr.map((_,i)=>{ const s=arr.slice(Math.max(0,i-w+1),i+1); return s.reduce((a,x)=>a+x,0)/s.length; }); }
+  // Round a max up to a "nice" tick ceiling (1/2/2.5/5 × 10^k) so axis labels are round.
+  function niceCeil(v){ if(v<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(v))); const n=v/p; const m=n<=1?1:(n<=2?2:(n<=2.5?2.5:(n<=5?5:10))); return m*p; }
+  // Fixed y-axis column (outside any horizontal scroll) — labels at max / half / 0.
+  function axisCol(ymax,barH,topOff,H){
+    return `<div style="flex:none;width:32px;position:relative;height:${H}px;">`+[ymax,ymax/2,0].map(t=>
+      `<span class="mono" style="position:absolute;right:0;top:${(topOff+barH*(1-t/ymax)-5).toFixed(1)}px;font-size:9px;color:var(--text-faint);line-height:10px;">${kfmt(t)}</span>`).join('')+`</div>`;
+  }
+  // Recessive gridlines painted under the bars (inserted first in the plot container).
+  function gridLines(ymax,barH,topOff){
+    return `<div style="position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;">`+[ymax,ymax/2].map(t=>
+      `<div style="position:absolute;left:0;right:0;top:${(topOff+barH*(1-t/ymax)).toFixed(1)}px;border-top:1px solid var(--gray-100);"></div>`).join('')+
+      `<div style="position:absolute;left:0;right:0;top:${topOff+barH}px;border-top:1px solid var(--border-subtle);"></div></div>`;
+  }
+  function renderDailyChart(){
+    const wrap=document.getElementById('dailyChart'); const daily=repDaily;
+    if(!daily.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:40px 0;">No sales in this period.</div>'; return; }
+    const dmax=Math.max(1,...daily.map(x=>x.revenue));
+    const ymax=niceCeil(dmax);
+    const ma=movingAvg(daily.map(x=>x.revenue),7);
+    const many=daily.length>14;
+    const VAL_H=13,GAP=4,BAR_H=chartH(100),LAB_H=14,H=VAL_H+GAP+BAR_H+GAP+LAB_H;
+    const bw=many?'width:30px;flex:none;':'flex:1;min-width:0;';
+    const cols=daily.map((x,i)=>{
+      const pk=x.revenue===dmax&&x.revenue>0, sel=selDay===x.date;
+      const dd=(x.label||'').split(' ')[0];
+      const lab=many?((i===0||dd==='1')?x.label:dd):x.label;
+      const val=x.revenue>0?kfmt(x.revenue):'';
+      const bg=sel?'var(--ink)':(pk?'var(--color-primary)':'var(--orange-200)');
+      return `<div class="dcol" onclick="openDay(${i})" title="${x.weekday||''} ${x.label}: Rs ${nfmt(x.revenue)} (${x.count} sales) · 7d avg Rs ${nfmt(ma[i])}" style="${bw}display:flex;flex-direction:column;align-items:center;gap:${GAP}px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <span class="mono" style="font-size:9.5px;font-weight:500;color:${sel?'var(--text-strong)':(pk?'var(--color-primary)':'var(--text-muted)')};white-space:nowrap;height:${VAL_H}px;line-height:${VAL_H}px;">${val}</span>
+        <div style="height:${BAR_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;"><div style="width:100%;max-width:30px;height:${Math.max(3,Math.round(x.revenue/ymax*BAR_H))}px;background:${bg};border-radius:5px 5px 3px 3px;"></div></div>
+        <span class="mono" style="font-size:9.5px;color:${sel?'var(--text-strong)':'var(--text-faint)'};font-weight:${sel?'700':'400'};white-space:nowrap;height:${LAB_H}px;line-height:${LAB_H}px;">${lab}</span>
+      </div>`; }).join('');
+    wrap.innerHTML=`<div style="display:flex;gap:6px;">${axisCol(ymax,BAR_H,VAL_H+GAP,H)}<div style="flex:1;min-width:0;overflow-x:auto;padding-bottom:2px;"><div id="dailyInner" style="position:relative;display:flex;align-items:flex-end;gap:5px;height:${H}px;">${gridLines(ymax,BAR_H,VAL_H+GAP)}${cols}<svg id="maSvg" style="position:absolute;left:0;top:0;pointer-events:none;overflow:visible;"></svg></div></div></div>`;
+    requestAnimationFrame(()=>{ const inner=document.getElementById('dailyInner'),svg=document.getElementById('maSvg'); if(!inner||!svg) return;
+      const w=inner.scrollWidth; svg.setAttribute('width',w); svg.setAttribute('height',H);
+      const pts=[...inner.querySelectorAll('.dcol')].map((el,i)=>{ const x=el.offsetLeft+el.offsetWidth/2; const y=VAL_H+GAP+BAR_H-Math.min(BAR_H,ma[i]/ymax*BAR_H); return x.toFixed(1)+','+y.toFixed(1); }).join(' ');
+      svg.innerHTML=`<polyline points="${pts}" fill="none" stroke="var(--gray-700)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>`; });
+  }
+
+  // ── Sales by weekday: client-side aggregate of the daily series (Mon→Sun).
+  // Tapping a weekday expands every occurrence in the range; tapping one of
+  // those opens the existing day drill-down sheet (with its bill list). ──
+  const WK_FULL={Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday',Sun:'Sunday'};
+  let selWeekday=null;
+  function toggleWeekday(w){ selWeekday=(selWeekday===w?null:w); renderWeekdays(); }
+  function openDayByDate(date){ const i=repDaily.findIndex(d=>d.date===date); if(i>-1) openDay(i); }
+  function renderWeekdays(){
+    const wrap=document.getElementById('weekdayBars'); if(!wrap) return;
+    const ORDER=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const agg={}; ORDER.forEach(w=>agg[w]={total:0,days:0,count:0});
+    repDaily.forEach(d=>{ const a=agg[d.weekday]; if(!a) return; a.total+=d.revenue; a.days++; a.count+=d.count; });
+    const rows=ORDER.map(w=>({w:w,total:agg[w].total,days:agg[w].days,count:agg[w].count,avg:agg[w].days?agg[w].total/agg[w].days:0})).filter(r=>r.days>0);
+    if(!rows.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;">No sales in this period.</div>'; return; }
+    const maxAvg=Math.max(1,...rows.map(r=>r.avg));
+    const best=rows.reduce((a,b)=>b.avg>a.avg?b:a,rows[0]);
+    document.getElementById('wkSub').textContent='Average per day over the last '+repDays+' days · best: '+(WK_FULL[best.w]||best.w)+' · tap a day to expand';
+    wrap.innerHTML=rows.map(r=>{ const pct=Math.round(r.avg/maxAvg*100); const pk=r.w===best.w&&r.avg>0; const open=selWeekday===r.w;
+      let detail='';
+      if(open){
+        const occ=repDaily.filter(d=>d.weekday===r.w).slice().reverse();  // newest first
+        const omax=Math.max(1,...occ.map(o=>o.revenue));
+        detail=`<div style="margin:9px 0 3px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);padding:4px 12px;">`+
+          occ.map(o=>{ const opk=o.revenue===omax&&o.revenue>0;
+            return `<div onclick="event.stopPropagation();openDayByDate('${o.date}')" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+              <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;color:${opk?'var(--color-primary)':'var(--text-strong)'};">${o.weekday} ${o.label}</div><div style="font-size:11.5px;color:var(--text-muted);">${o.count} sale${o.count===1?'':'s'}</div></div>
+              <span class="mono" style="font-size:13px;color:var(--text-strong);flex:none;">Rs ${nfmt(o.revenue)}</span>
+              <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--text-faint);flex:none;"></i>
+            </div>`; }).join('')+
+          `</div>`;
+      }
+      return `<div onclick="toggleWeekday('${r.w}')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px;">
+          <span style="font-size:13.5px;font-weight:700;color:${pk?'var(--color-primary)':'var(--text-strong)'};display:inline-flex;align-items:center;gap:5px;">${WK_FULL[r.w]||r.w} <i data-lucide="${open?'chevron-up':'chevron-down'}" style="width:13px;height:13px;color:var(--text-faint);"></i></span>
+          <span class="mono" style="font-size:12.5px;color:var(--text-muted);">avg Rs ${nfmt(r.avg)} · ${r.count} sale${r.count===1?'':'s'}</span>
+        </div>
+        <div style="height:8px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${Math.max(2,pct)}%;background:${pk?'var(--color-primary)':'var(--orange-300)'};border-radius:var(--radius-pill);"></div></div>
+        ${detail}
+      </div>`; }).join('');
+    icons();
+  }
+
+  // ── Monthly sales: last 12 calendar months (loads once; range toggle doesn't affect it) ──
+  let monData=null, monLoaded=false;
+  async function loadMonthly(){
+    if(monLoaded) return; monLoaded=true;
+    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_monthly_sales',{months:12}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      monData=m;
+      document.getElementById('monSub').textContent='Rs '+nfmt(m.total_revenue)+' · '+m.total_sales+' sales'+(m.best&&m.best.revenue>0?(' · best: '+m.best.label+' ’'+m.best.yy):'');
+      renderMonthlyChart();
+    }catch(e){}
+  }
+  function renderMonthlyChart(){
+    const wrap=document.getElementById('monthlyChart'); if(!wrap||!monData) return;
+    const series=monData.months||[];
+    if(!series.length||!series.some(x=>x.revenue>0)){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:36px 0;">No sales recorded yet.</div>'; return; }
+    const dmax=Math.max(1,...series.map(x=>x.revenue));
+    const ymax=niceCeil(dmax);
+    const VAL_H=13,GAP=4,BAR_H=chartH(100),LAB_H=14,H=VAL_H+GAP+BAR_H+GAP+LAB_H;
+    const cols=series.map((x,i)=>{
+      const pk=x.revenue===dmax&&x.revenue>0;
+      const lab=x.label+((i===0||x.label==='Jan')?' ’'+x.yy:'');
+      const val=x.revenue>0?kfmt(x.revenue):'';
+      return `<div title="${x.label} ${x.year}: Rs ${nfmt(x.revenue)} (${x.count} sales · avg Rs ${nfmt(x.avg_ticket)})" style="width:34px;flex:none;display:flex;flex-direction:column;align-items:center;gap:${GAP}px;">
+        <span class="mono" style="font-size:9.5px;font-weight:500;color:${pk?'var(--color-primary)':'var(--text-muted)'};white-space:nowrap;height:${VAL_H}px;line-height:${VAL_H}px;">${val}</span>
+        <div style="height:${BAR_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;"><div style="width:100%;max-width:30px;height:${Math.max(3,Math.round(x.revenue/ymax*BAR_H))}px;background:${pk?'var(--color-primary)':'var(--orange-200)'};border-radius:5px 5px 3px 3px;"></div></div>
+        <span class="mono" style="font-size:9.5px;color:var(--text-faint);white-space:nowrap;height:${LAB_H}px;line-height:${LAB_H}px;">${lab}</span>
+      </div>`; }).join('');
+    wrap.innerHTML=`<div style="display:flex;gap:6px;">${axisCol(ymax,BAR_H,VAL_H+GAP,H)}<div style="flex:1;min-width:0;overflow-x:auto;padding-bottom:2px;"><div style="position:relative;display:flex;align-items:flex-end;gap:5px;height:${H}px;">${gridLines(ymax,BAR_H,VAL_H+GAP)}${cols}</div></div></div>`;
+  }
+
+  // ── Purchases (daily + weekly approved-bill spend, top vendors, top items) ──
+  let pDays=7, pGran='daily', pData=null, pLoaded=false;
+  function setPRange(d){ pDays=d; document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadPurchases(true); }
+  function setPGran(g){ pGran=g; document.querySelectorAll('#pGranToggle .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.gran===g));
+    document.getElementById('purchChartTitle').textContent=g==='weekly'?'Weekly spend':'Daily spend';
+    document.getElementById('purchAvgLegend').style.display=g==='weekly'?'none':'inline-flex';
+    renderPurchaseChart(); }
+  async function loadPurchases(force){
+    if(pLoaded && !force) return; pLoaded=true;
+    loadPurchaseBills();
+    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_purchase_report',{days:pDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      pData=m;
+      document.getElementById('purchSub').textContent='Last '+m.days+' days · '+(m.start||'')+' → '+(m.end||'');
+      document.getElementById('purchSpend').textContent=nfmt(m.total_spend);
+      document.getElementById('purchBills').textContent=m.bill_count;
+      document.getElementById('purchAvg').textContent=nfmt(m.avg_bill);
+      document.getElementById('purchBest').textContent=m.best_day&&m.best_day.spend>0?m.best_day.label:'—';
+      renderPurchaseChart();
+      // top vendors
+      const vend=m.vendors||[]; const vspend=m.vendors_spend||1;
+      document.getElementById('purchVendorCount').textContent=vend.length?(vend.length+' vendors'):'';
+      document.getElementById('purchVendors').innerHTML=vend.length?vend.map(t=>{ const pct=Math.round(t.spend/vspend*100);
+        return `<div style="padding:11px 0;border-bottom:1px solid var(--border-subtle);"><div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;"><span style="width:38px;height:38px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">🏪</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${t.name}</div><div style="font-size:12.5px;color:var(--text-muted);">${t.count} bill${t.count===1?'':'s'} · ${pct}%</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(t.spend)}</span></div><div style="height:6px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--orange-300);border-radius:var(--radius-pill);"></div></div></div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No purchases in this period.</div>';
+      // top items bought
+      const items=m.items||[]; const ispend=m.items_spend||1;
+      document.getElementById('purchItemCount').textContent=items.length?(items.length+' items'):'';
+      document.getElementById('purchItems').innerHTML=items.length?items.map(t=>{ const pct=Math.round(t.spend/ispend*100);
+        return `<div style="padding:11px 0;border-bottom:1px solid var(--border-subtle);"><div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;"><span style="width:38px;height:38px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${t.name}</div><div style="font-size:12.5px;color:var(--text-muted);">${(Math.round((t.qty||0)*100)/100).toLocaleString('en-US')} bought · ${pct}%</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(t.spend)}</span></div><div style="height:6px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--orange-300);border-radius:var(--radius-pill);"></div></div></div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No items in this period.</div>';
+      icons();
+    }catch(e){}
+  }
+  // Generalized bar chart (spend) — daily series shows a 7-period moving-average line; weekly omits it.
+  function renderPurchaseChart(){
+    const wrap=document.getElementById('purchChart'); if(!wrap) return;
+    if(!pData){ wrap.innerHTML=''; return; }
+    const weekly=pGran==='weekly';
+    const series=(weekly?pData.weekly:pData.daily)||[];
+    if(!series.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:40px 0;">No purchases in this period.</div>'; return; }
+    const dmax=Math.max(1,...series.map(x=>x.spend));
+    const ymax=niceCeil(dmax);
+    const ma=weekly?null:movingAvg(series.map(x=>x.spend),7);
+    const many=series.length>14;
+    const VAL_H=13,GAP=4,BAR_H=100,LAB_H=14,H=VAL_H+GAP+BAR_H+GAP+LAB_H;
+    const bw=many?'width:30px;flex:none;':'flex:1;min-width:0;';
+    const cols=series.map((x,i)=>{
+      const pk=x.spend===dmax&&x.spend>0;
+      const dd=(x.label||'').split(' ')[0];
+      const lab=many?((i===0||dd==='1')?x.label:dd):x.label;
+      const val=x.spend>0?kfmt(x.spend):'';
+      const bg=pk?'var(--color-primary)':'var(--orange-200)';
+      const when=weekly?('Week of '+x.label):((x.weekday||'')+' '+x.label);
+      const avgTxt=weekly?'':(' · 7'+(weekly?'wk':'d')+' avg Rs '+nfmt(ma[i]));
+      return `<div class="pcol" title="${when}: Rs ${nfmt(x.spend)} (${x.count} bill${x.count===1?'':'s'})${avgTxt}" style="${bw}display:flex;flex-direction:column;align-items:center;gap:${GAP}px;">
+        <span class="mono" style="font-size:9.5px;font-weight:500;color:${pk?'var(--color-primary)':'var(--text-muted)'};white-space:nowrap;height:${VAL_H}px;line-height:${VAL_H}px;">${val}</span>
+        <div style="height:${BAR_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;"><div style="width:100%;max-width:30px;height:${Math.max(3,Math.round(x.spend/ymax*BAR_H))}px;background:${bg};border-radius:5px 5px 3px 3px;"></div></div>
+        <span class="mono" style="font-size:9.5px;color:var(--text-faint);white-space:nowrap;height:${LAB_H}px;line-height:${LAB_H}px;">${lab}</span>
+      </div>`; }).join('');
+    wrap.innerHTML=`<div style="display:flex;gap:6px;">${axisCol(ymax,BAR_H,VAL_H+GAP,H)}<div style="flex:1;min-width:0;overflow-x:auto;padding-bottom:2px;"><div id="purchInner" style="position:relative;display:flex;align-items:flex-end;gap:5px;height:${H}px;">${gridLines(ymax,BAR_H,VAL_H+GAP)}${cols}<svg id="pMaSvg" style="position:absolute;left:0;top:0;pointer-events:none;overflow:visible;"></svg></div></div></div>`;
+    if(!weekly) requestAnimationFrame(()=>{ const inner=document.getElementById('purchInner'),svg=document.getElementById('pMaSvg'); if(!inner||!svg) return;
+      const w=inner.scrollWidth; svg.setAttribute('width',w); svg.setAttribute('height',H);
+      const pts=[...inner.querySelectorAll('.pcol')].map((el,i)=>{ const x=el.offsetLeft+el.offsetWidth/2; const y=VAL_H+GAP+BAR_H-Math.min(BAR_H,ma[i]/ymax*BAR_H); return x.toFixed(1)+','+y.toFixed(1); }).join(' ');
+      svg.innerHTML=`<polyline points="${pts}" fill="none" stroke="var(--gray-700)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>`; });
+  }
+
+  // ── Recent purchase bills: list + per-bill drill-down sheet ──
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  let purchBills=[];
+  const BILL_TONE={approved:['var(--color-success)','var(--color-success-subtle)','Approved'],pending:['#9a6207','var(--color-warning-subtle)','Pending'],rejected:['var(--color-danger)','var(--color-danger-subtle)','Rejected']};
+  async function loadPurchaseBills(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      purchBills=m.bills||[];
+      document.getElementById('purchBillCount').textContent=purchBills.length?(purchBills.length+' bill'+(purchBills.length===1?'':'s')):'';
+      document.getElementById('purchBillList').innerHTML=purchBills.length?purchBills.map((b,i)=>{ const t=BILL_TONE[b.status]||BILL_TONE.pending;
+        return `<div onclick="openBill(${i})" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <span style="width:42px;height:42px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:'🏪'}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</div>
+            <div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(b.lines||[]).length} item${(b.lines||[]).length===1?'':'s'} · ${esc(b.by)} · ${esc(b.time)}</div>
+          </div>
+          <div style="flex:none;text-align:right;">
+            <div class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(b.total)}</div>
+            <span style="display:inline-block;font-size:10.5px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-pill);padding:2px 9px;margin-top:3px;">${t[2]}</span>
+          </div>
+        </div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No bills yet.</div>';
+      icons();
+    }catch(e){}
+  }
+  function openBill(i){
+    const b=purchBills[i]; if(!b) return; const t=BILL_TONE[b.status]||BILL_TONE.pending;
+    document.getElementById('billTitle').textContent=b.vendor||'Purchase bill';
+    document.getElementById('billMeta').textContent=[b.by,b.time].filter(Boolean).join(' · ');
+    const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const changed=l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;
+      return `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
+        <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;">${emojiFor(l.name)}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13.5px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div>
+          <div style="font-size:12px;color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit)} × Rs ${nfmt(l.price)}${changed?` <span style="color:${up?'var(--color-danger)':'var(--color-success)'};font-weight:700;">${up?'↑':'↓'} was Rs ${nfmt(l.old_price)}</span>`:''}</div>
+        </div>
+        <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(lt)}</span>
+      </div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No items on this bill.</div>';
+    document.getElementById('billBody').innerHTML=`
+      <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-pill);padding:6px 13px;margin-bottom:12px;">${t[2]==='Pending'?'Waiting for approval':t[2]}</div>
+      ${b.receipt_image?`<img src="${esc(b.receipt_image)}" onclick="viewImg('${esc(b.receipt_image)}')" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:6px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:12px;text-align:center;">Tap the photo to open it full size</div>`:''}
+      ${b.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;">📝 ${esc(b.note)}</div>`:''}
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:2px;">Items</div>
+      ${linesHtml}
+      <div style="display:flex;justify-content:space-between;padding:13px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(b.total)}</span></div>`;
+    document.getElementById('billOverlay').style.display='flex'; icons();
+  }
+  function hideBill(){ document.getElementById('billOverlay').style.display='none'; }
+
+  // ── Day drill-down: tap a bar → load that day's full report ──
+  async function openDay(i){
+    const x=repDaily[i]; if(!x) return; selDay=x.date; renderDailyChart();
+    document.getElementById('dayTitle').textContent=(x.weekday?x.weekday+' · ':'')+x.label;
+    document.getElementById('dayBody').innerHTML='<div style="padding:36px 0;text-align:center;color:var(--text-faint);font-size:13px;">Loading…</div>';
+    document.getElementById('dayOverlay').style.display='flex';
+    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_day_report',{date:x.date}); if(!r) return; const d=await r.json(); const m=d.message;
+      if(m) renderDaySheet(m); else document.getElementById('dayBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Could not load this day.</div>';
+    }catch(e){ document.getElementById('dayBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Connection error.</div>'; }
+  }
+  function hideDay(){ document.getElementById('dayOverlay').style.display='none'; selDay=null; renderDailyChart(); }
+  function renderDaySheet(m){
+    const paySum=(m.payments||[]).reduce((a,p)=>a+p.amount,0)||1;
+    const payHtml=(m.payments||[]).length?(m.payments||[]).map(p=>{ const pct=Math.round(p.amount/paySum*100);
+      return `<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;margin-bottom:5px;"><span style="font-weight:700;color:var(--text-strong);">${p.mode}</span><span class="mono" style="color:var(--text-strong);">Rs ${nfmt(p.amount)} · ${pct}%</span></div><div style="height:7px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--color-primary);border-radius:var(--radius-pill);"></div></div></div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;">No payments.</div>';
+    const hmax=Math.max(1,...(m.hourly||[]).map(h=>h.amount));
+    const dhy=niceCeil(hmax), DHB=52, DHH=DHB+5+13;
+    const hourHtml=(m.hourly||[]).length?`<div style="display:flex;gap:6px;">${axisCol(dhy,DHB,0,DHH)}<div style="flex:1;min-width:0;position:relative;display:flex;align-items:flex-end;gap:5px;height:${DHH}px;">${gridLines(dhy,DHB,0)}${(m.hourly||[]).map(h=>{ const pk=h.amount===hmax;
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;"><div title="Rs ${nfmt(h.amount)}" style="width:100%;height:${Math.max(4,Math.round(h.amount/dhy*DHB))}px;background:${pk?'var(--color-primary)':'var(--orange-200)'};border-radius:4px 4px 2px 2px;"></div><span class="mono" style="font-size:10px;color:var(--text-faint);height:13px;line-height:13px;">${hourLabel(h.hour)}</span></div>`; }).join('')}</div></div>`:'<div style="color:var(--text-faint);font-size:13px;">No sales.</div>';
+    const irev=(m.items||[]).reduce((a,t)=>a+t.revenue,0)||1;
+    const itemsHtml=(m.items||[]).length?(m.items||[]).map(t=>{ const pct=Math.round(t.revenue/irev*100);
+      return `<div style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--border-subtle);"><span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:700;color:var(--text-strong);">${t.name}</div><div style="font-size:12px;color:var(--text-muted);">${t.qty} sold · ${pct}%</div></div><span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(t.revenue)}</span></div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;">No items sold.</div>';
+    const billsHtml=(m.bills||[]).length?(m.bills||[]).map(b=>`<div onclick="openSaleBill('${esc(b.name)}')" style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);color:var(--color-primary);display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="receipt" style="width:16px;height:16px;"></i></span>
+        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:700;color:var(--text-strong);">#${esc(b.no)}</div><div style="font-size:12px;color:var(--text-muted);">${esc(b.time)}${(b.modes&&b.modes.length)?' · '+esc(b.modes.join(' + ')):''}</div></div>
+        <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span>
+        <i data-lucide="chevron-right" style="width:15px;height:15px;color:var(--text-faint);flex:none;"></i>
+      </div>`).join(''):'<div style="color:var(--text-faint);font-size:13px;">No bills that day.</div>';
+    document.getElementById('dayBody').innerHTML=`
+      <div style="background:var(--surface-brand);color:#fff;border-radius:var(--radius-xl);padding:16px 18px;box-shadow:var(--shadow-brand);margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:600;opacity:.85;letter-spacing:.04em;">Revenue</div>
+        <div class="mono" style="font-weight:500;font-size:30px;letter-spacing:-.02em;margin-top:2px;">Rs ${nfmt(m.revenue)}</div>
+        <div style="display:flex;gap:16px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.22);">
+          <div><div style="font-size:11.5px;opacity:.82;">Sales</div><div class="mono" style="font-size:16px;">${m.sales_count}</div></div>
+          <div><div style="font-size:11.5px;opacity:.82;">Avg ticket</div><div class="mono" style="font-size:16px;">Rs ${nfmt(m.avg_ticket)}</div></div>
+          <div><div style="font-size:11.5px;opacity:.82;">Voids</div><div class="mono" style="font-size:16px;">${m.void_count}</div></div>
+        </div>
+      </div>
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:10px;">Payment mix</div>${payHtml}
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:16px 0 10px;">Sales by hour</div>${hourHtml}
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:16px 0 2px;">Item-wise sales</div>${itemsHtml}
+      <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:16px 0 2px;">Bills (${(m.bills||[]).length})</div>${billsHtml}`;
+    icons();
+  }
+
+  // ── Tap a bill in the day sheet → full POS Invoice breakdown ──
+  async function openSaleBill(name){
+    document.getElementById('saleTitle').textContent='Bill';
+    document.getElementById('saleMeta').textContent='Loading…';
+    document.getElementById('saleBody').innerHTML='<div style="padding:36px 0;text-align:center;color:var(--text-faint);font-size:13px;">Loading…</div>';
+    document.getElementById('saleOverlay').style.display='flex'; icons();
+    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_bill_detail',{name:name}); if(!r) return; const d=await r.json(); const m=d.message;
+      if(!m||!m.name){ document.getElementById('saleBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Could not load this bill.</div>'; return; }
+      document.getElementById('saleTitle').textContent='Bill #'+m.no+(m.is_return?' · Return':'');
+      document.getElementById('saleMeta').textContent=[m.date_label,m.time,m.cashier].filter(Boolean).join(' · ');
+      const chips=[m.table?('Table '+m.table):'',m.source,(m.customer&&m.customer!=='Walk-in')?m.customer:''].filter(Boolean)
+        .map(c=>`<span style="display:inline-flex;font-size:11.5px;font-weight:700;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:5px 12px;">${esc(c)}</span>`).join(' ');
+      const itemsHtml=(m.items||[]).map(i=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-subtle);">
+        <span class="mono" style="font-size:13px;color:var(--text-muted);flex:none;min-width:30px;">${(Math.round((i.qty||0)*100)/100)}×</span>
+        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:700;color:var(--text-strong);">${esc(i.name)}</div><div style="font-size:11.5px;color:var(--text-faint);">Rs ${nfmt(i.rate)} each</div></div>
+        <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(i.amount)}</span>
+      </div>`).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:8px 0;">No items.</div>';
+      let totals=`<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:13px;color:var(--text-body);"><span>Subtotal</span><span class="mono">Rs ${nfmt(m.net_total)}</span></div>`;
+      if(m.discount) totals+=`<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:13px;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(m.discount)}</span></div>`;
+      (m.taxes||[]).forEach(t=>{ totals+=`<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:13px;color:var(--text-body);"><span>${esc(t.label)}</span><span class="mono">Rs ${nfmt(t.amount)}</span></div>`; });
+      totals+=`<div style="display:flex;justify-content:space-between;gap:8px;padding:10px 0 2px;border-top:1px solid var(--border-subtle);margin-top:6px;font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(m.grand_total)}</span></div>`;
+      const payHtml=(m.payments||[]).map(p=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-body);padding:3px 0;"><i data-lucide="${p.mode==='Cash'?'banknote':'credit-card'}" style="width:15px;height:15px;color:var(--color-success);"></i> <span style="flex:1;">${esc(p.mode)}</span><span class="mono">Rs ${nfmt(p.amount)}</span></div>`).join('');
+      document.getElementById('saleBody').innerHTML=`
+        ${chips?`<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;">${chips}</div>`:''}
+        <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:2px;">Items</div>${itemsHtml}
+        <div style="margin-top:8px;">${totals}</div>
+        ${payHtml?`<div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:14px 0 4px;">Paid with</div>${payHtml}`:''}
+        ${(m.pos_order||m.no)?`<button onclick="location.href='/activity?order='+encodeURIComponent('${esc(m.pos_order||'')}')+'&bill='+encodeURIComponent('${esc(m.no||'')}')" style="width:100%;margin-top:16px;padding:11px;border-radius:var(--radius-lg);border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);font-family:var(--font-display);font-weight:700;font-size:13.5px;cursor:pointer;">👀 See how this bill was rung up</button>`:''}`;
+      icons();
+    }catch(e){ document.getElementById('saleBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Connection error.</div>'; }
+  }
+  function hideSaleBill(){ document.getElementById('saleOverlay').style.display='none'; }
+
+  // ── Menu settings (add / rename / reprice items; backend writes Item Price, POS re-reads it) ──
+  let setData=null, setLoaded=false, editIdx=null;
+  async function loadSettings(force){
+    if(setLoaded && !force) return; setLoaded=true;
+    try{ const r=await _post('/api/method/luuvcrm.api.get_menu_settings',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m||!m.items){ document.getElementById('setSub').textContent=srvErr(d)||'Could not load the menu'; return; }
+      setData=m;
+      document.getElementById('setSub').textContent=(m.menu||'Menu')+' · '+m.items.length+' items'+(m.price_list?(' · prices in '+m.price_list):'');
+      renderSetList(); }catch(e){}
+  }
+  function renderSetList(){
+    const wrap=document.getElementById('setList'); if(!setData) return;
+    const q=(document.getElementById('setSearch').value||'').trim().toLowerCase();
+    const items=setData.items.map((it,i)=>({...it,_i:i})).filter(it=>!q||it.name.toLowerCase().includes(q)||it.code.toLowerCase().includes(q));
+    if(!items.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;padding:24px 0;text-align:center;">No items'+(q?' match your search':' on the menu yet')+'.</div>'; icons(); return; }
+    let html='', lastG=null;
+    for(const it of items){
+      if(it.group!==lastG){ lastG=it.group; html+=`<div style="font-family:var(--font-display);font-weight:800;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);margin:18px 0 3px;">${it.group}</div>`; }
+      html+=`<div onclick="openItemEdit(${it._i})" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${emojiFor(it.name)}</span>
+        <div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${it.name}</div>${it.code!==it.name?`<div style="font-size:12px;color:var(--text-faint);">${it.code}</div>`:''}</div>
+        <span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(it.rate)}</span>
+        <i data-lucide="pencil" style="width:15px;height:15px;color:var(--text-faint);flex:none;"></i>
+      </div>`;
+    }
+    wrap.innerHTML=html; icons();
+  }
+  function openItemEdit(i){
+    const it=setData&&setData.items[i]; if(!it) return; editIdx=i;
+    document.getElementById('itemTitle').textContent='Edit item';
+    document.getElementById('itemCodeLine').innerHTML=it.code+' · '+it.group;
+    document.getElementById('itemName').value=it.name;
+    document.getElementById('itemRate').value=it.rate;
+    document.getElementById('itemGdPct').value=it.gd_pct||'';
+    document.getElementById('itemGroupWrap').style.display='none';
+    document.getElementById('itemErr').style.display='none';
+    document.getElementById('itemSave').textContent='Save changes';
+    document.getElementById('itemOverlay').style.display='flex'; icons();
+  }
+  function openItemAdd(){
+    if(!setData){ toast('Menu still loading…'); return; } editIdx=null;
+    document.getElementById('itemTitle').textContent='Add menu item';
+    document.getElementById('itemCodeLine').innerHTML='New item on '+(setData.menu||'the menu');
+    document.getElementById('itemName').value='';
+    document.getElementById('itemRate').value='';
+    document.getElementById('itemGdPct').value='';
+    const sel=document.getElementById('itemGroup');
+    const groups=[...new Set([...(setData.groups||[]),...(setData.all_groups||[])])];
+    sel.innerHTML=groups.map(g=>`<option value="${g}">${g}</option>`).join('');
+    document.getElementById('itemGroupWrap').style.display='block';
+    document.getElementById('itemErr').style.display='none';
+    document.getElementById('itemSave').textContent='Add to menu';
+    document.getElementById('itemOverlay').style.display='flex'; icons();
+  }
+  function hideItem(){ document.getElementById('itemOverlay').style.display='none'; }
+  // Frappe throws arrive as _server_messages / exception on non-200 responses — surface the real text.
+  function srvErr(d){ try{ if(d&&d._server_messages){ const m0=JSON.parse(JSON.parse(d._server_messages)[0]); return (m0.message||'').replace(/<[^>]*>/g,''); } if(d&&d.exception) return String(d.exception).split(':').pop().trim(); }catch(e){} return null; }
+  async function saveItem(){
+    const err=document.getElementById('itemErr'); err.style.display='none';
+    const name=document.getElementById('itemName').value.trim();
+    const rate=parseFloat(document.getElementById('itemRate').value)||0;
+    if(!name){ err.textContent='Enter an item name'; err.style.display='block'; return; }
+    if(rate<=0){ err.textContent='Enter a price above zero'; err.style.display='block'; return; }
+    const btn=document.getElementById('itemSave'); btn.disabled=true;
+    try{
+      let r;
+      const gdp=document.getElementById('itemGdPct').value;
+      if(editIdx===null){
+        r=await _post('/api/method/luuvcrm.api.add_menu_item',{item_name:name,rate:rate,group:document.getElementById('itemGroup').value,guide_pct:gdp});
+      }else{
+        const it=setData.items[editIdx];
+        r=await _post('/api/method/luuvcrm.api.update_menu_item',{item_code:it.code,item_name:name,rate:rate,guide_pct:gdp});
+      }
+      if(!r){ btn.disabled=false; return; }
+      const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast(editIdx===null?'Item added · POS shows it after refresh':'Saved · POS shows it after refresh'); hideItem(); loadSettings(true); }
+      else { err.textContent=srvErr(d)||'Could not save'; err.style.display='block'; }
+    }catch(e){ err.textContent='Connection error'; err.style.display='block'; }
+    btn.disabled=false;
+  }
+
+  // ── Staff activity flags (see /activity) ──
+  // Surfaced on the More button so a double-tap or a cash variance is noticed on
+  // the day it happens, instead of when a customer complains a week later.
+  async function loadActivityFlags(){
+    try{
+      const r=await _post('/api/method/luuvcrm.activity.get_activity_flags',{days:1});
+      if(!r) return;
+      const m=(await r.json()).message||{};
+      const n=m.count||0;
+      const dot=document.getElementById('actFlagDot'), pill=document.getElementById('actFlagPill');
+      if(dot){ dot.textContent=n>99?'99+':n; dot.style.display=n?'block':'none'; }
+      if(pill){ pill.textContent=n>99?'99+':n; pill.style.display=n?'inline-block':'none'; }
+    }catch(e){}
+  }
+
+  // ── More drawer (bottom-bar overflow) + fullscreen image viewer ──
+  function openMore(){ document.getElementById('moreDrawer').style.display='flex'; icons(); }
+  function hideMore(){ document.getElementById('moreDrawer').style.display='none'; }
+  function moreGo(t){ hideMore(); setTab(t); }
+  // Zoomable image viewer: pinch / double-tap / wheel to zoom, drag to pan.
+  const _iv={scale:1,tx:0,ty:0,startDist:0,startScale:1,panX:0,panY:0,startTx:0,startTy:0,lastTap:0,moved:false,mouseDown:false};
+  function viewImg(src){ const img=document.getElementById('imgViewerImg'); img.src=src; ivReset(); document.getElementById('imgViewer').style.display='flex'; }
+  function closeImgViewer(){ document.getElementById('imgViewer').style.display='none'; ivReset(); }
+  function ivReset(){ _iv.scale=1; _iv.tx=0; _iv.ty=0; ivApply(); }
+  function ivApply(){ document.getElementById('imgViewerImg').style.transform='translate('+_iv.tx+'px,'+_iv.ty+'px) scale('+_iv.scale+')'; }
+  (function(){
+    const v=document.getElementById('imgViewer');
+    const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+    v.addEventListener('touchstart',e=>{
+      if(e.touches.length===2){ _iv.startDist=dist(e.touches); _iv.startScale=_iv.scale; }
+      else if(e.touches.length===1){ _iv.panX=e.touches[0].clientX; _iv.panY=e.touches[0].clientY; _iv.startTx=_iv.tx; _iv.startTy=_iv.ty; _iv.moved=false; }
+    },{passive:true});
+    v.addEventListener('touchmove',e=>{ e.preventDefault();
+      if(e.touches.length===2){ _iv.scale=Math.min(6,Math.max(1,_iv.startScale*dist(e.touches)/(_iv.startDist||1))); if(_iv.scale===1){_iv.tx=0;_iv.ty=0;} ivApply(); _iv.moved=true; }
+      else if(e.touches.length===1&&_iv.scale>1){ _iv.tx=_iv.startTx+(e.touches[0].clientX-_iv.panX); _iv.ty=_iv.startTy+(e.touches[0].clientY-_iv.panY); ivApply(); _iv.moved=true; }
+      else if(e.touches.length===1&&(Math.abs(e.touches[0].clientX-_iv.panX)>8||Math.abs(e.touches[0].clientY-_iv.panY)>8)){ _iv.moved=true; }
+    },{passive:false});
+    v.addEventListener('touchend',e=>{
+      if(e.touches.length) return;
+      if(_iv.moved){ _iv.moved=false; return; }
+      const now=Date.now();
+      if(now-_iv.lastTap<300&&e.target.id==='imgViewerImg'){ if(_iv.scale>1) ivReset(); else { _iv.scale=2.5; ivApply(); } _iv.lastTap=0; }
+      else _iv.lastTap=now;
+    });
+    v.addEventListener('click',e=>{ if(e.target===v&&_iv.scale===1) closeImgViewer(); });
+    v.addEventListener('dblclick',e=>{ if(e.target.id==='imgViewerImg'){ if(_iv.scale>1) ivReset(); else { _iv.scale=2.5; ivApply(); } } });
+    v.addEventListener('wheel',e=>{ e.preventDefault(); _iv.scale=Math.min(6,Math.max(1,_iv.scale*(e.deltaY<0?1.15:0.87))); if(_iv.scale===1){_iv.tx=0;_iv.ty=0;} ivApply(); },{passive:false});
+    v.addEventListener('mousedown',e=>{ if(_iv.scale>1){ _iv.mouseDown=true; _iv.panX=e.clientX; _iv.panY=e.clientY; _iv.startTx=_iv.tx; _iv.startTy=_iv.ty; e.preventDefault(); } });
+    window.addEventListener('mousemove',e=>{ if(_iv.mouseDown){ _iv.tx=_iv.startTx+(e.clientX-_iv.panX); _iv.ty=_iv.startTy+(e.clientY-_iv.panY); ivApply(); } });
+    window.addEventListener('mouseup',()=>{ _iv.mouseDown=false; });
+  })();
+
+  // ── Tour guides (Settings → partner cashback: list, payouts, rates) ──
+  let gvGuides=[], gvCur=null;
+  function openGuides(){ document.getElementById('guideOverlay').style.display='flex'; gvBack(); loadGuides(); loadGuideCodes(); }
+  async function loadGuideCodes(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_guide_codes',{}); if(!r) return; const d=await r.json(); const m=d.message||{};
+      const fresh=m.fresh||[];
+      document.getElementById('gvCodeRows').innerHTML=fresh.length?fresh.map(c=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-subtle);">
+          <span class="mono" style="font-size:14.5px;font-weight:700;color:var(--text-strong);flex:1;letter-spacing:.06em;">${esc(c.code)}</span>
+          <span style="font-size:11px;color:var(--text-faint);">${esc(c.creation)}</span>
+          <button onclick="shareGuideCode('${esc(c.code)}')" style="border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:5px 12px;cursor:pointer;font-family:var(--font-display);font-size:12px;font-weight:700;">Share</button>
+        </div>`).join(''):'<div style="color:var(--text-faint);font-size:12px;padding:6px 0;">No unused codes — tap “+ New code”.</div>';
+    }catch(e){}
+  }
+  async function saveGlobalPct(){
+    const pct=parseFloat(document.getElementById('gvGlobalPct').value);
+    if(isNaN(pct)||pct<0||pct>50){ toast('Enter a % between 0 and 50'); return; }
+    try{ const r=await _post('/api/method/luuvcrm.api.update_guide_settings',{percent:pct}); if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok) toast('Global cashback set to '+pct+'%');
+      else toast(srvErr(d)||'Could not save');
+    }catch(e){ toast('Connection error'); }
+  }
+  async function genGuideCode(){
+    try{ const r=await _post('/api/method/luuvcrm.api.create_guide_codes',{count:1}); if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Code '+d.message.codes[0]+' created'); loadGuideCodes(); }
+      else toast(srvErr(d)||'Could not create a code');
+    }catch(e){ toast('Connection error'); }
+  }
+  function shareGuideCode(code){
+    const msg='🧭 Join the Luuv Fryxo partner program — earn cashback on every customer bill you bring us!\n\nTap this link and press SEND on the WhatsApp message that opens:\nhttps://wa.me/94724444901?text='+code+'\n\nWe reply instantly with your personal login link.';
+    window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  }
+  function hideGuides(){ document.getElementById('guideOverlay').style.display='none'; }
+  function gvBack(){ document.getElementById('gvDetail').style.display='none'; document.getElementById('gvList').style.display='block'; }
+  function gvErrMsg(msg){ const e=document.getElementById('gvErr'); if(msg){ e.textContent=msg; e.style.display='block'; } else e.style.display='none'; }
+  async function loadGuides(){
+    try{ const r=await _post('/api/method/luuvcrm.api.list_guides',{}); if(!r) return; const d=await r.json(); const m=d.message||{};
+      gvGuides=m.guides||[];
+      if(m.default_percent!=null) document.getElementById('gvGlobalPct').value=m.default_percent;
+      document.getElementById('gvSub').textContent=gvGuides.length?(gvGuides.length+' partners · tap one for payouts & rates'):'No guides yet';
+      document.getElementById('gvRows').innerHTML=gvGuides.length?gvGuides.map((g,i)=>`
+        <div onclick="openGuideDetail(${i})" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;">
+          <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex:none;">🧭</span>
+          <div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(g.guide_name||g.whatsapp)}</div><div style="font-size:12px;color:var(--text-faint);">${esc(g.role)} · ${g.cashback_percent}% · ${esc(g.status)}</div></div>
+          <span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(g.cashback_balance)}</span>
+        </div>`).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:24px 0;text-align:center;">No guides yet — add one from the POS payment screen.</div>';
+    }catch(e){}
+  }
+  async function openGuideDetail(i){
+    const g=gvGuides[i]; if(!g) return; gvCur=g.name; gvErrMsg('');
+    try{ const r=await _post('/api/method/luuvcrm.api.guide_detail',{guide:g.name}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      document.getElementById('gvName').textContent=m.guide_name||m.whatsapp;
+      document.getElementById('gvMeta').textContent=m.whatsapp+' · '+m.role+' · '+m.cashback_percent+'% · '+m.status;
+      document.getElementById('gvBal').textContent=nfmt(m.cashback_balance);
+      document.getElementById('gvEarned').textContent=nfmt(m.total_earned);
+      document.getElementById('gvPaid').textContent=nfmt(m.total_paid);
+      document.getElementById('gvPayAmt').value=m.cashback_balance>0?m.cashback_balance:'';
+      document.getElementById('gvPayNote').value='';
+      document.getElementById('gvEditName').value=m.guide_name||'';
+      document.getElementById('gvEditRole').value=m.role||'Guide';
+      document.getElementById('gvEditPct').value=m.cashback_percent;
+      document.getElementById('gvTxns').innerHTML=(m.txns||[]).length?(m.txns||[]).map(t=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-subtle);">
+          <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);">${t.type==='Earn'?('Bill '+esc(t.reference_order||'—')):(t.type==='Redeem'?('🍔 Meal · '+esc(t.reference_order||'—')):'Payout')}</div>
+          <div style="font-size:11.5px;color:var(--text-faint);">${esc(t.creation)}${t.type==='Earn'?(' · Rs '+nfmt(t.bill_total)+' × '+(t.percent_used||0)+'%'):(t.note?' · '+esc(t.note):'')}</div></div>
+          <span class="mono" style="font-size:13.5px;font-weight:800;color:${t.type==='Earn'?'var(--color-success)':'var(--text-strong)'};">${t.type==='Earn'?'+':'−'} ${nfmt(t.amount)}</span>
+        </div>`).join(''):'<div style="color:var(--text-faint);font-size:12.5px;padding:12px 0;">No transactions yet.</div>';
+      document.getElementById('gvList').style.display='none'; document.getElementById('gvDetail').style.display='block';
+    }catch(e){}
+  }
+  async function recordPayout(){
+    const amt=parseFloat(document.getElementById('gvPayAmt').value)||0;
+    if(amt<=0){ gvErrMsg('Enter a payout amount'); return; }
+    const btn=document.getElementById('gvPayBtn'); btn.disabled=true; gvErrMsg('');
+    try{ const r=await _post('/api/method/luuvcrm.api.record_guide_payout',{guide:gvCur,amount:amt,note:document.getElementById('gvPayNote').value.trim()});
+      if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Payout recorded'); await loadGuides(); openGuideDetail(gvGuides.findIndex(x=>x.name===gvCur)); }
+      else gvErrMsg(srvErr(d)||'Could not record the payout');
+    }catch(e){ gvErrMsg('Connection error'); }
+    btn.disabled=false;
+  }
+  async function saveGuideEdit(){
+    gvErrMsg('');
+    try{ const r=await _post('/api/method/luuvcrm.api.update_guide',{guide:gvCur,
+        guide_name:document.getElementById('gvEditName').value.trim(),
+        role:document.getElementById('gvEditRole').value,
+        percent:document.getElementById('gvEditPct').value});
+      if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Guide updated'); await loadGuides(); openGuideDetail(gvGuides.findIndex(x=>x.name===gvCur)); }
+      else gvErrMsg(srvErr(d)||'Could not save');
+    }catch(e){ gvErrMsg('Connection error'); }
+  }
+  async function resetGuidePw(){
+    gvErrMsg('');
+    try{ const r=await _post('/api/method/luuvcrm.api.reset_guide_password',{guide:gvCur});
+      if(!r) return; const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Fresh login link ready — sending WhatsApp');
+        window.open('https://wa.me/'+d.message.whatsapp+'?text='+encodeURIComponent(d.message.invite_text),'_blank'); }
+      else gvErrMsg(srvErr(d)||'Could not send the link');
+    }catch(e){ gvErrMsg('Connection error'); }
+  }
+
+  // ── Wastage (More → record spoiled stock; costed from the buying price book) ──
+  let wsCatalog=null;
+  async function openWastage(){ document.getElementById('wasteOverlay').style.display='flex'; if(!wsCatalog) await loadWsCatalog(); loadWastage(); }
+  function hideWastage(){ document.getElementById('wasteOverlay').style.display='none'; }
+  async function loadWsCatalog(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); const m=d.message||{};
+      wsCatalog=m.items||[];
+      document.getElementById('wsItem').innerHTML='<option value="">Pick an item…</option>'+wsCatalog.map(i=>`<option value="${esc(i.item)}">${esc(i.name)} — ${esc(i.unit)}${i.price?' · Rs '+nfmt(i.price):''}</option>`).join('');
+    }catch(e){}
+  }
+  function wsItemChange(){ const it=(wsCatalog||[]).find(i=>i.item===document.getElementById('wsItem').value);
+    document.getElementById('wsUnit').textContent=it?('('+it.unit+')'):''; }
+  async function saveWastage(){
+    const item=document.getElementById('wsItem').value, qty=parseFloat(document.getElementById('wsQty').value)||0;
+    const err=document.getElementById('wsErr'); err.style.display='none';
+    if(!item){ err.textContent='Pick an item'; err.style.display='block'; return; }
+    if(qty<=0){ err.textContent='Enter the quantity'; err.style.display='block'; return; }
+    const btn=document.getElementById('wsSave'); btn.disabled=true;
+    try{ const r=await _post('/api/method/luuvcrm.api.create_wastage',{item:item,qty:qty,reason:document.getElementById('wsReason').value.trim()});
+      if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Recorded · Rs '+nfmt(d.message.cost)+(d.message.priced?'':' — no buying price set for this item!'));
+        document.getElementById('wsQty').value=''; document.getElementById('wsReason').value=''; loadWastage(); }
+      else { err.textContent=srvErr(d)||'Could not record'; err.style.display='block'; }
+    }catch(e){ err.textContent='Connection error'; err.style.display='block'; }
+    btn.disabled=false;
+  }
+  async function loadWastage(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_wastage',{days:7}); if(!r) return; const d=await r.json(); const m=d.message||{};
+      document.getElementById('wsTotal').textContent='7 days · Rs '+nfmt(m.total||0);
+      document.getElementById('wsRows').innerHTML=(m.rows||[]).length?(m.rows||[]).map(w=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-subtle);">
+          <span style="width:36px;height:36px;border-radius:10px;background:var(--color-danger-subtle);display:inline-flex;align-items:center;justify-content:center;font-size:16px;flex:none;">🗑️</span>
+          <div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:700;color:var(--text-strong);">${esc(w.item_name)} · ${w.qty} ${esc(w.uom)}</div>
+          <div style="font-size:11.5px;color:var(--text-faint);">${esc(w.time)} · ${esc(w.by)}${w.reason?' · '+esc(w.reason):''}</div></div>
+          <span class="mono" style="font-size:13.5px;font-weight:800;color:var(--color-danger);flex:none;">Rs ${nfmt(w.cost)}</span>
+        </div>`).join(''):'<div style="color:var(--text-faint);font-size:12.5px;padding:10px 0;">Nothing recorded in the last 7 days.</div>';
+    }catch(e){}
+  }
+
+  function startPolling(){ setInterval(()=>{ loadApprovals(); }, 8000); setInterval(loadActivityFlags, 60000); }
 
   const CAT_EMOJI={burger:'🍔',chicken:'🍗',fries:'🍟',side:'🍟',salad:'🥗',drink:'🥤',juice:'🧃',tea:'🍵',coffee:'☕',mojito:'🍹',dessert:'🍰',sweet:'🍦',ice:'🍦',biryani:'🍛',rice:'🍚',naan:'🫓',kottu:'🍜',noodle:'🍜',pizza:'🍕',shake:'🥤',cola:'🥤'};
   function emojiFor(name){ const n=(name||'').toLowerCase(); for(const k in CAT_EMOJI){ if(n.includes(k)) return CAT_EMOJI[k]; } return '🍽️'; }

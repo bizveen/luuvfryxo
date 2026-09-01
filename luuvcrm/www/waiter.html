@@ -250,6 +250,48 @@
     .id-footer .idf-add:disabled { opacity:0.5; cursor:not-allowed; }
     .id-footer .idf-remove { padding:10px 16px; border:none; border-radius:10px; background:#FEE2E2; color:#EF4444; font-size:0.85rem; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
 
+    /* ── Search bar ── */
+    .w-search-wrap { position:sticky; top:0; z-index:6; background:#fff; padding:8px 12px; border-bottom:1px solid #F3F4F6; display:flex; gap:8px; align-items:center; flex-shrink:0; }
+    .w-search { flex:1; border:1.5px solid #E5E7EB; border-radius:10px; padding:9px 12px; font-size:0.85rem; font-family:inherit; outline:none; background:#F9FAFB; }
+    .w-search:focus { border-color:var(--green); background:#fff; }
+    .w-cats { position:sticky; top:53px; z-index:5; }
+
+    /* ── Category header rows in the grid ── */
+    .w-cat-header { grid-column:1/-1; font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:#065F46; padding:10px 4px 2px; }
+
+    /* ── Quick-add "+" on tiles ── */
+    .wi-quickadd { position:absolute; bottom:6px; right:6px; width:26px; height:26px; border-radius:50%; border:none; background:var(--green); color:#fff; font-size:1.1rem; font-weight:700; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(16,185,129,0.4); z-index:2; }
+    .wi-quickadd:active { transform:scale(0.88); }
+
+    /* ── Add-to-bill banner ── */
+    .w-resume-banner { display:none; align-items:center; gap:10px; background:#EEF2FF; border:1.5px solid #C7D2FE; border-radius:10px; padding:9px 12px; margin:8px 12px 0; }
+    .w-resume-banner.show { display:flex; }
+    .w-resume-banner .wrb-txt { flex:1; font-size:0.8rem; font-weight:700; color:#3730A3; }
+    .w-resume-banner .wrb-existing { font-size:0.72rem; font-weight:500; color:#6366F1; margin-top:2px; }
+    .w-resume-banner .wrb-cancel { border:none; background:#C7D2FE; color:#3730A3; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:8px; cursor:pointer; font-family:inherit; }
+
+    /* ── Takeaway badge (cart lines / preview / My Orders) ── */
+    .ta-badge { display:inline-flex; align-items:center; gap:3px; font-size:0.62rem; font-weight:700; color:#9a6207; background:#FEF3C7; padding:1px 7px; border-radius:10px; }
+
+    /* ── Item-detail takeaway toggle ── */
+    .id-ta { display:flex; align-items:center; justify-content:space-between; padding:10px 16px 0; }
+    .id-ta-label { font-size:0.85rem; font-weight:600; color:#374151; display:flex; align-items:center; gap:6px; }
+    .id-ta-switch { width:46px; height:26px; border-radius:20px; background:#E5E7EB; position:relative; cursor:pointer; transition:background 0.15s; flex-shrink:0; }
+    .id-ta-switch.on { background:#F59E0B; }
+    .id-ta-switch::after { content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:left 0.15s; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+    .id-ta-switch.on::after { left:23px; }
+
+    /* ── My Orders card enhancements ── */
+    .wo-card.status-served { border-left-color:#9CA3AF; opacity:0.75; }
+    .wo-card.paid { border-left-color:#6366F1; }
+    .wo-card-status.served { background:#F3F4F6; color:#6B7280; }
+    .wo-card-status.processing { background:#DBEAFE; color:#2563EB; }
+    .wo-card-status.paid { background:#EEF2FF; color:#4F46E5; }
+    .wo-card-actions { display:flex; gap:8px; margin-top:10px; }
+    .wo-add-btn { flex:1; padding:11px; border:1.5px solid var(--green); border-radius:10px; background:#fff; color:var(--green-dark); font-size:0.85rem; font-weight:700; cursor:pointer; font-family:inherit; display:flex; align-items:center; justify-content:center; gap:6px; }
+    .wo-add-btn:active { background:#ECFDF5; }
+    .wo-card-actions .wo-serve-btn { margin-top:0; flex:1; }
+
     @media (max-width: 640px) {
       .w-body { top:calc(var(--header-h) + 40px); bottom:72px; }
       .w-items { grid-template-columns:repeat(2, 1fr); gap:6px; padding:8px 8px 4px; }
@@ -266,16 +308,19 @@
 </head>
 <body>
 <meta name="csrf-token" content="{{ csrf_token }}">
+<!-- Loaded before this page's own script so it is listening when that throws. See /errors. -->
+<script src="/lferr.js?v=1" data-app="waiter"></script>
+<script src="/lfact.js?v=1" data-app="waiter"></script>
 
 <!-- Header -->
 <div class="w-header">
   <div class="w-brand">Luuv Fryxo <span class="w-badge">Waiter</span></div>
   <div class="w-table-wrap">
     <span class="w-table-label">Table</span>
-    <select id="tableSelect">
+    <select id="tableSelect" onchange="onTablePick()">
       <option value="">— Select —</option>
       {% for t in tables %}
-      <option value="{{ t.name }}">{{ t.name }}</option>
+      <option value="{{ t.name }}">Table {{ t.short_name or t.name }}</option>
       {% endfor %}
     </select>
   </div>
@@ -304,6 +349,20 @@
 
 <!-- Body -->
 <div class="w-body" id="menuBody" style="top:calc(var(--header-h) + 40px)">
+  <!-- Add-to-bill banner (shown when appending to an existing order) -->
+  <div class="w-resume-banner" id="resumeBanner">
+    <div style="flex:1;min-width:0;">
+      <div class="wrb-txt" id="wrbTitle">Adding to order</div>
+      <div class="wrb-existing" id="wrbExisting"></div>
+    </div>
+    <button class="wrb-cancel" onclick="cancelResume()">✕ New order</button>
+  </div>
+
+  <!-- Search -->
+  <div class="w-search-wrap">
+    <input type="text" class="w-search" id="menuSearch" placeholder="🔍 Search the menu…" oninput="filterMenu()">
+  </div>
+
   <!-- Categories -->
   <div class="w-cats" id="catBar">
     <button class="w-cat active" data-cat="all" onclick="setCat('all')">All</button>
@@ -315,6 +374,7 @@
   <!-- Items -->
   <div class="w-items" id="itemGrid">
     {% for g in menu_groups %}
+      <div class="w-cat-header" data-cat="{{ g.name|replace(' ','-') }}">{{ g.name }}</div>
       {% for item in g["items"] %}
       <div class="w-item" data-code="{{ item.code }}" data-cat="{{ item.group|replace(' ','-') }}" data-name="{{ item.name|lower }}" onclick="openItemDetail('{{ item.code }}')">
         <button class="wi-remove" onclick="event.stopPropagation();removeItem('{{ item.code }}')">✕</button>
@@ -328,6 +388,7 @@
         </div>
         <div class="wi-name">{{ item.name }}</div>
         <div class="wi-price">LKR {{ '%.0f' % item.rate }}</div>
+        <button class="wi-quickadd" title="Quick add" onclick="event.stopPropagation();quickAdd('{{ item.code }}')">+</button>
       </div>
       {% endfor %}
     {% endfor %}
@@ -398,6 +459,25 @@
           <label style="font-size:0.68rem;font-weight:600;color:#065F46;display:block;margin-bottom:2px;">👤 Name</label>
           <input type="text" id="wpCustName" placeholder="Walk-in" style="width:100%;padding:7px 10px;border:1.5px solid #D1FAE5;border-radius:8px;font-size:0.82rem;font-family:inherit;outline:none;background:#fff;">
         </div>
+        <div style="flex:1;min-width:130px;">
+          <label style="font-size:0.68rem;font-weight:600;color:#065F46;display:block;margin-bottom:2px;">🌍 Country</label>
+          <select id="wpCountry" style="width:100%;padding:7px 10px;border:1.5px solid #D1FAE5;border-radius:8px;font-size:0.82rem;font-family:inherit;outline:none;background:#fff;">
+            <option value="94" selected>🇱🇰 Sri Lanka (+94)</option>
+            <option value="91">🇮🇳 India (+91)</option>
+            <option value="44">🇬🇧 UK (+44)</option>
+            <option value="1">🇺🇸 USA/Canada (+1)</option>
+            <option value="971">🇦🇪 UAE (+971)</option>
+            <option value="61">🇦🇺 Australia (+61)</option>
+            <option value="65">🇸🇬 Singapore (+65)</option>
+            <option value="960">🇲🇻 Maldives (+960)</option>
+            <option value="49">🇩🇪 Germany (+49)</option>
+            <option value="33">🇫🇷 France (+33)</option>
+            <option value="7">🇷🇺 Russia (+7)</option>
+            <option value="86">🇨🇳 China (+86)</option>
+            <option value="81">🇯🇵 Japan (+81)</option>
+            <option value="31">🇳🇱 Netherlands (+31)</option>
+          </select>
+        </div>
         <div style="flex:1;min-width:140px;">
           <label style="font-size:0.68rem;font-weight:600;color:#065F46;display:block;margin-bottom:2px;">📱 WhatsApp</label>
           <input type="tel" id="wpWhatsApp" placeholder="07X XXXXXXX" style="width:100%;padding:7px 10px;border:1.5px solid #D1FAE5;border-radius:8px;font-size:0.82rem;font-family:inherit;outline:none;background:#fff;">
@@ -451,9 +531,22 @@
 
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
-let cart = {};
+// Cart is a LIST of lines (not a code→qty map) so the same item can appear more than once
+// with its own special note (e.g. one Kottu "no chili", another "extra spicy") and its own
+// takeaway flag (a table customer can want one item packed to go).
+let cart = [];              // [{ lid, code, qty, note, takeaway }]
+let _lidSeq = 0;            // client-side line id (never Date.now/random — keep deterministic)
 let activeCat = 'all';
+// Add-to-bill state: when set, "Send" APPENDS to this existing order instead of creating a new one.
+let currentOrder = null;    // POS Order name being added to (null = new order)
+let existingItems = [];     // that order's already-fired lines, shown read-only
 const SERVICE_CHARGE_RATE = {{ service_charge_rate or 0 }};
+
+function cartCount(){ return cart.reduce((a,l)=>a+l.qty,0); }
+function qtyForCode(code){ return cart.reduce((a,l)=>a+(l.code===code?l.qty:0),0); }
+function cartSubtotal(rateMap){ return cart.reduce((s,l)=>s+((rateMap[l.code]||0)*l.qty),0); }
+// "Luuv-Fryxo-15" -> "Table 15" (value kept raw; only the label changes).
+function shortTable(n){ n=n||''; const p=n.split('-').pop(); return 'Table ' + (p || '—'); }
 
 async function _post(url, data={}) {
   const fd = new URLSearchParams();
@@ -467,13 +560,40 @@ async function _post(url, data={}) {
 function setCat(cat) {
   activeCat = cat;
   document.querySelectorAll('.w-cat').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
-  document.querySelectorAll('.w-item').forEach(card => {
-    card.style.display = (cat === 'all' || card.dataset.cat === cat) ? '' : 'none';
+  filterMenu();
+}
+
+// Combined category + search filter; also shows/hides the category header rows.
+function filterMenu() {
+  const q = (document.getElementById('menuSearch')?.value || '').trim().toLowerCase();
+  document.querySelectorAll('#itemGrid .w-item').forEach(card => {
+    const okCat = (activeCat === 'all' || card.dataset.cat === activeCat);
+    const okQ = !q || (card.dataset.name || '').includes(q);
+    card.style.display = (okCat && okQ) ? '' : 'none';
+  });
+  // Headers only in the unfiltered "All" view, and only if the group has a visible item.
+  document.querySelectorAll('#itemGrid .w-cat-header').forEach(h => {
+    if (activeCat !== 'all' || q) { h.style.display = 'none'; return; }
+    const any = [...document.querySelectorAll('#itemGrid .w-item')]
+      .some(c => c.dataset.cat === h.dataset.cat && c.style.display !== 'none');
+    h.style.display = any ? '' : 'none';
   });
 }
 
+// Quick-add from a tile "+": one dine-in line, no modal.
+function quickAdd(code) {
+  cart.push({ lid: ++_lidSeq, code, qty: 1, note: '', takeaway: 0 });
+  render();
+}
+
 function addItem(code) {
-  cart[code] = (cart[code] || 0) + 1;
+  cart.push({ lid: ++_lidSeq, code, qty: 1, note: '', takeaway: 0 });
+  render();
+}
+
+// Grid ✕ (and detail "Remove"): drop every line of this item code.
+function removeItem(code) {
+  cart = cart.filter(l => l.code !== code);
   render();
 }
 
@@ -494,9 +614,10 @@ function getNameMap() {
 
 function render() {
   const rateMap = getRateMap();
-  const count = Object.values(cart).reduce((a,b)=>a+b,0);
-  const subtotal = Object.entries(cart).reduce((s,[code,qty]) => s + (rateMap[code]||0)*qty, 0);
-  const scAmount = Math.round(subtotal * SERVICE_CHARGE_RATE) / 100;
+  const count = cartCount();
+  const subtotal = cartSubtotal(rateMap);
+  const scBase = cart.reduce((s,l)=> s + (l.takeaway ? 0 : (rateMap[l.code]||0)*l.qty), 0);
+  const scAmount = Math.round(scBase * SERVICE_CHARGE_RATE) / 100;
   const grandTotal = subtotal + scAmount;
 
   document.getElementById('cartCount').textContent = count;
@@ -505,7 +626,7 @@ function render() {
 
   document.querySelectorAll('.w-item').forEach(card => {
     const code = card.dataset.code;
-    const qty = cart[code] || 0;
+    const qty = qtyForCode(code);   // sum across all lines of this code
     card.classList.toggle('has-qty', qty > 0);
     const badge = document.getElementById('qb-' + code);
     if (badge) { badge.textContent = qty; badge.style.display = qty>0?'flex':'none'; }
@@ -516,16 +637,55 @@ function render() {
 function openPreview() {
   const table = document.getElementById('tableSelect').value;
   if (!table) { alert('Please select a table first.'); document.getElementById('tableSelect').focus(); return; }
-  if (Object.keys(cart).length === 0) return;
+  if (cart.length === 0) return;
 
+  document.getElementById('wpTableName').textContent = shortTable(table);
+  renderPreviewItems();
+  updatePreviewTotals();
+
+  // In append mode the customer/name fields are irrelevant (order already exists).
+  const appendMode = !!currentOrder;
+  const custWrap = document.getElementById('wpCustName').closest('div').parentElement;
+  if (custWrap) custWrap.style.display = appendMode ? 'none' : '';
+
+  const notes = document.getElementById('notesInput').value.trim();
+  const notesEl = document.getElementById('wpNotes');
+  if (notes && !appendMode) {
+    document.getElementById('wpNotesText').textContent = notes;
+    notesEl.style.display = 'flex';
+  } else {
+    notesEl.style.display = 'none';
+  }
+
+  document.getElementById('previewModal').classList.add('show');
+  document.getElementById('wpConfirmBtn').disabled = false;
+  document.getElementById('wpConfirmBtn').textContent = appendMode ? ('➕ Add to Order #' + currentOrder) : '🍳 Confirm & Send to Kitchen';
+}
+
+// One row per cart LINE (keyed by lid), so two lines of the same item show separately
+// with their own note.
+function renderPreviewItems() {
   const rateMap = getRateMap();
   const nameMap = getNameMap();
-  const notes   = document.getElementById('notesInput').value.trim();
-  const subtotal = Object.entries(cart).reduce((s,[code,qty]) => s + (rateMap[code]||0)*qty, 0);
-  const scAmount = Math.round(subtotal * SERVICE_CHARGE_RATE) / 100;
-  const grandTotal = subtotal + scAmount;
+  document.getElementById('wpItems').innerHTML = cart.map(l => `
+    <div class="wp-item-row" id="wp-row-${l.lid}">
+      <div class="wp-qc">
+        <button class="wp-qbtn wp-qminus" onclick="previewQty(${l.lid},-1)">−</button>
+        <span class="wp-qnum">${l.qty}</span>
+        <button class="wp-qbtn wp-qplus"  onclick="previewQty(${l.lid}, 1)">+</button>
+      </div>
+      <div class="wp-item-name">${nameMap[l.code] || l.code}${l.takeaway ? ' <span class="ta-badge">🛍️ takeaway</span>' : ''}${l.note ? `<div style="font-size:0.75rem;color:#F15207;margin-top:3px;font-weight:600;">📝 ${escHtml(l.note)}</div>` : ''}</div>
+      <div class="wp-item-price">LKR ${((rateMap[l.code]||0)*l.qty).toLocaleString()}</div>
+    </div>`).join('');
+}
 
-  document.getElementById('wpTableName').textContent = table;
+function updatePreviewTotals() {
+  const rateMap = getRateMap();
+  const subtotal = cartSubtotal(rateMap);
+  // Service charge excludes takeaway lines (matches backend _apply_takeaway_service_charge).
+  const scBase = cart.reduce((s,l)=> s + (l.takeaway ? 0 : (rateMap[l.code]||0)*l.qty), 0);
+  const scAmount = Math.round(scBase * SERVICE_CHARGE_RATE) / 100;
+  const grandTotal = subtotal + scAmount;
   document.getElementById('wpSubtotal').textContent = 'LKR ' + subtotal.toLocaleString();
   if (SERVICE_CHARGE_RATE > 0) {
     document.getElementById('wpScRow').style.display = '';
@@ -535,105 +695,71 @@ function openPreview() {
     document.getElementById('wpScRow').style.display = 'none';
   }
   document.getElementById('wpTotal').textContent = 'LKR ' + grandTotal.toLocaleString();
-
-  const itemsHtml = Object.entries(cart).map(([code, qty]) => `
-    <div class="wp-item-row" id="wp-row-${code}">
-      <div class="wp-qc">
-        <button class="wp-qbtn wp-qminus" onclick="previewQty('${code}',-1)">−</button>
-        <span class="wp-qnum" id="wp-qty-${code}">${qty}</span>
-        <button class="wp-qbtn wp-qplus"  onclick="previewQty('${code}', 1)">+</button>
-      </div>
-      <div class="wp-item-name">${nameMap[code] || code}</div>
-      <div class="wp-item-price" id="wp-price-${code}">LKR ${((rateMap[code]||0)*qty).toLocaleString()}</div>
-    </div>`).join('');
-  document.getElementById('wpItems').innerHTML = itemsHtml;
-
-  const notesEl = document.getElementById('wpNotes');
-  if (notes) {
-    document.getElementById('wpNotesText').textContent = notes;
-    notesEl.style.display = 'flex';
-  } else {
-    notesEl.style.display = 'none';
-  }
-
-  document.getElementById('previewModal').classList.add('show');
-  document.getElementById('wpConfirmBtn').disabled = false;
-  document.getElementById('wpConfirmBtn').textContent = '🍳 Confirm & Send to Kitchen';
 }
 
 function closePreview() {
   document.getElementById('previewModal').classList.remove('show');
 }
 
-function previewQty(code, delta) {
-  if (!cart[code]) return;
-  cart[code] += delta;
-
-  if (cart[code] <= 0) {
-    // Remove item from cart + animate row out
-    delete cart[code];
-    const row = document.getElementById('wp-row-' + code);
-    if (row) {
-      row.classList.add('removing');
-      setTimeout(() => row.remove(), 200);
-    }
-    // If cart now empty → close preview
-    if (Object.keys(cart).length === 0) {
-      setTimeout(() => closePreview(), 220);
-      render(); return;
-    }
-  } else {
-    // Update qty + line price
-    const qtyEl  = document.getElementById('wp-qty-' + code);
-    const priceEl = document.getElementById('wp-price-' + code);
-    if (qtyEl) qtyEl.textContent = cart[code];
-    if (priceEl) {
-      const rate = getRateMap()[code] || 0;
-      priceEl.textContent = 'LKR ' + (rate * cart[code]).toLocaleString();
-    }
+function previewQty(lid, delta) {
+  const line = cart.find(l => l.lid === lid);
+  if (!line) return;
+  line.qty += delta;
+  if (line.qty <= 0) {
+    cart = cart.filter(l => l.lid !== lid);
+    if (cart.length === 0) { closePreview(); render(); return; }
   }
-
-  // Recalculate & display total
-  const rateMap = getRateMap();
-  const newSubtotal = Object.entries(cart).reduce((s,[c,q]) => s + (rateMap[c]||0)*q, 0);
-  const newScAmount = Math.round(newSubtotal * SERVICE_CHARGE_RATE) / 100;
-  const newGrandTotal = newSubtotal + newScAmount;
-  const subtotalEl = document.getElementById('wpSubtotal');
-  if (subtotalEl) subtotalEl.textContent = 'LKR ' + newSubtotal.toLocaleString();
-  if (SERVICE_CHARGE_RATE > 0) {
-    const scRowEl = document.getElementById('wpScRow');
-    if (scRowEl) scRowEl.style.display = '';
-    const scRateEl = document.getElementById('wpScRate');
-    if (scRateEl) scRateEl.textContent = SERVICE_CHARGE_RATE;
-    const scAmtEl = document.getElementById('wpScAmount');
-    if (scAmtEl) scAmtEl.textContent = 'LKR ' + newScAmount.toLocaleString(undefined, {minimumFractionDigits:2,maximumFractionDigits:2});
-  }
-  const totalEl = document.getElementById('wpTotal');
-  if (totalEl) totalEl.textContent = 'LKR ' + newGrandTotal.toLocaleString();
-  // Sync bottom bar
-  render();
+  renderPreviewItems();
+  updatePreviewTotals();
+  render();   // sync bottom bar + tile badges
 }
 
 async function confirmSend() {
   const table = document.getElementById('tableSelect').value;
   const rateMap = getRateMap();
-  const items = Object.entries(cart).map(([code,qty]) => ({ item:code, qty, rate:rateMap[code]||0 }));
-
+  const items = cart.map(l => ({ item:l.code, qty:l.qty, rate:rateMap[l.code]||0, notes:l.note||'', takeaway:l.takeaway?1:0 }));
   const btn = document.getElementById('wpConfirmBtn');
-  btn.disabled = true; btn.textContent = '⏳ Sending to kitchen...';
 
+  // ── APPEND to an existing order (add-to-bill) ──
+  if (currentOrder) {
+    btn.disabled = true; btn.textContent = '⏳ Adding…';
+    try {
+      const res = await _post('/api/method/luuvcrm.api.waiter_append_items', {
+        order_name: currentOrder, items: JSON.stringify(items)
+      });
+      if (!res) { btn.disabled=false; btn.textContent='➕ Add to Order'; return; }
+      const data = await res.json();
+      if (data.message && data.message.name) {
+        const nm = data.message.name;
+        closePreview();
+        window._appendMode = true;               // printKOT will mark this batch fired afterwards
+        showSuccess({name:nm}, table, items, rateMap, '', '', true);
+      } else {
+        alert('Error: ' + (data.message || JSON.stringify(data)));
+        btn.disabled=false; btn.textContent='➕ Add to Order';
+      }
+    } catch(e) { alert('Network error. Try again.'); btn.disabled=false; btn.textContent='➕ Add to Order'; }
+    return;
+  }
+
+  // ── NEW order ──
+  btn.disabled = true; btn.textContent = '⏳ Sending to kitchen...';
   try {
+    const dial = document.getElementById('wpCountry')?.value || '94';
     const res = await _post('/api/method/luuvcrm.api.send_to_kitchen', {
       items: JSON.stringify(items),
       table,
       order_source: 'Waiter',
       customer_name: document.getElementById('wpCustName').value.trim(),
       mobile: document.getElementById('wpWhatsApp').value.trim(),
+      country_code: dial,
       notes: document.getElementById('notesInput').value.trim()
     });
     if (!res) { btn.disabled=false; btn.textContent='🍳 Confirm & Send to Kitchen'; return; }
     const data = await res.json();
     if (data.message && data.message.name) {
+      window._appendMode = false;
+      window._lastWhatsAppDial = dial;   // for the wa.me button (international format)
       closePreview();
       showSuccess(data.message, table, items, rateMap, data.message.mobile, data.message.customer_name);
     } else {
@@ -646,28 +772,83 @@ async function confirmSend() {
   }
 }
 
-function showSuccess(msg, table, items, rateMap, customerPhone, customerName) {
+function showSuccess(msg, table, items, rateMap, customerPhone, customerName, isAppend) {
+  const nameMap = getNameMap();
   window._lastWhatsAppPhone = customerPhone || '';
   window._lastWhatsAppName = customerName || 'Customer';
   window._lastKOTOrder = msg.name;
-  document.getElementById('wsTable').textContent = table;
+  document.querySelector('#successOverlay h3').textContent = isAppend ? 'Added to Order!' : 'Sent to Kitchen!';
+  document.getElementById('wsTable').textContent = shortTable(table);
   document.getElementById('wsOrder').textContent = 'Order #' + msg.name;
-  document.getElementById('wsCustName').textContent = customerName ? '👤 ' + escHtml(customerName) : '👤 Walk-in';
+  document.getElementById('wsCustName').textContent = customerName ? '👤 ' + escHtml(customerName) : (isAppend ? '' : '👤 Walk-in');
   document.getElementById('wsPhone').textContent = customerPhone ? '📱 ' + escHtml(customerPhone) : '';
   const waBtn = document.getElementById('wsWhatsAppBtn');
-  if (customerPhone) { waBtn.style.display = 'block'; } else { waBtn.style.display = 'none'; }
-  const html = items.map(i => `<div class="ws-item-row"><span>${i.item} ×${i.qty}</span><span>LKR ${((rateMap[i.item]||0)*i.qty).toLocaleString()}</span></div>`).join('');
+  waBtn.style.display = customerPhone ? 'block' : 'none';
+  const html = items.map(i => {
+    const nm = nameMap[i.item] || i.item;
+    const ta = i.takeaway ? ' <span class="ta-badge">🛍️</span>' : '';
+    const nt = i.notes ? ` <em style="color:#F15207;font-style:normal;">— ${escHtml(i.notes)}</em>` : '';
+    return `<div class="ws-item-row"><span>${escHtml(nm)} ×${i.qty}${ta}${nt}</span><span>LKR ${((rateMap[i.item]||0)*i.qty).toLocaleString()}</span></div>`;
+  }).join('');
   document.getElementById('wsItems').innerHTML = html;
   document.getElementById('successOverlay').classList.add('show');
+  // Fire the customer WhatsApp via wa.me the moment the order is sent (not for appends).
+  // Best-effort auto-open; the "WhatsApp Customer" button stays as a manual fallback if the
+  // browser blocks the popup.
+  if (customerPhone && !isAppend) { try { sendWhatsApp(); } catch(e){} }
 }
 
 function resetOrder() {
-  cart = {};
+  cart = [];
+  currentOrder = null; existingItems = []; window._appendMode = false;
+  document.getElementById('resumeBanner').classList.remove('show');
   document.getElementById('notesInput').value = '';
   document.getElementById('wpCustName').value = '';
   document.getElementById('wpWhatsApp').value = '';
   document.getElementById('successOverlay').classList.remove('show');
   render();
+}
+
+// ── Add-to-bill: resume an existing order to append items ──
+async function resumeOrder(name, table) {
+  try {
+    const res = await _post('/api/method/luuvcrm.api.get_order_items', { order_name: name });
+    let its = [];
+    if (res) { const d = await res.json(); its = (d.message && d.message.items) || []; }
+    currentOrder = name; existingItems = its; cart = []; window._appendMode = true;
+    if (table) document.getElementById('tableSelect').value = table;
+    const nameMap = getNameMap();
+    const existTxt = its.map(i => `${(nameMap[i.item]||i.item)} ×${i.qty}${i.takeaway?' 🛍️':''}`).join(' · ') || '—';
+    document.getElementById('wrbTitle').textContent = '➕ Adding to Order #' + name + ' · ' + shortTable(table || document.getElementById('tableSelect').value);
+    document.getElementById('wrbExisting').textContent = 'Already ordered: ' + existTxt;
+    document.getElementById('resumeBanner').classList.add('show');
+    switchTab('menu');
+    render();
+  } catch(e) { alert('Could not open that order.'); }
+}
+
+function cancelResume() {
+  currentOrder = null; existingItems = []; cart = []; window._appendMode = false;
+  document.getElementById('resumeBanner').classList.remove('show');
+  render();
+}
+
+// When a table is picked on a fresh empty ticket, offer to add to its open order (if any).
+async function onTablePick() {
+  const table = document.getElementById('tableSelect').value;
+  if (!table || currentOrder || cart.length) return;   // only on a fresh, empty ticket
+  try {
+    const res = await _post('/api/method/luuvcrm.api.get_table_orders', { table });
+    if (!res) return;
+    const d = await res.json();
+    const orders = (d.message && d.message.orders) || [];
+    if (orders.length) {
+      const o = orders[0];
+      if (confirm(`${shortTable(table)} already has open order #${o.name}.\nAdd items to it?`)) {
+        resumeOrder(o.name, table);
+      }
+    }
+  } catch(e) {}
 }
 
 function toggleUserMenu() {
@@ -682,10 +863,14 @@ function sendWhatsApp() {
   const phone = window._lastWhatsAppPhone;
   const name = window._lastWhatsAppName || 'Customer';
   const order = window._lastKOTOrder || '';
+  const dial = (window._lastWhatsAppDial || '94').replace(/[^0-9]/g, '') || '94';
   if (!phone) { alert('No WhatsApp number for this order'); return; }
-  const num = phone.replace(/[^0-9]/g, '');
+  // Build the international number: strip a leading 0, prepend the country dial code.
+  let num = phone.replace(/[^0-9]/g, '');
+  if (num.startsWith('0')) num = num.slice(1);
+  if (!num.startsWith(dial)) num = dial + num;
   if (num.length < 9) { alert('Invalid phone number'); return; }
-  const msg = encodeURIComponent(`Hi ${name}! Your order #${order} from Luuv Fryxo is ready! 🍽️`);
+  const msg = encodeURIComponent(`Hi ${name}! Your order #${order} from Luuv Fryxo is confirmed! 🍽️`);
   window.open(`https://wa.me/${num}?text=${msg}`, '_blank');
 }
 
@@ -717,56 +902,59 @@ let readyNotifiedIds = new Set();
 
 async function loadMyOrders() {
   try {
-    const res = await _post('/api/method/luuvcrm.api.get_kitchen_orders');
+    const res = await _post('/api/method/luuvcrm.api.get_my_orders');   // THIS waiter's own orders (today)
     if (!res) return;
     const data = await res.json();
     const orders = (data.message?.orders || []);
     const list = document.getElementById('myOrdersList');
     const badge = document.getElementById('myOrdersBadge');
 
-    // Track ready transitions → toast + notification
+    // Ready transitions → toast + notification. Backend writes capitalized statuses ("Ready").
     orders.forEach(o => {
-      if (o.kitchen_status === 'ready' && !readyNotifiedIds.has(o.name) && myOrderIds.has(o.name)) {
+      if (o.kitchen_status === 'Ready' && !readyNotifiedIds.has(o.name) && myOrderIds.has(o.name)) {
         showReadyToast(o.restaurant_table || o.name);
-        notifyWaiter('Order Ready! 🍽️', `Table ${o.restaurant_table || '—'} is ready to serve`);
+        notifyWaiter('Order Ready! 🍽️', `${shortTable(o.restaurant_table)} is ready to serve`);
         readyNotifiedIds.add(o.name);
       }
       myOrderIds.add(o.name);
     });
 
-    const readyCount = orders.filter(o=>o.kitchen_status==='ready').length;
-    badge.textContent = orders.length;
-    badge.style.display = orders.length > 0 ? 'inline' : 'none';
-    if (readyCount > 0) { badge.classList.add('wb-ready'); }
-    else { badge.classList.remove('wb-ready'); }
+    // Badge = active orders (not served, not paid).
+    const active = orders.filter(o => o.kitchen_status !== 'Served' && !o.paid);
+    const readyCount = orders.filter(o => o.kitchen_status === 'Ready').length;
+    badge.textContent = active.length;
+    badge.style.display = active.length > 0 ? 'inline' : 'none';
+    badge.classList.toggle('wb-ready', readyCount > 0);
 
     if (orders.length === 0) {
-      list.innerHTML = '<div class="wo-empty"><div class="wo-empty-icon">📋</div><p>No pending orders</p></div>';
+      list.innerHTML = '<div class="wo-empty"><div class="wo-empty-icon">📋</div><p>No orders yet today</p></div>';
       return;
     }
 
+    const stMap = { Pending:['pending','⏳ Pending'], Processing:['processing','👨‍🍳 Cooking'],
+                    Ready:['ready','✅ Ready'], Served:['served','🍽️ Served'], paid:['paid','💰 Paid'] };
     list.innerHTML = orders.map(o => {
-      const items = JSON.parse(o.items_json||'[]');
-      const itemsText = items.map(i=>`${i.item} ×${i.qty}`).join(' · ');
-      const isReady = o.kitchen_status === 'ready';
-      const statusClass = isReady ? 'ready' : 'pending';
-      const statusLabel = isReady ? '✅ Ready' : '⏳ Pending';
-      const serveClass = isReady ? 'ready' : '';
-      // Encode order data for serve confirm
-      const orderData = encodeURIComponent(JSON.stringify({
-        name: o.name, table: o.restaurant_table||'—', items, notes: o.notes||''
-      }));
-      return `<div class="wo-card status-${o.kitchen_status}" id="wocard-${o.name}">
+      const items = o.items || [];
+      const itemsText = items.map(i => `${escHtml(i.item_name||i.item)} ×${i.qty}${i.takeaway?' 🛍️':''}${i.notes?` (${escHtml(i.notes)})`:''}`).join(' · ');
+      const key = o.paid ? 'paid' : (o.kitchen_status || 'Pending');
+      const [statusClass, statusLabel] = stMap[key] || ['pending', key];
+      const cardCls = o.paid ? 'paid' : ('status-' + String(o.kitchen_status||'').toLowerCase());
+      const active = !o.paid && o.kitchen_status !== 'Served';
+      const orderData = encodeURIComponent(JSON.stringify({ name:o.name, table:o.restaurant_table||'—', items, notes:o.notes||'' }));
+      const tableSafe = (o.restaurant_table||'').replace(/'/g,'');
+      return `<div class="wo-card ${cardCls}" id="wocard-${o.name}">
         <div class="wo-card-top">
-          <span class="wo-card-table">${escHtml(o.restaurant_table||'—')}</span>
+          <span class="wo-card-table">${escHtml(shortTable(o.restaurant_table))} · #${escHtml(o.name)}</span>
           <span class="wo-card-time">${escHtml(o.time_ago||'')}</span>
           <span class="wo-card-status ${statusClass}">${statusLabel}</span>
         </div>
-        <div class="wo-card-items">${escHtml(itemsText)}</div>
+        <div class="wo-card-items">${itemsText || '—'}</div>
         ${o.notes ? `<div class="wo-card-notes">📝 ${escHtml(o.notes)}</div>` : ''}
-        <button class="wo-serve-btn ${serveClass}" onclick="openServeConfirm('${orderData}')">
-          🍽️ Mark as Served
-        </button>
+        <div class="wo-card-actions">
+          ${active ? `<button class="wo-add-btn" onclick="resumeOrder('${o.name}','${tableSafe}')">➕ Add items</button>
+                      <button class="wo-serve-btn ${o.kitchen_status==='Ready'?'ready':''}" onclick="openServeConfirm('${orderData}')">🍽️ Served</button>`
+                   : `<div style="flex:1;text-align:center;color:#9CA3AF;font-size:0.8rem;padding:8px;">${o.paid?'Paid & closed':'Served'}</div>`}
+        </div>
       </div>`;
     }).join('');
   } catch(e) {}
@@ -786,12 +974,12 @@ function openServeConfirm(encodedData) {
   const o = JSON.parse(decodeURIComponent(encodedData));
   _pendingServeOrder = o;
 
-  document.getElementById('wscTable').textContent = o.table;
+  document.getElementById('wscTable').textContent = shortTable(o.table);
 
   const itemsHtml = o.items.map(i => `
     <div class="wsc-item-row">
       <div class="wsc-item-qty">${i.qty}</div>
-      <div class="wsc-item-name">${escHtml(i.item)}</div>
+      <div class="wsc-item-name">${escHtml(i.item_name||i.item)}${i.takeaway?' <span class="ta-badge">🛍️</span>':''}${i.notes?` <span style="color:#F15207;">— ${escHtml(i.notes)}</span>`:''}</div>
     </div>`).join('');
   document.getElementById('wscItems').innerHTML = itemsHtml;
 
@@ -853,7 +1041,7 @@ async function confirmServe() {
 
 function showServedToast(table) {
   const toast = document.getElementById('servedToast');
-  toast.innerHTML = `✅ <strong>${escHtml(table)}</strong> — Order Served!`;
+  toast.innerHTML = `✅ <strong>${escHtml(shortTable(table))}</strong> — Order Served!`;
   toast.classList.add('show');
   clearTimeout(_servedToastTimer);
   _servedToastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
@@ -926,7 +1114,7 @@ function playReadySound() {
 let toastTimer = null;
 function showReadyToast(table) {
   const toast = document.getElementById('readyToast');
-  document.getElementById('toastTable').textContent = table;
+  document.getElementById('toastTable').textContent = (table||'').split('-').pop() || '—';
   toast.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), 6000);
@@ -941,9 +1129,13 @@ function showReadyToast(table) {
 // ─── Item Detail Overlay ─────────────────────────────
 let _detailCode = '';
 let _detailData = {};
+let _detailQty = 1;        // pending qty for the line about to be added (each Add = a new line)
+let _detailTakeaway = 0;   // pending takeaway flag for the line about to be added
 
 async function openItemDetail(code) {
-  _detailCode = code; _detailData = {};
+  _detailCode = code; _detailData = {}; _detailQty = 1; _detailTakeaway = 0;
+  const nEl = document.getElementById('idNotes'); if (nEl) nEl.value = '';
+  const taEl = document.getElementById('idTaSwitch'); if (taEl) taEl.classList.remove('on');
   const card = document.querySelector(`[data-code="${code}"]`);
   const name = card?.querySelector('.wi-name')?.textContent || code;
   const priceText = card?.querySelector('.wi-price')?.textContent || 'LKR 0';
@@ -1020,32 +1212,39 @@ async function _loadItemReviews(code) {
 }
 
 function _updateDetailCartState() {
-  const qty = cart[_detailCode] || 0;
-  document.getElementById('idQty').textContent = qty;
-  document.getElementById('idAddBtn').textContent = 'Add to Order';
-  document.getElementById('idRemoveBtn').style.display = qty > 0 ? 'inline-block' : 'none';
+  document.getElementById('idQty').textContent = _detailQty;
+  const existing = qtyForCode(_detailCode);   // how many of this code are already on the ticket
+  document.getElementById('idAddBtn').textContent = existing > 0 ? 'Add another line' : 'Add to Order';
+  const rm = document.getElementById('idRemoveBtn');
+  rm.style.display = existing > 0 ? 'inline-block' : 'none';
+  rm.textContent = existing > 0 ? ('Remove (' + existing + ')') : 'Remove';
 }
 
+// The +/- stepper adjusts the PENDING qty for the line being added — it does not touch the cart
+// until "Add" is pressed (so each Add creates a separate, independently-noted line).
 function idModQty(delta) {
   if (!_detailCode) return;
-  const qty = (cart[_detailCode] || 0) + delta;
-  if (qty <= 0) delete cart[_detailCode];
-  else cart[_detailCode] = qty;
-  render(); _updateDetailCartState();
-  if (delta > 0) closeItemDetail();
+  _detailQty = Math.max(1, _detailQty + delta);
+  _updateDetailCartState();
+}
+
+function idToggleTA() {
+  _detailTakeaway = _detailTakeaway ? 0 : 1;
+  document.getElementById('idTaSwitch').classList.toggle('on', !!_detailTakeaway);
 }
 
 function idAddToCart() {
   if (!_detailCode) return;
-  const qty = (cart[_detailCode] || 0) + 1;
-  cart[_detailCode] = qty;
+  const note = (document.getElementById('idNotes').value || '').trim();
+  cart.push({ lid: ++_lidSeq, code: _detailCode, qty: _detailQty, note, takeaway: _detailTakeaway });
   render();
   closeItemDetail();
 }
 
+// Remove every line of this item code.
 function idRemoveItem() {
   if (!_detailCode) return;
-  delete cart[_detailCode];
+  cart = cart.filter(l => l.code !== _detailCode);
   render();
   closeItemDetail();
 }
@@ -1063,6 +1262,7 @@ setInterval(() => {
 // Initial load
 loadMyOrders();
 render();
+filterMenu();   // set up category headers + initial filter state
 
 async function printKOT(orderName) {
   const name = orderName || window._lastKOTOrder;
@@ -1074,11 +1274,11 @@ async function printKOT(orderName) {
     const now = new Date();
     const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
     const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-    let ih = d.items.map(function(i){ return '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+'</td></tr>'; }).join('');
+    let ih = d.items.map(function(i){ var nt = i.notes ? '<div style="font-size:12px;font-weight:normal;font-style:italic;">↳ '+escHtml(i.notes)+'</div>' : ''; var ta = i.takeaway ? ' <strong>[TAKEAWAY]</strong>' : ''; return '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;vertical-align:top;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+ta+nt+'</td></tr>'; }).join('');
     var w = window.open('','_blank','width=300,height=500');
     w.document.write('<!DOCTYPE html><html><head><title>KOT - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .kl{font-size:11px;color:#333;font-weight:bold;margin:4px 0 0;}.hdr h3{margin:4px 0 0;font-size:14px;}.meta{text-align:center;margin-bottom:10px;font-size:13px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}.items{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin:8px 0;}.notes{background:#fff3cd;padding:6px 8px;margin:8px 0;font-size:12px;border-left:3px solid #ffc107;}.ftr{text-align:center;margin-top:10px;font-size:10px;color:#888;}hr{border:none;border-top:1px dashed #ccc;margin:8px 0;}.bl{text-align:center;margin:6px 0;font-size:11px;letter-spacing:1px;}</style></head><body>');
     w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');
-    w.document.write('<div class="meta"><p><strong>Table:</strong> '+(d.table||'---')+'</p><p><strong>Source:</strong> '+(d.order_source||'Walk-in')+'</p>');
+    w.document.write('<div class="meta"><p><strong>Table:</strong> '+((d.table||'').split('-').pop()||'---')+'</p><p><strong>Source:</strong> '+(d.order_source||'Walk-in')+'</p>');
     if(d.waiter_name) w.document.write('<p><strong>Waiter:</strong> '+d.waiter_name+'</p>');
     w.document.write('<p><strong>'+ds+' '+ts+'</strong></p></div>');
     w.document.write('<div class="items"><table>'+ih+'</table></div>');
@@ -1122,10 +1322,18 @@ async function downloadKOTPDF() {
         <div class="id-reviews" id="idReviews"><h4>⭐ Customer Reviews</h4><div id="idReviewsList"><div class="id-rw-empty">No reviews yet</div></div></div>
       </div>
     </div>
+    <div class="id-ta">
+      <span class="id-ta-label">🛍️ Takeaway <span style="font-size:0.72rem;color:#9CA3AF;font-weight:500;">(pack to go — no service charge)</span></span>
+      <div class="id-ta-switch" id="idTaSwitch" onclick="idToggleTA()"></div>
+    </div>
+    <div style="padding:10px 16px 0;">
+      <input type="text" id="idNotes" maxlength="140" placeholder="Special note for this item (e.g. no chili)…"
+        style="width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid #E5E7EB;border-radius:12px;font-size:0.9rem;outline:none;background:#F9FAFB;">
+    </div>
     <div class="id-footer">
       <div class="idf-qty">
         <button class="idfm" onclick="idModQty(-1)">−</button>
-        <span id="idQty">0</span>
+        <span id="idQty">1</span>
         <button class="idfp" onclick="idModQty(1)">+</button>
       </div>
       <button class="idf-remove" id="idRemoveBtn" onclick="idRemoveItem()" style="display:none;">Remove</button>
@@ -1134,6 +1342,28 @@ async function downloadKOTPDF() {
   </div>
 </div>
 
+<script>
+// ── activity trail (lfact.js) ──
+// Same pattern as pos2: the cart handlers above are untouched; LFAct wraps them
+// and records the running order total on either side of each tap, so a waiter's
+// double-add shows up on the bill timeline in /activity.
+try{ if(window.LFAct){
+  const _wTot=()=>{ const rm=getRateMap(); const sub=cartSubtotal(rm);
+    const scB=cart.reduce((s,l)=>s+(l.takeaway?0:(rm[l.code]||0)*l.qty),0);
+    return sub + Math.round(scB*SERVICE_CHARGE_RATE)/100; };
+  LFAct.wrapCart({
+    total:_wTot,
+    order:()=>currentOrder||null,
+    table:()=>document.getElementById('tableSel')?document.getElementById('tableSel').value:null,
+    name:c=>getNameMap()[c]||c,
+    rate:c=>getRateMap()[c]||0
+  },{ addItem:'cart.add', quickAdd:'cart.add', removeItem:'cart.remove',
+      previewQty:a=>{ const l=cart.find(x=>x.lid===a[0])||{}; const d=Number(a[1])||0;
+        return {action:d<0?'cart.dec':'cart.inc', item:l.code||'', qty:d,
+                label:(d<0?'Qty −':'Qty +')+' '+((getNameMap()[l.code])||l.code||'')}; }, idAddToCart:'cart.add_detail', idRemoveItem:'cart.remove',
+      idToggleTA:'cart.takeaway', resetOrder:'cart.clear' });
+} }catch(e){}
+</script>
 <script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(e){console.error("SW reg failed:",e)})}</script>
 </body>
 </html>

@@ -43,6 +43,12 @@ def get_context(context):
         if active_menu:
             menu = frappe.get_doc("Restaurant Menu", active_menu)
             if menu.enabled:
+                # add-on mappings (POS Item Addon rows; manage from Desk: /app/pos-item-addon)
+                addon_map = {}
+                if frappe.db.exists("DocType", "POS Item Addon"):
+                    for r in frappe.get_all("POS Item Addon", filters={"enabled": 1},
+                                            fields=["item", "addon_item"]):
+                        addon_map.setdefault(r.item, []).append(r.addon_item)
                 items = []
                 for item_row in menu.items:
                     item_code = item_row.item
@@ -56,6 +62,7 @@ def get_context(context):
                         "image": item_doc.image or "",
                         "rate": _resolve_item_rate(item_code, item_row.rate, price_list),
                         "group": item_doc.item_group or "General",
+                        "addons": ",".join(addon_map.get(item_code, [])),
                     }
                     items.append(entry)
 

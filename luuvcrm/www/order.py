@@ -1,5 +1,6 @@
 import frappe
 from itertools import groupby
+from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
 login_required = False
@@ -31,7 +32,7 @@ def get_context(context):
                         "code": row.item,
                         "name": doc.item_name or row.item,
                         "image": doc.image or "",
-                        "rate": row.rate or 0,
+                        "rate": _resolve_item_rate(row.item, row.rate, _get_pos_price_list()),
                         "group": doc.item_group or "General",
                     })
                 items.sort(key=lambda x: (x["group"], x["rate"]))

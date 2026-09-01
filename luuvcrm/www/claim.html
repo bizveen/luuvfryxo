@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Claim your free meal · Luuv Fryxo</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<meta name="theme-color" content="#F15207">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;
+  --gray-50:#FAF8F6;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;--gray-500:#837A70;--gray-700:#423D38;--gray-900:#1A1714;
+  --green-500:#1E9E5A;--red-500:#E23D3D;
+  --color-primary:var(--orange-500);--text-strong:var(--gray-900);--text-body:var(--gray-700);--text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);--border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --font-display:'Poppins',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;--font-mono:'DM Mono',ui-monospace,monospace;
+  --radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-pill:999px;
+  --shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);--shadow-brand:0 8px 22px rgba(241,82,7,.30);
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0;font-family:var(--font-body);color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased;}
+.wrap{min-height:100vh;display:flex;align-items:flex-start;justify-content:center;}
+.card{width:430px;max-width:100%;min-height:100vh;background:var(--surface-card);box-shadow:0 0 60px rgba(20,18,16,.07);display:flex;flex-direction:column;}
+.hero{background:var(--orange-500);color:#fff;padding:46px 28px 38px;border-radius:0 0 var(--radius-xl) var(--radius-xl);}
+.body{flex:1;padding:26px 28px 40px;}
+label{display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;}
+input{width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:13px 15px;font-size:15px;color:var(--text-strong);outline:none;margin-bottom:14px;background:#fff;font-family:inherit;}
+input:focus{border-color:var(--orange-500);}
+input.pin{font-family:var(--font-mono);font-size:22px;letter-spacing:.4em;}
+.lf-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-display);font-weight:700;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);cursor:pointer;width:100%;height:52px;font-size:16px;box-shadow:var(--shadow-brand);}
+.lf-btn:disabled{opacity:.55;}
+.chip{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.16);border-radius:var(--radius-pill);padding:8px 14px;font-size:13px;font-weight:700;}
+.err{display:none;color:var(--red-500);font-size:13px;font-weight:600;margin-bottom:12px;}
+.spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+
+  {% if valid %}
+  <div class="hero">
+    <div style="font-size:44px;line-height:1;margin-bottom:12px;">🎁</div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:29px;line-height:1.12;letter-spacing:-.02em;">Free {{ item_name }}<br>reserved for you!</div>
+    <div style="margin-top:16px;"><span class="chip">✅ WhatsApp number confirmed · <span style="font-family:var(--font-mono);">{{ phone }}</span></span></div>
+  </div>
+
+  <div class="body">
+    <div id="formView" {% if already_registered %}style="display:none;"{% endif %}>
+      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);margin-bottom:4px;">Save your details</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:20px;line-height:1.5;">20 seconds — then your free {{ item_name }} is added to your first order automatically.</div>
+      <label>Your name</label>
+      <input type="text" id="cName" placeholder="Name" autocomplete="name">
+      <label>Address</label>
+      <input type="text" id="cAddr" placeholder="No. 12, Temple Road…" autocomplete="street-address">
+      <label>Area / Town</label>
+      <input type="text" id="cArea" placeholder="e.g. Kandy, Kurunegala…" autocomplete="address-level2">
+      <label>Create a 4-digit PIN <span style="font-weight:400;color:var(--text-faint);">(to sign in to the app)</span></label>
+      <input type="password" id="cPin" class="pin" inputmode="numeric" maxlength="4" placeholder="••••" oninput="this.value=this.value.replace(/\D/g,'')">
+      <label>Confirm PIN</label>
+      <input type="password" id="cPin2" class="pin" inputmode="numeric" maxlength="4" placeholder="••••" oninput="this.value=this.value.replace(/\D/g,'')">
+      <div class="err" id="cErr"></div>
+      <button class="lf-btn" id="cBtn" onclick="saveDetails()">Lock in my free {{ item_name }} 🎁</button>
+      <div style="margin-top:18px;font-size:12.5px;color:var(--text-faint);line-height:1.5;">One free {{ item_name }} per customer, on your first app order. 📍 Pickup only — collect at our Kurunegala outlet (no delivery).</div>
+    </div>
+
+    <div id="doneView" {% if not already_registered %}style="display:none;"{% endif %}>
+      <div style="text-align:center;padding:20px 0 10px;">
+        <div style="font-size:52px;">🎉</div>
+        <div style="font-family:var(--font-display);font-weight:800;font-size:22px;color:var(--text-strong);margin-top:10px;">{% if already_registered %}You're already set!{% else %}Details saved!{% endif %}</div>
+        <div style="font-size:14.5px;color:var(--text-muted);margin-top:8px;line-height:1.55;">Your <b>free {{ item_name }}</b> is locked in — added to your first order automatically.</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:12px;">
+          <div style="display:inline-flex;align-items:center;gap:6px;background:var(--orange-50);color:var(--orange-700);border-radius:var(--radius-pill);padding:8px 14px;font-size:12.5px;font-weight:700;">⏰ Free meal — for a time within 6 hours</div>
+          <div style="display:inline-flex;align-items:center;gap:6px;background:var(--orange-50);color:var(--orange-700);border-radius:var(--radius-pill);padding:8px 14px;font-size:12.5px;font-weight:700;">📍 Pickup only — collect at our Kurunegala outlet</div>
+        </div>
+      </div>
+      <div style="margin-top:22px;"><button class="lf-btn" onclick="location.href='/cus'">Order now 🍔</button></div>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="hero" style="background:var(--gray-900);">
+    <div style="font-size:44px;line-height:1;margin-bottom:12px;">🤔</div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:26px;line-height:1.15;">This claim link isn't valid</div>
+  </div>
+  <div class="body">
+    <div style="font-size:14.5px;color:var(--text-muted);line-height:1.6;margin-bottom:22px;">This link may be expired or invalid. Scan the sticker QR again and send the WhatsApp message — we'll send you a fresh link.</div>
+    <button class="lf-btn" onclick="location.href='/cus'">Open the app</button>
+  </div>
+  {% endif %}
+
+</div></div>
+
+<script>
+const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+const PHONE="{{ phone }}", CODE="{{ code }}";
+function cErr(m){ const e=document.getElementById('cErr'); if(!e) return; e.textContent=m; e.style.display=m?'block':'none'; }
+async function saveDetails(){
+  const name=(document.getElementById('cName').value||'').trim();
+  const addr=(document.getElementById('cAddr').value||'').trim();
+  const area=(document.getElementById('cArea').value||'').trim();
+  const pin=document.getElementById('cPin').value, pin2=document.getElementById('cPin2').value;
+  if(!name){ cErr('Enter your name'); return; }
+  if(!area){ cErr('Enter your area / town'); return; }
+  if(pin.length!==4){ cErr('PIN must be 4 digits'); return; }
+  if(pin!==pin2){ cErr('PINs do not match'); return; }
+  const btn=document.getElementById('cBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>'; cErr('');
+  try{
+    const p=new URLSearchParams(); p.set('csrf_token',CSRF); p.set('phone',PHONE); p.set('code',CODE); p.set('name',name); p.set('pin',pin); p.set('address',addr); p.set('area',area);
+    const r=await fetch('/api/method/luuvcrm.api.claim_save_details',{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Frappe-CSRF-Token':CSRF},body:p});
+    const d=await r.json(); const m=d.message;
+    if(m&&m.ok){
+      if(m.token){ try{ localStorage.setItem('lf_token',m.token); localStorage.setItem('lf_mobile',PHONE); localStorage.setItem('lf_name',m.name||name); }catch(e){} }
+      document.getElementById('formView').style.display='none';
+      document.getElementById('doneView').style.display='block';
+      window.scrollTo(0,0);
+    } else { cErr((m&&m.error)||'Could not save — try again'); }
+  }catch(e){ cErr('Connection error — try again'); }
+  btn.disabled=false; btn.textContent='Lock in my free {{ item_name }} 🎁';
+}
+</script>
+</body>
+</html>

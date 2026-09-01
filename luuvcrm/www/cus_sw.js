@@ -1,5 +1,5 @@
 // Luuv Fryxo Customer App — service worker (PWA shell)
-const CACHE = 'lf-app-v1';
+const CACHE = 'lf-app-v3';
 
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 
@@ -12,8 +12,8 @@ self.addEventListener('fetch', (e) => {
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req)
-        .then((res) => { const c = res.clone(); caches.open(CACHE).then((ca) => ca.put('/app', c)); return res; })
-        .catch(() => caches.match('/app'))
+        .then((res) => { const c = res.clone(); caches.open(CACHE).then((ca) => ca.put('/cus', c)); return res; })
+        .catch(() => caches.match('/cus'))
     );
     return;
   }

@@ -224,7 +224,8 @@ function renderCard(o, col) {
   const tc = timerClass(o.minutes);
   const isNew = !knownOrders.has(o.name) && knownOrders.size > 0;
 
-  const itemRows = items.map(i => `<div class="kci-row"><div class="kci-qty">${i.qty}</div><div class="kci-name">${escHtml(i.item)}</div></div>`).join('');
+  const itemRows = items.map(i => `<div class="kci-row"><div class="kci-qty">${i.qty}</div><div class="kci-name">${escHtml(i.item)}${i.notes?`<div style="font-size:12px;color:#b45309;font-style:italic;font-weight:600;">↳ ${escHtml(i.notes)}</div>`:''}</div></div>`).join('');
+  const preHtml = o.scheduled_time ? `<div style="display:inline-flex;align-items:center;gap:5px;background:#FDF1DC;color:#9a6207;border:1px solid #F0A323;border-radius:999px;padding:4px 11px;font-weight:800;font-size:12px;margin:4px 0 2px;">⏰ PRE-ORDER · ${fmtSched(o.scheduled_time)}</div>` : '';
   const notesHtml = o.notes ? `<div class="kc-notes">📝 ${escHtml(o.notes)}</div>` : '';
   const sourceHtml = isWaiter ? `<span class="kc-source waiter">🙋 Waiter</span>` : isKiosk ? `<span class="kc-source kiosk">🏪 Kiosk</span>` : `<span class="kc-source">🚶 Walk-in</span>`;
   const newBadge = col==='pending' && o.seconds < 30 ? `<span class="kc-new-badge">NEW</span>` : '';
@@ -267,11 +268,14 @@ function renderCard(o, col) {
       <div class="kc-timer ${tc}">${o.minutes}m</div>
     </div>
     <div class="kc-meta">${sourceHtml}<span class="kc-time">${escHtml(o.time_ago)}</span></div>
+    ${preHtml}
     <div class="kc-items">${itemRows}</div>
     ${notesHtml}
     ${actions}
   </div>`;
 }
+function fmtSched(s){ try{ const d=new Date(String(s).replace(' ','T'));
+  return d.toLocaleString(undefined,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true}); }catch(e){ return String(s).slice(0,16); } }
 
 // ─── Kanban columns ────────────────────────────
 const COLUMNS = [
@@ -468,7 +472,7 @@ async function printKOT(orderName) {
     const now = new Date();
     const ds = now.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
     const ts = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-    let ih = d.items.map(i => '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+'</td></tr>').join('');
+    let ih = d.items.map(i => { var nt = i.notes ? '<div style="font-size:12px;font-weight:normal;font-style:italic;">↳ '+escHtml(i.notes)+'</div>' : ''; return '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;vertical-align:top;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+nt+'</td></tr>'; }).join('');
     var w = window.open('','_blank','width=300,height=500');
     w.document.write('<!DOCTYPE html><html><head><title>KOT - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .kl{font-size:11px;color:#333;font-weight:bold;margin:4px 0 0;}.hdr h3{margin:4px 0 0;font-size:14px;}.meta{text-align:center;margin-bottom:10px;font-size:13px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}.items{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin:8px 0;}hr{border:none;border-top:1px dashed #ccc;margin:8px 0;}.bl{text-align:center;margin:6px 0;font-size:11px;letter-spacing:1px;}.ftr{text-align:center;margin-top:10px;font-size:10px;color:#888;}</style></head><body>');
     w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');

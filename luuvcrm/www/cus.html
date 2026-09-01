@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>{{ restaurant_name or "Luuv Fryxo" }}</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
-<link rel="manifest" href="/app_manifest.json">
+<link rel="manifest" href="/cus_manifest.json">
 <meta name="theme-color" content="#F15207">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -170,6 +170,10 @@ input,button{font-family:inherit;}
 
     <!-- ═══ ORDER TAB ═══ -->
     <div id="tabOrder">
+      <div id="promoBar" style="display:none;align-items:center;gap:10px;background:var(--orange-50);border:1.5px solid var(--orange-200);border-radius:var(--radius-lg);padding:11px 14px;margin-bottom:12px;">
+        <span style="font-size:20px;flex:none;">🎁</span>
+        <span id="promoBarTxt" style="font-size:13px;font-weight:700;color:var(--orange-700);line-height:1.35;"></span>
+      </div>
       <div class="search">
         <i data-lucide="search" style="width:18px;height:18px;color:var(--text-muted);"></i>
         <input type="text" id="searchInput" placeholder="Search the menu…" oninput="filterItems()">
@@ -223,6 +227,10 @@ input,button{font-family:inherit;}
     <!-- ═══ ACCOUNT TAB ═══ -->
     <div id="tabAccount" style="display:none;">
       <div class="disp" style="font-size:21px;margin-bottom:14px;">Account</div>
+      <div id="promoClaim" style="display:none;align-items:center;gap:11px;background:var(--orange-50);border:1.5px solid var(--orange-200);border-radius:var(--radius-lg);padding:13px 15px;margin-bottom:14px;">
+        <span style="font-size:23px;flex:none;">🎁</span>
+        <span id="promoClaimTxt" style="font-size:13.5px;font-weight:700;color:var(--orange-700);line-height:1.45;"></span>
+      </div>
       <div id="accountBody"></div>
     </div>
 
@@ -257,6 +265,11 @@ input,button{font-family:inherit;}
     <div style="display:flex;justify-content:space-between;font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);margin:14px 0 16px;">
       <span>Total</span><span class="mono" style="font-weight:500;" id="cartTotal">Rs 0</span>
     </div>
+    <div id="pickupNote" style="display:none;background:var(--orange-50);color:var(--orange-700);border-radius:var(--radius-md);padding:10px 12px;font-size:12.5px;font-weight:600;line-height:1.5;margin-bottom:14px;">📍 Your free meal is <b>pickup only</b> — collect it at our <b><span id="pickupOutlet">Kurunegala</span></b> outlet (no delivery).</div>
+    <div class="field" id="schedField" style="display:none;margin-bottom:14px;">
+      <label>⏰ When do you want it? <span style="color:var(--text-faint);font-weight:500;">(optional — free meal is within 6 hrs)</span></label>
+      <input type="datetime-local" id="schedTime">
+    </div>
     <div class="field" id="checkoutPhoneField" style="margin-bottom:14px;">
       <label>Phone number <span style="color:var(--text-faint);font-weight:500;">(for tracking & cashback)</span></label>
       <input type="tel" id="checkoutPhone" inputmode="numeric" placeholder="07X XXX XXXX" maxlength="10">
@@ -264,6 +277,48 @@ input,button{font-family:inherit;}
     <div class="err" id="checkoutErr"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span></span></div>
     <button class="lf-btn" id="placeBtn" onclick="placeOrder()" style="margin-top:4px;">Place order</button>
     <div style="text-align:center;font-size:12px;color:var(--text-faint);margin-top:12px;">We'll text you a tracking link on WhatsApp.</div>
+  </div>
+</div>
+
+<!-- Free-item landing popup (shown once per load when a promo is pending) -->
+<div class="overlay" id="freePopup" onclick="if(event.target===this)closeFreePopup()">
+  <div class="sheet" style="text-align:center;">
+    <div class="grab"></div>
+    <div style="font-size:56px;margin:6px 0 4px;">🎁</div>
+    <div class="disp" style="font-size:22px;color:var(--text-strong);">You have a FREE <span id="fpItem">meal</span>!</div>
+    <div style="font-size:14px;color:var(--text-muted);margin:10px 0 8px;line-height:1.55;">It's added to your first order automatically — order now!</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin:6px 0 16px;">
+      <div style="display:inline-flex;align-items:center;gap:7px;background:var(--orange-50);color:var(--orange-700);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:700;">⏰ Free meal — for a time within 6 hours</div>
+      <div style="display:inline-flex;align-items:center;gap:7px;background:var(--orange-50);color:var(--orange-700);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:700;">📍 Pickup only — collect at our <span id="fpOutlet">Kurunegala</span> outlet</div>
+    </div>
+    <button class="lf-btn" onclick="fpOrder()">Order now 🍔</button>
+    <button class="lf-btn ghost" onclick="closeFreePopup()" style="margin-top:10px;">Later</button>
+  </div>
+</div>
+
+<!-- WhatsApp order-confirmation popup (order is held until the message is sent) -->
+<div class="overlay" id="waConfirmPop" onclick="if(event.target===this)closeWaPop()">
+  <div class="sheet" style="text-align:center;">
+    <div class="grab"></div>
+    <div style="font-size:52px;margin:6px 0 4px;">📲</div>
+    <div class="disp" style="font-size:20px;color:var(--text-strong);">One last step!</div>
+    <div style="font-size:14px;color:var(--text-muted);margin:10px 0 16px;line-height:1.55;">To confirm order <b id="waOrdNo"></b>, <b>send</b> the WhatsApp message — only then does it go to the kitchen.</div>
+    <button class="lf-btn" id="waConfirmBtn">Confirm on WhatsApp ✅</button>
+    <button class="lf-btn ghost" onclick="closeWaPop()" style="margin-top:10px;">Later</button>
+  </div>
+</div>
+
+<!-- Complete-your-profile sheet (shown on load when name/address/area missing) -->
+<div class="overlay" id="profOverlay" onclick="if(event.target===this)closeProf()">
+  <div style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:20px 20px 30px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;"></div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--text-strong);margin-bottom:4px;">📍 Complete your profile</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.5;">For delivery & offers — add your name, address and area. (No need for another WhatsApp code!)</div>
+    <div class="field" style="margin-bottom:12px;"><label>Your name</label><input type="text" id="pfName" placeholder="Name"></div>
+    <div class="field" style="margin-bottom:12px;"><label>Address</label><input type="text" id="pfAddr" placeholder="No. 12, Temple Road…"></div>
+    <div class="field" style="margin-bottom:16px;"><label>Area / Town</label><input type="text" id="pfArea" placeholder="e.g. Kandy, Kurunegala…"></div>
+    <button class="lf-btn" id="pfBtn" onclick="saveProf()">Save my details</button>
+    <button class="lf-btn ghost" onclick="closeProf()" style="margin-top:10px;">Later</button>
   </div>
 </div>
 
@@ -275,12 +330,14 @@ let _token = localStorage.getItem('lf_token') || '';
 let _mobile = localStorage.getItem('lf_mobile') || '';
 let _name = localStorage.getItem('lf_name') || '';
 let _ref = "{{ ref_code }}" || localStorage.getItem('lf_ref') || '';
+let _promo = "{{ promo_code }}" || localStorage.getItem('lf_promo') || '';
 const PREFILL_PHONE = "{{ prefill_phone }}";
 let tab = 'order';
 let cart = {};            // code -> qty
 let _loy = null;          // cached loyalty info
 
 if (_ref) localStorage.setItem('lf_ref', _ref);
+if (_promo) localStorage.setItem('lf_promo', _promo);
 
 function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
 function isAuthed(){ return !!_token; }
@@ -348,7 +405,18 @@ function syncCart(){
   document.getElementById('cartTotal').textContent='Rs '+nf(tot);
   const pb=document.getElementById('placeBtn'); if(pb) pb.disabled = n===0;
 }
-function openCart(){ if(cartCount()===0) return; if(isAuthed()&&_mobile) document.getElementById('checkoutPhone').value=_mobile; document.getElementById('cartOverlay').classList.add('show'); icons(); }
+function openCart(){ if(cartCount()===0) return; if(isAuthed()&&_mobile) document.getElementById('checkoutPhone').value=_mobile;
+  // free meal: preferred time OPTIONAL, capped to within the window (now .. now+N hrs)
+  const sf=document.getElementById('schedField'), pn=document.getElementById('pickupNote');
+  if(_promoInfo&&_promoInfo.pending&&_promoInfo.max_time){
+    const now=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+    const mx=_promoInfo.max_time.replace(' ','T').slice(0,16);
+    const st=document.getElementById('schedTime'); st.min=now; st.max=mx;
+    if(st.value&&st.value>mx) st.value='';   // don't preselect; ASAP by default
+    sf.style.display='block';
+    if(pn){ const po=document.getElementById('pickupOutlet'); if(po&&_promoInfo.pickup_outlet) po.textContent=_promoInfo.pickup_outlet; pn.style.display='block'; }
+  } else { sf.style.display='none'; if(pn) pn.style.display='none'; }
+  document.getElementById('cartOverlay').classList.add('show'); icons(); }
 function closeCart(){ document.getElementById('cartOverlay').classList.remove('show'); }
 
 function setCategory(cat){
@@ -366,18 +434,31 @@ async function placeOrder(){
   const eb=document.getElementById('checkoutErr'); const em=eb.querySelector('span');
   if(phone.length<10){ em.textContent='Enter a valid 10-digit phone number'; eb.style.display='flex'; return; }
   const entries=Object.entries(cart); if(!entries.length) return;
+  // free meal: preferred time is OPTIONAL (blank = ASAP); if set it must be within the window
+  let sched='';
+  if(_promoInfo&&_promoInfo.pending){
+    const stv=document.getElementById('schedTime').value;
+    const mx=(_promoInfo.max_time||'').replace(' ','T').slice(0,16);
+    if(stv&&mx&&stv>mx){ em.textContent='⏰ Free meal is within '+(_promoInfo.window_hours||6)+' hours — pick an earlier time (or leave it blank for ASAP)'; eb.style.display='flex'; return; }
+    if(stv) sched=stv.replace('T',' ')+':00';
+  }
   const items=entries.map(([code,qty])=>({item:code,qty,rate:rateOf(code)}));
   const btn=document.getElementById('placeBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>'; eb.style.display='none';
   // attach referral first (best-effort) so the referrer earns cashback on this order
   if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{mobile:phone,ref_code:_ref}); }catch(e){} localStorage.removeItem('lf_ref'); _ref=''; }
   let res;
-  try{ res=await _post('luuvcrm.api.kiosk_place_order',{items:JSON.stringify(items),customer_name:_name||'Online Guest',mobile:phone}); }
+  try{ res=await _post('luuvcrm.api.kiosk_place_order',{items:JSON.stringify(items),customer_name:_name||'Online Guest',mobile:phone,scheduled_time:sched,wa_confirm:'1'}); }
   catch(e){ btn.disabled=false; btn.textContent='Place order'; em.textContent='Connection error — please try again'; eb.style.display='flex'; return; }
   btn.disabled=false; btn.textContent='Place order';
   if(res && res.message && res.message.name){
     cart={}; syncCart(); closeCart();
-    toast('Order placed! 🎉 #'+res.message.name);
-    if(isAuthed()){ setTab('orders'); } else { toast('Order placed! Sign in to track it & earn cashback.'); }
+    if(res.message.promo_item){ toast('Order placed! 🎉 Free '+res.message.promo_item+' added 🎁'+(res.message.pickup_outlet?(' · 📍 collect at '+res.message.pickup_outlet):'')+(res.message.scheduled_time?(' · ⏰ '+res.message.scheduled_time.slice(0,16)):'')); }
+    else toast('Order placed! 🎉 #'+res.message.name);
+    promoBanner();
+    if(res.message.needs_wa_confirm && res.message.confirm_link){ openWaConfirm(res.message); }
+    else if(isAuthed()){ setTab('orders'); } else { toast('Order placed! Sign in to track it & earn cashback.'); }
+  } else if(res && res.message && res.message.error){
+    em.textContent=res.message.error; eb.style.display='flex';
   } else {
     em.textContent='Could not place order'; eb.style.display='flex';
   }
@@ -394,12 +475,17 @@ async function renderOrders(){
   const orders=d.orders||[];
   if(!orders.length){ body.innerHTML='<div class="empty"><span class="ic"><i data-lucide="receipt-text" style="width:26px;height:26px;color:var(--text-muted);"></i></span><div class="disp" style="font-size:16px;">No orders yet</div><div style="font-size:13px;">Your orders will show up here.</div></div>'; icons(); return; }
   body.innerHTML=orders.map(o=>{
-    const st=o.status||'Pending';
+    const awaiting=o.wa_status==='Awaiting Confirmation';
+    const st=awaiting?'Pending':(o.status||'Pending');
     const its=(o.items||[]).map(i=>esc((i.item_name||i.item))+' ×'+i.qty).join(' · ');
-    return '<div class="ord '+st+'"><div class="ohead"><span class="oid">#'+esc(o.name)+'</span><span class="pill '+st+'">'+esc(st)+'</span></div>'+
-      '<div class="ometa"><span>🪑 '+esc(o.table||'—')+'</span><span>🕐 '+esc(o.time_ago||'')+'</span></div>'+
+    const sched=o.scheduled_time?'<span>⏰ '+esc(String(o.scheduled_time).slice(0,16))+'</span>':'';
+    const confirmBtn=(awaiting&&o.confirm_link)?
+      '<div style="margin-top:10px;"><div style="font-size:12.5px;font-weight:700;color:var(--orange-700);margin-bottom:8px;">📲 Order not confirmed yet — send the WhatsApp message</div>'+
+      '<button class="lf-btn" style="height:42px;font-size:14px;" onclick="window.open(\''+o.confirm_link.replace(/'/g,"\\'")+'\',\'_blank\')">Confirm on WhatsApp ✅</button></div>':'';
+    return '<div class="ord '+st+'"><div class="ohead"><span class="oid">#'+esc(o.name)+'</span><span class="pill '+st+'">'+(awaiting?'Awaiting confirm':esc(st))+'</span></div>'+
+      '<div class="ometa"><span>🪑 '+esc(o.table||'—')+'</span><span>🕐 '+esc(o.time_ago||'')+'</span>'+sched+'</div>'+
       '<div class="oitems">'+its+'</div>'+
-      '<div class="ototal"><span>Total</span><span class="mono">Rs '+nf(o.grand_total)+'</span></div></div>';
+      '<div class="ototal"><span>Total</span><span class="mono">Rs '+nf(o.grand_total)+'</span></div>'+confirmBtn+'</div>';
   }).join('');
   icons();
 }
@@ -423,7 +509,7 @@ async function renderRewards(){
     if(g.message&&g.message.referral_code){ d.referral_code=g.message.referral_code; }
   }
   const s=d.settings||{};
-  const refUrl=window.location.origin+'/app?ref='+(d.referral_code||'');
+  const refUrl=window.location.origin+'/cus?ref='+(d.referral_code||'');
   body.innerHTML=
     '<div class="balcard"><div class="lab">Cashback balance</div><div class="amt">Rs '+nf(d.cashback_balance)+'</div>'+
       '<div class="sub"><div><div>Earned</div><div class="mono">Rs '+nf(d.total_earned)+'</div></div><div><div>Redeemed</div><div class="mono">Rs '+nf(d.total_redeemed)+'</div></div></div></div>'+
@@ -443,7 +529,7 @@ async function renderRewards(){
 }
 async function genCode(){ const g=await _call('luuvcrm.api.loyalty_generate_code',{mobile:_mobile}); if(g.message&&g.message.referral_code){ toast('Referral code ready!'); renderRewards(); } else toast('Could not create code'); }
 function copyCode(code){ navigator.clipboard.writeText(code).then(()=>toast('Code copied: '+code)).catch(()=>{}); }
-function shareRef(code){ const link=window.location.origin+'/app?ref='+code; const txt='Order from Luuv Fryxo with my code '+code+' 🍔'; if(navigator.share){ navigator.share({title:'Luuv Fryxo',text:txt,url:link}).catch(()=>{}); } else { navigator.clipboard.writeText(link).then(()=>toast('Referral link copied')).catch(()=>prompt('Copy this link:',link)); } }
+function shareRef(code){ const link=window.location.origin+'/cus?ref='+code; const txt='Order from Luuv Fryxo with my code '+code+' 🍔'; if(navigator.share){ navigator.share({title:'Luuv Fryxo',text:txt,url:link}).catch(()=>{}); } else { navigator.clipboard.writeText(link).then(()=>toast('Referral link copied')).catch(()=>prompt('Copy this link:',link)); } }
 async function doRedeem(){
   const amt=parseFloat(document.getElementById('redAmt').value)||0;
   const eb=document.getElementById('redErr'), ok=document.getElementById('redOk');
@@ -492,8 +578,39 @@ async function acctCheck(){
   const btn=document.getElementById('acBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
   const r=await _call('luuvcrm.api.customer_create_or_login',{mobile:phone});
   btn.disabled=false; btn.textContent='Continue';
-  if(r.message&&r.message.success){ if(r.message.exists) acctVerify(); else acctSetPin(); }
+  if(r.message&&r.message.success){ if(r.message.exists) acctVerify(); else acctStartOtp(); }
   else acErr((r.message&&r.message.error)||'Connection error');
+}
+// New number → confirm it really has WhatsApp before creating the account
+async function acctStartOtp(){
+  const btn=document.getElementById('acBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner"></span>'; }
+  let sent=false;
+  try{ const r=await _post('luuvcrm.api.wa_send_otp',{mobile:_mobile}); sent=!!(r.message&&r.message.sent); }catch(e){}
+  if(sent) acctOtp(); else acctSetPin();   // WhatsApp down → don't block signups
+}
+function acctOtp(){
+  document.getElementById('accountBody').innerHTML=
+    '<div class="panel"><h3>📲 Confirm your WhatsApp</h3>'+
+    '<div style="font-size:13.5px;color:var(--text-muted);margin-bottom:14px;">We sent a 4-digit code on WhatsApp to +94 '+esc(_mobile.slice(-9))+'. Enter it below to confirm the number.</div>'+
+    '<div class="field"><label>WhatsApp code</label><input type="tel" id="acOtp" class="pin" inputmode="numeric" maxlength="4" oninput="this.value=this.value.replace(/\\D/g,\'\')"></div>'+
+    '<div class="err" id="acErr"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span></span></div>'+
+    '<button class="lf-btn" id="acBtn" onclick="acctVerifyOtp()" style="margin-top:16px;">Confirm number</button>'+
+    '<button class="lf-btn ghost" onclick="acctResendOtp()" style="margin-top:10px;">Resend code</button>'+
+    '<button class="lf-btn ghost" onclick="acctPhone()" style="margin-top:10px;">Use a different number</button></div>';
+  document.getElementById('acOtp').focus(); icons();
+}
+async function acctVerifyOtp(){
+  const code=document.getElementById('acOtp').value;
+  if(code.length!==4){ acErr('Enter the 4-digit code from WhatsApp'); return; }
+  const btn=document.getElementById('acBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+  const r=await _post('luuvcrm.api.wa_verify_otp',{mobile:_mobile,code});
+  btn.disabled=false; btn.textContent='Confirm number';
+  if(r.message&&r.message.ok){ toast('Number confirmed ✅'); acctSetPin(); }
+  else acErr((r.message&&r.message.error)||'Wrong code');
+}
+async function acctResendOtp(){
+  try{ const r=await _post('luuvcrm.api.wa_send_otp',{mobile:_mobile}); toast((r.message&&r.message.sent)?'Code sent again 📲':'Could not send — try again'); }
+  catch(e){ toast('Connection error'); }
 }
 function acctVerify(){
   document.getElementById('accountBody').innerHTML=
@@ -542,7 +659,16 @@ async function saveSession(token,mobile,name){
   localStorage.setItem('lf_token',_token); localStorage.setItem('lf_mobile',_mobile); localStorage.setItem('lf_name',_name);
   // attach pending referral now that we know the mobile
   if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{mobile:_mobile,ref_code:_ref}); }catch(e){} localStorage.removeItem('lf_ref'); _ref=''; }
-  reflectAuth(); toast('Welcome'+(_name?', '+_name:'')+'! 🍔'); setTab('orders');
+  // attach a scanned sticker QR promo code → free meal on the first order
+  if(_promo){
+    try{ const pr=await _post('luuvcrm.api.promo_register',{mobile:_mobile,code:_promo}); const pm=pr&&pr.message;
+      if(pm&&pm.ok) toast('🎁 Free '+(pm.item_name||'meal')+' unlocked!'+(pm.whatsapp_sent?' Details sent on WhatsApp 📲':''));
+      else if(pm&&pm.error) toast(pm.error);
+    }catch(e){}
+    localStorage.removeItem('lf_promo'); _promo='';
+    const pc=document.getElementById('promoClaim'); if(pc) pc.style.display='none';
+  }
+  reflectAuth(); promoBanner(); toast('Welcome'+(_name?', '+_name:'')+'! 🍔'); setTab('orders'); profilePrompt();
 }
 function doLogout(go){ _token=''; _mobile=''; _name=''; localStorage.removeItem('lf_token'); localStorage.removeItem('lf_mobile'); localStorage.removeItem('lf_name'); reflectAuth(); if(go!==false) setTab('account'); }
 function logout(){ doLogout(true); toast('Signed out'); }
@@ -552,11 +678,89 @@ function reflectAuth(){
   icons();
 }
 
+/* ─────────── promo banner (registered QR → free meal pending) ─────────── */
+let _promoInfo=null, _popShown=false;
+async function promoBanner(){
+  const bar=document.getElementById('promoBar'); if(!bar) return;
+  const mob=_mobile||PREFILL_PHONE||'';   // ?phone= from the WhatsApp auto-reply link counts
+  if(!mob){ bar.style.display='none'; _promoInfo=null; return; }
+  try{ const r=await _call('luuvcrm.api.promo_status',{mobile:mob}); const m=r&&r.message;
+    if(m&&m.pending&&m.item_name){ _promoInfo=m;
+      document.getElementById('promoBarTxt').textContent='Free '+m.item_name+' on your first order — added automatically at checkout!';
+      bar.style.display='flex'; freePopupMaybe(m); }
+    else { _promoInfo=null; bar.style.display='none'; }
+  }catch(e){ bar.style.display='none'; }
+}
+// landing popup: "You have a FREE item!" — once per app load, pushes to the menu
+function freePopupMaybe(m){ if(_popShown) return; _popShown=true;
+  document.getElementById('fpItem').textContent=m.item_name||'meal';
+  const fo=document.getElementById('fpOutlet'); if(fo&&m.pickup_outlet) fo.textContent=m.pickup_outlet;
+  document.getElementById('freePopup').classList.add('show'); icons(); }
+function closeFreePopup(){ document.getElementById('freePopup').classList.remove('show'); }
+function fpOrder(){ closeFreePopup(); setTab('order'); window.scrollTo(0,0); }
+function openWaConfirm(m){ document.getElementById('waOrdNo').textContent='#'+m.name;
+  const b=document.getElementById('waConfirmBtn');
+  b.onclick=()=>{ window.open(m.confirm_link,'_blank'); closeWaPop(); if(isAuthed()) setTab('orders'); };
+  document.getElementById('waConfirmPop').classList.add('show'); icons(); }
+function closeWaPop(){ document.getElementById('waConfirmPop').classList.remove('show'); }
+
+/* ─────────── promo landing: opened via /cus?promo=CODE (old /app?promo= QRs redirect here) ─────────── */
+async function promoLanding(){
+  if(!_promo){ promoBanner(); return; }
+  try{
+    const r=await _call('luuvcrm.api.promo_check',{code:_promo}); const m=r&&r.message;
+    if(!m||(!m.valid&&!m.used)){ toast('Promo code not valid'); localStorage.removeItem('lf_promo'); _promo=''; }
+    else if(m.used){ toast('This promo QR was already used'); localStorage.removeItem('lf_promo'); _promo=''; }
+    else if(isAuthed()&&_mobile){
+      // already signed in → claim instantly (server WhatsApps the confirmation)
+      const pr=await _post('luuvcrm.api.promo_register',{mobile:_mobile,code:_promo}); const pm=pr&&pr.message;
+      if(pm&&pm.ok) toast('🎁 Free '+(pm.item_name||'meal')+' unlocked!'+(pm.whatsapp_sent?' Details sent on WhatsApp 📲':''));
+      else if(pm&&pm.error) toast(pm.error);
+      localStorage.removeItem('lf_promo'); _promo='';
+    } else {
+      // not signed in → land on the claim form with the prize on show
+      document.getElementById('promoClaimTxt').textContent='Free '+(m.item_name||'meal')+' waiting! Fill your details below to claim it — we\'ll confirm on WhatsApp.';
+      document.getElementById('promoClaim').style.display='flex';
+      setTab('account');
+    }
+  }catch(e){}
+  promoBanner();
+}
+
+/* ─────────── profile: collect name/address/area on load (one account per number) ─────────── */
+async function profilePrompt(){
+  if(!isAuthed()) return;
+  try{ const r=await _call('luuvcrm.api.customer_get_profile',{token:_token}); const m=r&&r.message;
+    if(m&&m.success&&!m.profile_complete){
+      document.getElementById('pfName').value=m.name||_name||'';
+      document.getElementById('pfAddr').value=m.address||'';
+      document.getElementById('pfArea').value=m.area||'';
+      document.getElementById('profOverlay').classList.add('show'); icons();
+    }
+  }catch(e){}
+}
+function closeProf(){ document.getElementById('profOverlay').classList.remove('show'); }
+async function saveProf(){
+  const name=(document.getElementById('pfName').value||'').trim();
+  const addr=(document.getElementById('pfAddr').value||'').trim();
+  const area=(document.getElementById('pfArea').value||'').trim();
+  if(!name){ toast('Enter your name'); return; }
+  if(!area){ toast('Enter your area / town'); return; }
+  const btn=document.getElementById('pfBtn'); btn.disabled=true;
+  try{ const r=await _post('luuvcrm.api.customer_update_profile',{token:_token,name,address:addr,area});
+    if(r.message&&r.message.success){ _name=name; localStorage.setItem('lf_name',_name); toast('Details saved ✅'); closeProf(); reflectAuth(); }
+    else toast((r.message&&r.message.error)||'Could not save');
+  }catch(e){ toast('Connection error'); }
+  btn.disabled=false;
+}
+
 /* ─────────── boot ─────────── */
 reflectAuth();
 syncCart();
+promoLanding();
+profilePrompt();
 icons();
-if('serviceWorker' in navigator){ navigator.serviceWorker.register('/app_sw.js',{scope:'/app'}).catch(()=>{}); }
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('/cus_sw.js',{scope:'/cus'}).catch(()=>{}); }
 </script>
 </body>
 </html>

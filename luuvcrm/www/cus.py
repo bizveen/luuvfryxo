@@ -1,22 +1,27 @@
 import frappe
 from itertools import groupby
+from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
 login_required = False
 
 
 def get_context(context):
-    """Customer PWA (/app). Guest-allowed — auth is the phone + 4-digit PIN
-    token scheme (customer_* / loyalty_* APIs), not the Frappe session.
+    """Customer PWA (/cus — moved off /app, which belongs to Frappe Desk;
+    previously /customer, shortened to /cus for WhatsApp/QR links).
+    Guest-allowed — auth is the phone + 4-digit PIN token scheme
+    (customer_* / loyalty_* APIs), not the Frappe session.
     Mirrors order.py for the menu and manager.py for the PWA shell."""
     context.no_sidebar = True
     context.no_header = True
     context.no_footer = True
     context.csrf_token = frappe.sessions.get_csrf_token()
 
-    # Deep-link params: ?ref=<referral_code> (referral) and ?phone=<mobile> (WhatsApp link)
+    # Deep-link params: ?ref=<referral_code> (referral), ?phone=<mobile> (WhatsApp link),
+    # ?promo=<sticker QR code> (free-meal campaign)
     context.ref_code = (frappe.form_dict.get("ref", "") or "").strip().upper()
     context.prefill_phone = (frappe.form_dict.get("phone", "") or "").strip()
+    context.promo_code = (frappe.form_dict.get("promo", "") or "").strip().upper()
 
     restaurant_name = frappe.get_value("Restaurant", {}, "name")
     context.restaurant_name = restaurant_name or "Luuv Fryxo"
@@ -37,7 +42,7 @@ def get_context(context):
                         "code": row.item,
                         "name": doc.item_name or row.item,
                         "image": doc.image or "",
-                        "rate": row.rate or 0,
+                        "rate": _resolve_item_rate(row.item, row.rate, _get_pos_price_list()),
                         "group": doc.item_group or "General",
                     })
                 items.sort(key=lambda x: (x["group"], x["rate"]))

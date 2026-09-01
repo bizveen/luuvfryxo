@@ -2777,21 +2777,38 @@ def get_guest_check_data(order_name):
 
 
 @frappe.whitelist()
-def get_kot_print_data(order_name):
-    """Return data for printing a Kitchen Order Ticket."""
+def get_kot_print_data(order_name, include_sent=0):
+    """Return data for printing a Kitchen Order Ticket.
+
+    By default only lines not yet fired to the kitchen come back, so a second
+    KOT on the same order shows just what was added since. That means an order
+    whose items have all been fired returns `items: []` — the caller must treat
+    that as "nothing new to fire" rather than as a printable ticket.
+
+    include_sent=1 asks for an explicit REPRINT: every line comes back at its
+    full qty regardless of sent_qty, for when the original ticket was lost or
+    unreadable. The response is flagged `reprint: 1` so the caller can stamp
+    the paper and, importantly, skip mark_kot_printed() — a reprint must not
+    move sent_qty or promote the order out of Draft.
+    """
     if not order_name:
         frappe.throw(_("Order name is required"))
+    # Whitelisted args arrive as strings ("1"/"0") when called over HTTP.
+    include_sent = int(include_sent or 0)
     doc = frappe.get_doc("POS Order", order_name)
     items = []
     for i in (doc.get("items") or []):
-        # Only items not yet fired to the kitchen (a re-print shows only newly added items).
-        new_qty = int(i.qty or 0) - int(i.get("sent_qty") or 0)
-        if new_qty <= 0:
+        if include_sent:
+            qty = int(i.qty or 0)
+        else:
+            # Only items not yet fired to the kitchen (a re-print shows only newly added items).
+            qty = int(i.qty or 0) - int(i.get("sent_qty") or 0)
+        if qty <= 0:
             continue
         items.append({
             "item": i.item,
             "item_name": i.item_name or i.item,
-            "qty": new_qty,
+            "qty": qty,
             "takeaway": int(i.get("takeaway") or 0),
         })
 
@@ -2803,6 +2820,12 @@ def get_kot_print_data(order_name):
         "order_source": doc.order_source or "Walk-in",
         "notes": doc.notes or "",
         "items": items,
+        "reprint": include_sent,
+        # How many lines the order has in total, regardless of sent_qty. Lets the
+        # caller tell "everything is already in the kitchen" (offer a reprint)
+        # apart from "this order is empty" (nothing to print at all) when items
+        # comes back empty.
+        "total_items": len(doc.get("items") or []),
         "creation": str(doc.creation),
     }
 
