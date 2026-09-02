@@ -683,13 +683,48 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       purch.forEach(a=>{ const k=a.date||'pending';
         const g=purchDayGroups[k]=purchDayGroups[k]||{key:k,label:a.date_label||a.date||'Pending purchases',items:[]};
         g.items.push(a); });
-      const dayKeys=Object.keys(purchDayGroups).sort().reverse();
 
-      feed.innerHTML='<div class="apprGrid" style="display:flex;flex-direction:column;gap:13px;">'
-        +dayKeys.map(k=>renderPurchaseDay(purchDayGroups[k])).join('')
-        +rest.map(renderApprovalCard).join('')+'</div>';
-      icons();
+      _apprView.all=all;
+      renderApprovalFeed();
     }catch(e){}
+  }
+
+  // ── feed assembly: newest-first interleave + type filter + date sort ─────
+  // The server hands approvals requested_at DESC, so walking that order and
+  // dropping each purchase DAY card at the position of its newest bill keeps
+  // true recency: a 5-seconds-ago edit sits above yesterday's purchases
+  // (day-cards used to be pinned to the top and bury it). The chips filter by
+  // type and the toggle flips the date order; both just re-render the cached
+  // list — no refetch.
+  let _apprView={type:'all',asc:false,all:null};
+  function apprSetType(t){ _apprView.type=(_apprView.type===t?'all':t); renderApprovalFeed(); }
+  function apprSetDir(){ _apprView.asc=!_apprView.asc; renderApprovalFeed(); }
+  function renderApprovalFeed(){
+    const all=_apprView.all; if(!all) return;
+    const feed=document.getElementById('approvalFeed');
+    const seen={}, entries=[];
+    all.forEach(a=>{
+      if(a.type==='bill'){ if(a.status!=='pending') return;
+        const k=a.date||'pending'; if(seen[k]) return; seen[k]=1; entries.push({g:k}); }
+      else entries.push({a:a});
+    });
+    let list=entries.filter(e=>_apprView.type==='all'?true:(e.g?_apprView.type==='bill':(e.a.type===_apprView.type)));
+    if(_apprView.asc) list=list.slice().reverse();
+
+    const counts={}; let pendTot=0;
+    all.forEach(a=>{ if(a.status==='pending'){ counts[a.type]=(counts[a.type]||0)+1; pendTot++; } });
+    const LBL={bill:'🧾 Purchases',edit:'✏️ Edits',discount:'🏷️ Discounts',void:'🚫 Voids',price:'💲 Prices',expense:'⚡ Expenses',item:'📷 Items'};
+    const chip=(t,label,n)=>{ const on=_apprView.type===t;
+      return `<button onclick="apprSetType('${t}')" style="border:1.5px solid ${on?'var(--color-primary)':'var(--border-default)'};background:${on?'var(--color-primary)':'var(--surface-card)'};color:${on?'#fff':'var(--text-body)'};border-radius:var(--radius-pill);padding:6px 12px;font-family:var(--font-display);font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap;">${label}${n?` · ${n}`:''}</button>`; };
+    const bar=`<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+        ${chip('all','All',pendTot)}
+        ${Object.keys(counts).sort().map(t=>chip(t,LBL[t]||t,counts[t])).join('')}
+        <button onclick="apprSetDir()" title="Flip the date order" style="margin-left:auto;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-muted);border-radius:var(--radius-pill);padding:6px 12px;font-family:var(--font-display);font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap;">${_apprView.asc?'Oldest first ↑':'Newest first ↓'}</button>
+      </div>`;
+    const empty='<div style="padding:40px 16px;text-align:center;color:var(--text-faint);font-size:13.5px;">Nothing matches this filter.</div>';
+    feed.innerHTML=bar+'<div class="apprGrid" style="display:flex;flex-direction:column;gap:13px;">'
+      +(list.length?list.map(e=>e.g?renderPurchaseDay(purchDayGroups[e.g]):renderApprovalCard(e.a)).join(''):empty)+'</div>';
+    icons();
   }
 
   // ── One card for a day's purchases ──
