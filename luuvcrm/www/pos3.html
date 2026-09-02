@@ -1024,6 +1024,28 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
   }
   function cartItemsPayload(){ const out=[]; Object.keys(cart).forEach(code=>{ linesFor(code,cart[code]).forEach(l=>out.push(l)); }); return out; }
   // Print the guest check (pre-bill) for the current ticket — the step before taking payment.
+  // A KOT, a guest check or a reprint takes a network round-trip and then another
+  // 350ms inside printDoc()/printRaw() before the paper actually moves. Cashiers
+  // read that gap as "it didn't take" and tap again — two kitchen sends, two bills.
+  // lfOnce() drops any re-entry of the same action while it is still running,
+  // greys the button that starts it, and keeps holding for a moment afterwards so
+  // the follow-up tap lands on a dead button. Guarding the print/send functions
+  // themselves (not the onclick) covers the drawer and every other caller too.
+  const _lfBusy={};
+  async function lfOnce(key,btnId,fn,hold){
+    if(_lfBusy[key]) return;
+    _lfBusy[key]=true;
+    const btn=btnId?document.getElementById(btnId):null;
+    if(btn) btn.disabled=true;
+    try{ return await fn(); }
+    finally{ setTimeout(()=>{ _lfBusy[key]=false; if(btn) btn.disabled=false; }, hold||1200); }
+  }
+
+  async function placeOrder(pay){
+    return lfOnce(pay?'charge':'kot', pay?'chargeBtn':'kotBtn', ()=>_placeOrder(pay));
+  }
+  async function voidZombie(i){ return lfOnce('voidZombie',null, ()=>_voidZombie(i)); }
+
   async function guestCheckClick(){
     if(!Object.keys(cart).length){ toast('Add items first'); return; }
     clearTimeout(_saveTimer); let g=0; while(_saving && g++<60){ await new Promise(r=>setTimeout(r,40)); }
@@ -1033,7 +1055,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
   }
   // Send the new items to the kitchen and print the KOT (kitchen ticket).
   function kotClick(){ placeOrder(false); }
-  async function placeOrder(pay){
+  async function _placeOrder(pay){
     if(!Object.keys(cart).length){ toast('Cart is empty'); return; }
     const table=document.getElementById('tableSel').value;
     if(orderType==='Dine In' && !table){ toast('Select a table'); return; }
@@ -1180,7 +1202,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
       _dupeList.map((o,i)=>dupeRowHtml(o,`<button class="lf-btn lf-btn--primary lf-btn--md" style="margin-top:10px;width:100%;" onclick="voidZombie(${i})">Send void request · #${shortNo(o.name)}</button>`)).join(''),
       `<button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('dupeModal')">Keep — separate bill</button>`);
   }
-  async function voidZombie(i){
+  async function _voidZombie(i){
     const o=_dupeList[i]; if(!o) return;
     const lines=(o.items||[]).map(it=>({qtyStr:it.qty+'×',name:it.item_name||it.item,totalStr:nfmt((it.rate||0)*it.qty)}));
     const details=JSON.stringify({lines:lines,footer_label:'Order total',footer_value:'Rs '+nfmt(o.grand_total||0)});
@@ -2558,6 +2580,24 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         +"font:700 10px/1 'DM Sans',sans-serif;padding:4px 10px;border-radius:0 0 8px 8px;";
       document.body.appendChild(chip);
     });
+  })();
+
+  // ── tap guards, installed last ────────────────────────────────────────
+  // The LFPrint bridge (and the print-only staging block) reassign
+  // printGuestCheck / printReceipt / reprintKOT at runtime, so wrapping the
+  // original declarations would be undone. Wrap whatever is bound at the end
+  // instead, and keep each key distinct from placeOrder's — _placeOrder()
+  // calls printKOT() itself, and sharing a key there would swallow the KOT.
+  (function lfInstallTapGuards(){
+    function wrap(name,key,btnId){
+      var orig=window[name];
+      if(typeof orig!=='function') return;
+      window[name]=function(){ var args=arguments;
+        return lfOnce(key,btnId,function(){ return orig.apply(null,args); }); };
+    }
+    wrap('printGuestCheck','guestCheck','guestCheckBtn');
+    wrap('printReceipt','receipt',null);
+    wrap('reprintKOT','reprintKot',null);
   })();
 </script>
 <div id="cartScrim" onclick="cartSheet(false)"></div>
