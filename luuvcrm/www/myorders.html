@@ -53,7 +53,7 @@
     .mo-spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.6s linear infinite; vertical-align:middle; }
     @keyframes spin { to{transform:rotate(360deg)} }
 
-    /* ── Loyalty ── */
+    /* ?????? Loyalty ?????? */
     .mo-tabs { display:flex; gap:0; width:100%; max-width:400px; margin-bottom:12px; background:#fff; border-radius:10px; overflow:hidden; border:1px solid #E5E7EB; }
     .mo-tab { flex:1; padding:9px 0; border:none; background:#fff; font-size:0.8rem; font-weight:600; color:#6B7280; cursor:pointer; font-family:inherit; transition:all 0.15s; }
     .mo-tab.active { background:#FF6B35; color:#fff; }
@@ -95,7 +95,7 @@
 
 <div class="mo-container" id="app">
   <div class="mo-header">
-    <h1>🍽️ Luuv Fryxo</h1>
+    <h1>??????? Luuv Fryxo</h1>
     <div class="sub">My Orders</div>
   </div>
   <div class="mo-body" id="screenArea"></div>
@@ -144,7 +144,7 @@ function render() {
 function _showPhone(area) {
   area.innerHTML = `
     <div class="mo-card">
-      <h2>📱 My Orders</h2>
+      <h2>???? My Orders</h2>
       <div class="hint">Enter your phone number to view your orders</div>
       <div class="mo-field">
         <label>Phone Number</label>
@@ -183,8 +183,8 @@ async function checkPhone() {
 function _showSetPin(phone, area) {
   area.innerHTML = `
     <div class="mo-card">
-      <h2>🔐 Create Your PIN</h2>
-      <div class="hint">📱 +94 ${escapeHtml(phone.slice(-9))}</div>
+      <h2>???? Create Your PIN</h2>
+      <div class="hint">???? +94 ${escapeHtml(phone.slice(-9))}</div>
       <div class="hint">Set a 4-digit PIN for quick access next time</div>
       <div class="mo-field">
         <label>Your Name (optional)</label>
@@ -201,7 +201,7 @@ function _showSetPin(phone, area) {
       <div class="mo-error" id="pinErr"></div>
       <button class="mo-btn" id="pinBtn" onclick="submitSetPin()">Create Account & View Orders</button>
     </div>
-    <button class="mo-back" onclick="render()">← Back</button>`;
+    <button class="mo-back" onclick="render()">??? Back</button>`;
   document.getElementById('pinInput').focus();
 }
 
@@ -245,7 +245,7 @@ function _checkAccount(area) {
 function _showPin(phone, area) {
   area.innerHTML = `
     <div class="mo-card">
-      <h2>🔐 Welcome Back</h2>
+      <h2>???? Welcome Back</h2>
       <div class="hint">Enter your PIN for ${escapeHtml(phone)}</div>
       <div class="mo-field">
         <label>4-digit PIN</label>
@@ -254,7 +254,7 @@ function _showPin(phone, area) {
       <div class="mo-error" id="pinErr"></div>
       <button class="mo-btn" id="pinBtn" onclick="submitPin()">View My Orders</button>
     </div>
-    <button class="mo-back" onclick="localStorage.removeItem('lf_mobile');_mobile='';render()">← Different number</button>`;
+    <button class="mo-back" onclick="localStorage.removeItem('lf_mobile');_mobile='';render()">??? Different number</button>`;
   document.getElementById('pinInput').focus();
 }
 
@@ -309,7 +309,7 @@ async function _showOrders(area) {
   const bal = _loyData && _loyData.success ? _loyData.cashback_balance || 0 : null;
   const cashbackHtml = bal !== null
     ? `<div style="width:100%;max-width:400px;background:#FFF5F0;border:1px solid #FF6B35;border-radius:10px;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span style="font-size:0.78rem;font-weight:600;color:#1F2937;">💰 Cashback Balance</span>
+        <span style="font-size:0.78rem;font-weight:600;color:#1F2937;">???? Cashback Balance</span>
         <span style="font-size:1.1rem;font-weight:800;color:#FF6B35;">LKR ${bal.toLocaleString()}</span>
       </div>`
     : '';
@@ -317,8 +317,8 @@ async function _showOrders(area) {
   // Header with tabs
   const header = document.createElement('div');
   header.style.cssText = 'width:100%;max-width:400px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;';
-  header.innerHTML = `<span style="font-size:0.85rem;font-weight:700;">👋 ${escapeHtml(data.orders?.[0]?.customer_name || 'Guest')}</span>
-    <span style="font-size:0.72rem;color:#9CA3AF;">📱 +94 ${escapeHtml(_mobile.slice(-9))}</span>
+  header.innerHTML = `<span style="font-size:0.85rem;font-weight:700;">???? ${escapeHtml(data.orders?.[0]?.customer_name || 'Guest')}</span>
+    <span style="font-size:0.72rem;color:#9CA3AF;">???? +94 ${escapeHtml(_mobile.slice(-9))}</span>
     <button style="background:none;border:none;color:#9CA3AF;font-size:0.72rem;cursor:pointer;text-decoration:underline;font-family:inherit;" onclick="logout()">Logout</button>`;
   area.appendChild(header);
   if (cashbackHtml) {
@@ -330,8 +330,8 @@ async function _showOrders(area) {
   // Tab bar
   const tabs = document.createElement('div');
   tabs.className = 'mo-tabs';
-  tabs.innerHTML = `<button class="mo-tab ${_activeTab==='orders'?'active':''}" onclick="switchMyTab('orders')">📋 Orders (${orders.length})</button>
-    <button class="mo-tab ${_activeTab==='loyalty'?'active':''}" onclick="switchMyTab('loyalty')">🎁 Rewards</button>`;
+  tabs.innerHTML = `<button class="mo-tab ${_activeTab==='orders'?'active':''}" onclick="switchMyTab('orders')">???? Orders (${orders.length})</button>
+    <button class="mo-tab ${_activeTab==='loyalty'?'active':''}" onclick="switchMyTab('loyalty')">???? Rewards</button>`;
   area.appendChild(tabs);
 
   // Content container
@@ -370,19 +370,19 @@ function _renderOrders(content) {
     if (!container) return;
 
     if (orders.length === 0) {
-      container.innerHTML = '<div class="mo-empty"><div class="icon">📋</div><p>No orders found</p></div>';
+      container.innerHTML = '<div class="mo-empty"><div class="icon">????</div><p>No orders found</p></div>';
       return;
     }
 
     orders.forEach(o => {
-      const itemText = o.items.map(i => `${escapeHtml(i.item_name || i.item)} ×${i.qty}`).join(' · ');
+      const itemText = o.items.map(i => `${escapeHtml(i.item_name || i.item)} ??${i.qty}`).join(' ?? ');
       const statusClass = o.status || 'Pending';
-      const statusLabel = statusClass === 'Pending' ? '⏳ Pending' : statusClass === 'Ready' ? '✅ Ready' : '✅ Served';
+      const statusLabel = statusClass === 'Pending' ? '??? Pending' : statusClass === 'Ready' ? '??? Ready' : '??? Served';
       const card = document.createElement('div');
       card.className = 'mo-order status-' + statusClass;
       card.innerHTML = `
         <div class="oo-top"><span class="oo-name">#${escapeHtml(o.name)}</span><span class="oo-status ${statusClass}">${statusLabel}</span></div>
-        <div class="oo-meta"><span>🪑 ${escapeHtml(o.table || '—')}</span><span>🕐 ${escapeHtml(o.time_ago)}</span></div>
+        <div class="oo-meta"><span>???? ${escapeHtml(o.table || '???')}</span><span>???? ${escapeHtml(o.time_ago)}</span></div>
         <div class="oo-items">${escapeHtml(itemText)}</div>
         <div class="oo-total"><span>Total</span><span>LKR ${(o.grand_total || 0).toLocaleString()}</span></div>`;
       container.appendChild(card);
@@ -393,7 +393,7 @@ function _renderOrders(content) {
 function _renderLoyalty(content) {
   const d = _loyData;
   if (!d || !d.success) {
-    content.innerHTML = '<div class="mo-empty"><div class="icon">🎁</div><p>Loyalty info not available</p></div>';
+    content.innerHTML = '<div class="mo-empty"><div class="icon">????</div><p>Loyalty info not available</p></div>';
     return;
   }
 
@@ -413,7 +413,7 @@ function _renderLoyalty(content) {
 
   content.innerHTML = `
     <div class="loy-card">
-      <h3>💰 Cashback Balance</h3>
+      <h3>???? Cashback Balance</h3>
       <div class="loy-bal">
         <div><span class="lb-amt">LKR ${(d.cashback_balance || 0).toLocaleString()}</span></div>
         <div><span class="lb-label">Earned: LKR ${(d.total_earned || 0).toLocaleString()}</span></div>
@@ -421,22 +421,22 @@ function _renderLoyalty(content) {
     </div>
 
     <div class="loy-card">
-      <h3>🔗 Your Referral Code</h3>
+      <h3>???? Your Referral Code</h3>
       <div class="loy-code-box">
         <span class="lc-code">${escapeHtml(d.referral_code)}</span>
         <button class="lc-copy" onclick="copyRefCode('${escapeHtml(d.referral_code)}')">Copy</button>
       </div>
       <div style="margin-bottom:8px;">
-        <button class="lc-copy" style="width:100%;padding:10px;font-size:0.82rem;border-radius:8px;" onclick="shareReferralLink('${escapeHtml(d.referral_code)}')">📤 Share Referral Link</button>
+        <button class="lc-copy" style="width:100%;padding:10px;font-size:0.82rem;border-radius:8px;" onclick="shareReferralLink('${escapeHtml(d.referral_code)}')">???? Share Referral Link</button>
       </div>
       <div class="loy-qr">
         <img src="${qrUrl}" alt="Referral QR" loading="lazy">
-        <div class="qr-label">Share this QR — friend gets 5% off!</div>
+        <div class="qr-label">Share this QR ??? friend gets 5% off!</div>
       </div>
     </div>
 
     <div class="loy-card">
-      <h3>💸 Redeem Cashback</h3>
+      <h3>???? Redeem Cashback</h3>
       <div class="loy-err" id="redeemErr"></div>
       <div class="loy-ok" id="redeemOk"></div>
       <div class="loy-redeem">
@@ -446,7 +446,7 @@ function _renderLoyalty(content) {
     </div>
 
     <div class="loy-card">
-      <h3>👥 Your Referrals (${d.downline_count || 0})</h3>
+      <h3>???? Your Referrals (${d.downline_count || 0})</h3>
       <div class="loy-downline">
         ${(d.downline && d.downline.length > 0)
           ? d.downline.map(dl => `<div class="ld-row"><span class="ld-name">${escapeHtml(dl.name)}</span><span class="ld-earned">LKR ${(dl.total_earned || 0).toLocaleString()}</span></div>`).join('')
@@ -475,7 +475,7 @@ function shareReferralLink(code) {
       .catch(() => {});
   } else {
     navigator.clipboard.writeText(link).then(() => {
-      alert('✅ Referral link copied!\n\nShare this with friends:\n' + link);
+      alert('??? Referral link copied!\n\nShare this with friends:\n' + link);
     }).catch(() => {
       prompt('Copy this link:', link);
     });
@@ -491,13 +491,13 @@ async function doRedeem() {
   if (amt <= 0) { err.textContent = 'Enter amount'; err.style.display = 'block'; return; }
 
   const btn = document.getElementById('redeemBtn');
-  btn.disabled = true; btn.textContent = '⏳';
+  btn.disabled = true; btn.textContent = '???';
 
   const res = await _call('luuvcrm.api.loyalty_redeem', { mobile: _mobile, amount: amt });
   btn.disabled = false; btn.textContent = 'Redeem';
 
   if (res.message?.success) {
-    ok.textContent = '✅ Redeemed! New balance: LKR ' + (res.message.new_balance || 0).toLocaleString();
+    ok.textContent = '??? Redeemed! New balance: LKR ' + (res.message.new_balance || 0).toLocaleString();
     ok.style.display = 'block';
     document.getElementById('redeemAmt').value = '';
     // Refresh loyalty info
@@ -527,3 +527,4 @@ render();
 </script>
 </body>
 </html>
+

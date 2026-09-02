@@ -308,9 +308,6 @@
 </head>
 <body>
 <meta name="csrf-token" content="{{ csrf_token }}">
-<!-- Loaded before this page's own script so it is listening when that throws. See /errors. -->
-<script src="/lferr.js?v=1" data-app="waiter"></script>
-<script src="/lfact.js?v=1" data-app="waiter"></script>
 
 <!-- Header -->
 <div class="w-header">
@@ -1342,28 +1339,6 @@ async function downloadKOTPDF() {
   </div>
 </div>
 
-<script>
-// ── activity trail (lfact.js) ──
-// Same pattern as pos2: the cart handlers above are untouched; LFAct wraps them
-// and records the running order total on either side of each tap, so a waiter's
-// double-add shows up on the bill timeline in /activity.
-try{ if(window.LFAct){
-  const _wTot=()=>{ const rm=getRateMap(); const sub=cartSubtotal(rm);
-    const scB=cart.reduce((s,l)=>s+(l.takeaway?0:(rm[l.code]||0)*l.qty),0);
-    return sub + Math.round(scB*SERVICE_CHARGE_RATE)/100; };
-  LFAct.wrapCart({
-    total:_wTot,
-    order:()=>currentOrder||null,
-    table:()=>document.getElementById('tableSel')?document.getElementById('tableSel').value:null,
-    name:c=>getNameMap()[c]||c,
-    rate:c=>getRateMap()[c]||0
-  },{ addItem:'cart.add', quickAdd:'cart.add', removeItem:'cart.remove',
-      previewQty:a=>{ const l=cart.find(x=>x.lid===a[0])||{}; const d=Number(a[1])||0;
-        return {action:d<0?'cart.dec':'cart.inc', item:l.code||'', qty:d,
-                label:(d<0?'Qty −':'Qty +')+' '+((getNameMap()[l.code])||l.code||'')}; }, idAddToCart:'cart.add_detail', idRemoveItem:'cart.remove',
-      idToggleTA:'cart.takeaway', resetOrder:'cart.clear' });
-} }catch(e){}
-</script>
 <script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(e){console.error("SW reg failed:",e)})}</script>
 </body>
 </html>

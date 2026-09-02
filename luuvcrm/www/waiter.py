@@ -1,5 +1,4 @@
 import frappe
-from frappe import _
 from itertools import groupby
 from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
@@ -27,16 +26,6 @@ def get_context(context):
         return
 
     user = frappe.session.user
-
-    # Role gate: mirror /pos (www/pos.py). Only floor/POS staff may open the waiter
-    # app. Blocks customer accounts (created via /cus) that would otherwise reach it,
-    # since the waiter APIs bypass DocType permissions and enforce nothing themselves.
-    allowed_roles = {'System Manager', 'Administrator', 'POS User', 'Sales User',
-                     'Cashier', 'Waiter', 'Restaurant Manager'}
-    if not (set(frappe.get_roles(user)) & allowed_roles):
-        frappe.throw(_("You do not have permission to access the Waiter app"),
-                     frappe.PermissionError)
-
     context.current_user_full = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()
 
     restaurant_name = frappe.get_value("Restaurant", {}, "name")

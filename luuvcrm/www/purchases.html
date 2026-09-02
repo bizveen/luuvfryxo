@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Luuv Fryxo Purchases</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
-<!-- First script on the page so it is listening before anything below can throw. See /errors. -->
-<script src="/lferr.js?v=1" data-app="purchases"></script>
 <link rel="manifest" href="/purchases_manifest.json">
 <meta name="theme-color" content="#F15207">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -130,11 +128,9 @@ input,button{font-family:inherit;}
     <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--color-primary);cursor:pointer;margin-bottom:20px;"><i data-lucide="image" style="width:15px;height:15px;"></i> Choose from gallery instead
       <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this,'bill')">
     </label>
-    <div id="scanRow" style="display:none;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-primary);margin:-10px 0 16px;"><i data-lucide="sparkles" style="width:15px;height:15px;"></i> <span>Reading bill…</span></div>
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">2 · Items &amp; purchase prices</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
     <div id="lineRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
-    <div id="aiUnmatchedWrap"></div>
 
     <button onclick="togglePicker()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="plus" id="pickerIcon" style="width:17px;height:17px;"></i> <span id="pickerLabel">Add item from list</span></button>
     <div id="pickerWrap" style="display:none;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:10px;overflow:hidden;"></div>
@@ -169,7 +165,6 @@ input,button{font-family:inherit;}
     <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--color-primary);cursor:pointer;margin-bottom:20px;"><i data-lucide="image" style="width:15px;height:15px;"></i> Choose from gallery instead
       <input id="expPhotoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this,'exp')">
     </label>
-    <div id="expScanRow" style="display:none;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-primary);margin:-10px 0 16px;"><i data-lucide="sparkles" style="width:15px;height:15px;"></i> <span>Reading bill…</span></div>
 
     <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">2 · What was it for?</div>
     <div style="display:flex;flex-direction:column;gap:14px;">
@@ -198,7 +193,6 @@ input,button{font-family:inherit;}
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='';
   let expStats={}, billStats={}, newExpReceipt='', expCats=[];
-  let aiUnmatched=[], aiPendingPrice=null, extractSeq=0;
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
   function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -273,7 +267,7 @@ input,button{font-family:inherit;}
   async function openExp(){
     ['ePayee','eAmount','eBillRef','eNote'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('eDate').value=new Date().toISOString().slice(0,10);
-    newExpReceipt=''; extractSeq++; scanMsg(true,false); const img=document.getElementById('expPhotoImg'); img.style.display='none'; img.removeAttribute('src');
+    newExpReceipt=''; const img=document.getElementById('expPhotoImg'); img.style.display='none'; img.removeAttribute('src');
     const _eph=document.getElementById('expPhotoHint'); _eph.style.display='block'; _eph.textContent='📷 Tap to snap the bill';
     document.getElementById('expErr').style.display='none'; paintExpTotal();
     document.getElementById('expOverlay').style.display='flex'; icons(); saveDraft();
@@ -284,7 +278,7 @@ input,button{font-family:inherit;}
     if(!expCats.length){ sel.innerHTML='<option value="">No categories</option>';
       expErrMsg2('Could not load categories — check your connection and reopen.'); } }
   function expErrMsg2(t){ const e=document.getElementById('expErr'); document.getElementById('expErrMsg').textContent=t; e.style.display='flex'; icons(); }
-  function closeExp(){ document.getElementById('expOverlay').style.display='none'; extractSeq++; clearDraft(); }
+  function closeExp(){ document.getElementById('expOverlay').style.display='none'; clearDraft(); }
 
   async function submitExpense(){ const err=document.getElementById('expErr'), em=document.getElementById('expErrMsg');
     const category=document.getElementById('eCategory').value;
@@ -333,11 +327,10 @@ input,button{font-family:inherit;}
   // ── Add bill ──
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
   function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
-    aiUnmatched=[]; aiPendingPrice=null; extractSeq++; scanMsg(false,false); renderUnmatched();
     document.getElementById('photoImg').style.display='none'; const _ph=document.getElementById('photoHint'); _ph.style.display='block'; _ph.textContent='📷 Tap to snap receipt'; document.getElementById('formErr').style.display='none';
     if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
-  function closeAdd(){ document.getElementById('addOverlay').style.display='none'; extractSeq++; clearDraft(); }
+  function closeAdd(){ document.getElementById('addOverlay').style.display='none'; clearDraft(); }
   function togglePicker(){ pickerOpen=!pickerOpen; renderPicker(); }
   function addLine(item){ const c=catalog.find(x=>x.item===item); if(!c) return; formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,qty:'1',price:String(c.price)}); renderLines(); renderPicker(); saveDraft(); }
   function removeLine(i){ formLines.splice(i,1); renderLines(); renderPicker(); saveDraft(); }
@@ -345,12 +338,12 @@ input,button{font-family:inherit;}
   // user types destroys the focused input, so the mobile keyboard closes after every digit.
   // Keep typing light (model + total only); refresh the Up/Down badge, border and line
   // total on blur via onchange="renderLines()" on the inputs (focus already gone by then).
-  function setQty(i,v){ formLines[i].qty=v; formLines[i].low=0; updateTotal(); saveDraft(); }
-  function setPrice(i,v){ formLines[i].price=v; formLines[i].low=0; updateTotal(); saveDraft(); }
+  function setQty(i,v){ formLines[i].qty=v; updateTotal(); saveDraft(); }
+  function setPrice(i,v){ formLines[i].price=v; updateTotal(); saveDraft(); }
   function renderLines(){ const wrap=document.getElementById('lineRows');
     wrap.innerHTML=formLines.map((l,i)=>{ const price=parseFloat(l.price)||0; const changed=l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
-      return `<div style="border:1.5px solid ${l.low?'var(--color-warning)':'var(--border-default)'};border-radius:var(--radius-md);padding:11px 12px;background:var(--surface-card);">
-        <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${l.name}${l.low?' <span class="badge warning">⚠ check</span>':''}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${l.unit}</div></div><button onclick="removeLine(${i})" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
+      return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 12px;background:var(--surface-card);">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${l.name}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${l.unit}</div></div><button onclick="removeLine(${i})" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
         <div style="display:flex;gap:8px;align-items:flex-end;">
           <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${l.unit})</div><input value="${l.qty}" oninput="setQty(${i},this.value)" onchange="renderLines()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
           <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">New price / ${l.unit}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${l.price}" oninput="setPrice(${i},this.value)" onchange="renderLines()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
@@ -394,14 +387,7 @@ input,button{font-family:inherit;}
     try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ const it=d.message;
         if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:''});
-        pickerQuery=''; addLine(it.item);
-        // Came from an AI-read line the price book didn't know — carry over the qty/price
-        // the model read off the receipt, still flagged for a human check.
-        if(aiPendingPrice){ const L=formLines[formLines.length-1];
-          if(L&&L.item===it.item){ if(aiPendingPrice.price!=null) L.price=String(aiPendingPrice.price);
-            if(aiPendingPrice.qty!=null) L.qty=String(aiPendingPrice.qty); L.low=1; renderLines(); saveDraft(); }
-          aiPendingPrice=null; }
-        toast(it.existed?'Item already existed — added':'Item created & added'); }
+        pickerQuery=''; addLine(it.item); toast(it.existed?'Item already existed — added':'Item created & added'); }
       else { toast((d.message&&d.message.message)||srvMsg(d,'Could not create item')); btn.disabled=false; } }
     catch(e){ toast('Connection error'); btn.disabled=false; } }
   // ── Draft persistence ──
@@ -414,7 +400,7 @@ input,button{font-family:inherit;}
   function sheetOpen(id){ return document.getElementById(id).style.display==='flex'; }
   function saveDraft(){ if(restoringDraft) return; try{
       let d=null;
-      if(sheetOpen('addOverlay')) d={sheet:'bill',lines:formLines,receipt:newReceipt,unmatched:aiUnmatched,
+      if(sheetOpen('addOverlay')) d={sheet:'bill',lines:formLines,receipt:newReceipt,
         vendor:document.getElementById('fVendor').value,note:document.getElementById('fNote').value,at:Date.now()};
       else if(sheetOpen('expOverlay')) d={sheet:'exp',receipt:newExpReceipt,
         category:document.getElementById('eCategory').value,payee:document.getElementById('ePayee').value,
@@ -430,11 +416,10 @@ input,button{font-family:inherit;}
       if(d.sheet==='bill'){
         openAdd();
         formLines=Array.isArray(d.lines)?d.lines:[]; newReceipt=d.receipt||'';
-        aiUnmatched=Array.isArray(d.unmatched)?d.unmatched:[];
         document.getElementById('fVendor').value=d.vendor||'';
         document.getElementById('fNote').value=d.note||'';
         if(newReceipt){ const img=document.getElementById('photoImg'); img.src=newReceipt; img.style.display='block'; document.getElementById('photoHint').style.display='none'; }
-        renderLines(); renderPicker(); renderUnmatched();
+        renderLines(); renderPicker();
       } else if(d.sheet==='exp'){
         setTab('expenses');
         await openExp();
@@ -454,81 +439,21 @@ input,button{font-family:inherit;}
   }
 
   // Camera photos are 3–10 MB; decoding + uploading one at full size is what
-  // pushes a 1–2 GB phone over the edge. Downscale to ≤2000px JPEG (~300–500 KB)
-  // before upload — small enough for a weak connection, still legible enough for the
-  // AI read on a long thermal receipt. Any failure falls back to the original file.
+  // pushes a 1–2 GB phone over the edge. Downscale to ≤1400px JPEG (~200–400 KB)
+  // before upload. Any failure falls back to the original file.
   async function shrinkPhoto(f){
     if(!/^image\//.test(f.type||'')||f.size<400*1024) return f;
     try{
       const bmp=await createImageBitmap(f,{imageOrientation:'from-image'});
-      const MAX=2000, sc=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
+      const MAX=1400, sc=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
       const w=Math.round(bmp.width*sc), h=Math.round(bmp.height*sc);
       const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
       cv.getContext('2d').drawImage(bmp,0,0,w,h); if(bmp.close) bmp.close();
-      const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.85));
+      const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.8));
       if(blob&&blob.size<f.size) return new File([blob],((f.name||'receipt').replace(/\.\w+$/,'')||'receipt')+'.jpg',{type:'image/jpeg'});
     }catch(e){}
     return f;
   }
-
-  // ── AI receipt read (prefill only — the staffer always reviews before submitting) ──
-  function scanMsg(exp,on,text){ const el=document.getElementById(exp?'expScanRow':'scanRow');
-    if(!el) return; el.style.display=on?'flex':'none'; if(on&&text) el.querySelector('span').textContent=text; icons(); }
-  // Lines the receipt had but the price book doesn't — tapping one opens the existing
-  // new-item flow prefilled, so the staffer never has to retype the name.
-  function renderUnmatched(){ const w=document.getElementById('aiUnmatchedWrap'); if(!w) return;
-    if(!aiUnmatched.length){ w.innerHTML=''; return; }
-    w.innerHTML=`<div style="border:1.5px dashed var(--color-warning);border-radius:var(--radius-md);padding:11px 12px;margin-bottom:12px;background:var(--color-warning-subtle);">
-      <div style="font-size:12.5px;font-weight:700;color:#9a6207;margin-bottom:8px;">Read off the bill but not in the price book — tap to add</div>
-      ${aiUnmatched.map((u,i)=>`<button onclick="addUnmatched(${i})" style="width:100%;display:flex;align-items:center;gap:8px;border:none;background:transparent;cursor:pointer;text-align:left;padding:6px 0;color:var(--text-strong);font-size:13.5px;font-weight:600;"><i data-lucide="plus-circle" style="width:16px;height:16px;color:var(--color-primary);flex:none;"></i> <span style="flex:1;min-width:0;">${esc(u.raw_name)}</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);flex:none;">${u.qty!=null?u.qty:'?'} × Rs ${u.price!=null?nfmt(u.price):'?'}</span></button>`).join('')}
-    </div>`;
-    icons(); }
-  function addUnmatched(i){ const u=aiUnmatched[i]; if(!u) return;
-    aiPendingPrice={qty:u.qty,price:u.price};
-    aiUnmatched.splice(i,1); renderUnmatched();
-    pickerQuery=u.raw_name; pickerOpen=true; renderPicker(); openNewItem(); saveDraft(); }
-
-  async function runExtract(which){ const exp=which==='exp'; const url=exp?newExpReceipt:newReceipt;
-    if(!url) return; const seq=++extractSeq;
-    scanMsg(exp,true,'✨ Reading bill…');
-    try{ const r=await _post('/api/method/luuvcrm.api.extract_receipt',{file_url:url,kind:exp?'expense':'bill'});
-      if(seq!==extractSeq) return;                 // sheet closed / new photo — drop this result
-      if(!r){ scanMsg(exp,false); return; }
-      const d=await r.json(); const m=d.message||{};
-      if(seq!==extractSeq) return;
-      scanMsg(exp,false);
-      if(!m.ok||!m.data){ toast(m.message||srvMsg(d,'Auto-read failed — type it manually')); return; }
-      if(exp) applyExpenseExtract(m.data); else applyBillExtract(m.data);
-    }catch(e){ if(seq===extractSeq) scanMsg(exp,false); } }
-
-  function applyBillExtract(x){ let added=0; aiUnmatched=[];
-    for(const it of (x.items||[])){
-      const c=it.matched_item_code?catalog.find(k=>k.item===it.matched_item_code):null;
-      if(!c){ if(it.raw_name) aiUnmatched.push({raw_name:it.raw_name,qty:it.qty,price:it.price}); continue; }
-      if(formLines.some(l=>l.item===c.item)) continue;   // already on the sheet — don't double it
-      // Unreadable price falls back to the current price book rate; flagged either way.
-      formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,
-        qty:it.qty!=null?String(it.qty):'1', price:it.price!=null?String(it.price):String(c.price),
-        low:(it.confidence==='low'||it.qty==null||it.price==null)?1:0});
-      added++; }
-    const v=document.getElementById('fVendor'); if(x.vendor&&!v.value.trim()) v.value=x.vendor;
-    const n=document.getElementById('fNote');
-    const bits=[x.overall_note,x.bill_no?('Bill no '+x.bill_no):''].filter(Boolean).join(' · ');
-    if(bits&&!n.value.trim()) n.value=bits;
-    renderLines(); renderPicker(); renderUnmatched(); saveDraft();
-    toast(added?`Read ${added} item${added===1?'':'s'} — please check`:'Nothing readable — type it in'); }
-
-  function applyExpenseExtract(x){ const set=(id,val)=>{ const el=document.getElementById(id);
-      if(el&&val!=null&&val!==''&&!String(el.value).trim()) el.value=val; };
-    const amt=x.expense_amount!=null?x.expense_amount:x.total;
-    if(amt!=null){ const el=document.getElementById('eAmount'); if(!String(el.value).trim()){ el.value=amt; paintExpTotal(); } }
-    set('ePayee',x.vendor); set('eBillRef',x.bill_no); set('eNote',x.overall_note);
-    if(x.date&&/^\d{4}-\d{2}-\d{2}$/.test(x.date)) document.getElementById('eDate').value=x.date;
-    if(x.expense_category_guess){ const sel=document.getElementById('eCategory');
-      const hit=expCats.find(c=>c.toLowerCase()===String(x.expense_category_guess).toLowerCase());
-      if(hit) sel.value=hit; }
-    saveDraft();
-    toast(amt!=null?'Bill read — please check the amount':'Nothing readable — type it in'); }
 
   // Shared by both sheets — `which` says whether the upload belongs to the bill or the expense.
   async function uploadReceipt(input,which){ let f=input.files&&input.files[0]; input.value=''; if(!f) return;
@@ -542,7 +467,6 @@ input,button{font-family:inherit;}
       if(exp) newExpReceipt=url; else newReceipt=url;
       const img=document.getElementById(exp?'expPhotoImg':'photoImg'); img.src=url; img.style.display='block';
       hint.style.display='none'; toast('Receipt added'); saveDraft();
-      runExtract(which);                     // fire-and-forget; the form stays usable meanwhile
     }catch(e){ hint.textContent=hintIdle; toast('Upload failed'); } }
   async function submitBill(){ const err=document.getElementById('formErr'); const em=document.getElementById('formErrMsg');
     const vendor=document.getElementById('fVendor').value.trim();

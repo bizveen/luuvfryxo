@@ -27,9 +27,9 @@
   </style>
 </head>
 <body>
-<div class="tr-header"><h1>🍽️ Luuv Fryxo</h1></div>
+<div class="tr-header"><h1>??????? Luuv Fryxo</h1></div>
 <div class="tr-body" id="app">
-  <div class="tr-loading">⏳ Loading order...</div>
+  <div class="tr-loading">??? Loading order...</div>
 </div>
 
 <script>
@@ -39,7 +39,7 @@ async function loadOrder() {
   const app = document.getElementById('app');
 
   if (!orderName) {
-    app.innerHTML = '<div class="tr-error">❌ No order number provided</div><a class="tr-btn" href="/order">📋 New Order</a>';
+    app.innerHTML = '<div class="tr-error">??? No order number provided</div><a class="tr-btn" href="/order">???? New Order</a>';
     return;
   }
 
@@ -50,7 +50,7 @@ async function loadOrder() {
     const items = msg.items || [];
 
     if (items.length === 0) {
-      app.innerHTML = '<div class="tr-error">❌ Order not found</div><a class="tr-btn" href="/order">📋 New Order</a>';
+      app.innerHTML = '<div class="tr-error">??? Order not found</div><a class="tr-btn" href="/order">???? New Order</a>';
       return;
     }
 
@@ -61,15 +61,15 @@ async function loadOrder() {
 
     app.innerHTML = `
       <div class="tr-card">
-        <h2>📋 Order #${escapeHtml(orderName)}</h2>
-        <div class="tr-status Pending">⏳ Pending Confirmation</div>
+        <h2>???? Order #${escapeHtml(orderName)}</h2>
+        <div class="tr-status Pending">??? Pending Confirmation</div>
         <p style="font-size:0.82rem;color:#6B7280;margin-bottom:10px;">Waiting for restaurant to accept your order</p>
-        <div id="trItems">${items.map(i => `<div class="tr-item"><span>${escapeHtml(i.item_name || i.item)} ×${i.qty}</span><span>LKR ${(i.rate*i.qty).toLocaleString()}</span></div>`).join('')}</div>
+        <div id="trItems">${items.map(i => `<div class="tr-item"><span>${escapeHtml(i.item_name || i.item)} ??${i.qty}</span><span>LKR ${(i.rate*i.qty).toLocaleString()}</span></div>`).join('')}</div>
         <div class="tr-total"><span>Total</span><span>LKR ${items.reduce((s,i)=>s+i.rate*i.qty,0).toLocaleString()}</span></div>
       </div>
-      <a class="tr-btn" href="/order">📋 New Order</a>`;
+      <a class="tr-btn" href="/order">???? New Order</a>`;
   } catch(e) {
-    app.innerHTML = '<div class="tr-error">❌ Error loading order</div><a class="tr-btn" href="/order">📋 New Order</a>';
+    app.innerHTML = '<div class="tr-error">??? Error loading order</div><a class="tr-btn" href="/order">???? New Order</a>';
   }
 }
 
@@ -78,3 +78,4 @@ loadOrder();
 </script>
 </body>
 </html>
+

@@ -1,4 +1,4 @@
-import frappe
+﻿import frappe
 
 no_cache = 1
 no_sitemap = 1
@@ -18,3 +18,4 @@ def get_context(context):
         })
     context.qr_list = qr_list
     context.base_url = base_url
+
