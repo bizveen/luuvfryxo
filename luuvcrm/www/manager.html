@@ -689,9 +689,13 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
         if(up||down||fresh) moved=true;
         const col=up?'var(--color-danger)':(down?'var(--color-success)':(fresh?'#9a6207':'var(--text-strong)'));
         const bg=up?'var(--color-danger-subtle)':(down?'var(--color-success-subtle)':'transparent');
-        const note=up?('↑ was Rs '+nfmt(l.old_price)):(down?('↓ was Rs '+nfmt(l.old_price)):(fresh?'new item':''));
+        // "was" on the LINE-TOTAL basis (old unit price × this qty), so it compares
+        // directly with the line amount on the right — a unit "was Rs 1.2" next to
+        // a Rs 240 line total read as a multiplication bug.
+        const wasLt=(l.qty||0)*(l.old_price||0);
+        const note=up?('↑ was Rs '+nfmt(wasLt)):(down?('↓ was Rs '+nfmt(wasLt)):(fresh?'new item':''));
         return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 6px;margin:0 -6px;border-radius:6px;background:${bg};">
-          <span style="flex:1;min-width:0;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit||'')}</span> ${esc(l.name||'')}${note?` <span style="color:${col};font-weight:700;font-size:12px;">${note}</span>`:''}</span>
+          <span style="flex:1;min-width:0;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit||'')}</span> ${esc(l.name||'')}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span>
           <span class="mono" style="color:${up||down?col:'var(--text-strong)'};font-weight:${up||down?'700':'400'};flex:none;">Rs ${nfmt(lt)}</span></div>`; }).join('')
         :(a.lines||[]).map(li=>`<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 0;"><span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
       const shot=(b&&b.receipt_image)||a.image||'';
