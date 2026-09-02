@@ -616,6 +616,15 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   // vendors listed with their own totals, price moves highlighted, and a single
   // cash-match gate replacing the tick-every-line check. Every other approval type
   // keeps its own card (and its ticks) exactly as before.
+  // Vendor cards fold to just their header (checkbox / vendor / total); the
+  // fold map lives outside the render so the 8s poll re-render keeps it.
+  const purchCollapsed={};   // approval name -> true when folded
+  function purchFold(name,ev){ if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+    purchCollapsed[name]=!purchCollapsed[name];
+    const body=document.getElementById('pb_'+name), car=document.getElementById('pc_'+name);
+    if(body) body.style.display=purchCollapsed[name]?'none':'block';
+    if(car) car.style.transform=purchCollapsed[name]?'rotate(-90deg)':'rotate(0)';
+  }
   const purchDayState={};   // dateKey -> {cash, comment}
   let purchDayGroups={};    // dateKey -> {key, label, items:[approval]}
   let purchBillsFetched=false;
@@ -682,6 +691,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     const vendors=g.items.map(a=>{
       const b=purchBills.find(x=>x.name===a.bill);
       const on=!st.off[a.name];
+      const folded=!!purchCollapsed[a.name];   // default open
       let moved=false;
       const lines=b?(b.lines||[]).map(l=>{
         const lt=(l.qty||0)*(l.price||0);
@@ -709,13 +719,14 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
               <span style="font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title||'—')}${moved?' <span style="color:var(--color-danger);">•</span>':''}</span>
               <span class="mono" style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text-strong);flex:none;">Rs ${nfmt(billTotal(a))}</span>
+              <button onclick="purchFold('${a.name}',event)" title="Show / hide the lines" style="flex:none;width:24px;height:24px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;"><span id="pc_${a.name}" style="display:inline-block;transition:transform .15s;transform:rotate(${folded?'-90deg':'0'});font-size:13px;line-height:1;">▾</span></button>
             </div>
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:2px;">
               <span style="font-size:12.5px;color:var(--text-muted);">${esc(a.subhead||'purchase bill')}</span>
               <span style="font-size:11.5px;color:var(--text-faint);flex:none;">${esc(a.time||'')}</span>
             </div>
           </div>
-        </div>${lines}${img}${note}</div>`; }).join('');
+        </div><div id="pb_${a.name}" style="display:${folded?'none':'block'};">${lines}${img}${note}</div></div>`; }).join('');
     const n=g.items.length;
     return `<div style="background:var(--surface-card);border:1px solid var(--border-default);border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow-sm);animation:mgrUp var(--duration-base) var(--ease-out);">
       <div style="display:flex;gap:12px;margin-bottom:12px;">
