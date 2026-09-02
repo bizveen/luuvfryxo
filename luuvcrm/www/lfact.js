@@ -191,7 +191,7 @@
     };
     Object.keys(map || {}).forEach(function (fname) {
       var orig = window[fname];
-      if (typeof orig !== 'function' || orig.__lfWrapped) return;
+      if (typeof orig !== 'function' || orig._lfWrapped) return;
       var spec = map[fname];
       var wrapped = function () {
         var args = Array.prototype.slice.call(arguments);
@@ -233,7 +233,7 @@
         }
         return out;
       };
-      wrapped.__lfWrapped = true;
+      wrapped._lfWrapped = true;
       window[fname] = wrapped;
     });
   }

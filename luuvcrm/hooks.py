@@ -15,6 +15,21 @@ boot_session = ["luuvcrm.overrides.branding.boot_session"]
 # /customer. See api.route_app_requests.
 before_request = ["luuvcrm.api.route_app_requests"]
 
+# Staff activity trail (luuvcrm/activity.py) — deployed 2026-09-02 with the
+# activity stack. Runs in the request's finally block, after the DB has been
+# committed/rolled back, so it commits its own row.
+# NOTE: activity.py MUST be deployed before this file — the hook imports it on
+# every request. (after_migrate → setup_doctype stays repo-only for now: that
+# module is not on the server.)
+after_request = ["luuvcrm.activity.log_request_activity"]
+
+scheduler_events = {
+    "daily": [
+        # Plain rows kept 90 days, flagged rows a year. pos2 writes a lot.
+        "luuvcrm.activity.purge_activity_log",
+    ],
+}
+
 doc_events = {
     "WhatsApp Message": {
         "after_insert": "luuvcrm.api.process_wa_reply",

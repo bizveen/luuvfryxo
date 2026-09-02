@@ -22,8 +22,8 @@
  */
 (function () {
   'use strict';
-  if (window.__lfErrLoaded) return;
-  window.__lfErrLoaded = true;
+  if (window._lfErrLoaded) return;
+  window._lfErrLoaded = true;
 
   var ENDPOINT = '/api/method/luuvcrm.api.log_client_error';
   var QKEY = 'lf_err_queue';
