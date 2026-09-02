@@ -3771,6 +3771,36 @@ def _approval_bill_name(row):
 
 
 @frappe.whitelist()
+def get_approval_days():
+    """Calendar date (and Purchase Bill) for each pending approval, keyed by name.
+
+    The manager groups purchase bills into one card per day, but a deployed
+    _format_approvals() may predate the date/date_label/bill fields it reads.
+    This stands alone so it can be dropped into any build without touching that
+    function; the frontend only calls it when the fields are missing.
+    """
+    if not frappe.db.exists("DocType", "POS Approval"):
+        return {"days": {}}
+    rows = frappe.get_all("POS Approval", filters={"status": "pending"},
+                          fields=["name", "requested_at", "action", "action_payload"])
+    days = {}
+    for r in rows:
+        bill = ""
+        if (r.get("action") or "") == "purchase_bill":
+            try:
+                bill = (json.loads(r.get("action_payload") or "{}") or {}).get("bill") or ""
+            except Exception:
+                bill = ""
+        days[r.name] = {
+            "date": str(r.get("requested_at") or "")[:10],
+            "date_label": (frappe.utils.formatdate(r.get("requested_at"), "EEE d MMM")
+                           if r.get("requested_at") else ""),
+            "bill": bill,
+        }
+    return {"days": days}
+
+
+@frappe.whitelist()
 def get_pending_approvals():
     rows = _pending_and_recent_approvals()
     pending = sum(1 for r in rows if r.get("status") == "pending")

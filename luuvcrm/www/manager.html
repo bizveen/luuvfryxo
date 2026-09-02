@@ -621,6 +621,18 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   let purchBillsFetched=false;
   function money(v){ return parseFloat(String(v==null?'':v).replace(/[^0-9.]/g,''))||0; }
   function dayState(k){ return purchDayState[k]=purchDayState[k]||{cash:'',comment:'',off:{}}; }
+  // A deployed _format_approvals() may predate the date/date_label/bill fields —
+  // without a date every bill lands in one bucket. Fill them from the standalone
+  // endpoint, cached per approval so the 8s poll doesn't refetch.
+  const _dayInfo={};
+  async function fillApprovalDays(list){
+    if(list.some(a=>!a.date&&!_dayInfo[a.name])){
+      try{ const r=await _post('/api/method/luuvcrm.api.get_approval_days',{});
+        if(r){ const d=await r.json(); Object.assign(_dayInfo,(d.message&&d.message.days)||{}); } }catch(e){}
+    }
+    list.forEach(a=>{ const m=_dayInfo[a.name]; if(!m) return;
+      if(!a.date) a.date=m.date; if(!a.date_label) a.date_label=m.date_label; if(!a.bill) a.bill=m.bill; });
+  }
 
   async function loadApprovals(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_pending_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[],pending:0};
@@ -639,6 +651,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       const rest=all.filter(a=>a.type!=='bill');
       // Full bill lines (with old_price) live on get_purchase_bills — fetch once.
       if(purch.length&&!purchBillsFetched){ purchBillsFetched=true; await loadPurchaseBills(); }
+      if(purch.length) await fillApprovalDays(purch);
 
       purchDayGroups={};
       purch.forEach(a=>{ const k=a.date||'pending';
@@ -681,7 +694,8 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <span style="flex:1;min-width:0;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit||'')}</span> ${esc(l.name||'')}${note?` <span style="color:${col};font-weight:700;font-size:12px;">${note}</span>`:''}</span>
           <span class="mono" style="color:${up||down?col:'var(--text-strong)'};font-weight:${up||down?'700':'400'};flex:none;">Rs ${nfmt(lt)}</span></div>`; }).join('')
         :(a.lines||[]).map(li=>`<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 0;"><span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
-      const img=(b&&b.receipt_image)?`<img src="${esc(b.receipt_image)}" onclick="viewImg('${esc(b.receipt_image)}')" style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:9px;">`:'';
+      const shot=(b&&b.receipt_image)||a.image||'';
+      const img=shot?`<img src="${esc(shot)}" onclick="viewImg('${esc(shot)}')" style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:9px;">`:'';
       const note=(b&&b.note)?`<div style="margin-top:9px;font-size:12.5px;color:var(--text-body);background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:8px 11px;">📝 ${esc(b.note)}</div>`:'';
       return `<div id="pv_${a.name}" style="border:1px solid ${moved?'var(--color-danger-subtle)':'var(--border-subtle)'};border-radius:var(--radius-md);background:var(--surface-sunken);padding:11px 12px;margin-bottom:9px;opacity:${on?'1':'.45'};">
         <div style="display:flex;gap:10px;margin-bottom:7px;">
