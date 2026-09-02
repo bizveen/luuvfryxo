@@ -6933,3 +6933,23 @@ def get_approval_days():
             "bill": bill,
         }
     return {"days": days}
+
+
+# Appended 2026-09-02 (surgical — server api.py is canonical, see AGENTS.md):
+# ~200-byte heartbeat for the manager's 8s approvals poll. The full
+# get_pending_approvals list only travels when this signature changes.
+@frappe.whitelist()
+def get_approvals_digest():
+    """Pending count + a change signature for POS Approval polling.
+
+    sig = latest `modified` across ALL approvals (a resolve bumps modified, so
+    approvals leaving the pending list move the signature too) + the pending
+    count, so a create+resolve inside one poll window cannot alias.
+    """
+    if not frappe.db.exists("DocType", "POS Approval"):
+        return {"pending": 0, "sig": "none"}
+    row = frappe.db.sql(
+        """select count(case when status='pending' then 1 end), max(modified)
+           from `tabPOS Approval`""")[0]
+    pending = int(row[0] or 0)
+    return {"pending": pending, "sig": f"{row[1]}|{pending}"}

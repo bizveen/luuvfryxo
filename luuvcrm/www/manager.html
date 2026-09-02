@@ -643,8 +643,25 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       if(!a.date) a.date=m.date; if(!a.date_label) a.date_label=m.date_label; if(!a.bill) a.bill=m.bill; });
   }
 
+  // The 8s heartbeat only carries a ~200-byte digest (pending count + a
+  // change signature). The full list — hundreds of approvals with their
+  // details — travels ONLY when the signature moves: something was created,
+  // approved or rejected. Resolving locally nulls the signature so the next
+  // tick refetches immediately. If the digest endpoint is missing (older
+  // server), every tick falls through to the full fetch, exactly as before.
+  let _apprSig=null;
   async function loadApprovals(){
-    try{ const r=await _post('/api/method/luuvcrm.api.get_pending_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[],pending:0};
+    try{
+      try{ const dr=await _post('/api/method/luuvcrm.api.get_approvals_digest',{});
+        if(dr&&dr.ok){ const g=(await dr.json()).message||null;
+          if(g&&g.sig){
+            const dp=g.pending||0; document.getElementById('pendingCount').textContent=dp;
+            const dbadge=document.getElementById('navBadge');
+            if(dp>0){ dbadge.style.display='flex'; dbadge.textContent=dp; } else dbadge.style.display='none';
+            if(g.sig===_apprSig && document.getElementById('approvalFeed').childElementCount) return;
+            _apprSig=g.sig;
+          } } }catch(e){}
+      const r=await _post('/api/method/luuvcrm.api.get_pending_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[],pending:0};
       const pend=m.pending||0; document.getElementById('pendingCount').textContent=pend;
       const badge=document.getElementById('navBadge'); if(pend>0){ badge.style.display='flex'; badge.textContent=pend; } else badge.style.display='none';
       const feed=document.getElementById('approvalFeed');
@@ -788,6 +805,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   async function resolveOne(name,decision,comment){
     const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:comment||''});
     if(!r) return false; const d=await r.json();
+    _apprSig=null;   // force a full refetch on the next tick
     return !!(r.ok&&d.message&&d.message.ok);
   }
   async function approveDay(key){
@@ -850,7 +868,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   async function resolve(name,decision){
     const comment=((apprState[name]||{}).comment||'').trim();
     try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:comment}); if(!r) return; const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ delete apprState[name]; toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
+      if(r.ok && d.message && d.message.ok){ delete apprState[name]; _apprSig=null; toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
       else toast('Could not resolve'); }catch(e){ toast('Connection error'); } }
 
   // ── Reports (daily sales trend + item-wise sales) ──
