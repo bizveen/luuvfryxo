@@ -3720,7 +3720,8 @@ def _pending_and_recent_approvals():
     if not frappe.db.exists("DocType", "POS Approval"):
         return []
     fields = ["name", "approval_type", "pos_order", "title", "subhead", "details_json",
-              "flag_text", "status", "requested_by", "requested_at", "resolved_at"]
+              "flag_text", "action", "action_payload", "status", "requested_by",
+              "requested_at", "resolved_at"]
     pending = frappe.get_all("POS Approval", filters={"status": "pending"},
                              fields=fields, order_by="requested_at desc")
     recent = frappe.get_all("POS Approval",
@@ -3749,8 +3750,24 @@ def _format_approvals(rows):
             "flag_text": r.get("flag_text") or "",
             "status": r.get("status") or "pending",
             "time": frappe.utils.pretty_date(r.get("requested_at")),
+            # Manager groups purchase bills into one card per day, and reads each
+            # bill's full lines (with old_price) from get_purchase_bills().
+            "date": str(r.get("requested_at") or "")[:10],
+            "date_label": (frappe.utils.formatdate(r.get("requested_at"), "EEE d MMM")
+                           if r.get("requested_at") else ""),
+            "bill": _approval_bill_name(r),
         })
     return out
+
+
+def _approval_bill_name(row):
+    """Purchase-bill approvals carry {"bill": <Purchase Bill>} in action_payload."""
+    if (row.get("action") or "") != "purchase_bill":
+        return ""
+    try:
+        return (json.loads(row.get("action_payload") or "{}") or {}).get("bill") or ""
+    except Exception:
+        return ""
 
 
 @frappe.whitelist()

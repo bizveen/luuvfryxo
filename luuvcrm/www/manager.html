@@ -611,34 +611,204 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 
   // approvals
   const TONE={ price:['tag','var(--orange-50)','var(--color-primary)'], void:['ban','var(--color-danger-subtle)','var(--color-danger)'], item:['camera','var(--orange-50)','var(--color-primary)'], bill:['receipt','var(--color-info-subtle)','var(--color-info)'], discount:['percent','var(--orange-50)','var(--color-primary)'], edit:['pencil','var(--color-warning-subtle)','#9a6207'], expense:['zap','var(--color-warning-subtle)','#9a6207'] };
+
+  // Purchase bills are grouped into ONE card per day instead of one card per bill:
+  // vendors listed with their own totals, price moves highlighted, and a single
+  // cash-match gate replacing the tick-every-line check. Every other approval type
+  // keeps its own card (and its ticks) exactly as before.
+  const purchDayState={};   // dateKey -> {cash, comment}
+  let purchDayGroups={};    // dateKey -> {key, label, items:[approval]}
+  let purchBillsFetched=false;
+  function money(v){ return parseFloat(String(v==null?'':v).replace(/[^0-9.]/g,''))||0; }
+  function dayState(k){ return purchDayState[k]=purchDayState[k]||{cash:'',comment:'',off:{}}; }
+
   async function loadApprovals(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_pending_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[],pending:0};
       const pend=m.pending||0; document.getElementById('pendingCount').textContent=pend;
       const badge=document.getElementById('navBadge'); if(pend>0){ badge.style.display='flex'; badge.textContent=pend; } else badge.style.display='none';
       const feed=document.getElementById('approvalFeed');
-      if(!(m.approvals||[]).length){ feed.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;padding:64px 20px;text-align:center;color:var(--text-faint);"><span style="width:64px;height:64px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:30px;height:30px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-body);">All caught up 🎉</div><div style="font-size:13.5px;max-width:240px;line-height:1.5;">Nothing waiting on you. New requests from the POS will pop up here.</div></div>'; icons(); return; }
-      feed.innerHTML='<div class="apprGrid" style="display:flex;flex-direction:column;gap:13px;">'+(m.approvals||[]).map(a=>{ const t=TONE[a.type]||TONE.item; const pending=a.status==='pending';
-        const st=pending?(apprState[a.name]=apprState[a.name]||{ticks:{},comment:''}):{ticks:{},comment:''};
-        const nLines=(a.lines||[]).length;
-        const lines=(a.lines||[]).map((li,ix)=>`<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
-        const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
-        const flag=a.flag_text?`<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-pill);padding:6px 12px;">${a.flag_text}</div>`:'';
-        const img=a.image?`<img src="${esc(a.image)}" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:11px;"><div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;text-align:center;">Tap the photo to inspect it full screen</div>`:'';
-        let actions='';
-        if(pending){ const ticked=Object.values(st.ticks).filter(Boolean).length; const ok=!nLines||ticked>=nLines;
-          actions=`<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
-          ${nLines?`<div id="cnt_${a.name}" style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">Tick every line to enable Approve · ${ticked}/${nLines} checked</div>`:''}
-          <div style="display:flex;gap:9px;margin-top:10px;"><button id="app_${a.name}" ${ok?'':'disabled'} onclick="resolve('${a.name}','approved')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check" style="width:16px;height:16px;"></i> Approve</button><button onclick="resolve('${a.name}','rejected')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject</button></div>`; }
-        else if(a.status==='approved') actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-success);background:var(--color-success-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approved · sent back to POS</div>`;
-        else actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="x-circle" style="width:16px;height:16px;"></i> Rejected · counter notified</div>`;
-        if(!pending&&a.manager_comment) actions+=`<div style="margin-top:8px;font-size:12.5px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:8px 12px;">💬 ${esc(a.manager_comment)}</div>`;
-        return `<div style="background:var(--surface-card);border:1px solid ${pending?'var(--border-default)':'var(--border-subtle)'};border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow-sm);animation:mgrUp var(--duration-base) var(--ease-out);">
-          <div style="display:flex;gap:12px;"><span style="width:42px;height:42px;border-radius:11px;background:${t[1]};color:${t[2]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${t[0]}" style="width:20px;height:20px;"></i></span>
-          <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);">${a.title}</span><span style="font-size:11.5px;color:var(--text-faint);flex:none;">${a.time||''}</span></div><div style="font-size:12.5px;color:var(--text-muted);line-height:1.4;margin-top:2px;">${a.subhead||''}</div></div></div>
-          ${(lines||footer)?`<div style="margin-top:11px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);padding:10px 12px;display:flex;flex-direction:column;gap:6px;">${lines}${footer}</div>`:''}
-          ${img}${flag}${actions}</div>`; }).join('')+'</div>';
+      const all=m.approvals||[];
+      // Don't yank the cash/comment box out from under the manager on the 8s poll.
+      const ae=document.activeElement;
+      if(ae&&feed.contains(ae)&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA')) return;
+      if(!all.length){ feed.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;padding:64px 20px;text-align:center;color:var(--text-faint);"><span style="width:64px;height:64px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:30px;height:30px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-body);">All caught up 🎉</div><div style="font-size:13.5px;max-width:240px;line-height:1.5;">Nothing waiting on you. New requests from the POS will pop up here.</div></div>'; icons(); return; }
+
+      const purch=all.filter(a=>a.type==='bill'&&a.status==='pending');
+      // Approvals is a to-do list: a settled purchase bill drops off it. Its history
+      // (with the Approved/Rejected pill) lives on Purchases → Recent bills.
+      const rest=all.filter(a=>a.type!=='bill');
+      // Full bill lines (with old_price) live on get_purchase_bills — fetch once.
+      if(purch.length&&!purchBillsFetched){ purchBillsFetched=true; await loadPurchaseBills(); }
+
+      purchDayGroups={};
+      purch.forEach(a=>{ const k=a.date||'pending';
+        const g=purchDayGroups[k]=purchDayGroups[k]||{key:k,label:a.date_label||a.date||'Pending purchases',items:[]};
+        g.items.push(a); });
+      const dayKeys=Object.keys(purchDayGroups).sort().reverse();
+
+      feed.innerHTML='<div class="apprGrid" style="display:flex;flex-direction:column;gap:13px;">'
+        +dayKeys.map(k=>renderPurchaseDay(purchDayGroups[k])).join('')
+        +rest.map(renderApprovalCard).join('')+'</div>';
       icons();
     }catch(e){}
+  }
+
+  // ── One card for a day's purchases ──
+  // Vendors carry a checkbox (all ticked by default); unticking drops that bill from
+  // the day total and from Approve/Reject, leaving it pending for later.
+  function selItems(g){ const off=dayState(g.key).off; return g.items.filter(a=>!off[a.name]); }
+  function gTotal(g){ return selItems(g).reduce((t,a)=>t+billTotal(a),0); }
+  function billTotal(a){ const b=purchBills.find(x=>x.name===a.bill); return b?b.total:money(a.footer_value); }
+
+  function renderPurchaseDay(g){
+    const st=dayState(g.key);
+    const total=gTotal(g), nSel=selItems(g).length;
+    const cash=st.cash===''?null:money(st.cash);
+    const diff=cash===null?null:Math.round(cash)-Math.round(total);
+    const ok=diff===0&&nSel>0;
+    const vendors=g.items.map(a=>{
+      const b=purchBills.find(x=>x.name===a.bill);
+      const on=!st.off[a.name];
+      let moved=false;
+      const lines=b?(b.lines||[]).map(l=>{
+        const lt=(l.qty||0)*(l.price||0);
+        const up=l.old_price>0&&l.price>l.old_price, down=l.old_price>0&&l.price<l.old_price, fresh=!l.old_price;
+        if(up||down||fresh) moved=true;
+        const col=up?'var(--color-danger)':(down?'var(--color-success)':(fresh?'#9a6207':'var(--text-strong)'));
+        const bg=up?'var(--color-danger-subtle)':(down?'var(--color-success-subtle)':'transparent');
+        const note=up?('↑ was Rs '+nfmt(l.old_price)):(down?('↓ was Rs '+nfmt(l.old_price)):(fresh?'new item':''));
+        return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 6px;margin:0 -6px;border-radius:6px;background:${bg};">
+          <span style="flex:1;min-width:0;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit||'')}</span> ${esc(l.name||'')}${note?` <span style="color:${col};font-weight:700;font-size:12px;">${note}</span>`:''}</span>
+          <span class="mono" style="color:${up||down?col:'var(--text-strong)'};font-weight:${up||down?'700':'400'};flex:none;">Rs ${nfmt(lt)}</span></div>`; }).join('')
+        :(a.lines||[]).map(li=>`<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 0;"><span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
+      const img=(b&&b.receipt_image)?`<img src="${esc(b.receipt_image)}" onclick="viewImg('${esc(b.receipt_image)}')" style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:9px;">`:'';
+      const note=(b&&b.note)?`<div style="margin-top:9px;font-size:12.5px;color:var(--text-body);background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:8px 11px;">📝 ${esc(b.note)}</div>`:'';
+      return `<div id="pv_${a.name}" style="border:1px solid ${moved?'var(--color-danger-subtle)':'var(--border-subtle)'};border-radius:var(--radius-md);background:var(--surface-sunken);padding:11px 12px;margin-bottom:9px;opacity:${on?'1':'.45'};">
+        <div style="display:flex;gap:10px;margin-bottom:7px;">
+          <input type="checkbox" ${on?'checked':''} onchange="purchToggle('${g.key}','${a.name}',this)" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;margin-top:2px;">
+          <span style="font-size:16px;flex:none;line-height:1.2;">🏪</span>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+              <span style="font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title||'—')}${moved?' <span style="color:var(--color-danger);">•</span>':''}</span>
+              <span class="mono" style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text-strong);flex:none;">Rs ${nfmt(billTotal(a))}</span>
+            </div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:2px;">
+              <span style="font-size:12.5px;color:var(--text-muted);">${esc(a.subhead||'purchase bill')}</span>
+              <span style="font-size:11.5px;color:var(--text-faint);flex:none;">${esc(a.time||'')}</span>
+            </div>
+          </div>
+        </div>${lines}${img}${note}</div>`; }).join('');
+    const n=g.items.length;
+    return `<div style="background:var(--surface-card);border:1px solid var(--border-default);border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow-sm);animation:mgrUp var(--duration-base) var(--ease-out);">
+      <div style="display:flex;gap:12px;margin-bottom:12px;">
+        <span style="width:42px;height:42px;border-radius:11px;background:var(--color-info-subtle);color:var(--color-info);display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="shopping-cart" style="width:20px;height:20px;"></i></span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);">Purchases · ${esc(g.label)}</div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">${n} bill${n===1?'':'s'} · untick any you are not settling now</div>
+        </div>
+      </div>
+      ${vendors}
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:11px 0 12px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);">
+        <span>Day total<span id="pnsel_${g.key}" style="font-family:var(--font-body);font-weight:600;font-size:12.5px;color:var(--text-muted);"> · ${nSel} of ${n}</span></span>
+        <span class="mono" id="ptot_${g.key}">Rs ${nfmt(total)}</span></div>
+      <label style="display:block;font-size:12.5px;font-weight:700;color:var(--text-strong);margin-bottom:5px;">Cash paid out <span style="color:var(--color-danger);">*</span></label>
+      <input id="pcash_${g.key}" type="number" inputmode="decimal" value="${esc(st.cash)}" oninput="purchCash('${g.key}',this.value)" placeholder="0"
+        style="width:100%;border:1.5px solid ${st.cash===''?'var(--border-default)':(ok?'var(--color-success)':'var(--color-danger)')};border-radius:var(--radius-md);padding:12px 14px;font-family:var(--font-mono);font-size:17px;color:var(--text-strong);outline:none;">
+      <div id="pdiff_${g.key}" style="font-size:12px;font-weight:700;margin-top:6px;color:${st.cash===''?'var(--text-faint)':(ok?'var(--color-success)':'var(--color-danger)')};">${diffText(st.cash,diff,nSel)}</div>
+      <input type="text" value="${esc(st.comment)}" oninput="purchCmt('${g.key}',this.value)" placeholder="Comment (optional)"
+        style="width:100%;margin-top:10px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
+      <div style="display:flex;gap:9px;margin-top:11px;">
+        <button id="pappr_${g.key}" ${ok?'':'disabled'} onclick="approveDay('${g.key}')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check" style="width:16px;height:16px;"></i> Approve <span id="pan_${g.key}">${nSel}</span></button>
+        <button onclick="rejectDay('${g.key}')" style="flex:none;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px 18px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;">Reject</button>
+      </div></div>`;
+  }
+  function diffText(raw,diff,nSel){
+    if(!nSel) return 'Tick at least one vendor.';
+    if(raw==='') return 'Type the cash you handed over — it must match the day total.';
+    if(diff===0) return '✓ Matches the day total';
+    return (diff>0?'Rs '+nfmt(diff)+' over':'Rs '+nfmt(-diff)+' short')+' — fix it before approving';
+  }
+
+  // Live-update the gate without re-rendering (keeps the caret in the cash box).
+  function repaintDay(key){
+    const g=purchDayGroups[key]; if(!g) return;
+    const st=dayState(key), total=gTotal(g), nSel=selItems(g).length;
+    const diff=st.cash===''?null:Math.round(money(st.cash))-Math.round(total);
+    const ok=diff===0&&nSel>0;
+    const set=(id,f)=>{ const el=document.getElementById(id+'_'+key); if(el) f(el); };
+    set('ptot',el=>el.textContent='Rs '+nfmt(total));
+    set('pnsel',el=>el.textContent=' · '+nSel+' of '+g.items.length);
+    set('pan',el=>el.textContent=nSel);
+    set('pappr',el=>el.disabled=!ok);
+    set('pcash',el=>el.style.borderColor=st.cash===''?'var(--border-default)':(ok?'var(--color-success)':'var(--color-danger)'));
+    set('pdiff',el=>{ el.style.color=st.cash===''||!nSel?'var(--text-faint)':(ok?'var(--color-success)':'var(--color-danger)');
+      el.textContent=diffText(st.cash,diff,nSel); });
+  }
+  function purchCash(key,v){ dayState(key).cash=v; repaintDay(key); }
+  function purchCmt(key,v){ dayState(key).comment=v; }
+  function purchToggle(key,name,el){
+    const st=dayState(key);
+    if(el.checked) delete st.off[name]; else st.off[name]=true;
+    const box=document.getElementById('pv_'+name); if(box) box.style.opacity=el.checked?'1':'.45';
+    repaintDay(key);
+  }
+  function dayComment(key){ const st=dayState(key);
+    return [st.comment.trim(),'cash Rs '+nfmt(money(st.cash))].filter(Boolean).join(' · '); }
+
+  async function resolveOne(name,decision,comment){
+    const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:comment||''});
+    if(!r) return false; const d=await r.json();
+    return !!(r.ok&&d.message&&d.message.ok);
+  }
+  async function approveDay(key){
+    const g=purchDayGroups[key]; if(!g) return;
+    const sel=selItems(g);
+    if(!sel.length){ toast('Tick at least one vendor'); return; }
+    if(Math.round(money(dayState(key).cash))!==Math.round(gTotal(g))){ toast('Cash must match the day total'); return; }
+    const btn=document.getElementById('pappr_'+key); if(btn) btn.disabled=true;
+    const cmt=dayComment(key); let done=0,failed=0;
+    for(const a of sel){                         // sequential: each approve rewrites the price book
+      try{ (await resolveOne(a.name,'approved',cmt))?done++:failed++; }catch(e){ failed++; }
+    }
+    toast(failed?(done+' approved · '+failed+' failed'):(done+' bill'+(done===1?'':'s')+' approved'));
+    delete purchDayState[key];
+    purchBillsFetched=false;   // loadApprovals() refetches the bill lines
+    loadApprovals(); loadDashboard();
+  }
+  async function rejectDay(key){
+    const g=purchDayGroups[key]; if(!g) return;
+    const sel=selItems(g);
+    if(!sel.length){ toast('Tick at least one vendor'); return; }
+    const cmt=dayState(key).comment.trim(); let done=0;
+    for(const a of sel){ try{ if(await resolveOne(a.name,'rejected',cmt)) done++; }catch(e){} }
+    toast(done+' bill'+(done===1?'':'s')+' rejected');
+    delete purchDayState[key];
+    purchBillsFetched=false;   // loadApprovals() refetches the bill lines
+    loadApprovals(); loadDashboard();
+  }
+
+  // ── Every other approval type: unchanged per-request card (ticks and all) ──
+  function renderApprovalCard(a){
+    const t=TONE[a.type]||TONE.item; const pending=a.status==='pending';
+    const st=pending?(apprState[a.name]=apprState[a.name]||{ticks:{},comment:''}):{ticks:{},comment:''};
+    const nLines=(a.lines||[]).length;
+    const lines=(a.lines||[]).map((li,ix)=>`<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
+    const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
+    const flag=a.flag_text?`<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-pill);padding:6px 12px;">${a.flag_text}</div>`:'';
+    const img=a.image?`<img src="${esc(a.image)}" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:11px;"><div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;text-align:center;">Tap the photo to inspect it full screen</div>`:'';
+    let actions='';
+    if(pending){ const ticked=Object.values(st.ticks).filter(Boolean).length; const ok=!nLines||ticked>=nLines;
+      actions=`<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
+      ${nLines?`<div id="cnt_${a.name}" style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">Tick every line to enable Approve · ${ticked}/${nLines} checked</div>`:''}
+      <div style="display:flex;gap:9px;margin-top:10px;"><button id="app_${a.name}" ${ok?'':'disabled'} onclick="resolve('${a.name}','approved')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check" style="width:16px;height:16px;"></i> Approve</button><button onclick="resolve('${a.name}','rejected')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject</button></div>`; }
+    else if(a.status==='approved') actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-success);background:var(--color-success-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approved · sent back to POS</div>`;
+    else actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="x-circle" style="width:16px;height:16px;"></i> Rejected · counter notified</div>`;
+    if(!pending&&a.manager_comment) actions+=`<div style="margin-top:8px;font-size:12.5px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:8px 12px;">💬 ${esc(a.manager_comment)}</div>`;
+    return `<div style="background:var(--surface-card);border:1px solid ${pending?'var(--border-default)':'var(--border-subtle)'};border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow-sm);animation:mgrUp var(--duration-base) var(--ease-out);">
+      <div style="display:flex;gap:12px;"><span style="width:42px;height:42px;border-radius:11px;background:${t[1]};color:${t[2]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${t[0]}" style="width:20px;height:20px;"></i></span>
+      <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);">${a.title}</span><span style="font-size:11.5px;color:var(--text-faint);flex:none;">${a.time||''}</span></div><div style="font-size:12.5px;color:var(--text-muted);line-height:1.4;margin-top:2px;">${a.subhead||''}</div></div></div>
+      ${(lines||footer)?`<div style="margin-top:11px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);padding:10px 12px;display:flex;flex-direction:column;gap:6px;">${lines}${footer}</div>`:''}
+      ${img}${flag}${actions}</div>`;
   }
   // Per-approval review state survives the 8s polling re-render (ticks + typed comment).
   const apprState={};
