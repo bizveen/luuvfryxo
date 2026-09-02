@@ -714,16 +714,17 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       return `<div id="pv_${a.name}" style="border:1px solid ${moved?'var(--color-danger-subtle)':'var(--border-subtle)'};border-radius:var(--radius-md);background:var(--surface-sunken);padding:11px 12px;margin-bottom:9px;opacity:${on?'1':'.45'};">
         <div style="display:flex;gap:10px;margin-bottom:7px;">
           <input type="checkbox" ${on?'checked':''} onchange="purchToggle('${g.key}','${a.name}',this)" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;margin-top:2px;">
-          <span style="font-size:16px;flex:none;line-height:1.2;">🏪</span>
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
               <span style="font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title||'—')}${moved?' <span style="color:var(--color-danger);">•</span>':''}</span>
               <span class="mono" style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text-strong);flex:none;">Rs ${nfmt(billTotal(a))}</span>
-              <button onclick="purchFold('${a.name}',event)" title="Show / hide the lines" style="flex:none;width:24px;height:24px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;"><span id="pc_${a.name}" style="display:inline-block;transition:transform .15s;transform:rotate(${folded?'-90deg':'0'});font-size:13px;line-height:1;">▾</span></button>
             </div>
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:2px;">
               <span style="font-size:12.5px;color:var(--text-muted);">${esc(a.subhead||'purchase bill')}</span>
-              <span style="font-size:11.5px;color:var(--text-faint);flex:none;">${esc(a.time||'')}</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;flex:none;">
+                <span style="font-size:11.5px;color:var(--text-faint);">${esc(a.time||'')}</span>
+                <button onclick="purchFold('${a.name}',event)" title="Show / hide the lines" style="flex:none;width:20px;height:20px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:0;margin-right:-4px;display:inline-flex;align-items:center;justify-content:center;"><span id="pc_${a.name}" style="display:inline-block;transition:transform .15s;transform:rotate(${folded?'-90deg':'0'});font-size:13px;line-height:1;">▾</span></button>
+              </span>
             </div>
           </div>
         </div><div id="pb_${a.name}" style="display:${folded?'none':'block'};">${lines}${img}${note}</div></div>`; }).join('');
