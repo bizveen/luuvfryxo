@@ -3985,6 +3985,69 @@ def get_purchase_bills():
 
 
 @frappe.whitelist()
+def search_purchase_bills(q=None, status=None, limit=30, offset=0):
+    """Reach past the 60 newest bills the Bills list holds.
+
+    Rows come straight from the DB — vendor, total, status, date — with no items and
+    no Document built, so a search costs the same whether the shop has 200 bills or
+    20,000. The lines load only when a card is tapped (get_purchase_bill).
+    Matches the vendor, the note, or any item name on the bill.
+    """
+    _require_pos_role()
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        return {"bills": [], "more": False}
+
+    q = (q or "").strip()
+    limit = max(1, min(int(limit or 30), 50))
+    offset = max(0, int(offset or 0))
+    where = ["1 = 1"]
+    params = {"lim": limit + 1, "off": offset}   # one extra row answers "is there more?"
+    if q:
+        params["like"] = "%" + q + "%"
+        where.append("""(b.vendor LIKE %(like)s OR b.note LIKE %(like)s
+            OR EXISTS (SELECT 1 FROM `tabPurchase Bill Item` i
+                       WHERE i.parent = b.name AND i.item_name LIKE %(like)s))""")
+    if status in ("pending", "approved", "rejected"):
+        params["status"] = status
+        where.append("b.status = %(status)s")
+
+    rows = frappe.db.sql("""
+        SELECT b.name, b.vendor, b.total, b.status, b.requested_at,
+               b.receipt_image, b.requested_by
+        FROM `tabPurchase Bill` b
+        WHERE {where}
+        ORDER BY b.requested_at DESC
+        LIMIT %(lim)s OFFSET %(off)s
+    """.format(where=" AND ".join(where)), params, as_dict=True)
+
+    more = len(rows) > limit
+    rows = rows[:limit]
+
+    names = {}
+    for r in rows:
+        u = r.get("requested_by")
+        if u and u not in names:
+            names[u] = frappe.get_value("User", u, "full_name") or u
+
+    return {"bills": [{
+        "name": r.name, "vendor": r.vendor or "", "total": float(r.total or 0),
+        "status": r.status or "pending", "receipt_image": r.receipt_image or "",
+        "time": frappe.utils.pretty_date(r.requested_at) if r.requested_at else "",
+        "date": frappe.utils.formatdate(r.requested_at, "d MMM yyyy") if r.requested_at else "",
+        "by": names.get(r.requested_by, ""),
+    } for r in rows], "more": more}
+
+
+@frappe.whitelist()
+def get_purchase_bill(name=None):
+    """One bill in full. Search results carry no lines — a tapped card fetches them."""
+    _require_pos_role()
+    if not name or not frappe.db.exists("Purchase Bill", name):
+        frappe.throw(_("Bill not found"))
+    return _bill_dict(name)
+
+
+@frappe.whitelist()
 def get_price_book():
     cat = get_purchase_catalog()
     return cat

@@ -79,7 +79,15 @@ input,button{font-family:inherit;}
 
   <!-- body -->
   <div style="flex:1;overflow-y:auto;padding:18px 20px 150px;">
-    <div id="tabList"><div id="expList"></div></div>
+    <div id="tabList">
+      <div style="position:relative;margin-bottom:13px;">
+        <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint);pointer-events:none;"></i>
+        <input id="billSearch" type="text" placeholder="Search any bill — vendor or item" oninput="onSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:11px 34px 11px 37px;font-size:14px;color:var(--text-strong);">
+        <button id="billSearchX" onclick="clearSearch()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:7px;line-height:1;font-size:15px;">&times;</button>
+      </div>
+      <div id="expList"></div>
+      <div id="searchList" style="display:none;"></div>
+    </div>
     <div id="tabExpenses" style="display:none;">
       <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="zap" style="width:16px;height:16px;color:var(--color-primary);"></i> Utility bills, rent and other non-stock payments.</div>
       <div id="expenseList"></div>
@@ -489,6 +497,58 @@ input,button{font-family:inherit;}
     try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:vendor,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); }
       else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
+
+  // ── Search (the Bills list itself only holds the 60 newest) ──
+  // Rows come back without their items, so a search is cheap however many bills
+  // exist; tapping a card fetches that one bill's lines.
+  let sq='', sOffset=0, sRows=[], sMore=false, sTimer=null, sBusy=false;
+  const sOpen={};   // bill name -> lines, once fetched
+
+  function onSearch(v){ sq=(v||'').trim();
+    document.getElementById('billSearchX').style.display=sq?'block':'none';
+    clearTimeout(sTimer);
+    if(sq.length<2){ showSearch(false); return; }      // 1 letter matches half the shop
+    sTimer=setTimeout(()=>runSearch(true),300); }
+  function clearSearch(){ document.getElementById('billSearch').value=''; onSearch(''); }
+  function showSearch(on){ document.getElementById('searchList').style.display=on?'block':'none';
+    document.getElementById('expList').style.display=on?'none':'block'; }
+
+  async function runSearch(reset){ if(sBusy) return; sBusy=true;
+    const box=document.getElementById('searchList');
+    if(reset){ sOffset=0; sRows=[]; box.innerHTML='<div style="color:var(--text-faint);text-align:center;padding:40px 20px;font-size:14px;">Searching…</div>'; }
+    showSearch(true);
+    try{ const r=await _post('/api/method/luuvcrm.api.search_purchase_bills',{q:sq,limit:30,offset:sOffset});
+      if(r){ const d=await r.json(); const m=d.message||{bills:[]};
+        sRows=sRows.concat(m.bills||[]); sMore=!!m.more; sOffset=sRows.length; renderSearch(); }
+    }catch(e){ box.innerHTML='<div style="color:var(--text-faint);text-align:center;padding:40px 20px;font-size:14px;">Could not search — check your connection.</div>'; }
+    sBusy=false; }
+
+  function renderSearch(){
+    const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
+    const box=document.getElementById('searchList');
+    if(!sRows.length){ box.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:50px 20px;text-align:center;color:var(--text-faint);"><i data-lucide="search-x" style="width:28px;height:28px;"></i><div style="font-size:14px;">No bill matches “'+esc(sq)+'”.</div></div>'; icons(); return; }
+    box.innerHTML=sRows.map(b=>{ const t=TONE[b.status]||TONE.pending; const lines=sOpen[b.name];
+      return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div onclick="toggleBill('${esc(b.name)}')" style="display:flex;gap:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🏪'}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.date||b.time)}${b.by?(' · '+esc(b.by)):''}</div>
+            <span class="badge ${t[0]}">${t[1]}</span>
+          </div>
+        </div>
+        ${lines?`<div style="margin-top:11px;">${lines.map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-top:1px dashed var(--border-subtle);"><span style="color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> ${esc(l.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`).join('')}</div>`:''}
+      </div>`; }).join('')
+      +(sMore?`<button onclick="runSearch(false)" style="width:100%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--color-primary);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:11px;">Load more</button>`:'')
+      +`<div style="text-align:center;color:var(--text-faint);font-size:12px;padding:2px 0 8px;">${sRows.length} bill${sRows.length===1?'':'s'} found</div>`;
+    icons(); }
+
+  async function toggleBill(name){
+    if(sOpen[name]){ delete sOpen[name]; renderSearch(); return; }
+    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bill',{name:name}); if(!r) return;
+      const d=await r.json(); const b=d.message; if(!b){ toast(srvMsg(d,'Could not open the bill')); return; }
+      sOpen[name]=b.lines||[]; renderSearch();
+    }catch(e){ toast('Connection error'); } }
 
   // ── Approvals (purchase bills waiting on a second person) ──
   // Not manager-only: whoever is on the page can clear a colleague's bill. Your own
