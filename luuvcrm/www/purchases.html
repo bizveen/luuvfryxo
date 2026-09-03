@@ -619,6 +619,14 @@ input,button{font-family:inherit;}
   function onApprSearch(v){ apprQ=(v||'').trim().toLowerCase(); renderAppr(); }
   function apprHay(a){ return [a.title, a.by, a.flag_text, ...(a.lines||[]).map(l=>l.name)].join(' ').toLowerCase(); }
   function apprCmt(name,v){ apprCmts[name]=v; }
+  // Approve stays disabled until every line has been ticked off against the receipt —
+  // the point of the tab is that someone actually read the bill.
+  const apprTicks={};
+  function apprTick(name,ix,el,total){ const t=apprTicks[name]=apprTicks[name]||{};
+    if(el.checked) t[ix]=true; else delete t[ix];
+    const n=Object.keys(t).length, btn=document.getElementById('app_'+name), cnt=document.getElementById('cnt_'+name);
+    if(btn){ btn.disabled=n<total; btn.style.opacity=n<total?'.45':'1'; }
+    if(cnt) cnt.textContent=n<total?('Tick every line to approve · '+n+'/'+total):('All '+total+' checked'); }
   async function loadApprovals(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[]};
     const ae=document.activeElement;   // never repaint the list out from under a comment being typed
     if(ae&&ae.tagName==='INPUT'&&document.getElementById('apprList').contains(ae)) return;
@@ -629,20 +637,25 @@ input,button{font-family:inherit;}
   function renderAppr(){
     const list=apprQ?apprRows.filter(a=>apprHay(a).includes(apprQ)):apprRows;
     document.getElementById('apprList').innerHTML=list.length?(apprQ?`<div style="font-size:12px;color:var(--text-faint);margin:-2px 0 10px;">${list.length} of ${apprRows.length} waiting</div>`:'')+list.map(a=>{
-      const lines=(a.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:4px 0;border-top:1px dashed var(--border-subtle);"><span style="color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.qtyStr||'')} · ${esc(l.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></div>`).join('');
+      const nl=(a.lines||[]).length, tk=apprTicks[a.name]||{}, nTk=Object.keys(tk).length;
+      const lines=(a.lines||[]).map((l,ix)=>`<label style="display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 0;border-top:1px dashed var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <input type="checkbox" ${tk[ix]?'checked':''} onchange="apprTick('${esc(a.name)}',${ix},this,${nl})" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;">
+        <span style="flex:1;min-width:0;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="mono" style="color:var(--text-faint);">${esc(l.qtyStr||'')}</span> ${esc(l.name||'')}</span>
+        <span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></label>`).join('');
       const foot=(a.mine
           ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
           : `<input type="text" value="${esc(apprCmts[a.name]||'')}" oninput="apprCmt('${esc(a.name)}',this.value)" placeholder="Comment (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;background:var(--surface-card);">
              <div style="display:flex;gap:9px;margin-top:9px;">
                <button onclick="resolveAppr('${esc(a.name)}','rejected',this)" style="flex:1;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;">Reject</button>
-               <button onclick="resolveAppr('${esc(a.name)}','approved',this)" style="flex:1.4;display:flex;align-items:center;justify-content:center;gap:7px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approve</button>
-             </div>`);
+               <button id="app_${esc(a.name)}" ${nTk<nl?'disabled':''} onclick="resolveAppr('${esc(a.name)}','approved',this)" style="flex:1.4;display:flex;align-items:center;justify-content:center;gap:7px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;opacity:${nTk<nl?'.45':'1'};"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approve</button>
+             </div>
+             <div id="cnt_${esc(a.name)}" style="text-align:center;font-size:11.5px;color:var(--text-faint);margin-top:7px;">${nTk<nl?('Tick every line to approve · '+nTk+'/'+nl):('All '+nl+' checked')}</div>`);
       return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
         <div style="display:flex;gap:13px;">
           <div ${a.image?`onclick="viewImg('${esc(a.image)}')"`:''} style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;${a.image?'cursor:zoom-in;':''}">${a.image?`<img src="${esc(a.image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🧾'}</div>
           <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title)||'—'}</span><span class="mono" style="font-size:16px;color:var(--text-strong);flex:none;">${esc(a.footer_value||'')}</span></div>
-            <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${esc(a.subhead||'')} · ${esc(a.time||'')}${a.by?(' · '+esc(a.by)):''}</div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title)||'—'}</span><span class="mono" style="font-family:var(--font-display);font-size:17px;font-weight:800;color:var(--text-strong);flex:none;">${esc(a.footer_value||'')}</span></div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${esc((a.subhead||'').replace(/\s*[·|-]\s*purchase bill\s*$/i,''))} · ${esc(a.time||'')}${a.by?(' · '+esc(a.by)):''}</div>
           </div>
         </div>
         ${lines?`<div style="margin-top:10px;">${lines}</div>`:''}
@@ -660,7 +673,7 @@ input,button{font-family:inherit;}
     try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:(apprCmts[name]||'').trim()});
       if(!r){ if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); return; }
       const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ delete apprCmts[name]; toast(decision==='approved'?'Approved ✓':'Rejected'); loadApprovals(); loadBills(); }
+      if(r.ok && d.message && d.message.ok){ delete apprCmts[name]; delete apprTicks[name]; toast(decision==='approved'?'Approved ✓':'Rejected'); loadApprovals(); loadBills(); }
       else { toast(srvMsg(d,'Could not resolve')); if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); }
     }catch(e){ toast('Connection error'); if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); } }
 
