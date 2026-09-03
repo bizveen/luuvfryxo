@@ -204,6 +204,14 @@ input,button{font-family:inherit;}
 
 <div id="toast" class="toast"></div>
 
+<!-- Fullscreen receipt viewer: a bill photo is unreadable at thumbnail size, and the
+     photo is the whole point of approving. Pinch / double-tap / wheel to zoom. -->
+<div id="imgViewer" style="position:fixed;inset:0;background:rgba(10,9,8,.96);display:none;align-items:center;justify-content:center;z-index:1300;overflow:hidden;touch-action:none;">
+  <img id="imgViewerImg" draggable="false" style="max-width:96vw;max-height:88vh;object-fit:contain;border-radius:10px;transform-origin:center center;will-change:transform;user-select:none;-webkit-user-select:none;">
+  <button onclick="closeImgViewer()" style="position:absolute;top:14px;right:14px;width:40px;height:40px;border:none;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:19px;font-weight:700;cursor:pointer;line-height:1;z-index:2;">✕</button>
+  <div style="position:absolute;bottom:20px;left:0;right:0;text-align:center;color:#fff;font-size:12.5px;opacity:.7;pointer-events:none;">Pinch or double-tap to zoom · drag to move · tap outside to close</div>
+</div>
+
 <script>
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='';
@@ -498,6 +506,40 @@ input,button{font-family:inherit;}
       if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); }
       else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
 
+  // ── Fullscreen receipt viewer (same behaviour as the manager app) ──
+  // Zoomable image viewer: pinch / double-tap / wheel to zoom, drag to pan.
+  const _iv={scale:1,tx:0,ty:0,startDist:0,startScale:1,panX:0,panY:0,startTx:0,startTy:0,lastTap:0,moved:false,mouseDown:false};
+  function viewImg(src){ const img=document.getElementById('imgViewerImg'); img.src=src; ivReset(); document.getElementById('imgViewer').style.display='flex'; }
+  function closeImgViewer(){ document.getElementById('imgViewer').style.display='none'; ivReset(); }
+  function ivReset(){ _iv.scale=1; _iv.tx=0; _iv.ty=0; ivApply(); }
+  function ivApply(){ document.getElementById('imgViewerImg').style.transform='translate('+_iv.tx+'px,'+_iv.ty+'px) scale('+_iv.scale+')'; }
+  (function(){
+    const v=document.getElementById('imgViewer');
+    const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+    v.addEventListener('touchstart',e=>{
+      if(e.touches.length===2){ _iv.startDist=dist(e.touches); _iv.startScale=_iv.scale; }
+      else if(e.touches.length===1){ _iv.panX=e.touches[0].clientX; _iv.panY=e.touches[0].clientY; _iv.startTx=_iv.tx; _iv.startTy=_iv.ty; _iv.moved=false; }
+    },{passive:true});
+    v.addEventListener('touchmove',e=>{ e.preventDefault();
+      if(e.touches.length===2){ _iv.scale=Math.min(6,Math.max(1,_iv.startScale*dist(e.touches)/(_iv.startDist||1))); if(_iv.scale===1){_iv.tx=0;_iv.ty=0;} ivApply(); _iv.moved=true; }
+      else if(e.touches.length===1&&_iv.scale>1){ _iv.tx=_iv.startTx+(e.touches[0].clientX-_iv.panX); _iv.ty=_iv.startTy+(e.touches[0].clientY-_iv.panY); ivApply(); _iv.moved=true; }
+      else if(e.touches.length===1&&(Math.abs(e.touches[0].clientX-_iv.panX)>8||Math.abs(e.touches[0].clientY-_iv.panY)>8)){ _iv.moved=true; }
+    },{passive:false});
+    v.addEventListener('touchend',e=>{
+      if(e.touches.length) return;
+      if(_iv.moved){ _iv.moved=false; return; }
+      const now=Date.now();
+      if(now-_iv.lastTap<300&&e.target.id==='imgViewerImg'){ if(_iv.scale>1) ivReset(); else { _iv.scale=2.5; ivApply(); } _iv.lastTap=0; }
+      else _iv.lastTap=now;
+    });
+    v.addEventListener('click',e=>{ if(e.target===v&&_iv.scale===1) closeImgViewer(); });
+    v.addEventListener('dblclick',e=>{ if(e.target.id==='imgViewerImg'){ if(_iv.scale>1) ivReset(); else { _iv.scale=2.5; ivApply(); } } });
+    v.addEventListener('wheel',e=>{ e.preventDefault(); _iv.scale=Math.min(6,Math.max(1,_iv.scale*(e.deltaY<0?1.15:0.87))); if(_iv.scale===1){_iv.tx=0;_iv.ty=0;} ivApply(); },{passive:false});
+    v.addEventListener('mousedown',e=>{ if(_iv.scale>1){ _iv.mouseDown=true; _iv.panX=e.clientX; _iv.panY=e.clientY; _iv.startTx=_iv.tx; _iv.startTy=_iv.ty; e.preventDefault(); } });
+    window.addEventListener('mousemove',e=>{ if(_iv.mouseDown){ _iv.tx=_iv.startTx+(e.clientX-_iv.panX); _iv.ty=_iv.startTy+(e.clientY-_iv.panY); ivApply(); } });
+    window.addEventListener('mouseup',()=>{ _iv.mouseDown=false; });
+  })();
+
   // ── Search (the Bills list itself only holds the 60 newest) ──
   // Rows come back without their items, so a search is cheap however many bills
   // exist; tapping a card fetches that one bill's lines.
@@ -565,13 +607,14 @@ input,button{font-family:inherit;}
              </div>`);
       return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
         <div style="display:flex;gap:13px;">
-          <div style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;">${a.image?`<img src="${esc(a.image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🧾'}</div>
+          <div ${a.image?`onclick="viewImg('${esc(a.image)}')"`:''} style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;${a.image?'cursor:zoom-in;':''}">${a.image?`<img src="${esc(a.image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🧾'}</div>
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title)||'—'}</span><span class="mono" style="font-size:16px;color:var(--text-strong);flex:none;">${esc(a.footer_value||'')}</span></div>
             <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${esc(a.subhead||'')} · ${esc(a.time||'')}${a.by?(' · '+esc(a.by)):''}</div>
           </div>
         </div>
         ${lines?`<div style="margin-top:10px;">${lines}</div>`:''}
+        ${a.image?`<div style="position:relative;margin-top:10px;"><img src="${esc(a.image)}" loading="lazy" decoding="async" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:190px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;display:block;"><span style="position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:5px;background:rgba(20,18,16,.62);color:#fff;border-radius:var(--radius-pill);padding:4px 9px;font-size:11px;font-weight:700;pointer-events:none;"><i data-lucide="maximize-2" style="width:12px;height:12px;"></i> Tap to zoom</span></div>`:''}
         ${a.flag_text?`<div style="margin-top:9px;font-size:12.5px;color:var(--text-muted);background:var(--surface-sunken);border-radius:var(--radius-sm);padding:8px 10px;">${esc(a.flag_text)}</div>`:''}
         ${foot}
       </div>`;
