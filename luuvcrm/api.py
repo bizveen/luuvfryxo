@@ -4013,6 +4013,16 @@ def _decide_purchase_bill(name, decision):
     return updated
 
 
+def _block_self_approval(requested_by):
+    """Separation of duties: whoever raised a purchase bill cannot be the one who
+    approves or rejects it. Approving rewrites the buying price book, so a single
+    person must not be able to both enter a purchase and wave it through. No role
+    is exempt — a manager who enters a bill still needs a second pair of eyes."""
+    if requested_by and requested_by == frappe.session.user:
+        frappe.throw(_("You entered this bill — someone else has to approve it"),
+                     frappe.PermissionError)
+
+
 @frappe.whitelist(methods=["POST"])
 def resolve_purchase_bill():
     """Manager approves/rejects a bill; approving updates each item's buying Item Price."""
@@ -4024,6 +4034,7 @@ def resolve_purchase_bill():
         frappe.throw(_("Decision must be 'approved' or 'rejected'"))
     if frappe.db.get_value("Purchase Bill", name, "status") != "pending":
         frappe.throw(_("Already resolved"))
+    _block_self_approval(frappe.db.get_value("Purchase Bill", name, "requested_by"))
     updated = _decide_purchase_bill(name, decision)
     return {"ok": True, "status": decision, "prices_updated": updated}
 
@@ -5004,6 +5015,11 @@ def resolve_approval():
     doc = frappe.get_doc("POS Approval", name)
     if doc.status != "pending":
         frappe.throw(_("Already resolved"))
+    # Purchase bills only: the manager app resolves every kind of approval through
+    # here, and a cashier asking for a discount on their own sale is a different
+    # thing from entering money paid to a vendor.
+    if (doc.action or "") == "purchase_bill":
+        _block_self_approval(doc.requested_by)
     doc.db_set("status", decision)
     doc.db_set("resolved_by", frappe.session.user)
     doc.db_set("resolved_at", now_datetime())
