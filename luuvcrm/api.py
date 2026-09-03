@@ -3959,8 +3959,21 @@ def get_purchase_bills():
     pending_amt = sum(b["total"] for b in bills if b["status"] == "pending")
     week = sum(b["total"] for b, r in zip(bills, rows)
                if b["status"] != "rejected" and str(r.requested_at) >= wk)
-    due_amt = sum(b["total"] for b in bills if b.get("due"))
-    due_count = sum(1 for b in bills if b.get("due"))
+    # The Due badge has to count every approved-unpaid bill, not just the 60 newest
+    # on this page — an older bill still owed was silently missing from the count.
+    # One aggregate row straight from the DB: no documents built, nothing to page
+    # through, and it uses the same filter get_due_bills() lists by so the two agree.
+    if frappe.db.has_column("Purchase Bill", "payment_status"):
+        agg = frappe.db.sql("""
+            SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS amt
+            FROM `tabPurchase Bill`
+            WHERE status = 'approved' AND IFNULL(payment_status, 'unpaid') != 'paid'
+        """, as_dict=True)[0]
+        due_count = int(agg.n or 0)
+        due_amt = float(agg.amt or 0)
+    else:
+        due_amt = sum(b["total"] for b in bills if b.get("due"))
+        due_count = sum(1 for b in bills if b.get("due"))
     return {"bills": bills, "approved_today": approved_today, "pending_amt": pending_amt,
             "week": week, "due_amt": due_amt, "due_count": due_count}
 
@@ -4054,9 +4067,14 @@ def get_due_bills():
     if not frappe.db.has_column("Purchase Bill", "payment_status"):
         setup_purchase_payment_fields()
 
-    rows = frappe.get_all("Purchase Bill",
-        filters={"status": "approved", "payment_status": ["!=", "paid"]},
-        fields=["name", "requested_at"], order_by="requested_at asc", limit_page_length=200)
+    # IFNULL, not a plain `!= 'paid'`: a bill created before the payment_status field
+    # existed reads NULL, and SQL drops NULL rows from a `!=` comparison — it would be
+    # owed money missing from the list. Same predicate the Due badge counts by.
+    rows = frappe.db.sql("""
+        SELECT name FROM `tabPurchase Bill`
+        WHERE status = 'approved' AND IFNULL(payment_status, 'unpaid') != 'paid'
+        ORDER BY requested_at ASC LIMIT 200
+    """, as_dict=True)
     bills = [_bill_dict(r.name) for r in rows]
 
     vend = {}
