@@ -94,6 +94,10 @@ input,button{font-family:inherit;}
       <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:12px;"><i data-lucide="info" style="width:15px;height:15px;color:var(--color-primary);flex:none;"></i> Approved bills waiting to be paid. Tap “Mark paid” once the vendor is settled.</div>
       <div id="dueList"></div>
     </div>
+    <div id="tabAppr" style="display:none;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="stamp" style="width:16px;height:16px;color:var(--color-primary);flex:none;"></i> Bills waiting on a second pair of eyes. Approving one updates the price book.</div>
+      <div id="apprList"></div>
+    </div>
     <div id="tabPrices" style="display:none;">
       <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="book-open" style="width:16px;height:16px;color:var(--color-primary);"></i> Current purchasing price per item. Updates when a bill is approved.</div>
       <div id="priceList" style="display:flex;flex-direction:column;gap:9px;"></div>
@@ -109,6 +113,7 @@ input,button{font-family:inherit;}
   <div style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:10px 8px 14px;gap:4px;">
     <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Bills</span></button>
     <button class="navb" data-tab="due" onclick="setTab('due')"><span style="position:relative;display:inline-flex;"><i data-lucide="alarm-clock"></i><span id="dueBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-danger);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Due</span></button>
+    <button class="navb" data-tab="appr" onclick="setTab('appr')"><span style="position:relative;display:inline-flex;"><i data-lucide="stamp"></i><span id="apprBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-primary);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Approve</span></button>
     <button class="navb" data-tab="expenses" onclick="setTab('expenses')"><span style="position:relative;display:inline-flex;"><i data-lucide="zap"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Expenses</span></button>
     <button class="navb" data-tab="prices" onclick="setTab('prices')"><span style="position:relative;display:inline-flex;"><i data-lucide="book-open"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Price book</span></button>
   </div>
@@ -214,12 +219,14 @@ input,button{font-family:inherit;}
     document.getElementById('tabDue').style.display=t==='due'?'block':'none';
     document.getElementById('tabExpenses').style.display=t==='expenses'?'block':'none';
     document.getElementById('tabPrices').style.display=t==='prices'?'block':'none';
-    document.getElementById('fab').style.display=(t==='prices'||t==='due')?'none':'block';
+    document.getElementById('tabAppr').style.display=t==='appr'?'block':'none';
+    document.getElementById('fab').style.display=(t==='prices'||t==='due'||t==='appr')?'none':'block';
     document.getElementById('fabLabel').textContent=t==='expenses'?'Add expense':'Add bill';
     document.getElementById('fabIcon').setAttribute('data-lucide',t==='expenses'?'zap':'camera');
     if(t==='prices') loadPriceBook();
     if(t==='expenses') loadExpenses();
     if(t==='due') loadDue();
+    if(t==='appr') loadApprovals();
     paintStats(); icons(); }
   function fabClick(){ if(tab==='expenses') openExp(); else openAdd(); }
 
@@ -232,8 +239,10 @@ input,button{font-family:inherit;}
 
   function paintDueBadge(){ const n=(billStats&&billStats.due_count)||0; const b=document.getElementById('dueBadge');
     if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
+  function paintApprBadge(){ const n=(billStats&&billStats.appr_count)||0; const b=document.getElementById('apprBadge');
+    if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
   async function loadBills(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
-    billStats=m; paintStats(); paintDueBadge();
+    billStats=m; paintStats(); paintDueBadge(); paintApprBadge();
     const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
     document.getElementById('expList').innerHTML=(m.bills||[]).length?(m.bills||[]).map(b=>{ const t=TONE[b.status]||TONE.pending;
       return `<div style="display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
@@ -481,11 +490,52 @@ input,button{font-family:inherit;}
       if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); }
       else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
 
+  // ── Approvals (purchase bills waiting on a second person) ──
+  // Not manager-only: whoever is on the page can clear a colleague's bill. Your own
+  // bill is greyed out here and refused by the server — see _block_self_approval().
+  async function loadApprovals(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[]};
+    const list=(m.approvals||[]);
+    document.getElementById('apprList').innerHTML=list.length?list.map(a=>{
+      const done=a.status!=='pending';
+      const lines=(a.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:4px 0;border-top:1px dashed var(--border-subtle);"><span style="color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.qtyStr||'')} · ${esc(l.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></div>`).join('');
+      const foot=done
+        ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:13px;font-weight:700;background:var(--${a.status==='approved'?'color-success-subtle':'color-danger-subtle'});color:var(--${a.status==='approved'?'color-success':'color-danger'});">${a.status==='approved'?'✓ Approved':'Rejected'}</div>`
+        : (a.mine
+          ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
+          : `<div style="display:flex;gap:9px;margin-top:12px;">
+               <button onclick="resolveAppr('${esc(a.name)}','rejected',this)" style="flex:1;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;">Reject</button>
+               <button onclick="resolveAppr('${esc(a.name)}','approved',this)" style="flex:1.4;display:flex;align-items:center;justify-content:center;gap:7px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approve</button>
+             </div>`);
+      return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;${done?'opacity:.6;':''}">
+        <div style="display:flex;gap:13px;">
+          <div style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;">${a.image?`<img src="${esc(a.image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🧾'}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title)||'—'}</span><span class="mono" style="font-size:16px;color:var(--text-strong);flex:none;">${esc(a.footer_value||'')}</span></div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${esc(a.subhead||'')} · ${esc(a.time||'')}${a.by?(' · '+esc(a.by)):''}</div>
+          </div>
+        </div>
+        ${lines?`<div style="margin-top:10px;">${lines}</div>`:''}
+        ${a.flag_text?`<div style="margin-top:9px;font-size:12.5px;color:var(--text-muted);background:var(--surface-sunken);border-radius:var(--radius-sm);padding:8px 10px;">${esc(a.flag_text)}</div>`:''}
+        ${foot}
+      </div>`;
+    }).join(''):'<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:56px 20px;text-align:center;color:var(--text-faint);"><span style="width:60px;height:60px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:28px;height:28px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);">Nothing waiting 🎉</div><div style="font-size:13px;max-width:230px;line-height:1.5;">No purchase bills need approving right now.</div></div>';
+    icons();
+  }catch(e){} }
+
+  async function resolveAppr(name,decision,btn){
+    const card=btn&&btn.parentElement; if(card) card.querySelectorAll('button').forEach(x=>x.disabled=true);
+    try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:''});
+      if(!r){ if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); return; }
+      const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast(decision==='approved'?'Approved ✓':'Rejected'); loadApprovals(); loadBills(); }
+      else { toast(srvMsg(d,'Could not resolve')); if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); }
+    }catch(e){ toast('Connection error'); if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); } }
+
   // init
   icons();
   document.getElementById('subline').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · {{ current_user_full or "Staff" }}';
   loadBills(); loadCatalog(); loadExpCats(); restoreDraft();
-  setInterval(()=>{ if(sheetOpen('addOverlay')||sheetOpen('expOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); }, 20000);
+  setInterval(()=>{ if(sheetOpen('addOverlay')||sheetOpen('expOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
 </script>
 </body>

@@ -736,6 +736,10 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 
   function renderPurchaseDay(g){
     const st=dayState(g.key);
+    // A bill you entered yourself is not yours to approve: keep it out of the day's
+    // selection and cash total, and lock its tick. The server refuses it regardless
+    // (_block_self_approval), this just stops the day approve loop from failing on it.
+    g.items.forEach(a=>{ if(a.mine) st.off[a.name]=true; });
     const total=gTotal(g), nSel=selItems(g).length;
     const cash=st.cash===''?null:money(st.cash);
     const diff=cash===null?null:Math.round(cash)-Math.round(total);
@@ -765,14 +769,14 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       const note=(b&&b.note)?`<div style="margin-top:9px;font-size:12.5px;color:var(--text-body);background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:8px 11px;">📝 ${esc(b.note)}</div>`:'';
       return `<div id="pv_${a.name}" style="border:1px solid ${moved?'var(--color-danger-subtle)':'var(--border-subtle)'};border-radius:var(--radius-md);background:var(--surface-sunken);padding:11px 12px;margin-bottom:9px;opacity:${on?'1':'.45'};">
         <div style="display:flex;gap:10px;margin-bottom:7px;">
-          <input type="checkbox" ${on?'checked':''} onchange="purchToggle('${g.key}','${a.name}',this)" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;margin-top:2px;">
+          <input type="checkbox" ${on?'checked':''} ${a.mine?'disabled title="You entered this bill — someone else has to approve it"':''} onchange="purchToggle('${g.key}','${a.name}',this)" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;margin-top:2px;">
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
               <span style="font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title||'—')}${moved?' <span style="color:var(--color-danger);">•</span>':''}</span>
               <span class="mono" style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text-strong);flex:none;">Rs ${nfmt(billTotal(a))}</span>
             </div>
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:2px;">
-              <span style="font-size:12.5px;color:var(--text-muted);">${esc(a.subhead||'purchase bill')}</span>
+              <span style="font-size:12.5px;color:var(--text-muted);">${esc(a.subhead||'purchase bill')}${a.mine?' · <span style="color:var(--color-danger);font-weight:700;">yours — needs someone else</span>':''}</span>
               <span style="display:inline-flex;align-items:center;gap:5px;flex:none;">
                 <span style="font-size:11.5px;color:var(--text-faint);">${esc(a.time||'')}</span>
                 <button onclick="purchFold('${a.name}',event)" title="Show / hide the lines" style="flex:none;width:20px;height:20px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:0;margin-right:-4px;display:inline-flex;align-items:center;justify-content:center;"><span id="pc_${a.name}" style="display:inline-block;transition:transform .15s;transform:rotate(${folded?'-90deg':'0'});font-size:13px;line-height:1;">▾</span></button>

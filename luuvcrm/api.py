@@ -3974,8 +3974,14 @@ def get_purchase_bills():
     else:
         due_amt = sum(b["total"] for b in bills if b.get("due"))
         due_count = sum(1 for b in bills if b.get("due"))
+    # Approvals badge: a count, nothing more (the cards only travel when the tab opens).
+    appr_count = 0
+    if frappe.db.exists("DocType", "POS Approval"):
+        appr_count = frappe.db.count("POS Approval",
+                                     {"status": "pending", "action": "purchase_bill"})
     return {"bills": bills, "approved_today": approved_today, "pending_amt": pending_amt,
-            "week": week, "due_amt": due_amt, "due_count": due_count}
+            "week": week, "due_amt": due_amt, "due_count": due_count,
+            "appr_count": appr_count}
 
 
 @frappe.whitelist()
@@ -4935,7 +4941,11 @@ def create_approval():
     return {"ok": True, "name": doc.name}
 
 
-def _pending_and_recent_approvals():
+def _pending_and_recent_approvals(action=None):
+    """Everything still pending, plus whatever was resolved today. `action` narrows
+    it to one kind (the purchases page wants purchase bills only) — filtered in the
+    query, not afterwards, so a shop with hundreds of pending approvals does not ship
+    them all to Python to throw most away."""
     if not frappe.db.exists("DocType", "POS Approval"):
         return []
     fields = ["name", "approval_type", "pos_order", "title", "subhead", "details_json",
@@ -4943,17 +4953,29 @@ def _pending_and_recent_approvals():
               "action", "action_payload"]
     if frappe.db.has_column("POS Approval", "manager_comment"):
         fields.append("manager_comment")
-    pending = frappe.get_all("POS Approval", filters={"status": "pending"},
+    pending_filters = {"status": "pending"}
+    recent_filters = [["status", "in", ["approved", "rejected"]],
+                      ["modified", ">=", frappe.utils.today()]]
+    if action:
+        pending_filters["action"] = action
+        recent_filters.append(["action", "=", action])
+    pending = frappe.get_all("POS Approval", filters=pending_filters,
                              fields=fields, order_by="requested_at desc")
-    recent = frappe.get_all("POS Approval",
-                            filters=[["status", "in", ["approved", "rejected"]],
-                                     ["modified", ">=", frappe.utils.today()]],
+    recent = frappe.get_all("POS Approval", filters=recent_filters,
                             fields=fields, order_by="modified desc", limit_page_length=15)
     return pending + recent
 
 
 def _format_approvals(rows):
     out = []
+    # One lookup per distinct user, not per row: the manager polls this every 8s
+    # with every pending approval in hand.
+    names = {}
+    for r in rows:
+        u = r.get("requested_by")
+        if u and u not in names:
+            names[u] = frappe.get_value("User", u, "full_name") or u
+    me = frappe.session.user
     for r in rows:
         try:
             details = json.loads(r.get("details_json") or "{}")
@@ -4985,6 +5007,10 @@ def _format_approvals(rows):
             "time": frappe.utils.pretty_date(r.get("requested_at")),
             "image": image,
             "manager_comment": r.get("manager_comment") or "",
+            "by": names.get(r.get("requested_by"), ""),
+            # Whoever raised it cannot resolve it — the UI greys the buttons out,
+            # _block_self_approval() is what actually enforces it.
+            "mine": bool(r.get("requested_by")) and r.get("requested_by") == me,
         })
     return out
 
@@ -4992,6 +5018,18 @@ def _format_approvals(rows):
 @frappe.whitelist()
 def get_pending_approvals():
     rows = _pending_and_recent_approvals()
+    pending = sum(1 for r in rows if r.get("status") == "pending")
+    return {"approvals": _format_approvals(rows), "pending": pending}
+
+
+@frappe.whitelist()
+def get_purchase_approvals():
+    """Purchase-bill approvals for the purchases page — the same cards the manager
+    app shows, with every other approval type left out. Open to any POS user on the
+    page, not managers only: whoever is on the floor can clear a colleague's bill,
+    while their own stays blocked by _block_self_approval()."""
+    _require_pos_role()
+    rows = _pending_and_recent_approvals("purchase_bill")
     pending = sum(1 for r in rows if r.get("status") == "pending")
     return {"approvals": _format_approvals(rows), "pending": pending}
 
