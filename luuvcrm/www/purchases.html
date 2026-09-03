@@ -494,19 +494,16 @@ input,button{font-family:inherit;}
   // Not manager-only: whoever is on the page can clear a colleague's bill. Your own
   // bill is greyed out here and refused by the server — see _block_self_approval().
   async function loadApprovals(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[]};
-    const list=(m.approvals||[]);
+    const list=(m.approvals||[]).filter(a=>a.status==='pending');   // a queue, not a history
     document.getElementById('apprList').innerHTML=list.length?list.map(a=>{
-      const done=a.status!=='pending';
       const lines=(a.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:4px 0;border-top:1px dashed var(--border-subtle);"><span style="color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.qtyStr||'')} · ${esc(l.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></div>`).join('');
-      const foot=done
-        ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:13px;font-weight:700;background:var(--${a.status==='approved'?'color-success-subtle':'color-danger-subtle'});color:var(--${a.status==='approved'?'color-success':'color-danger'});">${a.status==='approved'?'✓ Approved':'Rejected'}</div>`
-        : (a.mine
+      const foot=(a.mine
           ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
           : `<div style="display:flex;gap:9px;margin-top:12px;">
                <button onclick="resolveAppr('${esc(a.name)}','rejected',this)" style="flex:1;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;">Reject</button>
                <button onclick="resolveAppr('${esc(a.name)}','approved',this)" style="flex:1.4;display:flex;align-items:center;justify-content:center;gap:7px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approve</button>
              </div>`);
-      return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;${done?'opacity:.6;':''}">
+      return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
         <div style="display:flex;gap:13px;">
           <div style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;">${a.image?`<img src="${esc(a.image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🧾'}</div>
           <div style="flex:1;min-width:0;">

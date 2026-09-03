@@ -4941,11 +4941,12 @@ def create_approval():
     return {"ok": True, "name": doc.name}
 
 
-def _pending_and_recent_approvals(action=None):
+def _pending_and_recent_approvals(action=None, include_recent=True):
     """Everything still pending, plus whatever was resolved today. `action` narrows
     it to one kind (the purchases page wants purchase bills only) — filtered in the
     query, not afterwards, so a shop with hundreds of pending approvals does not ship
-    them all to Python to throw most away."""
+    them all to Python to throw most away. `include_recent=False` drops the resolved
+    tail entirely, for a list that is meant to be a work queue and nothing else."""
     if not frappe.db.exists("DocType", "POS Approval"):
         return []
     fields = ["name", "approval_type", "pos_order", "title", "subhead", "details_json",
@@ -4961,6 +4962,8 @@ def _pending_and_recent_approvals(action=None):
         recent_filters.append(["action", "=", action])
     pending = frappe.get_all("POS Approval", filters=pending_filters,
                              fields=fields, order_by="requested_at desc")
+    if not include_recent:
+        return pending
     recent = frappe.get_all("POS Approval", filters=recent_filters,
                             fields=fields, order_by="modified desc", limit_page_length=15)
     return pending + recent
@@ -5027,11 +5030,13 @@ def get_purchase_approvals():
     """Purchase-bill approvals for the purchases page — the same cards the manager
     app shows, with every other approval type left out. Open to any POS user on the
     page, not managers only: whoever is on the floor can clear a colleague's bill,
-    while their own stays blocked by _block_self_approval()."""
+    while their own stays blocked by _block_self_approval().
+
+    Pending only. This tab is a queue to empty, not a history — a resolved bill
+    belongs in the Bills list, where it already shows with its status."""
     _require_pos_role()
-    rows = _pending_and_recent_approvals("purchase_bill")
-    pending = sum(1 for r in rows if r.get("status") == "pending")
-    return {"approvals": _format_approvals(rows), "pending": pending}
+    rows = _pending_and_recent_approvals("purchase_bill", include_recent=False)
+    return {"approvals": _format_approvals(rows), "pending": len(rows)}
 
 
 @frappe.whitelist()
