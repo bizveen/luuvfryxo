@@ -100,10 +100,18 @@ input,button{font-family:inherit;}
         <div id="dueVendors" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;"></div>
       </div>
       <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:12px;"><i data-lucide="info" style="width:15px;height:15px;color:var(--color-primary);flex:none;"></i> Approved bills waiting to be paid. Tap “Mark paid” once the vendor is settled.</div>
+      <div style="position:relative;margin-bottom:12px;">
+        <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-faint);pointer-events:none;"></i>
+        <input id="dueSearch" type="text" placeholder="Filter by vendor or item" oninput="onDueSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:10px 14px 10px 36px;font-size:13.5px;color:var(--text-strong);">
+      </div>
       <div id="dueList"></div>
     </div>
     <div id="tabAppr" style="display:none;">
       <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="stamp" style="width:16px;height:16px;color:var(--color-primary);flex:none;"></i> Bills waiting on a second pair of eyes. Approving one updates the price book.</div>
+      <div style="position:relative;margin-bottom:12px;">
+        <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-faint);pointer-events:none;"></i>
+        <input id="apprSearch" type="text" placeholder="Filter by vendor, item or who sent it" oninput="onApprSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:10px 14px 10px 36px;font-size:13.5px;color:var(--text-strong);">
+      </div>
       <div id="apprList"></div>
     </div>
     <div id="tabPrices" style="display:none;">
@@ -324,11 +332,21 @@ input,button{font-family:inherit;}
     }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
 
   // ── Due bills (approved, not yet paid to the vendor) ──
+  // Filtering happens here, not at the server: the whole owed list is already in hand.
+  let dueRows=[], dueQ='';
+  function onDueSearch(v){ dueQ=(v||'').trim().toLowerCase(); renderDue(); }
+  function billHay(b){ return [b.vendor, b.by, ...(b.lines||[]).map(l=>l.name)].join(' ').toLowerCase(); }
   async function loadDue(){ try{ const r=await _post('/api/method/luuvcrm.api.get_due_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
     document.getElementById('dueTotal').textContent=nfmt(m.total_due||0);
     document.getElementById('dueCount').textContent=m.count||0;
     document.getElementById('dueVendors').innerHTML=(m.vendors||[]).slice(0,6).map(v=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:var(--radius-pill);padding:5px 11px;">${esc(v.vendor)} <span class="mono" style="opacity:.8;">Rs ${nfmt(v.amount)}</span></span>`).join('');
-    document.getElementById('dueList').innerHTML=(m.bills||[]).length?(m.bills||[]).map(b=>`
+    dueRows=m.bills||[]; renderDue();
+    icons();
+  }catch(e){} }
+
+  function renderDue(){
+    const rows=dueQ?dueRows.filter(b=>billHay(b).includes(dueQ)):dueRows;
+    document.getElementById('dueList').innerHTML=rows.length?(dueQ?`<div style="font-size:12px;color:var(--text-faint);margin:-2px 0 10px;">${rows.length} of ${dueRows.length} bill${dueRows.length===1?'':'s'}</div>`:'')+rows.map(b=>`
       <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
         <div style="display:flex;gap:13px;">
           <div style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
@@ -336,9 +354,10 @@ input,button{font-family:inherit;}
           <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${esc(b.time)}${b.by?(' · '+esc(b.by)):''}</div></div>
         </div>
         <button onclick="markPaid('${esc(b.name)}',this)" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid</button>
-      </div>`).join(''):'<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:56px 20px;text-align:center;color:var(--text-faint);"><span style="width:60px;height:60px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:28px;height:28px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);">All settled 🎉</div><div style="font-size:13px;max-width:230px;line-height:1.5;">No approved bills waiting to be paid.</div></div>';
-    icons();
-  }catch(e){} }
+      </div>`).join(''):(dueQ
+      ?`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 20px;text-align:center;color:var(--text-faint);"><i data-lucide="search-x" style="width:26px;height:26px;"></i><div style="font-size:13.5px;">Nothing owed matches “${esc(dueQ)}”.</div></div>`
+      :'<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:56px 20px;text-align:center;color:var(--text-faint);"><span style="width:60px;height:60px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:28px;height:28px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);">All settled 🎉</div><div style="font-size:13px;max-width:230px;line-height:1.5;">No approved bills waiting to be paid.</div></div>');
+    icons(); }
   async function markPaid(name,btn){ if(btn){ btn.disabled=true; btn.innerHTML='<i data-lucide="loader" style="width:16px;height:16px;"></i> Saving…'; icons(); }
     try{ const r=await _post('/api/method/luuvcrm.api.mark_bill_paid',{name:name,paid:1}); if(!r){ if(btn) btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ toast('Marked paid ✓'); loadDue(); loadBills(); }
@@ -596,12 +615,20 @@ input,button{font-family:inherit;}
   // Not manager-only: whoever is on the page can clear a colleague's bill. Your own
   // bill is greyed out here and refused by the server — see _block_self_approval().
   const apprCmts={};   // typed comment per approval, kept across the 20s poll re-render
+  let apprRows=[], apprQ='';
+  function onApprSearch(v){ apprQ=(v||'').trim().toLowerCase(); renderAppr(); }
+  function apprHay(a){ return [a.title, a.by, a.flag_text, ...(a.lines||[]).map(l=>l.name)].join(' ').toLowerCase(); }
   function apprCmt(name,v){ apprCmts[name]=v; }
   async function loadApprovals(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[]};
-    const list=(m.approvals||[]).filter(a=>a.status==='pending');   // a queue, not a history
     const ae=document.activeElement;   // never repaint the list out from under a comment being typed
     if(ae&&ae.tagName==='INPUT'&&document.getElementById('apprList').contains(ae)) return;
-    document.getElementById('apprList').innerHTML=list.length?list.map(a=>{
+    apprRows=(m.approvals||[]).filter(a=>a.status==='pending');   // a queue, not a history
+    renderAppr();
+  }catch(e){} }
+
+  function renderAppr(){
+    const list=apprQ?apprRows.filter(a=>apprHay(a).includes(apprQ)):apprRows;
+    document.getElementById('apprList').innerHTML=list.length?(apprQ?`<div style="font-size:12px;color:var(--text-faint);margin:-2px 0 10px;">${list.length} of ${apprRows.length} waiting</div>`:'')+list.map(a=>{
       const lines=(a.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:4px 0;border-top:1px dashed var(--border-subtle);"><span style="color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.qtyStr||'')} · ${esc(l.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></div>`).join('');
       const foot=(a.mine
           ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
@@ -623,9 +650,10 @@ input,button{font-family:inherit;}
         ${a.flag_text?`<div style="margin-top:9px;font-size:12.5px;color:var(--text-muted);background:var(--surface-sunken);border-radius:var(--radius-sm);padding:8px 10px;">${esc(a.flag_text)}</div>`:''}
         ${foot}
       </div>`;
-    }).join(''):'<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:56px 20px;text-align:center;color:var(--text-faint);"><span style="width:60px;height:60px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:28px;height:28px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);">Nothing waiting 🎉</div><div style="font-size:13px;max-width:230px;line-height:1.5;">No purchase bills need approving right now.</div></div>';
-    icons();
-  }catch(e){} }
+    }).join(''):(apprQ
+      ?`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 20px;text-align:center;color:var(--text-faint);"><i data-lucide="search-x" style="width:26px;height:26px;"></i><div style="font-size:13.5px;">Nothing waiting matches “${esc(apprQ)}”.</div></div>`
+      :'<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:56px 20px;text-align:center;color:var(--text-faint);"><span style="width:60px;height:60px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:28px;height:28px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);">Nothing waiting 🎉</div><div style="font-size:13px;max-width:230px;line-height:1.5;">No purchase bills need approving right now.</div></div>');
+    icons(); }
 
   async function resolveAppr(name,decision,btn){
     const card=btn&&btn.parentElement; if(card) card.querySelectorAll('button').forEach(x=>x.disabled=true);
