@@ -209,3 +209,53 @@ def payment_mode_account(case, mode="Credit Card"):
 
     case.addCleanup(drop)
     return row.name
+
+
+def guide(case, tag, percent=5.0, balance=0.0):
+    """A Tour Guide with a cashback percent and an opening balance.
+
+    Creates the guide doctypes first: they are built at runtime by
+    setup_tour_guides, so a site nobody has run it on has none of them.
+    """
+    import luuvcrm.api as api
+
+    if not frappe.db.exists("DocType", "Tour Guide"):
+        api.setup_tour_guides()
+
+    name = PREFIX + tag
+    if frappe.db.exists("Tour Guide", name):
+        frappe.delete_doc("Tour Guide", name, force=True, ignore_permissions=True)
+    doc = frappe.get_doc({
+        "doctype": "Tour Guide",
+        "guide_name": name,
+        "whatsapp": "9477" + str(abs(hash(tag)) % 10_000_000).zfill(7),
+        "role": "Guide",
+        "status": "Active",
+        "cashback_percent": percent,
+        "cashback_balance": balance,
+        "total_earned": 0,
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert()
+    _cleanup(case, "Tour Guide", doc.name)
+
+    def drop_txns():
+        for txn in frappe.get_all("Guide Cashback Txn", filters={"guide": doc.name}, pluck="name"):
+            frappe.delete_doc("Guide Cashback Txn", txn, force=True, ignore_permissions=True)
+
+    case.addCleanup(drop_txns)
+    return doc.name
+
+
+def guide_balance(name):
+    return float(frappe.db.get_value("Tour Guide", name, "cashback_balance") or 0)
+
+
+def guide_txns(name, kind=None):
+    filters = {"guide": name}
+    if kind:
+        filters["type"] = kind
+    return frappe.get_all("Guide Cashback Txn", filters=filters,
+                          fields=["type", "amount", "reference_invoice", "bill_total",
+                                  "percent_used", "note"],
+                          order_by="creation asc")
