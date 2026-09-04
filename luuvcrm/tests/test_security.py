@@ -179,6 +179,41 @@ class TestSetupEndpointsAreAdminOnly(FrappeTestCase):
         self.assertEqual(unguarded, [],
                          f"schema-mutating endpoints without a guard: {unguarded}")
 
+    def test_no_endpoint_bootstraps_itself_through_a_guarded_setup(self):
+        """The guard belongs on the HTTP wrapper, not on the work.
+
+        Nineteen ordinary endpoints create their own doctype or field on first
+        use — create_approval, create_expense, create_wastage, and two GUEST
+        endpoints among them. When the guard sat on the function they called,
+        the first cashier to request an approval on a fresh site got a
+        PermissionError, and so did a guest updating their profile. The work
+        lives in _install_* now, and only the whitelisted setup_* wrapper
+        checks for System Manager.
+        """
+        import re
+        source = inspect.getsource(api)
+        offenders = []
+        for match in re.finditer(r"^def (\w+)\(", source, re.M):
+            name = match.group(1)
+            if name.startswith("setup_"):
+                continue
+            fn = getattr(api, name, None)
+            if not callable(fn):
+                continue
+            body = "\n".join(_source(fn).split("\n")[1:])
+            for called in re.findall(r"(?<![\w.])(setup_\w+)\(\)", body):
+                offenders.append(f"{name} -> {called}")
+        self.assertEqual(offenders, [],
+                         f"these would need admin rights to work: {offenders}")
+
+    def test_the_wrapper_and_the_work_stay_in_step(self):
+        """Every _install_* has a setup_* wrapper, and vice versa — a wrapper
+        without work, or work no admin can trigger, is a loose end."""
+        installs = {n[len("_install_"):] for n in vars(api) if n.startswith("_install_")}
+        wrapped = {n[len("setup_"):] for n in vars(api)
+                   if n.startswith("setup_") and "_install_" in _source(getattr(api, n))}
+        self.assertEqual(installs, wrapped, "the split is uneven")
+
     def test_no_setup_endpoint_is_guest_accessible(self):
         for name, fn in vars(api).items():
             if name.startswith("setup_") and callable(fn):

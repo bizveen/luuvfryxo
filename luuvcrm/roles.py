@@ -160,3 +160,67 @@ def ensure_roles():
             frappe.db.set_value("Role", role, "disabled", 0)
             enabled.append(role)
     return {"created": created, "enabled": enabled}
+
+
+#: DocPerms the till needs on ERPNext's own doctypes. POS Order's perms ship
+#: with the doctype; these belong to ERPNext, so they are granted rather than
+#: declared.
+POS_DOCPERMS = {
+    "POS Opening Entry": ("read", "write", "create", "submit"),
+    "POS Closing Entry": ("read", "write", "create", "submit"),
+    "POS Invoice": ("read", "write", "create", "submit"),
+    "Sales Invoice": ("read", "write", "create", "submit"),
+    # Everything below is read-only, and every entry is here because ERPNext
+    # checks it while validating a POS Invoice — with bare frappe.has_permission
+    # calls that a document's ignore_permissions flag does not bypass. Without
+    # them a Cashier cannot take a payment at all, however the invoice is
+    # inserted, which is what a test running as a real cashier first found.
+    #
+    # Account is `select` rather than `read` on purpose: that is what
+    # party.get_party_account settles for (see frappe.only_has_select_perm), and
+    # it is the smaller grant — enough to satisfy a link, not enough to browse
+    # the ledger. This whole set is deliberately narrower than ERPNext's own
+    # Accounts User role, which would open the general ledger to the counter.
+    "Account": ("select",),        # party.get_party_account -> account_perm_check
+    "Item": ("read",),             # get_item_details -> item.check_permission()
+    "Item Price": ("read",),
+    "POS Profile": ("read",),
+    "Customer": ("read",),
+    "Price List": ("select",),
+    "Mode of Payment": ("select",),
+    "Warehouse": ("select",),
+    "Company": ("select",),
+    "UOM": ("select",),
+}
+
+
+def ensure_pos_docperms(role=CASHIER):
+    """Grant `role` what it needs to run a shift on ERPNext's doctypes. Idempotent.
+
+    pos_open_shift inserts a POS Opening Entry under the caller's own
+    permissions, so without these a cashier cannot start a shift at all — and
+    the till is unusable from the first tap of the morning.
+
+    This used to exist only as the setup_pos_shift_perms endpoint, which
+    somebody had to remember to call. It is a patch now, so a migrated site has
+    it whether anyone remembered or not; the endpoint still exists and calls
+    straight through here, so the two cannot drift.
+    """
+    from frappe.permissions import add_permission, update_permission_property
+
+    if not frappe.db.exists("Role", role):
+        frappe.get_doc({"doctype": "Role", "role_name": role,
+                        "desk_access": 1 if role in DESK_ROLES else 0
+                        }).insert(ignore_permissions=True)
+
+    granted = {}
+    for doctype, perms in POS_DOCPERMS.items():
+        if not frappe.db.exists("DocType", doctype):
+            continue  # ERPNext not installed, or an older version
+        add_permission(doctype, role, 0)
+        for perm in perms:
+            update_permission_property(doctype, role, 0, perm, 1)
+        granted[doctype] = list(perms)
+    if granted:
+        frappe.clear_cache()
+    return granted

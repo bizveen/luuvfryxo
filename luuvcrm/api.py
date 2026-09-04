@@ -1374,33 +1374,13 @@ def get_pos_shift():
 def setup_pos_shift_perms():
     """Grant the Cashier role the DocPerms needed to run shifts under Frappe security.
 
-    Idempotent — safe to run repeatedly. Required after dropping ignore_permissions
-    from pos_open_shift / pos_close_shift.
+    Kept for the sites that already call it. The grants themselves live in
+    luuvcrm.roles.ensure_pos_docperms and are applied by
+    luuvcrm.patches.v1_0.grant_pos_permissions, so a migrated site has them
+    whether or not anyone calls this — and the two can no longer disagree.
     """
     frappe.only_for("System Manager")
-    from frappe.permissions import add_permission, update_permission_property
-
-    role = "Cashier"
-    if not frappe.db.exists("Role", role):
-        frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 1}).insert(
-            ignore_permissions=True
-        )
-
-    grants = {
-        "POS Opening Entry": ["read", "write", "create", "submit"],
-        "POS Closing Entry": ["read", "write", "create", "submit"],
-        "POS Invoice": ["read", "write", "create", "submit"],
-        "Sales Invoice": ["read", "write", "create", "submit"],
-    }
-    applied = {}
-    for doctype, perms in grants.items():
-        add_permission(doctype, role, 0)  # ensures a perm row at level 0 (sets read)
-        for p in perms:
-            update_permission_property(doctype, role, 0, p, 1)
-        applied[doctype] = perms
-
-    frappe.clear_cache()
-    return {"role": role, "granted": applied}
+    return {"role": roles.CASHIER, "granted": roles.ensure_pos_docperms()}
 
 
 @frappe.whitelist()
@@ -1552,12 +1532,10 @@ def setup_split_fields():
     return {"pos_order_item.paid_qty_field_created": created}
 
 
-@frappe.whitelist()
-def setup_sent_qty_field():
+def _install_sent_qty_field():
     """Add a per-line `sent_qty` Int to POS Order Item — how many of the line's qty have
     already been fired to the kitchen (printed on a KOT). Lets a re-print show only the newly
     added items. Idempotent; no full migrate."""
-    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
     created = False
@@ -1575,11 +1553,16 @@ def setup_sent_qty_field():
 
 
 @frappe.whitelist()
-def setup_item_notes_field():
+def setup_sent_qty_field():
+    """Schema setup over HTTP. Admin only; the work is in _install_sent_qty_field."""
+    frappe.only_for("System Manager")
+    return _install_sent_qty_field()
+
+
+def _install_item_notes_field():
     """Add a per-line `notes` Small Text to POS Order Item — the waiter's special instruction
     for that specific line (e.g. "no chili", "extra spicy"). Lets the same item appear as two
     lines with different prep notes. Idempotent; no full migrate."""
-    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
     created = False
@@ -1595,10 +1578,17 @@ def setup_item_notes_field():
     return {"pos_order_item.notes_field_created": created}
 
 
+@frappe.whitelist()
+def setup_item_notes_field():
+    """Schema setup over HTTP. Admin only; the work is in _install_item_notes_field."""
+    frappe.only_for("System Manager")
+    return _install_item_notes_field()
+
+
 def _ensure_item_notes_field():
     """Lazily create the per-line notes column the first time a write path needs it."""
     if not frappe.db.has_column("POS Order Item", "notes"):
-        setup_item_notes_field()
+        _install_item_notes_field()
 
 
 def _clean_item_note(value):
@@ -1617,7 +1607,7 @@ def mark_kot_printed():
     if not order_name:
         frappe.throw(_("Order name is required"))
     if not frappe.db.has_column("POS Order Item", "sent_qty"):
-        setup_sent_qty_field()
+        _install_sent_qty_field()
     doc = frappe.get_doc("POS Order", order_name)
     for i in (doc.get("items") or []):
         if int(i.get("sent_qty") or 0) != int(i.qty or 0):
@@ -1770,7 +1760,7 @@ def waiter_append_items():
 
     _ensure_item_notes_field()
     if not frappe.db.has_column("POS Order Item", "sent_qty"):
-        setup_sent_qty_field()
+        _install_sent_qty_field()
     # Whatever is already on the bill is considered already fired to the kitchen — so the KOT for
     # this append prints ONLY the new lines (get_kot_print_data keys on qty - sent_qty).
     for i in (pos_order.get("items") or []):
@@ -3696,11 +3686,9 @@ def _open_shift_name(user=None):
         or frappe.db.get_value("POS Opening Entry", {"docstatus": 1, "status": "Open"}, "name")
 
 
-@frappe.whitelist()
-def setup_cash_movement():
+def _install_cash_movement():
     """Create the `POS Cash Movement` Custom DocType (idempotent; custom:1 => no bench migrate).
     A small drawer pay-in / pay-out log linked to the shift's POS Opening Entry."""
-    frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "POS Cash Movement"):
         return {"created": False, "exists": True}
 
@@ -3742,6 +3730,13 @@ def setup_cash_movement():
     return {"created": True}
 
 
+@frappe.whitelist()
+def setup_cash_movement():
+    """Schema setup over HTTP. Admin only; the work is in _install_cash_movement."""
+    frappe.only_for("System Manager")
+    return _install_cash_movement()
+
+
 @frappe.whitelist(methods=["POST"])
 def record_cash_movement():
     """Record a drawer pay-in or pay-out against the current open shift."""
@@ -3760,7 +3755,7 @@ def record_cash_movement():
         frappe.throw(_("No open shift — open a shift first"))
 
     if not frappe.db.exists("DocType", "POS Cash Movement"):
-        setup_cash_movement()
+        _install_cash_movement()
 
     doc = frappe.get_doc({
         "doctype": "POS Cash Movement",
@@ -3833,10 +3828,8 @@ def _buying_price_list():
     return pl or "Standard Buying"
 
 
-@frappe.whitelist()
-def setup_purchase_bill():
+def _install_purchase_bill():
     """Create `Purchase Bill` + `Purchase Bill Item` Custom DocTypes (idempotent; no migrate)."""
-    frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "Purchase Bill"):
         return {"created": False, "exists": True}
     if not frappe.db.exists("Price List", "Standard Buying"):
@@ -3879,6 +3872,13 @@ def setup_purchase_bill():
     }).insert(ignore_permissions=True)
     frappe.clear_cache()
     return {"created": True}
+
+
+@frappe.whitelist()
+def setup_purchase_bill():
+    """Schema setup over HTTP. Admin only; the work is in _install_purchase_bill."""
+    frappe.only_for("System Manager")
+    return _install_purchase_bill()
 
 
 RAW_MATERIALS = [
@@ -4038,7 +4038,7 @@ def _bill_dict(name):
 def create_purchase_bill():
     roles.require_pos()
     if not frappe.db.exists("DocType", "Purchase Bill"):
-        setup_purchase_bill()
+        _install_purchase_bill()
     data = frappe.local.form_dict
     vendor = (data.get("vendor") or "").strip()
     if not vendor:
@@ -4072,7 +4072,7 @@ def create_purchase_bill():
 
     # Route the bill to the manager app for approval (same POS Approval pipeline).
     if not frappe.db.exists("DocType", "POS Approval"):
-        setup_pos_approval()
+        _install_pos_approval()
     n = len(appr_lines)
     frappe.get_doc({
         "doctype": "POS Approval", "approval_type": "bill", "title": vendor,
@@ -4229,12 +4229,21 @@ def _decide_purchase_bill(name, decision):
 
 
 def _block_self_approval(requested_by):
-    """Separation of duties: whoever raised a purchase bill cannot be the one who
-    approves or rejects it. Approving rewrites the buying price book, so a single
-    person must not be able to both enter a purchase and wave it through. No role
-    is exempt — a manager who enters a bill still needs a second pair of eyes."""
+    """Separation of duties: whoever raised a request cannot be the one who
+    answers it.
+
+    This used to apply to purchase bills only, on the reasoning that a cashier
+    asking for a discount on their own sale is a smaller thing than entering
+    money paid to a vendor. But resolve_approval's own gate is a POS role, not a
+    manager one — so a cashier could grant their own discount, which is the one
+    thing the approval flow exists to prevent. It now covers every kind.
+
+    No role is exempt: a manager who raises a request still needs a second pair
+    of eyes. Answering somebody else's request is unchanged, so a shift with two
+    people on it can still work without a manager present.
+    """
     if requested_by and requested_by == frappe.session.user:
-        frappe.throw(_("You entered this bill — someone else has to approve it"),
+        frappe.throw(_("You raised this request — someone else has to answer it"),
                      frappe.PermissionError)
 
 
@@ -4259,9 +4268,8 @@ def resolve_purchase_bill():
 # two custom fields turn Purchase Bill into a lightweight payables list; there is
 # no GL/accounting behind it (consistent with the rest of this app).
 
-def setup_purchase_payment_fields():
+def _install_purchase_payment_fields():
     """Add `payment_status` + `paid_at` + `paid_by` to Purchase Bill. Idempotent; no migrate."""
-    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"created": False, "no_doctype": True}
@@ -4286,6 +4294,13 @@ def setup_purchase_payment_fields():
 
 
 @frappe.whitelist()
+def setup_purchase_payment_fields():
+    """Schema setup over HTTP. Admin only; the work is in _install_purchase_payment_fields."""
+    frappe.only_for("System Manager")
+    return _install_purchase_payment_fields()
+
+
+@frappe.whitelist()
 def get_due_bills():
     """Approved bills not yet marked paid — the vendor payables list. Oldest owed
     first (so the most overdue payment is at the top), with a per-vendor summary."""
@@ -4293,7 +4308,7 @@ def get_due_bills():
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "total_due": 0, "count": 0, "vendors": []}
     if not frappe.db.has_column("Purchase Bill", "payment_status"):
-        setup_purchase_payment_fields()
+        _install_purchase_payment_fields()
 
     # IFNULL, not a plain `!= 'paid'`: a bill created before the payment_status field
     # existed reads NULL, and SQL drops NULL rows from a `!=` comparison — it would be
@@ -4321,7 +4336,7 @@ def mark_bill_paid():
     `paid` param 0/1 lets a mistaken tap be undone."""
     roles.require_pos()
     if not frappe.db.has_column("Purchase Bill", "payment_status"):
-        setup_purchase_payment_fields()
+        _install_purchase_payment_fields()
     data = frappe.local.form_dict
     name = data.get("name")
     if not name or not frappe.db.exists("Purchase Bill", name):
@@ -4364,11 +4379,9 @@ def _ensure_select_option(doctype, fieldname, option):
     return False
 
 
-@frappe.whitelist()
-def setup_expenses():
+def _install_expenses():
     """Create the Expense Category + Expense DocTypes, seed categories, and register the
     'expense' approval type. Idempotent (custom:1 => survives bench migrate, never on disk)."""
-    frappe.only_for("System Manager")
     created = []
 
     if not frappe.db.exists("DocType", "Expense Category"):
@@ -4433,7 +4446,7 @@ def setup_expenses():
         created.append("Expense")
 
     if not frappe.db.exists("DocType", "POS Approval"):
-        setup_pos_approval()
+        _install_pos_approval()
     _ensure_select_option("POS Approval", "approval_type", "expense")
 
     frappe.clear_cache()
@@ -4441,11 +4454,18 @@ def setup_expenses():
 
 
 @frappe.whitelist()
+def setup_expenses():
+    """Schema setup over HTTP. Admin only; the work is in _install_expenses."""
+    frappe.only_for("System Manager")
+    return _install_expenses()
+
+
+@frappe.whitelist()
 def get_expense_categories():
     """Categories for the /purchases expense form. Manager-editable from Desk > Expense Category."""
     roles.require_pos()
     if not frappe.db.exists("DocType", "Expense Category"):
-        setup_expenses()
+        _install_expenses()
     return {"categories": [r.name for r in frappe.get_all(
         "Expense Category", filters={"disabled": 0}, fields=["name"], order_by="name")]}
 
@@ -4474,7 +4494,7 @@ def create_expense():
     """
     roles.require_pos()
     if not frappe.db.exists("DocType", "Expense"):
-        setup_expenses()
+        _install_expenses()
     data = frappe.local.form_dict
 
     category = (data.get("category") or "").strip()
@@ -4504,7 +4524,7 @@ def create_expense():
     doc.insert()
 
     if not frappe.db.exists("DocType", "POS Approval"):
-        setup_pos_approval()
+        _install_pos_approval()
     amt_str = f"Rs {int(round(amount)):,}"
     lines = [{"qtyStr": "", "name": payee or category, "totalStr": amt_str}]
     if data.get("bill_ref"):
@@ -5095,10 +5115,8 @@ def get_manager_purchase_report(days=7):
 # override, etc.) it raises a POS Approval; the Manager app approves/rejects and the
 # action is executed server-side. The Frappe-default way: a dedicated DocType.
 
-@frappe.whitelist()
-def setup_pos_approval():
+def _install_pos_approval():
     """Create the `POS Approval` Custom DocType (idempotent; custom:1, no migrate)."""
-    frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "POS Approval"):
         return {"created": False, "exists": True}
     if not frappe.db.exists("Role", "Cashier"):
@@ -5136,12 +5154,19 @@ def setup_pos_approval():
     return {"created": True}
 
 
+@frappe.whitelist()
+def setup_pos_approval():
+    """Schema setup over HTTP. Admin only; the work is in _install_pos_approval."""
+    frappe.only_for("System Manager")
+    return _install_pos_approval()
+
+
 @frappe.whitelist(methods=["POST"])
 def create_approval():
     """POS raises an approval request for a bill change that needs a manager."""
     roles.require_pos()
     if not frappe.db.exists("DocType", "POS Approval"):
-        setup_pos_approval()
+        _install_pos_approval()
     data = frappe.local.form_dict
     doc = frappe.get_doc({
         "doctype": "POS Approval",
@@ -5279,11 +5304,7 @@ def resolve_approval():
     doc = frappe.get_doc("POS Approval", name)
     if doc.status != "pending":
         frappe.throw(_("Already resolved"))
-    # Purchase bills only: the manager app resolves every kind of approval through
-    # here, and a cashier asking for a discount on their own sale is a different
-    # thing from entering money paid to a vendor.
-    if (doc.action or "") == "purchase_bill":
-        _block_self_approval(doc.requested_by)
+    _block_self_approval(doc.requested_by)
     doc.db_set("status", decision)
     doc.db_set("resolved_by", frappe.session.user)
     doc.db_set("resolved_at", now_datetime())
@@ -5406,11 +5427,9 @@ def _apply_order_items(order_name, items):
     return pos_order
 
 
-@frappe.whitelist()
-def setup_check_printed():
+def _install_check_printed():
     """Add a `check_printed` Check to POS Order (set when a guest check is printed; after that,
     deleting items needs a manager approval). Idempotent; no migrate."""
-    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
     created = False
     if not frappe.db.has_column("POS Order", "check_printed"):
@@ -5422,6 +5441,13 @@ def setup_check_printed():
     return {"check_printed_created": created}
 
 
+@frappe.whitelist()
+def setup_check_printed():
+    """Schema setup over HTTP. Admin only; the work is in _install_check_printed."""
+    frappe.only_for("System Manager")
+    return _install_check_printed()
+
+
 @frappe.whitelist(methods=["POST"])
 def mark_check_printed():
     """Flag that a guest check was printed for an order."""
@@ -5430,7 +5456,7 @@ def mark_check_printed():
     if not order_name:
         frappe.throw(_("Order name is required"))
     if not frappe.db.has_column("POS Order", "check_printed"):
-        setup_check_printed()
+        _install_check_printed()
     frappe.db.set_value("POS Order", order_name, "check_printed", 1)
     return {"ok": True}
 
@@ -5501,10 +5527,8 @@ def setup_scheduled_time_field():
     return {"scheduled_time_created": created}
 
 
-@frappe.whitelist()
-def setup_qr_promo():
+def _install_qr_promo():
     """Create QR Promo Campaign + QR Promo Code DocTypes (idempotent; custom:1)."""
-    frappe.only_for("System Manager")
     created = []
     if not frappe.db.exists("DocType", "QR Promo Campaign"):
         frappe.get_doc({
@@ -5548,6 +5572,13 @@ def setup_qr_promo():
     return {"status": "created" if created else "already_exists", "created": created}
 
 
+@frappe.whitelist()
+def setup_qr_promo():
+    """Schema setup over HTTP. Admin only; the work is in _install_qr_promo."""
+    frappe.only_for("System Manager")
+    return _install_qr_promo()
+
+
 def _active_promo_campaign():
     rows = frappe.get_all("QR Promo Campaign", filters={"active": 1},
                           fields=["name", "free_item"], limit=1)
@@ -5576,7 +5607,7 @@ def promo_set_item():
         frappe.throw(_("Pick a valid menu item"))
     camp = _active_promo_campaign()
     if not camp:
-        setup_qr_promo()
+        _install_qr_promo()
         camp = _active_promo_campaign()
     frappe.db.set_value("QR Promo Campaign", camp["name"], "free_item", item)
     frappe.db.commit()
@@ -5597,7 +5628,7 @@ def create_promo_codes():
     batch = (data.get("batch") or "").strip() or str(frappe.utils.today())
     camp = _active_promo_campaign()
     if not camp:
-        setup_qr_promo()
+        _install_qr_promo()
         camp = _active_promo_campaign()
     codes = []
     while len(codes) < count:
@@ -5801,7 +5832,7 @@ def claim_save_details():
         return {"ok": False, "error": "PIN must be 4 digits"}
 
     if not frappe.db.has_column("Customer Account", "address"):
-        setup_customer_profile_fields()
+        _install_customer_profile_fields()
     account = frappe.get_doc({
         "doctype": "Customer Account",
         "mobile": phone,
@@ -5833,10 +5864,8 @@ def claim_save_details():
 
 # ─── Customer profile (name / address / area — one account per number) ─────
 
-@frappe.whitelist()
-def setup_customer_profile_fields():
+def _install_customer_profile_fields():
     """Add address + area fields to Customer Account (idempotent)."""
-    frappe.only_for("System Manager")
     dt = frappe.get_doc("DocType", "Customer Account")
     have = {f.fieldname for f in dt.fields}
     added = []
@@ -5849,6 +5878,13 @@ def setup_customer_profile_fields():
         dt.save(ignore_permissions=True)
         frappe.db.commit()
     return {"added": added}
+
+
+@frappe.whitelist()
+def setup_customer_profile_fields():
+    """Schema setup over HTTP. Admin only; the work is in _install_customer_profile_fields."""
+    frappe.only_for("System Manager")
+    return _install_customer_profile_fields()
 
 
 CUSTOMER_TOKEN_DAYS = 7
@@ -5905,7 +5941,7 @@ def customer_update_profile():
     if not acc_name:
         return {"success": False, "error": "Account not found"}
     if not frappe.db.has_column("Customer Account", "address"):
-        setup_customer_profile_fields()
+        _install_customer_profile_fields()
     updates = {}
     for field, src in (("customer_name", "name"), ("address", "address"), ("area", "area")):
         v = (data.get(src) or "").strip()
@@ -7075,11 +7111,9 @@ def setup_print_sections():
 # (same source as /purchases). No recipe/BOM data exists, so "meal cost" is a
 # period-level food-cost-% (purchases + wastage vs POS revenue), not per-dish.
 
-@frappe.whitelist()
-def setup_wastage():
+def _install_wastage():
     """One-time: Wastage DocType + POS Approval.manager_comment field.
     Run: bench --site <site> execute luuvcrm.api.setup_wastage"""
-    frappe.only_for("System Manager")
     created = []
     if not frappe.db.exists("DocType", "Wastage"):
         frappe.get_doc({
@@ -7110,11 +7144,18 @@ def setup_wastage():
     return {"status": "created" if created else "already_exists", "created": created}
 
 
+@frappe.whitelist()
+def setup_wastage():
+    """Schema setup over HTTP. Admin only; the work is in _install_wastage."""
+    frappe.only_for("System Manager")
+    return _install_wastage()
+
+
 @frappe.whitelist(methods=["POST"])
 def create_wastage(item=None, qty=None, reason=""):
     roles.require_pos()
     if not frappe.db.exists("DocType", "Wastage"):
-        setup_wastage()
+        _install_wastage()
     item = (item or "").strip()
     if not item or not frappe.db.exists("Item", item):
         frappe.throw(_("Pick a valid item"))

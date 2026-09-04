@@ -52,6 +52,7 @@ Done — `luuvcrm/roles.py`, commit below. The four role sets that lived in thre
 - [~] `Sales User` and `POS User`: both kept for now and documented in `roles.py` as inherited from ERPNext. Being locked out of the till is a worse failure than an over-broad role — decide once the live site's user list can be checked.
 - [x] Stop creating roles at runtime — `roles.ensure_roles()`, shipped by `luuvcrm/patches/v1_0/create_roles.py`.
 - [x] Add the **`Restaurant Owner`** role (see Phase 2c — it is a manager for every branch).
+- [x] **A Cashier could not take a payment or open a shift on a clean site.** `pos_open_shift` inserts the opening under the caller's own permissions, and ERPNext resolves the debtors account while validating a POS Invoice with a bare `frappe.has_permission("Account", ...)` that a document's `ignore_permissions` flag does not bypass. Both grants existed only inside the `setup_pos_shift_perms` endpoint, which somebody had to remember to call — and the `Account` one was missing from it entirely. They live in `roles.ensure_pos_docperms()` now, applied by `luuvcrm/patches/v1_0/grant_pos_permissions.py`; the endpoint calls straight through so the two cannot drift.
 - [x] Resolve the `Cashier` gap: `POS Order` granted write to every role except Cashier. DocPerms rewritten for all seven roles; `update_order`'s order save no longer passes `ignore_permissions`. The linked-invoice save still does — POS Invoice is ERPNext's and its perms come from `setup_pos_shift_perms`, which Phase 3 replaces.
 - [~] **Get every DocPerm right, not just Cashier's.** POS Order is done; the other 24 doctypes are written at runtime and get their DocPerms when they move into the repo in Phase 3. Phase 2c switches all 51 reads from `frappe.get_all` to `frappe.get_list`, which starts enforcing DocPerms everywhere at once. Whatever is wrong in the permission table becomes a broken screen on that day. This phase is the groundwork that makes that flip safe.
 
@@ -163,7 +164,7 @@ The pivotal work. Nothing after this is possible without it.
 
 ## Phase 4 — Make it verifiable
 
-**126 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
+**169 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
 
 | File | Covers |
 |---|---|
@@ -173,14 +174,16 @@ The pivotal work. Nothing after this is possible without it.
 | `test_pricing.py` (27) | The whole rate-resolution chain, price validity, take-away, service charge |
 | `test_orders.py` (22) | The order lifecycle driven through the endpoints, as a request |
 | `test_payments.py` (32) | Paying in full and in parts, the `paid_qty` accounting, every refusal |
+| `test_shifts.py` (20) | Opening and closing a till, as a real cashier rather than as Administrator |
+| `test_approvals.py` (21) | The approval state machine, self-approval, the buying price book |
 
 - [x] Unit tests for pricing and service charge — the resolver's priority chain, expired/future/customer/buying prices, the menu-row fallback, take-away exclusion, rounding.
 - [x] Order lifecycle: totals, client-rate rejection, the `update_order` rebuild preserving `sent_qty` and waiter notes, the table-swap guard, append-only KOT behaviour, and the Phase 1 guards exercised as real users.
 - [x] **Payments.** Invoice totals and line carry-over, the service charge as a tax row, payment modes including the Cash+Card split and its empty leg, tendered and change, paying twice refused, and the whole `paid_qty` ledger: accumulation across splits, the order closing on the last line, and every over-billing refusal.
-- [ ] **Shifts.** Next. Open/close, the docstatus bug that was fixed once already (`pos_open_shift` inserted without submitting), closing reconciliation, `recover_stuck_shift`.
-- [ ] **Approvals.** The state machine, and that the person who raised a request cannot resolve it.
-- [ ] **Purchases.** Bill approval line by line, self-approval refused, the Due list.
-- [ ] Guide cashback: earn, redeem, balance.
+- [x] **Shifts.** Opening submitted rather than left in draft (the bug fixed once already), per-mode floats, a malformed payload degrading instead of stopping trade, a second shift refused, `_ensure_open_shift` opening one and reusing it, closing reconciliation with a short drawer, and the true shift start surviving the close's in-memory widening. `recover_stuck_shift` still has no test — it needs a queue failure to reproduce.
+- [x] **Approvals.** Pending on creation, answered once, only approved/rejected accepted, the manager's comment kept — and nobody answering their own request, whatever kind it is.
+- [~] **Purchases.** The decision path is covered: approving writes the buying price, a second bill moves it, rejecting leaves it alone, deciding twice is idempotent, and re-buying at the same price is not counted as a change. Still to do: `create_purchase_bill`, the line-by-line approve screen, and the Due list.
+- [ ] **Guide cashback.** Next. Earn, redeem, balance.
 - [ ] Activity log: that `_sanitize` drops PINs, passwords and OTPs before writing.
 - [ ] CI on every push: `run-tests --app luuvcrm`, `ruff`, `eslint`. (`ruff` is not installed on this machine.)
 - [ ] A fresh-install smoke test in CI (Phase 3's acceptance test).
