@@ -163,8 +163,25 @@ The pivotal work. Nothing after this is possible without it.
 
 ## Phase 4 — Make it verifiable
 
-- [ ] CI on every push: `run-tests --app luuvcrm`, `ruff`, `eslint`. (`ruff` is not currently installed on this machine.)
-- [ ] Unit tests for the money paths, which have none: `_resolve_item_rate`, `_service_charge_on`, split payments, shift open/close, the approval state machine, guide cashback.
+**94 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
+
+| File | Covers |
+|---|---|
+| `tests/fixtures.py` | Builders: items, prices, price lists, menu rows, service charge. Each registers its own cleanup. |
+| `test_security.py` (22) | Phase 1: the shape of the API surface — decorators, guards, where a rate comes from |
+| `test_roles.py` (23) | Real users with real roles, asked the same question a request asks |
+| `test_pricing.py` (27) | The whole rate-resolution chain, price validity, take-away, service charge |
+| `test_orders.py` (22) | The order lifecycle driven through the endpoints, as a request |
+
+- [x] Unit tests for pricing and service charge — the resolver's priority chain, expired/future/customer/buying prices, the menu-row fallback, take-away exclusion, rounding.
+- [x] Order lifecycle: totals, client-rate rejection, the `update_order` rebuild preserving `sent_qty` and waiter notes, the table-swap guard, append-only KOT behaviour, and the Phase 1 guards exercised as real users.
+- [ ] **Payments.** `process_payment`, `pay_split`, the `paid_qty` accounting and the "only N left to bill" guard, tendered/change. Highest remaining risk: it moves money and has no test.
+- [ ] **Shifts.** Open/close, the docstatus bug that was fixed once already (`pos_open_shift` inserted without submitting), closing reconciliation, `recover_stuck_shift`.
+- [ ] **Approvals.** The state machine, and that the person who raised a request cannot resolve it.
+- [ ] **Purchases.** Bill approval line by line, self-approval refused, the Due list.
+- [ ] Guide cashback: earn, redeem, balance.
+- [ ] Activity log: that `_sanitize` drops PINs, passwords and OTPs before writing.
+- [ ] CI on every push: `run-tests --app luuvcrm`, `ruff`, `eslint`. (`ruff` is not installed on this machine.)
 - [ ] A fresh-install smoke test in CI (Phase 3's acceptance test).
 - [ ] Fix `luuvcrm/test_child_parent.py` — a scratch script pointing at a hard-coded site named `clothing`, sitting where a test should be. Delete or convert.
 
