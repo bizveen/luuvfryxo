@@ -148,3 +148,64 @@ def yesterday():
 
 def tomorrow():
     return add_days(today(), 1)
+
+
+def drop_invoice(case, name, doctype="POS Invoice"):
+    """Cancel then delete an invoice the test created.
+
+    A submitted POS Invoice has GL entries behind it, so it cannot simply be
+    deleted — cancel first, and swallow what a half-built one throws, because a
+    cleanup that raises hides the failure the test was reporting.
+    """
+    def drop():
+        if not frappe.db.exists(doctype, name):
+            return
+        try:
+            doc = frappe.get_doc(doctype, name)
+            if doc.docstatus == 1:
+                doc.flags.ignore_permissions = True
+                doc.cancel()
+            frappe.delete_doc(doctype, name, force=True, ignore_permissions=True)
+        except Exception:
+            frappe.db.rollback()
+
+    case.addCleanup(drop)
+
+
+def payment_mode_account(case, mode="Credit Card"):
+    """Give a Mode of Payment a default account for the POS Profile's company.
+
+    ERPNext refuses to submit an invoice paid by a mode with no account behind
+    it. Cash usually has one on any site; the card modes often do not, which is
+    site configuration rather than anything this app controls — so the test
+    supplies it and puts it back.
+    """
+    profile = frappe.db.get_value("POS Profile", {}, ["name", "company"], as_dict=True)
+    company = profile.company
+    existing = frappe.db.get_value("Mode of Payment Account",
+                                   {"parent": mode, "company": company}, "name")
+    if existing and frappe.db.get_value("Mode of Payment Account", existing, "default_account"):
+        return existing
+
+    account = frappe.db.get_value("Mode of Payment Account",
+                                  {"parent": "Cash", "company": company}, "default_account")
+    if not account:
+        account = frappe.db.get_value("Account",
+                                      {"company": company, "account_type": "Cash",
+                                       "is_group": 0}, "name")
+    if not account:
+        case.skipTest(f"no cash account on {company} to lend {mode}")
+
+    doc = frappe.get_doc("Mode of Payment", mode)
+    row = doc.append("accounts", {"company": company, "default_account": account})
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    def drop():
+        d = frappe.get_doc("Mode of Payment", mode)
+        d.accounts = [a for a in d.accounts if a.name != row.name]
+        d.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    case.addCleanup(drop)
+    return row.name

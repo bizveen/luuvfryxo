@@ -163,7 +163,7 @@ The pivotal work. Nothing after this is possible without it.
 
 ## Phase 4 — Make it verifiable
 
-**94 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
+**126 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
 
 | File | Covers |
 |---|---|
@@ -172,11 +172,12 @@ The pivotal work. Nothing after this is possible without it.
 | `test_roles.py` (23) | Real users with real roles, asked the same question a request asks |
 | `test_pricing.py` (27) | The whole rate-resolution chain, price validity, take-away, service charge |
 | `test_orders.py` (22) | The order lifecycle driven through the endpoints, as a request |
+| `test_payments.py` (32) | Paying in full and in parts, the `paid_qty` accounting, every refusal |
 
 - [x] Unit tests for pricing and service charge — the resolver's priority chain, expired/future/customer/buying prices, the menu-row fallback, take-away exclusion, rounding.
 - [x] Order lifecycle: totals, client-rate rejection, the `update_order` rebuild preserving `sent_qty` and waiter notes, the table-swap guard, append-only KOT behaviour, and the Phase 1 guards exercised as real users.
-- [ ] **Payments.** `process_payment`, `pay_split`, the `paid_qty` accounting and the "only N left to bill" guard, tendered/change. Highest remaining risk: it moves money and has no test.
-- [ ] **Shifts.** Open/close, the docstatus bug that was fixed once already (`pos_open_shift` inserted without submitting), closing reconciliation, `recover_stuck_shift`.
+- [x] **Payments.** Invoice totals and line carry-over, the service charge as a tax row, payment modes including the Cash+Card split and its empty leg, tendered and change, paying twice refused, and the whole `paid_qty` ledger: accumulation across splits, the order closing on the last line, and every over-billing refusal.
+- [ ] **Shifts.** Next. Open/close, the docstatus bug that was fixed once already (`pos_open_shift` inserted without submitting), closing reconciliation, `recover_stuck_shift`.
 - [ ] **Approvals.** The state machine, and that the person who raised a request cannot resolve it.
 - [ ] **Purchases.** Bill approval line by line, self-approval refused, the Due list.
 - [ ] Guide cashback: earn, redeem, balance.
