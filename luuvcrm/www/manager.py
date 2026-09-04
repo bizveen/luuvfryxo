@@ -1,9 +1,8 @@
 import frappe
 from frappe import _
+from luuvcrm import roles
 
 no_cache = 1
-
-MANAGER_ROLES = {"System Manager", "Administrator", "Restaurant Manager"}
 
 
 def get_context(context):
@@ -17,10 +16,9 @@ def get_context(context):
 
     # The session check above only proved the visitor is logged in — that let any
     # waiter or website customer open the manager app. The endpoints behind it now
-    # call _require_manager(), so gate the page on the same roles rather than
+    # call roles.require_manager(), so gate the page on the same rule rather than
     # rendering a dashboard that 403s on every panel.
-    if not (set(frappe.get_roles(frappe.session.user)) & MANAGER_ROLES):
-        frappe.throw(_("Only a manager can open this page"), frappe.PermissionError)
+    roles.require_manager()
 
     context.csrf_token = frappe.sessions.get_csrf_token()
     user = frappe.session.user

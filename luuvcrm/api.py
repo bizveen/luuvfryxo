@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from luuvcrm import roles
 import json
 import secrets
 import hashlib
@@ -141,13 +142,9 @@ def _server_item_rate(item_code):
     return _resolve_item_rate(item_code, _menu_row_rates().get(item_code, 0), _get_pos_price_list())
 
 
-# POS roles allowed to operate shifts (mirrors www/pos.py page gate).
-POS_ROLES = {"System Manager", "POS User", "Sales User", "Cashier", "Administrator"}
-
-def _require_pos_role():
-    """Guard: only POS staff may operate shifts. Raises PermissionError otherwise."""
-    if not (set(frappe.get_roles()) & POS_ROLES):
-        frappe.throw(_("You are not permitted to operate POS shifts"), frappe.PermissionError)
+# The role model lives in luuvcrm/roles.py. Guards are called as
+# roles.require_pos() / roles.require_manager() so every call site says where
+# the rule comes from.
 
 def _resolve_pos_profile_name(requested=""):
     """POS Profile from request, else the first configured profile."""
@@ -1023,7 +1020,7 @@ def _profile_payment_modes(pos_profile_name):
 
 @frappe.whitelist(methods=["POST"])
 def pos_open_shift():
-    _require_pos_role()
+    roles.require_pos()
     data = frappe.local.form_dict
     pos_profile_name = _resolve_pos_profile_name(data.get("pos_profile", ""))
 
@@ -1106,7 +1103,7 @@ def _consolidate_shift_inline(closing):
 
 @frappe.whitelist(methods=["POST"])
 def pos_close_shift():
-    _require_pos_role()
+    roles.require_pos()
     from erpnext.accounts.doctype.pos_closing_entry.pos_closing_entry import make_closing_entry_from_opening
 
     data = frappe.local.form_dict
@@ -1213,7 +1210,7 @@ def pos_close_shift():
 @frappe.whitelist()
 def get_shift_closing_data():
     """Return shift closing data for re-printing summary."""
-    _require_pos_role()
+    roles.require_pos()
     closing_name = frappe.local.form_dict.get("closing_name", "")
     if not closing_name:
         frappe.throw(_("Closing name is required"))
@@ -1264,7 +1261,7 @@ def recover_stuck_shift(opening=None):
     for the opening, builds a fresh closing from its still-unconsolidated invoices, consolidates
     inline, and marks the opening Closed. Safe to call on any of the user's stuck shifts (or pass an
     explicit opening name for a manager to recover a cashier's shift)."""
-    _require_pos_role()
+    roles.require_pos()
     from erpnext.accounts.doctype.pos_closing_entry.pos_closing_entry import make_closing_entry_from_opening
 
     opening_name = opening or frappe.db.get_value("POS Opening Entry",
@@ -1322,7 +1319,7 @@ def recover_stuck_shift(opening=None):
 
 @frappe.whitelist()
 def get_pos_shift():
-    _require_pos_role()
+    roles.require_pos()
     opening_name = frappe.db.get_value("POS Opening Entry",
         {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name",
         order_by="creation desc")
@@ -1613,7 +1610,7 @@ def _clean_item_note(value):
 def mark_kot_printed():
     """Flag that the current items have been fired to the kitchen — sets each line's
     sent_qty to its qty, so the next KOT shows only items added afterwards."""
-    # Any authenticated user (incl. the Waiter role, which is NOT in POS_ROLES) may fire a KOT —
+    # Any authenticated user (incl. the Waiter role, which is NOT in roles.POS_ROLES) may fire a KOT —
     # this only advances sent_qty on an order (benign, same Draft→Pending promotion send_to_kitchen
     # already does gate-free). Whitelist alone blocks guests.
     order_name = frappe.local.form_dict.get("order_name")
@@ -1649,7 +1646,7 @@ def setup_kitchen_status_options():
 def delete_draft_order():
     """Delete an auto-created ticket that ended up empty — only when nothing has been fired to
     the kitchen and no invoice exists. Used for cleanup when the cart is cleared."""
-    _require_pos_role()
+    roles.require_pos()
     order_name = frappe.local.form_dict.get("order_name")
     if not order_name or not frappe.db.exists("POS Order", order_name):
         return {"ok": True, "deleted": False}
@@ -1927,12 +1924,16 @@ def update_order():
     below. Only /pos, /pos2 and /pos3 call this, and all three are behind a
     login, so the guard costs nothing.
 
-    ignore_permissions stays on the save for now: POS Order grants write to
-    System Manager, POS User, Waiter, Kitchen Staff and Restaurant Manager, but
-    NOT to Cashier, so dropping it would lock the till out. Removing it needs
-    the DocPerms fixed first — see PRODUCTION_READINESS.md B1.
+    The save below runs under the caller's own permissions. It used to pass
+    ignore_permissions because POS Order granted write to every role except
+    Cashier — the one role that actually works the till. That gap is fixed in
+    the doctype's DocPerms, so the flag is gone and Frappe now checks the edit.
+
+    The linked-invoice save further down still passes it: POS Invoice belongs to
+    ERPNext and its perms are granted at runtime by setup_pos_shift_perms, which
+    is itself on the list to be replaced (ROADMAP Phase 3).
     """
-    _require_pos_role()
+    roles.require_pos()
     data = frappe.local.form_dict
     order_name = data.get("order_name")
     items_raw = data.get("items")
@@ -2012,7 +2013,6 @@ def update_order():
     if notes:
         pos_order.notes = notes
 
-    pos_order.flags.ignore_permissions = True
     pos_order.save()
     _apply_takeaway_service_charge(pos_order)
 
@@ -2056,7 +2056,7 @@ def update_order():
 def get_order_changelog(order_name):
     """Edit history of an order. Staff only — it names the user behind each edit,
     so it was never something to hand a guest. Only /pos, /pos2 and /pos3 call it."""
-    _require_pos_role()
+    roles.require_pos()
     if not order_name:
         return {"changelog": []}
 
@@ -3745,7 +3745,7 @@ def setup_cash_movement():
 @frappe.whitelist(methods=["POST"])
 def record_cash_movement():
     """Record a drawer pay-in or pay-out against the current open shift."""
-    _require_pos_role()
+    roles.require_pos()
     data = frappe.local.form_dict
     direction = (data.get("direction") or "").strip().lower()
     if direction not in ("in", "out"):
@@ -3779,7 +3779,7 @@ def record_cash_movement():
 @frappe.whitelist()
 def get_cash_movements():
     """Cash-drawer movements for the current open shift: totals + recent list (newest first)."""
-    _require_pos_role()
+    roles.require_pos()
     opening = _open_shift_name()
     if not opening or not frappe.db.exists("DocType", "POS Cash Movement"):
         return {"in_total": 0, "out_total": 0, "moves": []}
@@ -3932,7 +3932,7 @@ def setup_raw_materials():
 @frappe.whitelist()
 def get_purchase_catalog():
     """Buying items + current purchase price (the price book) — raw materials first."""
-    _require_pos_role()
+    roles.require_pos()
     pl = _buying_price_list()
     items = frappe.get_all("Item", filters={"item_group": "Raw Materials", "disabled": 0},
                            fields=["name", "item_name", "stock_uom", "item_group"],
@@ -3959,7 +3959,7 @@ def get_purchase_catalog():
 def create_purchase_item():
     """Create a new buying Item from the purchases app (name + unit).
     Reuses an existing Item if one with the same name is already there."""
-    _require_pos_role()
+    roles.require_pos()
     data = frappe.local.form_dict
     item_name = (data.get("item_name") or "").strip()
     if not item_name:
@@ -4036,7 +4036,7 @@ def _bill_dict(name):
 
 @frappe.whitelist(methods=["POST"])
 def create_purchase_bill():
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         setup_purchase_bill()
     data = frappe.local.form_dict
@@ -4089,7 +4089,7 @@ def create_purchase_bill():
 
 @frappe.whitelist()
 def get_purchase_bills():
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "approved_today": 0, "pending_amt": 0, "week": 0}
     rows = frappe.get_all("Purchase Bill", filters={}, fields=["name", "status", "requested_at"],
@@ -4136,8 +4136,8 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
     20,000. The lines load only when a card is tapped (get_purchase_bill).
     Matches the vendor, the note, or any item name on the bill.
     """
-    _require_pos_role()
-    _require_pos_role()
+    roles.require_pos()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "more": False}
 
@@ -4185,8 +4185,8 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
 @frappe.whitelist()
 def get_purchase_bill(name=None):
     """One bill in full. Search results carry no lines — a tapped card fetches them."""
-    _require_pos_role()
-    _require_pos_role()
+    roles.require_pos()
+    roles.require_pos()
     if not name or not frappe.db.exists("Purchase Bill", name):
         frappe.throw(_("Bill not found"))
     return _bill_dict(name)
@@ -4194,7 +4194,7 @@ def get_purchase_bill(name=None):
 
 @frappe.whitelist()
 def get_price_book():
-    _require_pos_role()
+    roles.require_pos()
     cat = get_purchase_catalog()
     return cat
 
@@ -4241,7 +4241,7 @@ def _block_self_approval(requested_by):
 @frappe.whitelist(methods=["POST"])
 def resolve_purchase_bill():
     """Manager approves/rejects a bill; approving updates each item's buying Item Price."""
-    _require_pos_role()
+    roles.require_pos()
     data = frappe.local.form_dict
     name = data.get("name")
     decision = data.get("decision")
@@ -4289,7 +4289,7 @@ def setup_purchase_payment_fields():
 def get_due_bills():
     """Approved bills not yet marked paid — the vendor payables list. Oldest owed
     first (so the most overdue payment is at the top), with a per-vendor summary."""
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "total_due": 0, "count": 0, "vendors": []}
     if not frappe.db.has_column("Purchase Bill", "payment_status"):
@@ -4319,7 +4319,7 @@ def get_due_bills():
 def mark_bill_paid():
     """Mark an approved bill as paid to the vendor (clears it from the due list).
     `paid` param 0/1 lets a mistaken tap be undone."""
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.has_column("Purchase Bill", "payment_status"):
         setup_purchase_payment_fields()
     data = frappe.local.form_dict
@@ -4443,7 +4443,7 @@ def setup_expenses():
 @frappe.whitelist()
 def get_expense_categories():
     """Categories for the /purchases expense form. Manager-editable from Desk > Expense Category."""
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Expense Category"):
         setup_expenses()
     return {"categories": [r.name for r in frappe.get_all(
@@ -4472,7 +4472,7 @@ def create_expense():
     neither accounts for pay-outs. Subtracting an expense in only one of them is worse than in
     neither, so an expense is a record, not a till movement. The shift is stored for context only.
     """
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Expense"):
         setup_expenses()
     data = frappe.local.form_dict
@@ -4536,7 +4536,7 @@ def _decide_expense(name, decision):
 @frappe.whitelist()
 def get_expenses():
     """Recent expenses + header stats for the /purchases app."""
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Expense"):
         return {"expenses": [], "approved_today": 0, "pending_amt": 0, "week": 0}
     rows = frappe.get_all("Expense", fields=["name"], order_by="requested_at desc",
@@ -4558,7 +4558,7 @@ def get_expenses():
 @frappe.whitelist()
 def get_manager_dashboard():
     """Aggregate today's POS activity for the Manager phone dashboard (all cashiers)."""
-    _require_manager()
+    roles.require_manager()
     from frappe.utils import get_datetime, today as _today
     today = _today()
 
@@ -4673,7 +4673,7 @@ def get_manager_sales_report(days=7):
     Powers the Manager app 'Reports' tab: a day-by-day revenue chart plus a
     full item-wise breakdown for the same window.
     """
-    _require_manager()
+    roles.require_manager()
     from frappe.utils import getdate, add_days, today as _today, formatdate
 
     try:
@@ -4778,7 +4778,7 @@ def get_manager_sales_report(days=7):
 def get_manager_day_report(date=None):
     """Full breakdown of a single day — powers the drill-down when a manager
     taps a bar on the Reports daily chart (payment mix, hourly, item-wise)."""
-    _require_manager()
+    roles.require_manager()
     from frappe.utils import getdate, add_days, formatdate, get_datetime, today as _today
 
     day = getdate(date or _today())
@@ -4862,7 +4862,7 @@ def get_manager_day_report(date=None):
 def get_manager_monthly_sales(months=12):
     """Month-by-month revenue for the Manager Reports tab (last N calendar months,
     zero-filled so quiet months still show)."""
-    _require_manager()
+    roles.require_manager()
     import datetime
     from frappe.utils import getdate, formatdate, today as _today
 
@@ -4916,7 +4916,7 @@ def get_manager_monthly_sales(months=12):
 def get_manager_bill_detail(name=None):
     """Everything on one POS Invoice — powers the manager's tap-a-bill drill-down
     (items, discount, taxes/SC, payments, cashier, table)."""
-    _require_manager()
+    roles.require_manager()
     from frappe.utils import get_datetime, formatdate
 
     if not name or not frappe.db.exists("POS Invoice", name):
@@ -4967,7 +4967,7 @@ def get_manager_purchase_report(days=7):
     Purchase Bill is non-submittable, so we filter on status='approved' (committed
     spend), not docstatus; the effective purchase date is `requested_at`.
     """
-    _require_manager()
+    roles.require_manager()
     from frappe.utils import getdate, add_days, formatdate, today as _today
 
     try:
@@ -5139,7 +5139,7 @@ def setup_pos_approval():
 @frappe.whitelist(methods=["POST"])
 def create_approval():
     """POS raises an approval request for a bill change that needs a manager."""
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "POS Approval"):
         setup_pos_approval()
     data = frappe.local.form_dict
@@ -5255,7 +5255,7 @@ def get_purchase_approvals():
 
     Pending only. This tab is a queue to empty, not a history — a resolved bill
     belongs in the Bills list, where it already shows with its status."""
-    _require_pos_role()
+    roles.require_pos()
     rows = _pending_and_recent_approvals("purchase_bill", include_recent=False)
     return {"approvals": _format_approvals(rows), "pending": len(rows)}
 
@@ -5270,7 +5270,7 @@ def get_approval_status(name):
 @frappe.whitelist(methods=["POST"])
 def resolve_approval():
     """Manager approves/rejects a POS Approval; on approve the action is executed."""
-    _require_pos_role()
+    roles.require_pos()
     data = frappe.local.form_dict
     name = data.get("name")
     decision = data.get("decision")
@@ -5425,7 +5425,7 @@ def setup_check_printed():
 @frappe.whitelist(methods=["POST"])
 def mark_check_printed():
     """Flag that a guest check was printed for an order."""
-    _require_pos_role()
+    roles.require_pos()
     order_name = frappe.local.form_dict.get("order_name")
     if not order_name:
         frappe.throw(_("Order name is required"))
@@ -5570,7 +5570,7 @@ def _pending_promo_for(mobile):
 @frappe.whitelist(methods=["POST"])
 def promo_set_item():
     """Manager sets/changes the free item on the active campaign."""
-    _require_pos_role()
+    roles.require_pos()
     item = (frappe.local.form_dict.get("item") or "").strip()
     if not item or not frappe.db.exists("Item", item):
         frappe.throw(_("Pick a valid menu item"))
@@ -5587,7 +5587,7 @@ def promo_set_item():
 @frappe.whitelist(methods=["POST"])
 def create_promo_codes():
     """Bulk-generate N unique single-use codes for sticker printing; returns them all."""
-    _require_pos_role()
+    roles.require_pos()
     data = frappe.local.form_dict
     try:
         count = int(data.get("count") or 0)
@@ -5615,7 +5615,7 @@ def create_promo_codes():
 @frappe.whitelist()
 def get_promo_overview():
     """Campaign + batch stats + recent codes for the /qrpromo admin page."""
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "QR Promo Code"):
         return {"setup": False, "campaign": None, "batches": [], "stats": {}}
     camp = _active_promo_campaign()
@@ -5648,7 +5648,7 @@ def get_promo_overview():
 @frappe.whitelist()
 def get_promo_batch_codes(batch):
     """All codes of one batch (re-download / re-print a printed batch)."""
-    _require_pos_role()
+    roles.require_pos()
     rows = frappe.get_all("QR Promo Code", filters={"batch": batch},
                           fields=["code", "status"], order_by="creation asc")
     return {"batch": batch, "codes": [r.code for r in rows],
@@ -5990,12 +5990,6 @@ def promo_status():
 # the authority in _resolve_item_rate — pos2/app/kiosk all resolve through it,
 # so an edit here shows up on the POS on its next page load.
 
-MENU_MANAGER_ROLES = {"System Manager", "Administrator", "Restaurant Manager"}
-
-
-def _require_menu_manager():
-    if not (set(frappe.get_roles(frappe.session.user)) & MENU_MANAGER_ROLES):
-        frappe.throw(_("Only a manager can change the menu"), frappe.PermissionError)
 
 
 def _active_menu_doc():
@@ -6049,7 +6043,7 @@ def _set_pos_item_price(item_code, rate, price_list):
 @frappe.whitelist()
 def get_menu_settings():
     """Active-menu item list for the Manager Settings tab (resolved POS rates)."""
-    _require_menu_manager()
+    roles.require_manager()
     menu = _active_menu_doc()
     price_list = _get_pos_price_list()
     has_gd = frappe.db.has_column("Item", "guide_commission_percent")
@@ -6076,7 +6070,7 @@ def get_menu_settings():
 @frappe.whitelist(methods=["POST"])
 def update_menu_item(item_code=None, item_name=None, rate=None, guide_pct=None):
     """Rename, reprice and/or set the guide-commission override for a menu item."""
-    _require_menu_manager()
+    roles.require_manager()
     item_code = (item_code or "").strip()
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Item not found"))
@@ -6113,7 +6107,7 @@ def update_menu_item(item_code=None, item_name=None, rate=None, guide_pct=None):
 @frappe.whitelist(methods=["POST"])
 def add_menu_item(item_name=None, rate=None, group=None, guide_pct=None):
     """Create an Item (non-stock), price it, and append it to the active menu."""
-    _require_menu_manager()
+    roles.require_manager()
     item_name = (item_name or "").strip()
     if not item_name:
         frappe.throw(_("Enter an item name"))
@@ -6388,7 +6382,7 @@ def _gen_guide_code():
 def create_guide_codes(count=5):
     """Mint partner invite codes (manager). Each code registers exactly one new
     guide over WhatsApp; staff hand them out in person or share the wa.me link."""
-    _require_manager()
+    roles.require_manager()
     count = max(1, min(int(count or 5), 50))
     codes = []
     for _ in range(count):
@@ -6404,7 +6398,7 @@ def create_guide_codes(count=5):
 
 @frappe.whitelist()
 def get_guide_codes():
-    _require_manager()
+    roles.require_manager()
     fresh = frappe.get_all("Guide Invite Code", filters={"status": "New"},
         fields=["code", "creation"], order_by="creation desc", limit=50)
     used = frappe.get_all("Guide Invite Code", filters={"status": "Used"},
@@ -6433,7 +6427,7 @@ def _guide_invite_text(token, percent, guide_name=""):
 @frappe.whitelist()
 def guide_search(mobile=None):
     """Find a Tour Guide by WhatsApp number for the POS payment dialog."""
-    _require_pos_role()
+    roles.require_pos()
     number = _normalize_wa_number(mobile)
     name = frappe.db.get_value("Tour Guide", {"whatsapp": number}, "name")
     if not name:
@@ -6451,7 +6445,7 @@ def guide_quick_add(mobile=None, name="", role="Guide", percent=None):
     """Create an Invited guide from the POS. Returns the generated password and
     ready-made invite text EXACTLY ONCE so the client can open the wa.me link —
     only the salted hash is stored."""
-    _require_pos_role()
+    roles.require_pos()
     number = _normalize_wa_number(mobile)
     existing = frappe.db.get_value("Tour Guide", {"whatsapp": number}, "name")
     if existing:
@@ -6712,14 +6706,11 @@ def guide_update_profile(token=None, guide_name=None, notes=None):
 
 # ── Manager (list, payout, edit) ──
 
-def _require_manager():
-    if not (set(frappe.get_roles(frappe.session.user)) & MENU_MANAGER_ROLES):
-        frappe.throw(_("Only a manager can do this"), frappe.PermissionError)
 
 
 @frappe.whitelist()
 def list_guides():
-    _require_manager()
+    roles.require_manager()
     guides = frappe.get_all("Tour Guide",
         fields=["name", "guide_name", "whatsapp", "role", "cashback_percent",
                 "status", "cashback_balance", "total_earned", "total_paid"],
@@ -6734,7 +6725,7 @@ def list_guides():
 def update_guide_settings(percent=None):
     """Set the global default cashback % (used for every newly registered guide;
     existing guides keep their own percent — edit those per guide)."""
-    _require_manager()
+    roles.require_manager()
     pct = float(percent)
     if pct < 0 or pct > 50:
         frappe.throw(_("Cashback percent must be between 0 and 50"))
@@ -6747,7 +6738,7 @@ def update_guide_settings(percent=None):
 
 @frappe.whitelist()
 def guide_detail(guide=None):
-    _require_manager()
+    roles.require_manager()
     g = frappe.get_doc("Tour Guide", guide)
     txns = frappe.get_all("Guide Cashback Txn",
         filters={"guide": g.name},
@@ -6772,7 +6763,7 @@ def record_guide_payout(guide=None, amount=None, note=""):
     ERPNext's expected_amount both ignore drawer pay-outs (same rationale as
     create_expense), so the drawer is left untouched and the payout lives only
     in the guide's ledger."""
-    _require_manager()
+    roles.require_manager()
     g = frappe.get_doc("Tour Guide", guide)
     amt = float(amount or 0)
     balance = float(g.cashback_balance or 0)
@@ -6798,7 +6789,7 @@ def record_guide_payout(guide=None, amount=None, note=""):
 
 @frappe.whitelist(methods=["POST"])
 def update_guide(guide=None, guide_name=None, role=None, percent=None, status=None):
-    _require_manager()
+    roles.require_manager()
     g = frappe.get_doc("Tour Guide", guide)
     if guide_name is not None:
         g.guide_name = str(guide_name).strip()
@@ -7121,7 +7112,7 @@ def setup_wastage():
 
 @frappe.whitelist(methods=["POST"])
 def create_wastage(item=None, qty=None, reason=""):
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Wastage"):
         setup_wastage()
     item = (item or "").strip()
@@ -7146,7 +7137,7 @@ def create_wastage(item=None, qty=None, reason=""):
 
 @frappe.whitelist()
 def get_wastage(days=7):
-    _require_pos_role()
+    roles.require_pos()
     if not frappe.db.exists("DocType", "Wastage"):
         return {"rows": [], "total": 0, "days": int(days or 7)}
     days = max(1, min(int(days or 7), 90))
@@ -7171,7 +7162,7 @@ def get_food_cost_report(days=7):
     wastage), overheads (approved Expenses — rent/salaries/utilities etc.) and
     the resulting profit, all against POS revenue. Period-level (no recipes/BOM
     → no per-dish costing)."""
-    _require_menu_manager()
+    roles.require_manager()
     days = max(1, min(int(days or 7), 365))
     start = frappe.utils.add_days(frappe.utils.today(), -days + 1)
     purchases = 0.0
@@ -7212,7 +7203,7 @@ def get_food_cost_report(days=7):
 def reset_guide_password(guide=None):
     """Issue a fresh magic-link login for the guide (old links stop working) and
     return the wa.me re-invite text. Name kept for the manager UI's old call."""
-    _require_manager()
+    roles.require_manager()
     g = frappe.get_doc("Tour Guide", guide)
     frappe.db.delete("Guide Token", {"guide": g.name})
     token = _get_or_create_guide_token(g.name)

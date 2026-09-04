@@ -30,13 +30,13 @@ class TestOrderEndpointAuth(FrappeTestCase):
                          "update_order must not be reachable by Guest")
 
     def test_update_order_requires_a_pos_role(self):
-        self.assertIn("_require_pos_role()", _source(api.update_order),
+        self.assertIn("roles.require_pos()", _source(api.update_order),
                       "update_order must guard on a POS role")
 
     def test_order_changelog_requires_a_pos_role(self):
         """S7 — the changelog names the staff member behind every edit."""
         self.assertNotIn(api.get_order_changelog, frappe.guest_methods)
-        self.assertIn("_require_pos_role()", _source(api.get_order_changelog))
+        self.assertIn("roles.require_pos()", _source(api.get_order_changelog))
 
 
 class TestPricesComeFromTheServer(FrappeTestCase):
@@ -151,12 +151,12 @@ class TestManagerReportsAreGuarded(FrappeTestCase):
     def test_manager_reports_require_a_manager(self):
         for fn in self.MANAGER_ONLY:
             with self.subTest(endpoint=fn.__name__):
-                self.assertIn("_require_manager()", _source(fn))
+                self.assertIn("roles.require_manager()", _source(fn))
 
     def test_purchase_reads_require_a_pos_role(self):
         for fn in self.STAFF_ONLY:
             with self.subTest(endpoint=fn.__name__):
-                self.assertIn("_require_pos_role()", _source(fn))
+                self.assertIn("roles.require_pos()", _source(fn))
 
     def test_no_manager_report_is_guest_accessible(self):
         for fn in self.MANAGER_ONLY + self.STAFF_ONLY:
@@ -174,7 +174,7 @@ class TestSetupEndpointsAreAdminOnly(FrappeTestCase):
             if not name.startswith("setup_") or not callable(fn):
                 continue
             src = _source(fn)
-            if 'only_for("System Manager")' not in src and "_require_" not in src:
+            if 'only_for("System Manager")' not in src and "roles.require_" not in src:
                 unguarded.append(name)
         self.assertEqual(unguarded, [],
                          f"schema-mutating endpoints without a guard: {unguarded}")

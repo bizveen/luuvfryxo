@@ -31,18 +31,11 @@ Closed the holes that were reachable from the internet. Commit `22ce0d1`, 22 tes
 
 Do this before the schema work: the schema has to declare DocPerms, and it cannot declare them until the role model is decided.
 
-### 2a · Settle the role model
+### 2a · Settle the role model ✅
 
-Today four role sets are defined in three files, and roles are created ad-hoc inside `setup_*` endpoints at four call sites.
+Done — `luuvcrm/roles.py`, commit below. The four role sets that lived in three files are one module; guards are called as `roles.require_pos()` / `roles.require_manager()` so every call site says where the rule comes from. 23 tests in `tests/test_roles.py` create real users and ask Frappe the same question a request would.
 
-```
-api.py:145        POS_ROLES          = System Manager, POS User, Sales User, Cashier, Administrator
-api.py:5993       MENU_MANAGER_ROLES = System Manager, Administrator, Restaurant Manager
-activity.py:434   MANAGER_ROLES      = System Manager, Administrator, Restaurant Manager   ← duplicate
-www/manager.py:6  MANAGER_ROLES      = System Manager, Administrator, Restaurant Manager   ← duplicate
-```
-
-- [ ] Write down the intended roles and what each may do. Proposed, from how the apps actually behave, plus the Owner the multi-branch goal needs:
+- [x] Write down the intended roles and what each may do:
 
   | Role | Who | Uses | Must not |
   |---|---|---|---|
@@ -55,12 +48,15 @@ www/manager.py:6  MANAGER_ROLES      = System Manager, Administrator, Restaurant
 
   **On System Manager.** It is Frappe's built-in technical administrator role, not something this app invents — every Frappe site has it. It means "can change how the system works": run migrations, add fields, grant permissions, create users. It is for whoever installs and maintains the software. **The restaurant owner should not have it** — they want to see money, not edit doctypes, and a System Manager can bypass every guard in this roadmap. Owner is a separate business role; keep the two apart.
 
-- [ ] Collapse the four sets into one module, `luuvcrm/roles.py`, with one guard per role. Delete the duplicates.
-- [ ] Decide whether `Sales User` and `POS User` are still meant to be POS roles or are ERPNext leftovers. `Sales User` appears exactly once in the whole app.
-- [ ] Stop creating roles at runtime — they become fixtures in Phase 3.
-- [ ] Add the **`Restaurant Owner`** role (see Phase 2c — it is a manager for every branch).
-- [ ] Resolve the `Cashier` gap: `POS Order` grants write to System Manager, POS User, Waiter, Kitchen Staff and Restaurant Manager but **not** Cashier, which is why `update_order` still carries `ignore_permissions`. Fix the DocPerms, then remove the flag.
-- [ ] **Get every DocPerm right, not just Cashier's.** Phase 2c switches all 51 reads from `frappe.get_all` to `frappe.get_list`, which starts enforcing DocPerms everywhere at once. Whatever is wrong in the permission table becomes a broken screen on that day. This phase is the groundwork that makes that flip safe.
+- [x] Collapse the four sets into one module, `luuvcrm/roles.py`, with one guard per role.
+- [~] `Sales User` and `POS User`: both kept for now and documented in `roles.py` as inherited from ERPNext. Being locked out of the till is a worse failure than an over-broad role — decide once the live site's user list can be checked.
+- [x] Stop creating roles at runtime — `roles.ensure_roles()`, shipped by `luuvcrm/patches/v1_0/create_roles.py`.
+- [x] Add the **`Restaurant Owner`** role (see Phase 2c — it is a manager for every branch).
+- [x] Resolve the `Cashier` gap: `POS Order` granted write to every role except Cashier. DocPerms rewritten for all seven roles; `update_order`'s order save no longer passes `ignore_permissions`. The linked-invoice save still does — POS Invoice is ERPNext's and its perms come from `setup_pos_shift_perms`, which Phase 3 replaces.
+- [~] **Get every DocPerm right, not just Cashier's.** POS Order is done; the other 24 doctypes are written at runtime and get their DocPerms when they move into the repo in Phase 3. Phase 2c switches all 51 reads from `frappe.get_all` to `frappe.get_list`, which starts enforcing DocPerms everywhere at once. Whatever is wrong in the permission table becomes a broken screen on that day. This phase is the groundwork that makes that flip safe.
+
+- [x] **Roles the app requires must be *usable*, not merely present.** `ensure_roles()` re-enables a disabled one and says so. Found the hard way: `Restaurant Manager` existed on the test site but was disabled, and `frappe.get_roles()` omits disabled roles — so every manager silently held nothing and an existence check saw no problem.
+- [ ] Review `desk_access` on roles that already exist. `ensure_roles()` sets it only on roles it creates, because changing it on an existing role could take away access somebody is using — but Waiter and Kitchen Staff currently have desk access they do not need.
 
 ### 2b · Settle the routes
 

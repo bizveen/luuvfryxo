@@ -27,6 +27,7 @@ Everything here is fire-and-forget: a logging bug must never break the POS.
 import json
 
 import frappe
+from luuvcrm import roles
 from frappe.utils import now_datetime, cint, flt
 
 DOCTYPE = "LF Activity Log"
@@ -431,13 +432,9 @@ def _parse_client_ts(ts):
 
 
 # ─── Reading it back ──────────────────────────────────────────────────────
-MANAGER_ROLES = {"System Manager", "Administrator", "Restaurant Manager"}
-
-
-def _require_manager():
-    # Defined here rather than imported from api.py: api.py imports this module.
-    if not (set(frappe.get_roles(frappe.session.user)) & MANAGER_ROLES):
-        frappe.throw("Only a manager can view the activity log", frappe.PermissionError)
+# luuvcrm/roles.py imports neither this module nor api.py, which is what lets
+# both share it — api.py imports activity.py, so the copy that used to live here
+# could not have come from there.
 
 
 ACTIVITY_FIELDS = [
@@ -462,7 +459,7 @@ def _shape(rows):
 def get_activity(app=None, user=None, action=None, flagged=None, days=1,
                  bill=None, search=None, limit=200):
     """Activity feed for /activity. Newest first."""
-    _require_manager()
+    roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"rows": [], "apps": [], "users": [], "flag_count": 0}
 
@@ -525,7 +522,7 @@ def get_bill_trail(order=None, bill=None):
     cashier taps and the server writes interleaved on a single timeline.
     Accepts either the POS Order name or the printed bill number.
     """
-    _require_manager()
+    roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"rows": [], "order": order or "", "bill": bill or ""}
 
@@ -560,7 +557,7 @@ def get_bill_trail(order=None, bill=None):
 @frappe.whitelist()
 def get_activity_flags(days=1):
     """Unreviewed flag count + a per-reason breakdown — feeds the /manager badge."""
-    _require_manager()
+    roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"count": 0, "by_reason": []}
     try:
@@ -583,7 +580,7 @@ def get_activity_flags(days=1):
 @frappe.whitelist(methods=["POST"])
 def review_activity_flag(name=None, note="", reviewed=1):
     """Manager ticks off a flag once they have checked it (or un-ticks it)."""
-    _require_manager()
+    roles.require_manager()
     if not name or not frappe.db.exists(DOCTYPE, name):
         frappe.throw("Activity row not found")
     done = cint(reviewed)
@@ -627,7 +624,7 @@ def clear_activity(scope="reviewed"):
     """Manual clear from /activity — the scheduler is not always running on this
     bench (same reason shift close once said "Scheduler is inactive"), so the
     manager gets a button too."""
-    _require_manager()
+    roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"ok": True, "deleted": 0}
     if scope == "all":
