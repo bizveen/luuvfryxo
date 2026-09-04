@@ -527,7 +527,6 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 
 <script>
   const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-  const MANAGER_PIN = "{{ manager_pin }}";
   let tab='today';
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   // Charts render nearly twice as tall on desktop (≥900px) — recomputed on render.

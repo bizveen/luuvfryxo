@@ -99,6 +99,48 @@ def _resolve_item_rate(item_code, menu_rate=0, price_list=None):
         return menu_rate
     return float(frappe.db.get_value("Item", item_code, "standard_rate") or 0)
 
+
+def _menu_row_rates():
+    """{item_code: rate} from the active Restaurant Menu, cached for the request.
+
+    Some items are priced only on the menu row — no Item Price, no standard_rate.
+    _server_item_rate needs those as its fallback or it would resolve them to 0,
+    which is exactly the regression a client-supplied rate used to paper over.
+    """
+    cached = getattr(frappe.local, "_lf_menu_rates", None)
+    if cached is not None:
+        return cached
+    rates = {}
+    try:
+        restaurant = frappe.get_value("Restaurant", {}, "name")
+        active_menu = frappe.db.get_value("Restaurant", restaurant, "active_menu") if restaurant else None
+        if active_menu:
+            for row in frappe.get_all("Restaurant Menu Item",
+                                      filters={"parent": active_menu}, fields=["item", "rate"]):
+                if row.item:
+                    rates[row.item] = float(row.rate or 0)
+    except Exception:
+        # A missing or malformed menu must not stop a sale — _resolve_item_rate
+        # still has Item Price and standard_rate to fall back on.
+        pass
+    frappe.local._lf_menu_rates = rates
+    return rates
+
+
+def _server_item_rate(item_code):
+    """THE price of an item. Never take a rate from the client.
+
+    Every order path used to do `rate = float(item_data.get("rate", 0))` and look
+    the real price up only when that was falsy, so posting `rate: 1` for a Rs. 1600
+    item billed it at Rs. 1 — through kiosk_place_order, without even logging in.
+
+    Discounts do not come through here. They go through _apply_order_discount,
+    which is approval-gated and logged, and that is the only way a line total
+    should ever differ from the price list.
+    """
+    return _resolve_item_rate(item_code, _menu_row_rates().get(item_code, 0), _get_pos_price_list())
+
+
 # POS roles allowed to operate shifts (mirrors www/pos.py page gate).
 POS_ROLES = {"System Manager", "POS User", "Sales User", "Cashier", "Administrator"}
 
@@ -301,9 +343,7 @@ def place_order():
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
-        rate = float(item_data.get("rate", 0))
-        if not rate:
-            rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        rate = _server_item_rate(item_code)
         item_ta = _item_is_takeaway(item_data, order_type)
 
         invoice_items.append({"item_code": item_code, "qty": qty, "rate": rate, "takeaway": 1 if item_ta else 0})
@@ -505,9 +545,7 @@ def send_to_kitchen():
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
-        rate = float(item_data.get("rate", 0))
-        if not rate:
-            rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        rate = _server_item_rate(item_code)
         item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
         pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate,
@@ -1342,6 +1380,7 @@ def setup_pos_shift_perms():
     Idempotent — safe to run repeatedly. Required after dropping ignore_permissions
     from pos_open_shift / pos_close_shift.
     """
+    frappe.only_for("System Manager")
     from frappe.permissions import add_permission, update_permission_property
 
     role = "Cashier"
@@ -1379,6 +1418,7 @@ def setup_waiter_role(assign_to=None):
     ONLY explicit emails are ever granted the role (customer accounts from /cus must
     never receive it), so bulk-assign-all is deliberately not supported.
     """
+    frappe.only_for("System Manager")
     from frappe.permissions import add_permission, update_permission_property
 
     role = "Waiter"
@@ -1421,6 +1461,7 @@ def setup_pos_order_invoice_link():
     """Point POS Order.pos_invoice at the POS Invoice doctype and add the reverse
     POS Invoice -> POS Order link field. Idempotent; avoids a full bench migrate.
     """
+    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
     # POS Order.pos_invoice now links to POS Invoice (runtime override of field options)
@@ -1453,6 +1494,7 @@ def setup_pos_order_invoice_link():
 def setup_takeaway_field():
     """Add a per-line `takeaway` Check to POS Order Item (for mixed dine-in + take-away
     orders, where take-away items carry no service charge). Idempotent; no full migrate."""
+    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
     created = False
@@ -1474,6 +1516,7 @@ def setup_takeaway_field():
 def setup_invoice_takeaway_field():
     """Add a per-line `takeaway` Check to POS Invoice Item so the printed receipt can show
     take-away items separately (carried from the POS Order). Idempotent; no full migrate."""
+    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
     created = False
@@ -1495,6 +1538,7 @@ def setup_invoice_takeaway_field():
 def setup_split_fields():
     """Add a per-line `paid_qty` Int to POS Order Item (for bill splitting — how many of the
     line's qty have already been billed via a split). Idempotent; no full migrate."""
+    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
     created = False
@@ -1516,6 +1560,7 @@ def setup_sent_qty_field():
     """Add a per-line `sent_qty` Int to POS Order Item — how many of the line's qty have
     already been fired to the kitchen (printed on a KOT). Lets a re-print show only the newly
     added items. Idempotent; no full migrate."""
+    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
     created = False
@@ -1537,6 +1582,7 @@ def setup_item_notes_field():
     """Add a per-line `notes` Small Text to POS Order Item — the waiter's special instruction
     for that specific line (e.g. "no chili", "extra spicy"). Lets the same item appear as two
     lines with different prep notes. Idempotent; no full migrate."""
+    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
     created = False
@@ -1589,6 +1635,7 @@ def mark_kot_printed():
 def setup_kitchen_status_options():
     """Allow 'Draft' (auto-created, not yet fired) and 'Cancelled' as kitchen_status values via a
     Property Setter, so insert()/save() don't reject them. Idempotent; no full migrate."""
+    frappe.only_for("System Manager")
     options = "Pending\nProcessing\nReady\nServed\nDraft\nCancelled"
     frappe.make_property_setter({
         "doctype": "POS Order", "fieldname": "kitchen_status",
@@ -1624,13 +1671,32 @@ def _order_fully_paid(pos_order):
 
 @frappe.whitelist(allow_guest=True)
 def get_order_items(order_name):
+    """Lines on an order.
+
+    Stays guest-readable because /track is a genuinely public page: the customer
+    arrives from a WhatsApp link holding nothing but the order name. What a guest
+    gets is trimmed to what a receipt shows — the billing and kitchen-progress
+    counters (paid_qty, sent_qty, remaining) and kitchen notes are staff data and
+    are returned only to a signed-in user.
+
+    Order names are still a guessable sequence, so this remains an enumeration
+    surface for "what did table 4 eat". Closing that properly means handing /track
+    a signed link instead of a bare name — tracked as follow-up, not fixed here.
+    """
     if not order_name:
         return {"items": []}
     doc = frappe.get_doc("POS Order", order_name)
-    items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate,
-              "takeaway": int(i.get("takeaway") or 0), "paid_qty": int(i.get("paid_qty") or 0),
-              "sent_qty": int(i.get("sent_qty") or 0), "notes": i.get("notes") or "",
-              "remaining": int(i.qty or 0) - int(i.get("paid_qty") or 0)} for i in (doc.get("items") or [])]
+    staff = frappe.session.user != "Guest"
+    items = []
+    for i in (doc.get("items") or []):
+        row = {"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate,
+               "takeaway": int(i.get("takeaway") or 0)}
+        if staff:
+            row.update({"paid_qty": int(i.get("paid_qty") or 0),
+                        "sent_qty": int(i.get("sent_qty") or 0),
+                        "notes": i.get("notes") or "",
+                        "remaining": int(i.qty or 0) - int(i.get("paid_qty") or 0)})
+        items.append(row)
     return {"items": items}
 
 # ─── Orders by Table ─────────────────────────────────────
@@ -1717,9 +1783,7 @@ def waiter_append_items():
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
-        rate = float(item_data.get("rate", 0))
-        if not rate:
-            rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        rate = _server_item_rate(item_code)
         item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
         pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty,
@@ -1853,8 +1917,22 @@ def mark_kitchen_served():
 
 # ─── Edit Order ─────────────────────────────────────────
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(methods=["POST"])
 def update_order():
+    """Rebuild a draft order's item lines. POS staff only.
+
+    This was allow_guest=True. Since POS Order names are a guessable sequence,
+    that let anyone on the internet rewrite any open bill's items, quantities,
+    customer and phone — and the rebuild is then pushed into the linked invoice
+    below. Only /pos, /pos2 and /pos3 call this, and all three are behind a
+    login, so the guard costs nothing.
+
+    ignore_permissions stays on the save for now: POS Order grants write to
+    System Manager, POS User, Waiter, Kitchen Staff and Restaurant Manager, but
+    NOT to Cashier, so dropping it would lock the till out. Removing it needs
+    the DocPerms fixed first — see PRODUCTION_READINESS.md B1.
+    """
+    _require_pos_role()
     data = frappe.local.form_dict
     order_name = data.get("order_name")
     items_raw = data.get("items")
@@ -1910,9 +1988,7 @@ def update_order():
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
-        rate = float(item_data.get("rate", 0))
-        if not rate:
-            rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        rate = _server_item_rate(item_code)
         item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
         ta_flag = 1 if item_ta else 0
@@ -1948,9 +2024,7 @@ def update_order():
             for item_data in items:
                 item_code = item_data.get("item")
                 qty = max(int(item_data.get("qty", 1)), 1)
-                rate = float(item_data.get("rate", 0))
-                if not rate:
-                    rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+                rate = _server_item_rate(item_code)
                 invoice.append("items", {"item_code": item_code, "qty": qty, "rate": rate, "takeaway": 1 if _item_is_takeaway(item_data, order_type) else 0})
 
             invoice.taxes = []
@@ -1978,8 +2052,11 @@ def update_order():
     }
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_order_changelog(order_name):
+    """Edit history of an order. Staff only — it names the user behind each edit,
+    so it was never something to hand a guest. Only /pos, /pos2 and /pos3 call it."""
+    _require_pos_role()
     if not order_name:
         return {"changelog": []}
 
@@ -2092,9 +2169,7 @@ def kiosk_place_order():
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
-        rate = float(item_data.get("rate", 0))
-        if not rate:
-            rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        rate = _server_item_rate(item_code)
         item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
         pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate, "takeaway": 1 if item_ta else 0})
@@ -2179,6 +2254,7 @@ def kiosk_place_order():
 @frappe.whitelist()
 def setup_kiosk_tools():
     """One-time setup: create Item Review DocType + custom fields on Item."""
+    frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "Item Review"):
         return {"status": "already_exists"}
 
@@ -2287,6 +2363,7 @@ def submit_item_review():
 @frappe.whitelist()
 def setup_loyalty():
     """Create loyalty DocTypes and Settings."""
+    frappe.only_for("System Manager")
     created = []
 
     if not frappe.db.exists("DocType", "Loyalty Customer"):
@@ -2612,6 +2689,7 @@ def loyalty_get_settings_api():
 @frappe.whitelist()
 def setup_kitchen_groups():
     """Create Kitchen Group DocType + assign items to groups."""
+    frappe.only_for("System Manager")
     created = []
 
     if not frappe.db.exists("DocType", "Kitchen Group"):
@@ -2707,6 +2785,7 @@ def assign_kitchen_groups():
 @frappe.whitelist()
 def setup_customer_accounts():
     """One-time setup: create Customer Account + Customer Token DocTypes."""
+    frappe.only_for("System Manager")
     created = []
     if frappe.db.exists("DocType", "Customer Account"):
         frappe.delete_doc("DocType", "Customer Account", force=1)
@@ -2815,7 +2894,7 @@ def customer_set_pin():
         "doctype": "Customer Account",
         "mobile": mobile,
         "customer_name": name,
-        "pin": pin,
+        "pin": _hash_pin(pin),
         "last_login": now_datetime(),
     })
     account.flags.ignore_permissions = True
@@ -2824,6 +2903,60 @@ def customer_set_pin():
 
     token = _get_or_create_customer_token(mobile)
     return {"success": True, "token": token, "name": name}
+
+
+# ── customer PIN ──
+# A 4-digit PIN is a 10,000-key space, so the lockout below is what actually
+# protects the account; the hash protects it if the table ever leaks. The guide
+# login has done both since it was written (_hash_guide_pw) — this brings the
+# customer path up to the same standard, reusing the same salted scheme.
+PIN_MAX_ATTEMPTS = 5
+PIN_LOCKOUT_SEC = 900
+
+
+def _hash_pin(pin, salt=None):
+    salt = salt or secrets.token_hex(8)
+    return f"{salt}${hashlib.sha256((salt + (pin or '')).encode()).hexdigest()}"
+
+
+def _verify_pin(pin, stored):
+    """True if the PIN matches. Second return value says the stored form is a
+    legacy plaintext PIN and should be upgraded to a hash by the caller."""
+    if not stored:
+        return False, False
+    if "$" in stored:
+        salt = stored.split("$", 1)[0]
+        return secrets.compare_digest(_hash_pin(pin, salt), stored), False
+    # Pre-hash account: constant-time compare, then upgrade on the way through
+    # so plaintext PINs drain out of the table as people sign in.
+    return secrets.compare_digest(str(stored), str(pin)), True
+
+
+def _pin_attempts_key(mobile):
+    return f"lf_pin_fail:{mobile}"
+
+
+def _pin_fails(mobile):
+    """Failed attempts for this number.
+
+    expires=True matters: without it get_value() writes the miss into
+    frappe.local.cache, while a set_value() carrying expires_in_sec deliberately
+    does not update that dict — so a read-after-write inside one request keeps
+    seeing the stale None and the counter never leaves 1.
+    """
+    return int(frappe.cache().get_value(_pin_attempts_key(mobile), expires=True) or 0)
+
+
+def _pin_locked(mobile):
+    """Fails open when the cache is unreachable. A restaurant losing redis must
+    not also lose every customer login; the hash still protects a leaked table."""
+    return _pin_fails(mobile) >= PIN_MAX_ATTEMPTS
+
+
+def _pin_note_failure(mobile):
+    fails = _pin_fails(mobile) + 1
+    frappe.cache().set_value(_pin_attempts_key(mobile), fails, expires_in_sec=PIN_LOCKOUT_SEC)
+    return fails
 
 
 @frappe.whitelist(allow_guest=True)
@@ -2835,15 +2968,24 @@ def customer_verify_pin():
     if not mobile or not pin:
         return {"success": False, "error": "Phone and PIN required"}
 
-    accounts = frappe.get_all("Customer Account", filters={"mobile": mobile}, fields=["name", "customer_name", "pin"])
+    if _pin_locked(mobile):
+        return {"success": False, "error": "Too many wrong PINs — try again in 15 minutes"}
+
+    accounts = frappe.get_all("Customer Account", filters={"mobile": mobile}, fields=["name", "customer_name"])
     if not accounts:
-        return {"success": False, "error": "Account not found"}
+        # Same shape and cost as a wrong PIN: do not confirm which numbers exist.
+        _pin_note_failure(mobile)
+        return {"success": False, "error": "Wrong PIN"}
 
     account = accounts[0]
-    # PIN is stored as password field — verify
     stored = frappe.db.get_value("Customer Account", account["name"], "pin")
-    if not stored or stored != pin:
+    ok, needs_upgrade = _verify_pin(pin, stored)
+    if not ok:
+        _pin_note_failure(mobile)
         return {"success": False, "error": "Wrong PIN"}
+    if needs_upgrade:
+        frappe.db.set_value("Customer Account", account["name"], "pin", _hash_pin(pin))
+    frappe.cache().delete_value(_pin_attempts_key(mobile))
 
     # Update last login
     frappe.db.set_value("Customer Account", account["name"], "last_login", now_datetime())
@@ -2857,17 +2999,15 @@ def customer_get_orders():
     data = frappe.local.form_dict
     token = data.get("token", "").strip()
 
-    if not token:
-        # Try direct mobile param (for backward compatibility)
-        mobile = data.get("mobile", "").strip()
-        if not mobile:
-            return {"success": False, "error": "Login required"}
-    else:
-        # Validate token
-        token_doc = frappe.db.get_value("Customer Token", {"token": token}, "mobile")
-        if not token_doc:
-            return {"success": False, "error": "Invalid or expired token"}
-        mobile = token_doc
+    # The token is the ONLY way in. There used to be a "backward compatibility"
+    # branch that accepted a bare `mobile` when no token was sent and returned
+    # every order for that number — items, totals, table, times — to anyone who
+    # asked. Local mobile numbers are a 10-digit space with a known prefix, so
+    # that was enumerable: a personal-data breach, not a convenience.
+    # /cus, /myorders and /my_orders all send the token, so nothing loses access.
+    mobile = _mobile_from_token(token)
+    if not mobile:
+        return {"success": False, "error": "Login required"}
 
     # Fetch all orders for this mobile
     from urllib.parse import quote
@@ -2989,9 +3129,7 @@ def sync_offline_orders():
             for item_data in items:
                 code = item_data.get("item") or item_data.get("code")
                 qty = max(int(item_data.get("qty", 1)), 1)
-                rate = float(item_data.get("rate", 0))
-                if not rate:
-                    rate = _resolve_item_rate(code, 0, _get_pos_price_list())
+                rate = _server_item_rate(code)
                 rate_map[code] = {"qty": qty, "rate": rate,
                                   "takeaway": 1 if _item_is_takeaway(item_data, order_type) else 0}
 
@@ -3562,6 +3700,7 @@ def _open_shift_name(user=None):
 def setup_cash_movement():
     """Create the `POS Cash Movement` Custom DocType (idempotent; custom:1 => no bench migrate).
     A small drawer pay-in / pay-out log linked to the shift's POS Opening Entry."""
+    frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "POS Cash Movement"):
         return {"created": False, "exists": True}
 
@@ -3697,6 +3836,7 @@ def _buying_price_list():
 @frappe.whitelist()
 def setup_purchase_bill():
     """Create `Purchase Bill` + `Purchase Bill Item` Custom DocTypes (idempotent; no migrate)."""
+    frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "Purchase Bill"):
         return {"created": False, "exists": True}
     if not frappe.db.exists("Price List", "Standard Buying"):
@@ -3760,6 +3900,7 @@ RAW_MATERIALS = [
 def setup_raw_materials():
     """Create a `Raw Materials` Item Group + restaurant ingredients (is_purchase_item) with
     their buying Item Prices. Idempotent."""
+    frappe.only_for("System Manager")
     if not frappe.db.exists("Item Group", "Raw Materials"):
         parent = frappe.db.get_value("Item Group", {"name": "All Item Groups"}, "name") \
             or frappe.db.get_value("Item Group", {"is_group": 1}, "name")
@@ -3791,6 +3932,7 @@ def setup_raw_materials():
 @frappe.whitelist()
 def get_purchase_catalog():
     """Buying items + current purchase price (the price book) — raw materials first."""
+    _require_pos_role()
     pl = _buying_price_list()
     items = frappe.get_all("Item", filters={"item_group": "Raw Materials", "disabled": 0},
                            fields=["name", "item_name", "stock_uom", "item_group"],
@@ -3947,6 +4089,7 @@ def create_purchase_bill():
 
 @frappe.whitelist()
 def get_purchase_bills():
+    _require_pos_role()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "approved_today": 0, "pending_amt": 0, "week": 0}
     rows = frappe.get_all("Purchase Bill", filters={}, fields=["name", "status", "requested_at"],
@@ -3993,6 +4136,7 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
     20,000. The lines load only when a card is tapped (get_purchase_bill).
     Matches the vendor, the note, or any item name on the bill.
     """
+    _require_pos_role()
     _require_pos_role()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "more": False}
@@ -4042,6 +4186,7 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
 def get_purchase_bill(name=None):
     """One bill in full. Search results carry no lines — a tapped card fetches them."""
     _require_pos_role()
+    _require_pos_role()
     if not name or not frappe.db.exists("Purchase Bill", name):
         frappe.throw(_("Bill not found"))
     return _bill_dict(name)
@@ -4049,6 +4194,7 @@ def get_purchase_bill(name=None):
 
 @frappe.whitelist()
 def get_price_book():
+    _require_pos_role()
     cat = get_purchase_catalog()
     return cat
 
@@ -4115,6 +4261,7 @@ def resolve_purchase_bill():
 
 def setup_purchase_payment_fields():
     """Add `payment_status` + `paid_at` + `paid_by` to Purchase Bill. Idempotent; no migrate."""
+    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"created": False, "no_doctype": True}
@@ -4142,6 +4289,7 @@ def setup_purchase_payment_fields():
 def get_due_bills():
     """Approved bills not yet marked paid — the vendor payables list. Oldest owed
     first (so the most overdue payment is at the top), with a per-vendor summary."""
+    _require_pos_role()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "total_due": 0, "count": 0, "vendors": []}
     if not frappe.db.has_column("Purchase Bill", "payment_status"):
@@ -4220,6 +4368,7 @@ def _ensure_select_option(doctype, fieldname, option):
 def setup_expenses():
     """Create the Expense Category + Expense DocTypes, seed categories, and register the
     'expense' approval type. Idempotent (custom:1 => survives bench migrate, never on disk)."""
+    frappe.only_for("System Manager")
     created = []
 
     if not frappe.db.exists("DocType", "Expense Category"):
@@ -4294,6 +4443,7 @@ def setup_expenses():
 @frappe.whitelist()
 def get_expense_categories():
     """Categories for the /purchases expense form. Manager-editable from Desk > Expense Category."""
+    _require_pos_role()
     if not frappe.db.exists("DocType", "Expense Category"):
         setup_expenses()
     return {"categories": [r.name for r in frappe.get_all(
@@ -4386,6 +4536,7 @@ def _decide_expense(name, decision):
 @frappe.whitelist()
 def get_expenses():
     """Recent expenses + header stats for the /purchases app."""
+    _require_pos_role()
     if not frappe.db.exists("DocType", "Expense"):
         return {"expenses": [], "approved_today": 0, "pending_amt": 0, "week": 0}
     rows = frappe.get_all("Expense", fields=["name"], order_by="requested_at desc",
@@ -4407,6 +4558,7 @@ def get_expenses():
 @frappe.whitelist()
 def get_manager_dashboard():
     """Aggregate today's POS activity for the Manager phone dashboard (all cashiers)."""
+    _require_manager()
     from frappe.utils import get_datetime, today as _today
     today = _today()
 
@@ -4521,6 +4673,7 @@ def get_manager_sales_report(days=7):
     Powers the Manager app 'Reports' tab: a day-by-day revenue chart plus a
     full item-wise breakdown for the same window.
     """
+    _require_manager()
     from frappe.utils import getdate, add_days, today as _today, formatdate
 
     try:
@@ -4625,6 +4778,7 @@ def get_manager_sales_report(days=7):
 def get_manager_day_report(date=None):
     """Full breakdown of a single day — powers the drill-down when a manager
     taps a bar on the Reports daily chart (payment mix, hourly, item-wise)."""
+    _require_manager()
     from frappe.utils import getdate, add_days, formatdate, get_datetime, today as _today
 
     day = getdate(date or _today())
@@ -4708,6 +4862,7 @@ def get_manager_day_report(date=None):
 def get_manager_monthly_sales(months=12):
     """Month-by-month revenue for the Manager Reports tab (last N calendar months,
     zero-filled so quiet months still show)."""
+    _require_manager()
     import datetime
     from frappe.utils import getdate, formatdate, today as _today
 
@@ -4761,6 +4916,7 @@ def get_manager_monthly_sales(months=12):
 def get_manager_bill_detail(name=None):
     """Everything on one POS Invoice — powers the manager's tap-a-bill drill-down
     (items, discount, taxes/SC, payments, cashier, table)."""
+    _require_manager()
     from frappe.utils import get_datetime, formatdate
 
     if not name or not frappe.db.exists("POS Invoice", name):
@@ -4811,6 +4967,7 @@ def get_manager_purchase_report(days=7):
     Purchase Bill is non-submittable, so we filter on status='approved' (committed
     spend), not docstatus; the effective purchase date is `requested_at`.
     """
+    _require_manager()
     from frappe.utils import getdate, add_days, formatdate, today as _today
 
     try:
@@ -4941,6 +5098,7 @@ def get_manager_purchase_report(days=7):
 @frappe.whitelist()
 def setup_pos_approval():
     """Create the `POS Approval` Custom DocType (idempotent; custom:1, no migrate)."""
+    frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "POS Approval"):
         return {"created": False, "exists": True}
     if not frappe.db.exists("Role", "Cashier"):
@@ -5228,9 +5386,7 @@ def _apply_order_items(order_name, items):
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
-        rate = float(item_data.get("rate", 0))
-        if not rate:
-            rate = _resolve_item_rate(item_code, 0, _get_pos_price_list())
+        rate = _server_item_rate(item_code)
         item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
         ta_flag = 1 if item_ta else 0
@@ -5254,6 +5410,7 @@ def _apply_order_items(order_name, items):
 def setup_check_printed():
     """Add a `check_printed` Check to POS Order (set when a guest check is printed; after that,
     deleting items needs a manager approval). Idempotent; no migrate."""
+    frappe.only_for("System Manager")
     from frappe.custom.doctype.custom_field.custom_field import create_custom_field
     created = False
     if not frappe.db.has_column("POS Order", "check_printed"):
@@ -5296,6 +5453,7 @@ def setup_item_addons():
     """Create the `POS Item Addon` mapping DocType (idempotent). One row = one
     add-on offered with a menu item; manage rows from Desk (/app/pos-item-addon).
     pos2 reads enabled rows and pops an add-on picker when the item is added."""
+    frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "POS Item Addon"):
         return {"created": False, "exists": True}
     frappe.get_doc({
@@ -5331,6 +5489,7 @@ PROMO_PICKUP_OUTLET = "Kurunegala"  # free-meal orders are pickup-only, collecte
 def setup_scheduled_time_field():
     """Custom field: POS Order.scheduled_time — the customer's preferred time
     (free-item orders must be within PROMO_WINDOW_HOURS from now)."""
+    frappe.only_for("System Manager")
     created = False
     if not frappe.db.has_column("POS Order", "scheduled_time"):
         from frappe.custom.doctype.custom_field.custom_field import create_custom_field
@@ -5345,6 +5504,7 @@ def setup_scheduled_time_field():
 @frappe.whitelist()
 def setup_qr_promo():
     """Create QR Promo Campaign + QR Promo Code DocTypes (idempotent; custom:1)."""
+    frappe.only_for("System Manager")
     created = []
     if not frappe.db.exists("DocType", "QR Promo Campaign"):
         frappe.get_doc({
@@ -5676,6 +5836,7 @@ def claim_save_details():
 @frappe.whitelist()
 def setup_customer_profile_fields():
     """Add address + area fields to Customer Account (idempotent)."""
+    frappe.only_for("System Manager")
     dt = frappe.get_doc("DocType", "Customer Account")
     have = {f.fieldname for f in dt.fields}
     added = []
@@ -5690,10 +5851,26 @@ def setup_customer_profile_fields():
     return {"added": added}
 
 
+CUSTOMER_TOKEN_DAYS = 7
+
+
 def _mobile_from_token(token):
+    """The mobile behind a customer token, or None.
+
+    Enforces the 7-day life here rather than trusting the lazy DELETE in
+    _get_or_create_customer_token: that only runs when somebody else logs in, so
+    an abandoned token stayed valid indefinitely on a quiet week.
+    """
     if not token:
         return None
-    return frappe.db.get_value("Customer Token", {"token": token}, "mobile")
+    row = frappe.db.get_value("Customer Token", {"token": str(token).strip()},
+                              ["mobile", "created"], as_dict=True)
+    if not row:
+        return None
+    if row.created and frappe.utils.time_diff_in_seconds(
+            now_datetime(), row.created) > CUSTOMER_TOKEN_DAYS * 86400:
+        return None
+    return row.mobile
 
 
 @frappe.whitelist(allow_guest=True)
@@ -6040,6 +6217,7 @@ GUIDE_CASHBACK_INCLUDES_SERVICE_CHARGE = False
 def setup_tour_guides():
     """One-time setup: Tour Guide + Guide Token + Guide Cashback Txn DocTypes.
     Run: bench --site <site> execute luuvcrm.api.setup_tour_guides"""
+    frappe.only_for("System Manager")
     created = []
 
     if not frappe.db.exists("DocType", "Tour Guide"):
@@ -6887,6 +7065,7 @@ def setup_print_sections():
     """Push the section-aware thermal Print Formats into the DB docs (the
     primary print path). Idempotent — overwrites html on each run.
     Run: bench --site <site> execute luuvcrm.api.setup_print_sections"""
+    frappe.only_for("System Manager")
     updated, missing = [], []
     for name, html in (("Luuv Fryxo KOT", KOT_PF_HTML),
                        ("Guest Check", GUEST_CHECK_PF_HTML),
@@ -6909,6 +7088,7 @@ def setup_print_sections():
 def setup_wastage():
     """One-time: Wastage DocType + POS Approval.manager_comment field.
     Run: bench --site <site> execute luuvcrm.api.setup_wastage"""
+    frappe.only_for("System Manager")
     created = []
     if not frappe.db.exists("DocType", "Wastage"):
         frappe.get_doc({
