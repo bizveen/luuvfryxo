@@ -164,7 +164,7 @@ The pivotal work. Nothing after this is possible without it.
 
 ## Phase 4 — Make it verifiable
 
-**218 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
+**248 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
 
 | File | Covers |
 |---|---|
@@ -178,6 +178,7 @@ The pivotal work. Nothing after this is possible without it.
 | `test_approvals.py` (21) | The approval state machine, self-approval, the buying price book |
 | `test_guides.py` (29) | Cashback earned and spent, and the balance in between |
 | `test_activity.py` (20) | The staff trail, and what it must never write down |
+| `test_purchases.py` (30) | Entering a bill, approving it, and what the vendor is still owed |
 
 - [x] Unit tests for pricing and service charge — the resolver's priority chain, expired/future/customer/buying prices, the menu-row fallback, take-away exclusion, rounding.
 - [x] Order lifecycle: totals, client-rate rejection, the `update_order` rebuild preserving `sent_qty` and waiter notes, the table-swap guard, append-only KOT behaviour, and the Phase 1 guards exercised as real users.
