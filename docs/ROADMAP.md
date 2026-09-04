@@ -58,7 +58,9 @@ www/manager.py:6  MANAGER_ROLES      = System Manager, Administrator, Restaurant
 - [ ] Collapse the four sets into one module, `luuvcrm/roles.py`, with one guard per role. Delete the duplicates.
 - [ ] Decide whether `Sales User` and `POS User` are still meant to be POS roles or are ERPNext leftovers. `Sales User` appears exactly once in the whole app.
 - [ ] Stop creating roles at runtime — they become fixtures in Phase 3.
+- [ ] Add the **`Restaurant Owner`** role (see Phase 2c — it is a manager for every branch).
 - [ ] Resolve the `Cashier` gap: `POS Order` grants write to System Manager, POS User, Waiter, Kitchen Staff and Restaurant Manager but **not** Cashier, which is why `update_order` still carries `ignore_permissions`. Fix the DocPerms, then remove the flag.
+- [ ] **Get every DocPerm right, not just Cashier's.** Phase 2c switches all 51 reads from `frappe.get_all` to `frappe.get_list`, which starts enforcing DocPerms everywhere at once. Whatever is wrong in the permission table becomes a broken screen on that day. This phase is the groundwork that makes that flip safe.
 
 ### 2b · Settle the routes
 
@@ -90,29 +92,62 @@ Every page and its current gate:
 
 ---
 
-## Phase 2c — Branch scoping (the Owner requirement)
+## Phase 2c — Branch scoping, the Frappe-native way
 
-Wanted: 2–3 restaurants, an Owner who sees all of them, a manager who sees only their own. **This is mostly a data-model job, not a role job** — a role can only restrict what the data can distinguish, and right now nothing can be distinguished.
+Wanted: 2–3 restaurants, an Owner who sees all of them, a manager who sees only their own.
 
-Three gaps, all confirmed in the current tree:
+**Use Frappe's own machinery, not hand-written filters.** The pieces already exist and are the documented way to do this:
 
-1. **No transaction carries a branch.** `POS Order`, `Purchase Bill`, `Expense`, `Wastage` and `POS Approval` have no restaurant field at all. Only `Restaurant Table` links to `Restaurant`, so a dine-in bill is attributable to a branch *indirectly, through its table* — and a takeaway or delivery order has no table, so it is attributable to nothing.
-2. **14 call sites take "the first restaurant, whichever it is"** — `frappe.get_value("Restaurant", {}, "name")` in `api.py:13, 115, 3082, 6002` and in nine page context builders. With two restaurants installed, every one of these silently picks one.
-3. **Permissions are bypassed on every read.** The app calls `frappe.get_all` 51 times and `frappe.get_list` zero times. `get_all` forces `ignore_permissions=True`, so Frappe's User Permission mechanism — the native way to pin a manager to one branch — would have no effect whatsoever.
+| Piece | What it does |
+|---|---|
+| **POS Profile per branch** | Carries the branch's Warehouse and Cost Center, so stock and P&L separate themselves. Assign each cashier and manager to their branch's profile. |
+| **`restaurant` Link field** | One field on each custom doctype, defaulted from the signed-in user rather than asked for. |
+| **User Permission** | `User = Manager A`, `Allow = Restaurant`, `For Value = Branch A`. Frappe then filters every doctype with a link to `Restaurant`, automatically. |
+| **`frappe.get_list`** | Applies those permissions. `frappe.get_all` forces `ignore_permissions=True`, which is why none of the above works today. |
 
-Point 3 is the one that matters most: the obvious solution does not work here until the reads change.
+The Owner needs no special code at all: give them the role and **no** User Permission, and they see every branch.
 
-- [ ] **Decide what a branch *is*.** Recommended: **one ERPNext Company per restaurant**, with the `Restaurant` record linking to it. ERPNext is natively multi-company, so invoices, expenses and P&L scope themselves — the alternative, scoping by `Restaurant` alone, leaves the accounting side unscoped and has to be hand-built.
-- [ ] Add a `restaurant` (Link → Restaurant) field to every transactional doctype, defaulted from the session's POS Profile rather than asked for.
-- [ ] Replace the 14 "first restaurant" lookups with the branch resolved from the signed-in user.
-- [ ] Add one `_branch_filter()` helper and apply it to every read. Prefer this over flipping all 51 calls to `get_list`: `get_list` would also start enforcing DocPerms everywhere at once, which is a much larger and less predictable change.
-- [ ] Give Restaurant Manager a User Permission on their branch; give Owner none, so Owner sees everything.
-- [ ] Make the manager reports branch-aware, with an all-branches roll-up for Owner.
-- [ ] **Test: a two-restaurant fixture, and an assertion that a manager of branch A sees no order, bill, expense or approval from branch B.** That test is what makes the Owner role real rather than cosmetic.
+### What has to be true first
 
-**Do this before Phase 3, not after.** Adding a branch field to 24 doctypes is cheap while they are being written into the repo, and a migration on live data afterwards.
+Flipping 51 reads from `get_all` to `get_list` does not only switch on branch scoping — it switches on **DocPerms**, everywhere, at once. So Phase 2a is not optional groundwork, it is the thing that makes this safe:
 
----
+- Today `POS Order` grants read/write to System Manager, POS User, Waiter, Kitchen Staff and Restaurant Manager — **not Cashier**. Flip the reads before fixing that and the till stops working.
+- Any `get_permission_query_conditions` hook from erpnext or hospitality also starts applying.
+
+Get the roles and DocPerms right, then flip. Not the other way round.
+
+### The work
+
+- [ ] **Decide what a branch is.** Recommended: one **ERPNext Company per restaurant**, with the `Restaurant` record linking to it, plus a POS Profile per branch carrying that company's Warehouse and Cost Center. ERPNext is natively multi-company, so invoices, stock and P&L scope themselves.
+- [ ] Add a `restaurant` Link field to `POS Order`, `Purchase Bill`, `Expense`, `Wastage`, `POS Approval`, `POS Cash Movement` and `LF Activity Log`. Today **none of them have one** — only `Restaurant Table` links to `Restaurant`, so a takeaway order belongs to no branch at all.
+- [ ] Default it from the user's POS Profile on insert. Never a dropdown the cashier has to remember.
+- [ ] Replace the 14 `frappe.get_value("Restaurant", {}, "name")` lookups — *the first restaurant, whichever it is* — with the branch resolved from the session (`api.py:13, 115, 3082, 6002` and nine page context builders).
+- [ ] Convert the 51 `frappe.get_all` calls to `frappe.get_list`, after the DocPerms above are right. Verified: `get_list` does **not** truncate — `limit_page_length` is `None` unless passed (`db_query.py:380`), despite what its docstring says.
+- [ ] Create the `Restaurant Owner` role. No User Permission for it.
+- [ ] Give each Restaurant Manager a User Permission on their `Restaurant`.
+- [ ] Make the manager reports branch-aware, with an all-branches roll-up that only Owner sees.
+- [ ] **Test: a two-restaurant fixture, asserting a manager of branch A sees no order, bill, expense, approval or activity row from branch B — and that Owner sees both.** That test is what makes the Owner role real rather than cosmetic.
+
+### Migrating the live restaurant safely
+
+The live site has months of rows with no branch. Verified behaviour, from `db_query.py:1408`:
+
+```python
+if frappe.get_system_settings("apply_strict_user_permissions"):
+    condition = ""
+else:
+    condition = "ifnull(`tabPOS Order`.`restaurant`, '')='' or "
+```
+
+**A row whose link field is empty stays visible to everyone.** So:
+
+- [ ] Adding the field to live data is safe on its own — every existing row is NULL, so nothing disappears from anybody's screen. Do this first and let it settle.
+- [ ] **Backfill** every existing row to the live restaurant, in a patch. Until that is done, isolation is incomplete: legacy rows leak across branches precisely because they are empty.
+- [ ] Verify zero NULLs in every table before relying on the isolation.
+- [ ] Keep **`apply_strict_user_permissions` OFF** until the backfill is verified. Turning it on flips that `ifnull` branch off and every un-backfilled row vanishes for every non-Owner at once. Consider turning it on afterwards — with it off, a row that somehow loses its branch silently becomes visible to all.
+- [ ] Order of operations on the live site: add field → backfill → verify → create the second Restaurant → assign POS Profiles → grant User Permissions. Never create the second restaurant before the backfill.
+
+**Do all of this before Phase 3.** Adding a branch field to 24 doctypes is cheap while they are being written into the repo, and a live-data migration afterwards.
 
 ## Phase 3 — Make it installable
 
