@@ -42,15 +42,18 @@ activity.py:434   MANAGER_ROLES      = System Manager, Administrator, Restaurant
 www/manager.py:6  MANAGER_ROLES      = System Manager, Administrator, Restaurant Manager   ← duplicate
 ```
 
-- [ ] Write down the intended roles and what each may do. Proposed, from how the apps actually behave:
+- [ ] Write down the intended roles and what each may do. Proposed, from how the apps actually behave, plus the Owner the multi-branch goal needs:
 
-  | Role | Uses | Must not |
-  |---|---|---|
-  | **Cashier** | `/pos2` — sell, take payment, open/close shift | See reports, approve anything |
-  | **Waiter** | `/waiter` — take and amend own orders | Take payment, see totals for the day |
-  | **Kitchen Staff** | `/kitchen` — advance order status | Everything else |
-  | **Restaurant Manager** | `/manager`, `/purchases`, `/activity`, `/errors`, menu edits, approvals | Change schema |
-  | **System Manager** | Setup and migration | — |
+  | Role | Who | Uses | Must not |
+  |---|---|---|---|
+  | **Kitchen Staff** | Kitchen | `/kitchen` — advance order status | Everything else |
+  | **Waiter** | Floor | `/waiter` — take and amend own orders | Take payment, see the day's totals |
+  | **Cashier** | Counter | `/pos2` — sell, take payment, open/close shift | See reports, approve anything |
+  | **Restaurant Manager** | Branch manager | `/manager`, `/purchases`, `/activity`, `/errors`, menu, approvals — **for their own branch** | See other branches, change schema |
+  | **Restaurant Owner** | Owner | Everything a manager can, **across every branch**, plus consolidated reporting | Change schema |
+  | **System Manager** | Developer / installer | Frappe's own admin role: create doctypes, migrate, edit permissions, manage users | — *not a business role* |
+
+  **On System Manager.** It is Frappe's built-in technical administrator role, not something this app invents — every Frappe site has it. It means "can change how the system works": run migrations, add fields, grant permissions, create users. It is for whoever installs and maintains the software. **The restaurant owner should not have it** — they want to see money, not edit doctypes, and a System Manager can bypass every guard in this roadmap. Owner is a separate business role; keep the two apart.
 
 - [ ] Collapse the four sets into one module, `luuvcrm/roles.py`, with one guard per role. Delete the duplicates.
 - [ ] Decide whether `Sales User` and `POS User` are still meant to be POS roles or are ERPNext leftovers. `Sales User` appears exactly once in the whole app.
@@ -84,6 +87,30 @@ Every page and its current gate:
 - [ ] **Collapse the three POS pages.** `/pos2` is live, `/pos` is superseded, `/pos3` is a staging copy whose own docstring says it is throwaway — and which is now the largest file in the project. Decide which survives, port anything missing, delete the other two, and drop `pos3` from `KNOWN_APPS` in `activity.py`.
 - [ ] Write the surviving route table into `DEVELOPER_GUIDE.md` so the next person does not have to reverse-engineer it.
 - [ ] Test: one test asserting every page module's context builder enforces its expected gate. This is the test that stops a new page shipping ungated.
+
+---
+
+## Phase 2c — Branch scoping (the Owner requirement)
+
+Wanted: 2–3 restaurants, an Owner who sees all of them, a manager who sees only their own. **This is mostly a data-model job, not a role job** — a role can only restrict what the data can distinguish, and right now nothing can be distinguished.
+
+Three gaps, all confirmed in the current tree:
+
+1. **No transaction carries a branch.** `POS Order`, `Purchase Bill`, `Expense`, `Wastage` and `POS Approval` have no restaurant field at all. Only `Restaurant Table` links to `Restaurant`, so a dine-in bill is attributable to a branch *indirectly, through its table* — and a takeaway or delivery order has no table, so it is attributable to nothing.
+2. **14 call sites take "the first restaurant, whichever it is"** — `frappe.get_value("Restaurant", {}, "name")` in `api.py:13, 115, 3082, 6002` and in nine page context builders. With two restaurants installed, every one of these silently picks one.
+3. **Permissions are bypassed on every read.** The app calls `frappe.get_all` 51 times and `frappe.get_list` zero times. `get_all` forces `ignore_permissions=True`, so Frappe's User Permission mechanism — the native way to pin a manager to one branch — would have no effect whatsoever.
+
+Point 3 is the one that matters most: the obvious solution does not work here until the reads change.
+
+- [ ] **Decide what a branch *is*.** Recommended: **one ERPNext Company per restaurant**, with the `Restaurant` record linking to it. ERPNext is natively multi-company, so invoices, expenses and P&L scope themselves — the alternative, scoping by `Restaurant` alone, leaves the accounting side unscoped and has to be hand-built.
+- [ ] Add a `restaurant` (Link → Restaurant) field to every transactional doctype, defaulted from the session's POS Profile rather than asked for.
+- [ ] Replace the 14 "first restaurant" lookups with the branch resolved from the signed-in user.
+- [ ] Add one `_branch_filter()` helper and apply it to every read. Prefer this over flipping all 51 calls to `get_list`: `get_list` would also start enforcing DocPerms everywhere at once, which is a much larger and less predictable change.
+- [ ] Give Restaurant Manager a User Permission on their branch; give Owner none, so Owner sees everything.
+- [ ] Make the manager reports branch-aware, with an all-branches roll-up for Owner.
+- [ ] **Test: a two-restaurant fixture, and an assertion that a manager of branch A sees no order, bill, expense or approval from branch B.** That test is what makes the Owner role real rather than cosmetic.
+
+**Do this before Phase 3, not after.** Adding a branch field to 24 doctypes is cheap while they are being written into the repo, and a migration on live data afterwards.
 
 ---
 
@@ -127,7 +154,6 @@ The pivotal work. Nothing after this is possible without it.
 
 - [ ] One brand, read from `LuuvCRM Settings`. Today the app is `luuvcrm`, `hooks.py` says "Zeloura Collective — Network Fashion Platform", and every page says "Luuv Fryxo". A second customer cannot be called Luuv Fryxo.
 - [ ] Split `api.py` (7,095 lines) into a package, keeping the public method paths stable via re-exports.
-- [ ] Confirm nothing assumes a single restaurant — `api.py:13` takes `frappe.get_value("Restaurant", {}, "name")`, whichever record comes first.
 - [ ] Decide the fate of `zeloura_api.py` and the `Zeloura Theme` / `Zeloura Product` fashion-site code. It appears to belong to a different product.
 - [ ] Move the 14 `check_*` / `debug_*` / `fix_*` scratch scripts out of the importable package.
 - [ ] Serve one copy of the 70 MB print APK, from `public/`; delete the `www/` duplicate.
