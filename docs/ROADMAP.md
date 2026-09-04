@@ -164,7 +164,7 @@ The pivotal work. Nothing after this is possible without it.
 
 ## Phase 4 — Make it verifiable
 
-**283 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
+**310 tests.** `bench --site test.localhost run-tests --app luuvcrm`.
 
 | File | Covers |
 |---|---|
@@ -180,6 +180,7 @@ The pivotal work. Nothing after this is possible without it.
 | `test_activity.py` (20) | The staff trail, and what it must never write down |
 | `test_purchases.py` (30) | Entering a bill, approving it, and what the vendor is still owed |
 | `test_service.py` (35) | The cash drawer, and an order's life between being taken and paid |
+| `test_loyalty.py` (27) | Points, referrals and spending a balance — token-gated now |
 
 - [x] Unit tests for pricing and service charge — the resolver's priority chain, expired/future/customer/buying prices, the menu-row fallback, take-away exclusion, rounding.
 - [x] Order lifecycle: totals, client-rate rejection, the `update_order` rebuild preserving `sent_qty` and waiter notes, the table-swap guard, append-only KOT behaviour, and the Phase 1 guards exercised as real users.
@@ -189,7 +190,7 @@ The pivotal work. Nothing after this is possible without it.
 - [~] **Purchases.** The decision path is covered: approving writes the buying price, a second bill moves it, rejecting leaves it alone, deciding twice is idempotent, and re-buying at the same price is not counted as a change. Still to do: `create_purchase_bill`, the line-by-line approve screen, and the Due list.
 - [x] **Guide cashback.** Redemption refused above the balance or above the bill; the balance moving on both sides; a bill crediting a guide once however often it is retried; no earning on a bill the guide paid from their own balance; the per-bill cap keeping the cashier's order; an item's own commission rate beating the guide's; a discount shrinking the commission proportionally; and a broken payload never taking the sale down with it.
 - [x] **Activity log.** Every key in `SECRET_KEYS` dropped, plus anything shaped like a password or ending in `_pin` — while `pinned_note` survives, because a suffix match is deliberate. Clipping, nested values flattened rather than lost, the loggers not logging themselves, and `log_activity` never raising whatever it is handed.
-- [~] **Endpoint coverage: 38 of 157 whitelisted endpoints at the start of this pass.** Measured, not guessed — `test_service.py` was the first batch. Remaining, in rough order of risk: loyalty (8), customer auth and the WhatsApp OTP (7), promo campaigns (6), the guide app's own endpoints (13), expenses/wastage/food cost (6), manager report arithmetic (6), print payloads (5), menu editing (3), and one test looping every `setup_*` for idempotency.
+- [~] **Endpoint coverage: 38 of 157 whitelisted endpoints at the start of this pass.** Measured, not guessed — `test_service.py` was the first batch. `test_loyalty.py` was the second. Remaining, in rough order of risk: customer auth and the WhatsApp OTP (7), promo campaigns (6), the guide app's own endpoints (13), expenses/wastage/food cost (6), manager report arithmetic (6), print payloads (5), menu editing (3), and one test looping every `setup_*` for idempotency.
 - [ ] CI on every push: `run-tests --app luuvcrm`, `ruff`, `eslint`. (`ruff` is not installed on this machine.)
 - [ ] A fresh-install smoke test in CI (Phase 3's acceptance test).
 - [ ] Fix `luuvcrm/test_child_parent.py` — a scratch script pointing at a hard-coded site named `clothing`, sitting where a test should be. Delete or convert.

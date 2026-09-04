@@ -289,7 +289,7 @@ async function _showOrders(area) {
   // Load both orders and loyalty data
   const [ordRes, loyRes] = await Promise.all([
     _call('luuvcrm.api.customer_get_orders', { token: _token }),
-    _call('luuvcrm.api.loyalty_get_info', { mobile: _mobile })
+    _call('luuvcrm.api.loyalty_get_info', { token: _token })
   ]);
   const data = ordRes.message;
   _loyData = loyRes.message;
@@ -399,7 +399,7 @@ function _renderLoyalty(content) {
 
   // Generate referral code if needed
   if (!d.referral_code) {
-    _call('luuvcrm.api.loyalty_generate_code', { mobile: _mobile }).then(r => {
+    _call('luuvcrm.api.loyalty_generate_code', { token: _token }).then(r => {
       if (r.message?.referral_code) {
         d.referral_code = r.message.referral_code;
         _renderLoyalty(content);
@@ -493,7 +493,7 @@ async function doRedeem() {
   const btn = document.getElementById('redeemBtn');
   btn.disabled = true; btn.textContent = '???';
 
-  const res = await _call('luuvcrm.api.loyalty_redeem', { mobile: _mobile, amount: amt });
+  const res = await _call('luuvcrm.api.loyalty_redeem', { token: _token, amount: amt });
   btn.disabled = false; btn.textContent = 'Redeem';
 
   if (res.message?.success) {
@@ -501,7 +501,7 @@ async function doRedeem() {
     ok.style.display = 'block';
     document.getElementById('redeemAmt').value = '';
     // Refresh loyalty info
-    const loyRes = await _call('luuvcrm.api.loyalty_get_info', { mobile: _mobile });
+    const loyRes = await _call('luuvcrm.api.loyalty_get_info', { token: _token });
     if (loyRes.message) _loyData = loyRes.message;
   } else {
     err.textContent = res.message?.error || 'Redeem failed';

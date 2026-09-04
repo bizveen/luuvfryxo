@@ -2521,9 +2521,9 @@ def _process_cashback(mobile, order_name, grand_total):
 
 @frappe.whitelist(allow_guest=True)
 def loyalty_get_info():
-    mobile = frappe.local.form_dict.get("mobile", "").strip()
+    mobile = _customer_mobile()
     if not mobile:
-        return {"success": False, "error": "Mobile required"}
+        return {"success": False, "error": "Login required"}
 
     lc_name = frappe.db.get_value("Loyalty Customer", {"mobile": mobile}, "name")
     if not lc_name:
@@ -2554,9 +2554,9 @@ def loyalty_get_info():
 
 @frappe.whitelist(allow_guest=True)
 def loyalty_generate_code():
-    mobile = frappe.local.form_dict.get("mobile", "").strip()
+    mobile = _customer_mobile()
     if not mobile:
-        return {"success": False, "error": "Mobile required"}
+        return {"success": False, "error": "Login required"}
 
     lc_name = _get_loyalty_customer(mobile)
     lc = frappe.get_doc("Loyalty Customer", lc_name)
@@ -2571,11 +2571,26 @@ def loyalty_generate_code():
 
 @frappe.whitelist(allow_guest=True)
 def loyalty_apply_referral():
-    mobile = frappe.local.form_dict.get("mobile", "").strip()
+    """Link a customer to whoever referred them. Once, and only once.
+
+    The token is preferred, but a posted mobile is still accepted: a customer
+    can check out from /cus without an account, and the referral has to attach
+    before the order or the referrer earns nothing on it.
+
+    Unlike the rest of the loyalty endpoints this one only WRITES a link — it
+    reads no balance and spends nothing — and the "already linked" guard below
+    makes it one-shot per customer. The residual risk is somebody claiming
+    referral credit for a number that has not been referred yet, which is
+    business fraud rather than a data breach; closing it needs the guest
+    checkout to carry a signed link (docs/ROADMAP.md).
+    """
+    mobile = _customer_mobile() or frappe.local.form_dict.get("mobile", "").strip()
     ref_code = frappe.local.form_dict.get("ref_code", "").strip().upper()
 
-    if not mobile or not ref_code:
-        return {"success": False, "error": "Mobile and referral code required"}
+    if not mobile:
+        return {"success": False, "error": "Login required"}
+    if not ref_code:
+        return {"success": False, "error": "Referral code required"}
 
     # Find referrer by code
     referrer = frappe.db.get_value("Loyalty Customer", {"referral_code": ref_code}, "name")
@@ -2603,11 +2618,13 @@ def loyalty_apply_referral():
 
 @frappe.whitelist(allow_guest=True)
 def loyalty_redeem():
-    mobile = frappe.local.form_dict.get("mobile", "").strip()
+    mobile = _customer_mobile()
     amount = float(frappe.local.form_dict.get("amount", 0))
 
-    if not mobile or amount <= 0:
-        return {"success": False, "error": "Valid mobile and amount required"}
+    if not mobile:
+        return {"success": False, "error": "Login required"}
+    if amount <= 0:
+        return {"success": False, "error": "Valid amount required"}
 
     lc_name = frappe.db.get_value("Loyalty Customer", {"mobile": mobile}, "name")
     if not lc_name:
@@ -5878,6 +5895,19 @@ def setup_customer_profile_fields():
     """Schema setup over HTTP. Admin only; the work is in _install_customer_profile_fields."""
     frappe.only_for("System Manager")
     return _install_customer_profile_fields()
+
+
+def _customer_mobile(data=None):
+    """The signed-in customer's mobile, from their token. "" when not signed in.
+
+    Loyalty endpoints used to take the mobile straight from the request while
+    being allow_guest, so anyone who knew a phone number could read that
+    customer's balance and referral network — and, through loyalty_redeem, spend
+    the balance. Same enumeration hole as the customer_get_orders fallback closed
+    in Phase 1 (S3), except this one moved money.
+    """
+    data = data if data is not None else frappe.local.form_dict
+    return _mobile_from_token((data.get("token") or "").strip()) or ""
 
 
 CUSTOMER_TOKEN_DAYS = 7
