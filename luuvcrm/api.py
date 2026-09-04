@@ -2416,18 +2416,11 @@ def setup_loyalty():
 
 # ─── Loyalty Helpers ─────────────────────────────────────
 
-@frappe.whitelist(allow_guest=True)
-def debug_loyalty():
-    mobile = frappe.local.form_dict.get("mobile", "")
-    lc_name = frappe.db.get_value("Loyalty Customer", {"mobile": mobile}, "name")
-    if not lc_name:
-        return {"error": "No loyalty customer"}
-    lc = frappe.get_doc("Loyalty Customer", lc_name)
-    ref_by_name = ""
-    if lc.get("referred_by"):
-        ref_doc = frappe.get_doc("Loyalty Customer", lc.get("referred_by"))
-        ref_by_name = ref_doc.mobile
-    return {"mobile": lc.mobile, "code": lc.referral_code, "referred_by": ref_by_name, "balance": lc.cashback_balance}
+# debug_loyalty was here: a guest-accessible endpoint that took a phone number and
+# returned that customer's referral code, cashback balance, and the phone number of
+# whoever referred them. The same enumeration hole as the customer_get_orders
+# fallback closed in Phase 1 (S3), and no page ever called it. Removed rather than
+# guarded — a debug endpoint is not something to leave lying around behind a role.
 
 def _get_loyalty_customer(mobile):
     """Get or create a Loyalty Customer record for this mobile."""
