@@ -15,6 +15,21 @@ everywhere at once and needs the permission table right first.
 is correct by accident. With two it silently serves one branch's menu, prices
 and service charge to the other, and nothing anywhere would say so.
 
+**What a branch is** (decided 2026-09-05): **one Company, one Chart of Accounts,
+and a Cost Center per location.** One owner, two restaurants, one legal entity —
+so the books stay together and staff, stock, sales and data are separated by
+Cost Center, Warehouse and permissions instead.
+
+That decision is what shapes the resolver below. Under one-Company-per-branch a
+till could be traced to its branch through `POS Profile.company`; sharing a
+company makes that hop meaningless, so the POS Profile names its `restaurant`
+directly, and the `Restaurant` record carries the Cost Center and Warehouse that
+are its share of the ledger.
+
+    Restaurant ──cost_center──> Cost Center     what the sales and costs post to
+               ──warehouse────> Warehouse       what the stock moves through
+    POS Profile ──restaurant──> Restaurant      which branch this till is
+
 Lives at the top level next to `roles.py`, not inside `luuvcrm/api/`, because
 the page context builders ask it too and `activity.py` cannot import the api
 package. Same reason `roles.py` is where it is.
@@ -103,18 +118,57 @@ def _profiles_for(user):
 
 
 def _restaurant_for_profile(profile):
-    """POS Profile → company → the Restaurant on that company.
+    """Which branch a till belongs to.
 
-    `Restaurant.company` is hospitality's own field, so the recommended
-    one-Company-per-branch model needs no schema of ours. With every branch on
-    one company this hop is ambiguous and returns nothing rather than guessing —
-    the caller falls through to the next step.
+    Straight from `POS Profile.restaurant` when it is set — that is the field
+    this app adds for exactly this, and it is the only unambiguous answer.
+
+    Failing that, through the Cost Center: every branch has its own, so a
+    profile posting to "Kurunegala - S" is at whichever Restaurant claims that
+    cost center. Worth keeping as a fallback because `POS Profile.cost_center`
+    is ERPNext's own field and a site may have set it long before this one
+    existed.
+
+    `company` is deliberately not a hop. With a single Company across every
+    branch it identifies nothing, and matching on it would hand back a branch
+    at random — the failure this module exists to remove.
     """
-    company = frappe.db.get_value("POS Profile", profile, "company")
-    if not company:
+    row = frappe.db.get_value("POS Profile", profile, ["restaurant", "cost_center"],
+                              as_dict=True) if frappe.db.has_column("POS Profile", FIELD) \
+        else frappe.db.get_value("POS Profile", profile, ["cost_center"], as_dict=True)
+    if not row:
         return None
-    matches = frappe.get_all("Restaurant", filters={"company": company}, pluck="name")
-    return matches[0] if len(matches) == 1 else None
+    if row.get(FIELD):
+        return row[FIELD]
+    if row.get("cost_center") and frappe.db.has_column("Restaurant", "cost_center"):
+        matches = frappe.get_all("Restaurant", filters={"cost_center": row.cost_center},
+                                 pluck="name")
+        if len(matches) == 1:
+            return matches[0]
+    return None
+
+
+def cost_center(restaurant=None):
+    """The Cost Center this branch's money posts to, or None.
+
+    One Company means the Chart of Accounts is shared; the Cost Center is what
+    separates one restaurant's P&L from the other's. ERPNext puts
+    `POS Profile.cost_center` on the invoices it raises, so sales separate
+    themselves once each branch's profile carries the right one — this is for
+    everything the app raises itself.
+    """
+    restaurant = restaurant or current()
+    if not restaurant or not frappe.db.has_column("Restaurant", "cost_center"):
+        return None
+    return frappe.db.get_value("Restaurant", restaurant, "cost_center")
+
+
+def warehouse(restaurant=None):
+    """The Warehouse this branch's stock moves through, or None."""
+    restaurant = restaurant or current()
+    if not restaurant or not frappe.db.has_column("Restaurant", "warehouse"):
+        return None
+    return frappe.db.get_value("Restaurant", restaurant, "warehouse")
 
 
 def _the_only_restaurant():
@@ -190,6 +244,27 @@ def ensure_branch_field():
             frappe.db.updatedb(doctype)
             synced.append(doctype)
 
+    # The branch's own dimensions, and the till's pointer at its branch. These
+    # are what make a single-Company, cost-centre-per-location model resolvable
+    # at all: see the diagram at the top of this module.
+    for doctype, field in (
+        ("Restaurant", {"fieldname": "cost_center", "label": "Cost Center",
+                        "fieldtype": "Link", "options": "Cost Center",
+                        "description": "This branch's share of the shared Chart of Accounts."}),
+        ("Restaurant", {"fieldname": "warehouse", "label": "Warehouse",
+                        "fieldtype": "Link", "options": "Warehouse",
+                        "description": "Where this branch's stock lives."}),
+        ("POS Profile", {"fieldname": FIELD, "label": "Restaurant",
+                         "fieldtype": "Link", "options": "Restaurant",
+                         "description": "Which branch this till is at."}),
+    ):
+        if not frappe.db.has_column(doctype, field["fieldname"]):
+            create_custom_field(doctype, field)
+            added.append(f"{doctype}.{field['fieldname']}")
+            if not frappe.db.has_column(doctype, field["fieldname"]):
+                frappe.db.updatedb(doctype)
+                synced.append(doctype)
+
     if added or synced:
         frappe.clear_cache()
     return {"added": added, "synced": synced, "skipped": skipped}
@@ -247,3 +322,47 @@ def unbranched():
         if count:
             out[doctype] = count
     return out
+
+
+def check():
+    """Is this site actually set up to keep two branches apart?
+
+    Everything below is configuration rather than code, which is why it needs a
+    check: each item is something a person does in Desk once, forgets, and then
+    cannot tell from working. Returns a list of problems; empty means ready.
+    """
+    problems = []
+    restaurants = all_restaurants()
+    if len(restaurants) < 2:
+        return problems                      # nothing to keep apart yet
+
+    seen_cc, seen_wh = {}, {}
+    for name in restaurants:
+        row = frappe.db.get_value("Restaurant", name,
+                                  ["cost_center", "warehouse"], as_dict=True) or frappe._dict()
+        if not row.get("cost_center"):
+            problems.append(f"{name}: no Cost Center — its sales and costs cannot be told apart")
+        elif row.cost_center in seen_cc:
+            problems.append(f"{name} and {seen_cc[row.cost_center]} share Cost Center "
+                            f"{row.cost_center} — their P&L is one number")
+        else:
+            seen_cc[row.cost_center] = name
+            if frappe.db.get_value("Cost Center", row.cost_center, "is_group"):
+                problems.append(f"{name}: Cost Center {row.cost_center} is a group — "
+                                "postings need a leaf")
+        if not row.get("warehouse"):
+            problems.append(f"{name}: no Warehouse — its stock cannot be told apart")
+        elif row.warehouse in seen_wh:
+            problems.append(f"{name} and {seen_wh[row.warehouse]} share Warehouse {row.warehouse}")
+        else:
+            seen_wh[row.warehouse] = name
+
+    for profile in frappe.get_all("POS Profile", pluck="name"):
+        if not frappe.db.get_value("POS Profile", profile, FIELD):
+            problems.append(f"POS Profile {profile}: no Restaurant — a sale rung up here "
+                            "cannot be attributed to a branch")
+
+    left = unbranched()
+    if left:
+        problems.append(f"rows with no branch, visible to every branch: {left}")
+    return problems

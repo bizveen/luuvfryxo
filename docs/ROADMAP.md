@@ -102,7 +102,7 @@ Wanted: 2–3 restaurants, an Owner who sees all of them, a manager who sees onl
 
 | Piece | What it does |
 |---|---|
-| **POS Profile per branch** | Carries the branch's Warehouse and Cost Center, so stock and P&L separate themselves. Assign each cashier and manager to their branch's profile. |
+| **POS Profile per branch** | Carries the branch's Warehouse and Cost Center, so stock and P&L separate themselves inside the one company. Assign each cashier and manager to their branch's profile. |
 | **`restaurant` Link field** | One field on each custom doctype, defaulted from the signed-in user rather than asked for. |
 | **User Permission** | `User = Manager A`, `Allow = Restaurant`, `For Value = Branch A`. Frappe then filters every doctype with a link to `Restaurant`, automatically. |
 | **`frappe.get_list`** | Applies those permissions. `frappe.get_all` forces `ignore_permissions=True`, which is why none of the above works today. |
@@ -128,7 +128,19 @@ changes visibility, and it is sequenced deliberately: see *What has to be true
 first* above.
 
 
-- [ ] **Decide what a branch is.** Recommended: one **ERPNext Company per restaurant**, with the `Restaurant` record linking to it, plus a POS Profile per branch carrying that company's Warehouse and Cost Center. ERPNext is natively multi-company, so invoices, stock and P&L scope themselves.
+- [x] **Decided (2026-09-05): one Company, a Cost Center per location.** One owner, two restaurants, one legal entity — so the books and the Chart of Accounts stay together, and staff, stock, sales and data are separated by **Cost Center, Warehouse and User/POS permissions** instead. Company-per-branch was the earlier recommendation here and is *not* what was chosen; consolidated reporting and a single CoA were worth more than native per-company P&L.
+
+  What that costs in code: `POS Profile.company` stops identifying anything, because every till shares one. So the mapping is explicit —
+
+  | Link | Says |
+  |---|---|
+  | `Restaurant.cost_center` | this branch's share of the shared Chart of Accounts |
+  | `Restaurant.warehouse` | where this branch's stock lives |
+  | `POS Profile.restaurant` | which branch this till is at |
+
+  All three are installed by the same patch. `branch.current()` resolves a till through `POS Profile.restaurant`, falling back to `POS Profile.cost_center` → the `Restaurant` claiming it (ERPNext's own field, which a site may have set long before ours existed). **`company` is deliberately not a hop** — with one company it would hand back a branch at random.
+
+  ERPNext already puts `POS Profile.cost_center` on the invoices it raises, so sales separate themselves once each branch's profile carries the right one. That is configuration, not code, which is why `branch.check()` exists: every part of this is something somebody does once in Desk, forgets, and then cannot tell from working. It reports a branch with no cost centre, two branches sharing one (everything works and the P&L is one number), a group cost centre where a leaf is needed, a till with no branch, and any rows still unbranched.
 - [x] **`restaurant` Link field on all seven doctypes**, in `luuvcrm/branch.py`, installed by `luuvcrm/patches/v1_0/add_branch_field.py`. Read-only: it is stamped, never typed.
   **Watch this one.** `create_custom_field` adds the column itself for a Custom DocType but *not* for one that lives in the repo, where it stays metadata until the next schema sync — and `POS Order` is a repo doctype. It failed exactly that way first time, in the worst available manner: the field was in the meta, so a save set it and the value went nowhere, and a `has_column`-based "is everything branched?" check read a clean zero. `ensure_branch_field()` now calls `frappe.db.updatedb()` for any doctype whose meta has the field and whose table does not, and there is a test for the column rather than the field.
 - [x] **Stamped on insert** by `branch.stamp`, wired in `hooks.py` as `before_insert` for all seven. It never raises: a row that fails to get a branch is a reporting problem, a row that fails to save is a cashier who cannot sell.
@@ -137,7 +149,7 @@ first* above.
 - [x] Create the `Restaurant Owner` role. No User Permission for it — done in Phase 2a (`roles.ensure_roles()`, `patches/v1_0/create_roles.py`). `branch.current()` already relies on the *absence* of a User Permission meaning "every branch", so the Owner needs no code of its own.
 - [ ] Give each Restaurant Manager a User Permission on their `Restaurant`.
 - [ ] Make the manager reports branch-aware, with an all-branches roll-up that only Owner sees.
-- [ ] **Decide how a public page picks its branch.** `/menu`, `/home`, `/order`, `/kiosk` and `/cus` have no session user, so `branch.current()` falls through to "the only restaurant" and returns `None` the day there are two — a blank menu rather than the wrong one, which is the right failure but not an answer. They need the branch in the URL (a per-branch link, or `/kiosk?table=` already implies one). Surfaced by the resolver; not a problem that existed while there was one restaurant.
+- [ ] **Decide how a public page picks its branch.** *(Parked at the user's request — last thing in the phase.)* `/menu`, `/home`, `/order`, `/kiosk` and `/cus` have no session user, so `branch.current()` falls through to "the only restaurant" and returns `None` the day there are two — a blank menu rather than the wrong one, which is the right failure but not an answer. They need the branch in the URL (a per-branch link, or `/kiosk?table=` already implies one). Surfaced by the resolver; not a problem that existed while there was one restaurant.
 - [ ] **Test: a two-restaurant fixture, asserting a manager of branch A sees no order, bill, expense, approval or activity row from branch B — and that Owner sees both.** That test is what makes the Owner role real rather than cosmetic.
 
 ### Migrating the live restaurant safely

@@ -1,5 +1,12 @@
 """Which restaurant a row belongs to, and which one a session is looking at.
 
+**What a branch is** (decided 2026-09-05): one Company, one Chart of Accounts,
+a Cost Center per location. One owner, two restaurants, one legal entity — so
+staff, stock, sales and data separate by Cost Center, Warehouse and permissions
+rather than by company. That decision is what these tests pin: with a shared
+company, `POS Profile.company` identifies nothing, so the till names its branch
+directly and the branch names its cost centre.
+
 Groundwork for the multi-restaurant goal (ROADMAP Phase 2c): 2–3 restaurants, an
 Owner who sees all of them, a manager who sees only their own. The filtering
 half — flipping the `get_all` reads to `get_list` — is not here, because it
@@ -309,3 +316,130 @@ class TestTheBackfill(BranchTestCase):
     def test_it_will_not_take_a_restaurant_that_does_not_exist(self):
         with self.assertRaises(frappe.ValidationError):
             branch.backfill(restaurant="_LFT-no-such-restaurant")
+
+
+def _cost_centre(case, tag):
+    """A leaf Cost Center under the one company."""
+    company = frappe.db.get_value("Company", {}, "name")
+    name = fx.PREFIX + tag
+    existing = frappe.db.get_value("Cost Center", {"cost_center_name": name}, "name")
+    if existing:
+        return existing
+    parent = frappe.db.get_value("Cost Center", {"company": company, "is_group": 1}, "name")
+    doc = frappe.get_doc({"doctype": "Cost Center", "cost_center_name": name,
+                          "company": company, "parent_cost_center": parent,
+                          "is_group": 0}).insert(ignore_permissions=True)
+    case.addCleanup(lambda: frappe.db.exists("Cost Center", doc.name) and
+                    frappe.delete_doc("Cost Center", doc.name, force=True,
+                                      ignore_permissions=True))
+    return doc.name
+
+
+class TestABranchIsACostCentreNotACompany(BranchTestCase):
+    """One owner, two locations, one legal entity. The books stay together and
+    the branches are told apart by Cost Center, Warehouse and permissions."""
+
+    def setUp(self):
+        super().setUp()
+        _drop_test_restaurants()
+        self.home = frappe.get_all("Restaurant", pluck="name")[0]
+        self.other = _restaurant(self, "Branch-CC")
+
+    def test_two_branches_share_one_company(self):
+        """The premise. If this ever stops being true the resolver below is
+        answering a different question than the one it was written for."""
+        companies = {frappe.db.get_value("Restaurant", r, "company")
+                     for r in (self.home, self.other)}
+        self.assertEqual(len(companies), 1)
+
+    def test_a_till_names_its_branch(self):
+        """The only unambiguous hop once the company is shared."""
+        profile = frappe.db.get_value("POS Profile", {}, "name")
+        previous = frappe.db.get_value("POS Profile", profile, branch.FIELD)
+        frappe.db.set_value("POS Profile", profile, branch.FIELD, self.other)
+        self.addCleanup(frappe.db.set_value, "POS Profile", profile, branch.FIELD, previous)
+        self.assertEqual(branch._restaurant_for_profile(profile), self.other)
+
+    def test_failing_that_the_cost_centre_identifies_it(self):
+        """`POS Profile.cost_center` is ERPNext's own field and a site may have
+        set it long before ours existed."""
+        centre = _cost_centre(self, "CC-B")
+        profile = frappe.db.get_value("POS Profile", {}, "name")
+        before = frappe.db.get_value("POS Profile", profile,
+                                     [branch.FIELD, "cost_center"], as_dict=True)
+        frappe.db.set_value("POS Profile", profile,
+                            {branch.FIELD: None, "cost_center": centre})
+        frappe.db.set_value("Restaurant", self.other, "cost_center", centre)
+        self.addCleanup(frappe.db.set_value, "POS Profile", profile, dict(before))
+        self.assertEqual(branch._restaurant_for_profile(profile), self.other)
+
+    def test_the_shared_company_is_never_used_to_guess(self):
+        """Both restaurants are on one company, so matching on it would hand
+        back a branch at random — the exact failure this module removes."""
+        profile = frappe.db.get_value("POS Profile", {}, "name")
+        before = frappe.db.get_value("POS Profile", profile,
+                                     [branch.FIELD, "cost_center"], as_dict=True)
+        frappe.db.set_value("POS Profile", profile, {branch.FIELD: None, "cost_center": None})
+        self.addCleanup(frappe.db.set_value, "POS Profile", profile, dict(before))
+        self.assertIsNone(branch._restaurant_for_profile(profile))
+
+    def test_the_branch_carries_its_own_dimensions(self):
+        centre = _cost_centre(self, "CC-DIM")
+        frappe.db.set_value("Restaurant", self.other,
+                            {"cost_center": centre, "warehouse":
+                             frappe.db.get_value("Warehouse", {"is_group": 0}, "name")})
+        self.assertEqual(branch.cost_center(self.other), centre)
+        self.assertTrue(branch.warehouse(self.other))
+
+
+class TestTheConfigurationCheck(BranchTestCase):
+    """Everything that separates two branches is configuration somebody does
+    once in Desk, forgets, and then cannot tell from working. `branch.check()`
+    is what tells them."""
+
+    def setUp(self):
+        super().setUp()
+        _drop_test_restaurants()
+
+    def test_one_restaurant_needs_no_configuration(self):
+        self.assertEqual(branch.check(), [])
+
+    def test_a_branch_with_no_cost_centre_is_reported(self):
+        other = _restaurant(self, "Branch-NOCC")
+        problems = " ".join(branch.check())
+        self.assertIn(other, problems)
+        self.assertIn("Cost Center", problems)
+
+    def test_two_branches_sharing_a_cost_centre_are_reported(self):
+        """The quiet one: everything works, and the P&L is one number."""
+        centre = _cost_centre(self, "CC-SHARED")
+        home = frappe.get_all("Restaurant", pluck="name")[0]
+        other = _restaurant(self, "Branch-SHARE")
+        before = frappe.db.get_value("Restaurant", home, "cost_center")
+        frappe.db.set_value("Restaurant", home, "cost_center", centre)
+        frappe.db.set_value("Restaurant", other, "cost_center", centre)
+        self.addCleanup(frappe.db.set_value, "Restaurant", home, "cost_center", before)
+        self.assertTrue(any("share Cost Center" in p for p in branch.check()))
+
+    def test_a_group_cost_centre_is_reported(self):
+        """Postings need a leaf; a group one is accepted by the Link field and
+        then refused by the ledger."""
+        group = frappe.db.get_value("Cost Center", {"is_group": 1}, "name")
+        home = frappe.get_all("Restaurant", pluck="name")[0]
+        other = _restaurant(self, "Branch-GRP")
+        before = frappe.db.get_value("Restaurant", home, "cost_center")
+        frappe.db.set_value("Restaurant", home, "cost_center", group)
+        self.addCleanup(frappe.db.set_value, "Restaurant", home, "cost_center", before)
+        self.assertTrue(any("is a group" in p for p in branch.check()))
+
+    def test_a_till_with_no_branch_is_reported(self):
+        _restaurant(self, "Branch-TILL")
+        self.assertTrue(any("cannot be attributed to a branch" in p
+                            for p in branch.check()))
+
+    def test_rows_with_no_branch_are_reported(self):
+        _restaurant(self, "Branch-ROWS")
+        order = self.order()
+        frappe.db.set_value("POS Order", order.name, branch.FIELD, None,
+                            update_modified=False)
+        self.assertTrue(any("visible to every branch" in p for p in branch.check()))
