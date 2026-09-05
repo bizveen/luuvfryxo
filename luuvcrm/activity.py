@@ -33,9 +33,9 @@ from frappe.utils import now_datetime, cint, flt
 DOCTYPE = "LF Activity Log"
 
 # Apps we accept in the `app` column. Anything else is stored as "other".
-# "pos2"/"pos3" are gone with the pages; rows already written keep their old
-# value, since this set only normalises what is being written now.
-KNOWN_APPS = {"app", "app2", "pos", "waiter", "manager", "kitchen", "purchases", "admin",
+# "pos2"/"pos3"/"app2" are gone with the pages; rows already written keep their
+# old value, since this set only normalises what is being written now.
+KNOWN_APPS = {"app", "pos", "waiter", "manager", "kitchen", "purchases", "admin",
               "cus", "kiosk", "guide", "qrpromo", "errors", "activity", "server"}
 
 # ─── Flag rules (the "human error" detector) ──────────────────────────────

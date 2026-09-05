@@ -10,6 +10,9 @@
 - **Paper width override** (`pos.html`): `localStorage['lf_paper_cols']` sets the printer's column count (58mm roll = 32, 80mm = 48; default 32). Read once into `PAPER_COLS` and used for both the `----` divider and the right-aligned amount padding in `flatten()`, so an 80mm till no longer needs a code change.
 - **Print API endpoints** (`api.py`): `get_receipt_print_data(order_name)` and `get_kot_print_data(order_name)` — server-side data endpoints that return structured print data (items, totals, payment mode / table, waiter, notes).
 
+### Removed
+- **`/app2`** — a second copy of Frappe Desk, added when `www/app.py` (the customer PWA) sat on `/app` and shadowed Desk. That file is long gone, and `/app2` was only ever half-wired: the `website_route_rules` and `on_session_creation` hooks its own docstring says it needs were never added, so `redirect_desk_login` never ran and `/app2/<doctype>` 404'd. Dropped from `KNOWN_APPS` with it.
+
 ### Fixed
 - **`/kitchen` rendered for anyone, logged in or not** (`www/kitchen.py`): the guest branch set `frappe.local.flags.redirect_location` and then fell through without raising `frappe.Redirect`, so the flag was set and ignored and the whole display — every open order, table by table — came back 200 to a stranger. Now raises, and gates on Kitchen roles.
 - **`/qrcodes` was public** (`www/qrcodes.py`): it lists every table and the kiosk URL that orders against it, so anyone could order to any table without being in the building. Login + manager now.

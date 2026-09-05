@@ -5,7 +5,6 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
 import frappe
-import string
 
 
 # ─── /app routing: Frappe Desk vs customer PWA ───────────────────────────────

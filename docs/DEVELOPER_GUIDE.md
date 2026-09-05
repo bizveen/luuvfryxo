@@ -40,10 +40,40 @@ frappe v15.119  →  erpnext v15.120  →  hospitality  →  luuvcrm
 ### Things to know before you touch anything
 
 - **`/pos` is the POS.** There is one. There used to be three (`/pos`, `/pos2` and the `/pos3` staging copy); pos3 had all the work, so it became `/pos` and the other two were deleted. Read the header comment at the top of `www/pos.html` before editing it — the tablet layer, the printer bridge and the Google-Docs print layouts are all documented there.
-- **`/myorders` and `/my_orders` are two live copies of the same screen.** So are `/customer` and `/cus`. Check which one the client is actually using before you fix a bug in one.
+- **`/customer`, `/myorders` and `/my_orders` are 301s to `/cus`,** not copies of it. They are kept because each is a link already in a customer's hands. The customer app is `/cus` and nowhere else.
 - **The brand is hard-coded.** "Luuv Fryxo" appears in every page; `hooks.py` says "Zeloura"; the app is `luuvcrm`. Same product, three names.
 - **`zeloura_api.py` and `zeloura/` clothing code** (`Zeloura Theme`, `Zeloura Product`, `get_landing`) are from a different product. Confirm with the owner before removing.
 - **`check_*.py`, `debug_*.py`, `fix_*.py`** are gitignored one-off scripts run against the live DB. Not part of the app.
+
+### The routes
+
+Every page, who it is for, and what stops everyone else. Add a row when you add
+a page — an ungated page does not fail, it just works for whoever asks, which is
+how `/kitchen` came to render for logged-out strangers and `/qrcodes` to publish
+the table map. `test_pages.py` asserts the staff gates.
+
+| Route | Who | Gate |
+|---|---|---|
+| `/pos` | Cashier at the counter | login + `roles.require_pos()` |
+| `/waiter` | Floor staff | login + `roles.require_waiter()` |
+| `/kitchen` | Kitchen | login + `roles.require_kitchen()` |
+| `/purchases` | Manager — vendor bills, approvals | login + `roles.require_manager()` |
+| `/qrpromo` | Manager — sticker batches, the free item | login + `roles.require_manager()` |
+| `/qrcodes` | Manager — printable kiosk QR labels | login + `roles.require_manager()` |
+| `/manager`, `/activity` | Manager — takings, the staff trail | login + manager roles |
+| `/errors` | Front-end error log | login + System Manager |
+| `/admin` | The index of every sub-app | login + roles |
+| `/guide` | Tour guides | guest page, token auth (`guide_login`) |
+| `/cus` | Customers | guest page, phone + PIN token |
+| `/customer`, `/myorders`, `/my_orders` | — | 301 → `/cus`, kept for links already sent |
+| `/kiosk`, `/order`, `/menu`, `/home`, `/track`, `/claim` | Customers, walk-up | public by design |
+| `/pos-login` | Staff sign-in | public by design |
+| `/app` | Frappe Desk | Frappe's own. `before_request` sends only `?promo=` / `?ref=` / `?phone=` deep links to `/cus` |
+
+Two things that are *not* routes of ours and are easy to mistake for one:
+`/network` and the rest of the Zeloura fashion pages belong to another product,
+and `/app2` — a second copy of Frappe Desk that existed because `www/app.py`
+once shadowed `/app` — was deleted once that file was gone.
 
 ---
 
@@ -276,19 +306,30 @@ Before any site serves real money:
 
 ## 5. Where things live
 
+`luuvcrm/api/` is a package — one module per domain. Add an endpoint to the
+module it belongs to **and to `api/__init__.py`**; the package is the public
+surface, and a name missing from `__init__.py` means `luuvcrm.api.<name>` stops
+resolving, which shows up at the till as a button that 404s, not as an import
+error. `test_api_package.py` catches it.
+
 | Task | File |
 |---|---|
-| Add a POS endpoint | `luuvcrm/api.py` |
+| Take money — sale, payment, split | `luuvcrm/api/payments.py` |
+| An order's life — send, amend, list, move | `luuvcrm/api/orders.py` |
+| The till — shift, drawer, invoice plumbing | `luuvcrm/api/shifts.py` |
+| What something costs | `luuvcrm/api/pricing.py` (`_resolve_item_rate`, `_service_charge_on`) |
 | Change POS behaviour | `luuvcrm/www/pos.html` |
-| Change the manager app | `luuvcrm/www/manager.html` + `manager.py` |
-| Change purchasing / approvals | `luuvcrm/www/purchases.html` + `api.py` purchases section |
-| Change the kitchen display | `luuvcrm/www/kitchen.html` |
-| Change receipt or KOT layout | `get_receipt_print_data` / `get_kot_print_data` in `api.py`; `LFTemplate` in `pos.html` |
+| Change the manager app | `luuvcrm/www/manager.html` + `manager.py`; numbers in `luuvcrm/api/reports.py` |
+| Change purchasing / approvals | `luuvcrm/www/purchases.html`; `luuvcrm/api/purchases.py`, `approvals.py` |
+| Change the kitchen display | `luuvcrm/www/kitchen.html` + `luuvcrm/api/kitchen.py` |
+| Change receipt or KOT layout | `luuvcrm/api/printing.py`; `LFTemplate` in `pos.html` |
+| Customer sign-in, PIN, OTP | `luuvcrm/api/customers.py` |
+| Send a WhatsApp message | `luuvcrm/api/wa.py` — one seam, so a test can stub it once |
 | Add a staff-action log entry | `luuvcrm.activity.log_activity` |
+| Read front-end errors | `luuvcrm/api/errors.py`, reported by `www/lferr.js` |
+| Who may do what | `luuvcrm/roles.py` |
 | Change the order schema | `luuvcrm/zeloura/doctype/pos_order/pos_order.json` |
 | Add a scheduled job | `hooks.py` → `scheduler_events` |
-| Price resolution | `_resolve_item_rate`, `api.py:70` |
-| Service charge | `_service_charge_on`, `api.py` |
 
 ---
 

@@ -305,3 +305,37 @@ class TestEveryStaffPageReportsItsErrors(PageTestCase):
         js = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "lferr.js"))
         self.assertIn("/api/method/luuvcrm.api.log_client_error", js)
         frappe.is_whitelisted(frappe.get_attr("luuvcrm.api.log_client_error"))
+
+
+class TestApp2IsGone(PageTestCase):
+    """`/app2` was a second copy of Frappe Desk.
+
+    `luuvcrm/www/app.py` — the customer PWA — used to sit on `/app` and, because
+    luuvcrm resolves before frappe, shadowed Desk completely; `/app2` re-hosted
+    Desk somewhere reachable. That file is gone, so nothing shadows `/app` any
+    more. `/app2` was also only ever half-wired: it needed `website_route_rules`
+    and `on_session_creation` in `hooks.py` and neither was ever added, so
+    `redirect_desk_login` never ran and `/app2/<doctype>` 404'd.
+    """
+
+    def test_the_module_is_gone(self):
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("luuvcrm.www.app2")
+
+    def test_nothing_is_left_pointing_at_it(self):
+        from luuvcrm import activity
+        self.assertNotIn("app2", activity.KNOWN_APPS)
+
+    def test_the_hooks_it_needed_were_never_wired(self):
+        """The evidence it was vestigial rather than merely unused — recorded so
+        that "why was this deleted" has an answer in six months."""
+        from luuvcrm import hooks
+        self.assertFalse(getattr(hooks, "website_route_rules", None))
+        self.assertFalse(getattr(hooks, "on_session_creation", None))
+
+    def test_nothing_shadows_frappes_desk_any_more(self):
+        """The reason /app2 existed at all. If a www/app.py ever comes back,
+        Desk disappears for every staff user and this fails first."""
+        import os
+        self.assertFalse(os.path.exists(
+            frappe.get_app_path("luuvcrm", "www", "app.py")))
