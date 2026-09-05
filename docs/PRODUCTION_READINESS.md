@@ -58,7 +58,7 @@ Three definitions were wrong and are corrected against what a working site actua
 
 **Still open.** The DocTypes are created `custom: 1`, matching the live site, so they live in the DB and `bench migrate` still ignores them — no migration path when a field changes, and no rollback. Finishing it:
 
-1. Run `report_drift()` against **production** and reconcile every difference. The definitions were reconstructed from the `setup_*` code, not read off the live DB, so a field somebody added by hand in the Desk will not be in them.
+1. Run `report_drift()` against **production** once, to confirm. The definitions were written against the live database — read from the host, not inferred from the `setup_*` code — which is where the three corrections above came from. So this is a check before an irreversible step, not a reconstruction: the drift should be nil or close to it, and anything that does turn up is a field somebody added by hand in the Desk since.
 2. Convert `DOCTYPES` to DocType JSON under `luuvcrm/zeloura/doctype/*/` with `custom: 0`, and the custom fields into numbered `patches.txt` entries.
 3. Delete the `setup_*` endpoints from `api.py`.
 
