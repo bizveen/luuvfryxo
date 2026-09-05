@@ -1,8 +1,13 @@
 app_name = "luuvcrm"
-app_title = "Zeloura"
-app_publisher = "Zeloura Collective"
-app_description = "Zeloura Collective — Network Fashion Platform"
-app_email = "hello@zeloura.com"
+# One product, one name. These are the *app's* identity and are fixed at build
+# time, so they stay generic; the restaurant's own name is `brand_name` in
+# LuuvCRM Settings and reaches every page through overrides/branding.py.
+# They used to read "Zeloura Collective — Network Fashion Platform", which is a
+# different product entirely (see the fashion-site code still in the tree).
+app_title = "LuuvCRM"
+app_publisher = "LuuvCRM"
+app_description = "Restaurant POS, kitchen, purchasing and loyalty on ERPNext"
+app_email = "admin@luuvcrm.com"
 app_license = "mit"
 
 # B4. Not a pyproject dependency — those are pip packages, and these are Frappe

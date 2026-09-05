@@ -1,5 +1,7 @@
 import frappe
 
+from luuvcrm import settings
+
 from luuvcrm import roles
 
 no_cache = 1
@@ -23,6 +25,5 @@ def get_context(context):
 
     context.csrf_token = frappe.sessions.get_csrf_token()
     context.base_url = frappe.utils.get_url()
-    from luuvcrm.api import PROMO_WA_NUMBER
-    context.wa_number = PROMO_WA_NUMBER
+    context.wa_number = settings.get("wa_business_number")
     return context

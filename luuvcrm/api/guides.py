@@ -5,6 +5,8 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
 import frappe
+
+from luuvcrm import settings
 from frappe import _
 import secrets
 import hashlib
@@ -30,7 +32,11 @@ from luuvcrm.api import wa
 
 GUIDE_DEFAULT_PERCENT = 5.0
 GUIDE_MAX_PER_BILL = 3
-GUIDE_APP_URL = "https://luuvgrand.com/guide"
+def guide_app_url():
+    """Where a guide reads their own cashback. The link goes out in a WhatsApp
+    message that outlives any deploy, so the host comes from settings rather
+    than from whatever hostname the site happens to be reached on."""
+    return settings.url("/guide")
 # Invite codes gate NEW self-registrations over WhatsApp: without one, a stray
 # "guide" in any customer message would create a Tour Guide record. Same
 # unambiguous alphabet as the QR promo codes (no 0/O, 1/I/L).
@@ -222,7 +228,7 @@ def _guide_invite_text(token, percent, guide_name=""):
     return (f"{hello} Welcome to Luuv Fryxo's partner program. "
             f"You earn {percent:g}% cashback on every bill you bring us. "
             f"Tap your personal link to open your cashback account:\n"
-            f"{GUIDE_APP_URL}?t={token}")
+            f"{guide_app_url()}?t={token}")
 # ── Cashier-facing (POS session) ──
 
 @frappe.whitelist()
@@ -296,7 +302,7 @@ def _notify_guide_earning(guide, amount, order_name):
             f"💰 This bill: Rs {amount:,.2f}\n"
             f"📅 Today so far: Rs {float(today_total):,.2f}\n"
             f"🏦 Your balance: Rs {float(guide.cashback_balance or 0):,.2f}\n\n"
-            f"Details: {GUIDE_APP_URL}?t={token}")
+            f"Details: {guide_app_url()}?t={token}")
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Guide WA notify")
 def _parse_guide_redeem(redeem_param, bill_total):
@@ -343,7 +349,7 @@ def _finalize_guide_redeem(gname, amount, order_name, invoice_name):
             f"🍔 Rs {amount:,.2f} was paid from your Luuv Fryxo cashback balance"
             f"{(' for bill ' + order_name) if order_name else ''}.\n\n"
             f"🏦 Remaining balance: Rs {float(guide.cashback_balance or 0):,.2f}\n\n"
-            f"Details: {GUIDE_APP_URL}?t={token}")
+            f"Details: {guide_app_url()}?t={token}")
     except Exception:
         pass
     frappe.db.commit()

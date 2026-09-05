@@ -5,10 +5,12 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
 import frappe
+
+from luuvcrm import settings
 from frappe.utils import now_datetime
 
 from luuvcrm.api.guides import (
-    GUIDE_APP_URL,
+    guide_app_url,
     GUIDE_CODE_RE,
     _gen_guide_password,
     _get_or_create_guide_token,
@@ -94,7 +96,7 @@ def send_customer_whatsapp(order_name, mobile, dial="94"):
     if not wa_account:
         return
 
-    track_url = f"https://luuvgrand.com/cus?phone={mobile}"
+    track_url = settings.url(f"/cus?phone={mobile}")
     message = (
         f"*Order #{order_name} - Luuv Fryxo* 🎉\n\n"
         f"Thank you for your order!\n\n"
@@ -134,12 +136,12 @@ def process_wa_reply(doc, method):
         if res.get("ok") or res.get("already_mine"):
             item = res.get("item_name") or "meal"
             lead_note = (f"\n⏰ Free-meal orders are for within {PROMO_WINDOW_HOURS} hours."
-                         f"\n📍 Pickup only — collect at our {PROMO_PICKUP_OUTLET} outlet (no delivery).")
+                         f"\n📍 Pickup only — collect at our {settings.get('pickup_outlet')} outlet (no delivery).")
             if frappe.db.exists("Customer Account", {"mobile": local}):
                 # already registered — nothing to fill, straight to ordering
                 wa._send_wa_reply(mobile,
                     f"🎁 Your FREE {item} is unlocked!\n\n"
-                    f"You're all set — order here:\nhttps://luuvgrand.com/cus?phone={local}\n\n"
+                    f"You're all set — order here:\n{settings.url(f'/cus?phone={local}')}\n\n"
                     f"Your free {item} is added to your FIRST order automatically."
                     f"{lead_note}\n\nSee you soon! 🍔")
             else:
@@ -147,13 +149,13 @@ def process_wa_reply(doc, method):
                 wa._send_wa_reply(mobile,
                     f"🎁 Your FREE {item} is reserved!\n\n"
                     f"Save your details here to lock it in:\n"
-                    f"https://luuvgrand.com/claim?phone={local}&code={code}\n\n"
+                    f"{settings.url(f'/claim?phone={local}&code={code}')}\n\n"
                     f"Takes 20 seconds — then your free {item} is added to your "
                     f"first order automatically.{lead_note} 🍔")
         else:
             wa._send_wa_reply(mobile,
                 f"⚠️ {res.get('error') or 'Could not claim this code'}\n\n"
-                f"You can still order anytime: https://luuvgrand.com/cus")
+                f"You can still order anytime: {settings.url('/cus')}")
         try:
             frappe.log_error("QR Promo claim", f"{code} by {mobile} -> {res}")
         except Exception:
@@ -183,7 +185,7 @@ def process_wa_reply(doc, method):
                 wa._send_wa_reply(mobile,
                     "🧭 Welcome back to the Luuv Fryxo partner program!\n\n"
                     f"Tap your personal link to see your cashback:\n"
-                    f"{GUIDE_APP_URL}?t={token}\n\n"
+                    f"{guide_app_url()}?t={token}\n\n"
                     f"You earn {pct:g}% cashback on every bill you bring us. 🍔")
             elif gcode and frappe.db.exists("DocType", "Guide Invite Code"):
                 row = frappe.db.get_value("Guide Invite Code",
@@ -208,7 +210,7 @@ def process_wa_reply(doc, method):
                         f"You earn {default_pct:g}% cashback on every "
                         f"customer bill you bring us.\n\n"
                         f"Tap your personal link to finish registering — just add "
-                        f"your name and details:\n{GUIDE_APP_URL}?t={token}\n\n"
+                        f"your name and details:\n{guide_app_url()}?t={token}\n\n"
                         "See you soon! 🍔")
                 else:
                     wa._send_wa_reply(mobile,
@@ -259,12 +261,12 @@ def process_wa_reply(doc, method):
                 frappe.log_error("Order WA notify", str(e))
             wa._send_wa_reply(mobile,
                 f"✅ Order {oname} confirmed!{sched_txt}\n\n"
-                f"Track it: https://luuvgrand.com/cus?phone={local}\n\nThank you! 🍔")
+                f"Track it: {settings.url(f'/cus?phone={local}')}\n\nThank you! 🍔")
             return
         if row and row.whatsapp_status in ("Confirmed", "Sent"):
             wa._send_wa_reply(mobile,
                 f"👍 Order {oname} is already confirmed.\n"
-                f"Track it: https://luuvgrand.com/cus?phone={_local_number(mobile)}")
+                f"Track it: {settings.url(f'/cus?phone={_local_number(mobile)}')}")
             return
 
     if msg_text in ("OK", "ACCEPT"):
@@ -282,7 +284,7 @@ def process_wa_reply(doc, method):
 
     auto_reply = (
         "Thank you for messaging Luuv Fryxo! 🎉\n\n"
-        "View your orders: https://luuvgrand.com/cus\n"
+        "View your orders: " + settings.url("/cus") + "\n"
         "To confirm a pending order, reply OK\n\n"
         "We will get back to you shortly!"
     )

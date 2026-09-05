@@ -5,6 +5,8 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
 import frappe
+
+from luuvcrm import settings
 from frappe import _
 from frappe.utils import now_datetime
 
@@ -17,7 +19,7 @@ from luuvcrm.api.pricing import (
     _service_charge_on,
 )
 from luuvcrm.api.promos import PROMO_PICKUP_OUTLET, PROMO_WINDOW_HOURS, _pending_promo_for
-from luuvcrm.api.wa import PROMO_WA_NUMBER
+from luuvcrm.api.wa import wa_number
 from luuvcrm.api.whatsapp import send_customer_whatsapp, send_order_whatsapp
 
 
@@ -155,7 +157,7 @@ def kiosk_place_order():
     confirm_link = ""
     if wa_confirm:
         from urllib.parse import quote
-        confirm_link = ("https://wa.me/" + PROMO_WA_NUMBER + "?text="
+        confirm_link = ("https://wa.me/" + wa_number() + "?text="
                         + quote(f"Confirming my order #{pos_order.name} ✅"))
 
     return {
@@ -168,7 +170,7 @@ def kiosk_place_order():
         "customer_name": customer_name,
         "mobile": mobile,
         "promo_item": promo_item_name,
-        "pickup_outlet": PROMO_PICKUP_OUTLET if promo_item_name else "",
+        "pickup_outlet": settings.get("pickup_outlet") if promo_item_name else "",
         "scheduled_time": scheduled_dt.strftime("%Y-%m-%d %H:%M:%S") if scheduled_dt else "",
         "needs_wa_confirm": wa_confirm,
         "confirm_link": confirm_link,

@@ -288,6 +288,7 @@ def execute():
     _step("app permissions", roles.ensure_app_docperms)
     _step("walkaround permissions", roles.revoke_app_docperms)
 
+    _step("settings single", ensure_settings_single)
     _step("settings singles", ensure_singles)
     _step("kitchen groups", seed_kitchen_groups)
     _step("expense categories", seed_expense_categories)
@@ -443,6 +444,48 @@ def ensure_property_setters():
 
 
 # ─── Reference rows ──────────────────────────────────────────────────────────
+
+def ensure_settings_single():
+    """The `LuuvCRM Settings` single — everything the restaurant owns.
+
+    A Single DocType so the owner changes their own brand name and WhatsApp
+    number in the Desk, without a deploy and without a developer. The fields are
+    generated from `settings.KEYS`, so adding a setting means adding one row there
+    and nothing else. See luuvcrm/settings.py for why some keys live in
+    site_config.json instead.
+    """
+    from luuvcrm import settings
+
+    owner_keys = [k for k in settings.KEYS if k.home == settings.OWNER]
+    if not frappe.db.exists("DocType", settings.SETTINGS_DOCTYPE):
+        frappe.get_doc({
+            "doctype": "DocType", "name": settings.SETTINGS_DOCTYPE,
+            "module": "Zeloura", "custom": 1, "issingle": 1,
+            "fields": [{"fieldname": k.name, "label": k.name.replace("_", " ").title(),
+                        "fieldtype": "Data", "description": k.about}
+                       for k in owner_keys],
+            "permissions": [{"role": "System Manager", "read": 1, "write": 1,
+                             "create": 1, "delete": 1},
+                            {"role": "Restaurant Owner", "read": 1, "write": 1}],
+        }).insert(ignore_permissions=True)
+        print(f"  + DocType {settings.SETTINGS_DOCTYPE}")
+
+    # Seed each field with the declared default, once. Only when empty: a blank
+    # here means "not set" and falls back to the same default anyway, so this is
+    # for the owner's benefit — they see what the value is instead of a blank
+    # box they have to guess at.
+    doc = frappe.get_single(settings.SETTINGS_DOCTYPE)
+    changed = False
+    for k in owner_keys:
+        if not doc.get(k.name):
+            doc.set(k.name, k.default)
+            changed = True
+    if changed:
+        doc.flags.ignore_permissions = True
+        doc.save(ignore_permissions=True)
+        settings.forget()
+        print(f"  = {settings.SETTINGS_DOCTYPE} seeded with defaults")
+
 
 def ensure_singles():
     """Materialise the settings singles so `frappe.get_doc(...)` has a row to read."""

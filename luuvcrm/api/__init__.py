@@ -85,7 +85,7 @@ from luuvcrm.api.expenses import (
     setup_expenses,
 )
 from luuvcrm.api.guides import (
-    GUIDE_APP_URL,
+    guide_app_url,
     GUIDE_CASHBACK_INCLUDES_SERVICE_CHARGE,
     GUIDE_CODE_ALPHABET,
     GUIDE_CODE_RE,
@@ -317,6 +317,7 @@ from luuvcrm.api.shifts import (
 )
 from luuvcrm.api.wa import (
     PROMO_WA_NUMBER,
+    wa_number,
     _intl_number,
     _local_number,
     _normalize_wa_number,

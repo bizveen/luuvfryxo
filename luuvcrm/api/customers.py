@@ -5,11 +5,13 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
 import frappe
+
+from luuvcrm import settings
 import secrets
 import hashlib
 from frappe.utils import now_datetime
 
-from luuvcrm.api.wa import PROMO_WA_NUMBER, _wa_number
+from luuvcrm.api.wa import _wa_number
 from luuvcrm.api import wa
 
 
@@ -251,7 +253,7 @@ def customer_get_orders():
             "item_count": len(items),
             "wa_status": o.get("whatsapp_status") or "",
             "scheduled_time": str(o.get("scheduled_time") or ""),
-            "confirm_link": ("https://wa.me/" + PROMO_WA_NUMBER + "?text="
+            "confirm_link": ("https://wa.me/" + wa.wa_number() + "?text="
                              + quote(f"Confirming my order #{o.name} ✅")) if awaiting else "",
         })
 

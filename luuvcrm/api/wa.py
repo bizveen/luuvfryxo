@@ -30,7 +30,16 @@ def _send_wa_reply(mobile, message):
     except Exception as e:
         frappe.log_error(f"WA reply error: {str(e)}", "WhatsApp")
         return False
-PROMO_WA_NUMBER = "94724444901"  # WhatsApp business number the sticker QRs open (wa.me)
+# The restaurant's WhatsApp business number — the one the sticker QRs open.
+# Call wa_number() rather than reading the constant: the constant is the
+# declared default for the first client, and settings.get() is the answer for
+# whoever the site actually belongs to.
+PROMO_WA_NUMBER = "94724444901"
+
+
+def wa_number():
+    from luuvcrm import settings
+    return settings.get("wa_business_number")
 def _wa_number(mobile):
     """Local 07XXXXXXXX → international 947XXXXXXXX for the WhatsApp Cloud API."""
     m = (mobile or "").strip().replace("+", "").replace(" ", "")

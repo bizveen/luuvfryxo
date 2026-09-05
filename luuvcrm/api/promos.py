@@ -5,6 +5,8 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
 import frappe
+
+from luuvcrm import settings
 from frappe import _
 import secrets
 from frappe.utils import now_datetime
@@ -26,7 +28,9 @@ from luuvcrm.api import wa
 
 PROMO_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"  # no 0/O/1/I/L lookalikes
 PROMO_WINDOW_HOURS = 6  # free-item orders must be for a time within this many hours (time optional → ASAP)
-PROMO_PICKUP_OUTLET = "Kurunegala"  # free-meal orders are pickup-only, collected at THIS outlet (no delivery)
+#: Default for the first client. Free-meal orders are pickup-only, collected
+#: at this outlet and nowhere else; `settings.get("pickup_outlet")` is the value.
+PROMO_PICKUP_OUTLET = "Kurunegala"
 @frappe.whitelist()
 def setup_scheduled_time_field():
     """Custom field: POS Order.scheduled_time — the customer's preferred time
@@ -230,7 +234,7 @@ def promo_register():
             f"🎁 *Luuv Fryxo — FREE {what}!*\n\n"
             f"Hi{(' ' + cust) if cust else ''}! Your free {what} is locked in ✅\n\n"
             f"Order anything on our app and your free {what} is added to your FIRST order automatically.\n\n"
-            f"👉 Order now: https://luuvgrand.com/cus\n\n"
+            f"👉 Order now: {settings.url('/cus')}\n\n"
             f"Offer: one per customer, first app order only."
         )
         wa_sent = bool(wa._send_wa_reply(_wa_number(mobile), msg))
@@ -312,8 +316,8 @@ def claim_save_details():
             f"✅ Details saved{(', ' + name) if name else ''}!\n\n"
             f"🎁 Your FREE {what} is locked in — it's added to your FIRST order "
             f"automatically.\n⏰ Free-meal orders are for within {PROMO_WINDOW_HOURS} hours."
-            f"\n📍 Pickup only — collect at our {PROMO_PICKUP_OUTLET} outlet (no delivery).\n\n"
-            f"👉 Order now: https://luuvgrand.com/cus")
+            f"\n📍 Pickup only — collect at our {settings.get('pickup_outlet')} outlet (no delivery).\n\n"
+            f"👉 Order now: {settings.url('/cus')}")
     except Exception as e:
         frappe.log_error("QR Promo claim WA", str(e))
 
@@ -331,4 +335,4 @@ def promo_status():
     max_time = add_to_date(now_datetime(), hours=PROMO_WINDOW_HOURS).strftime("%Y-%m-%d %H:%M:%S")
     return {"pending": True, "item_name": item_name,
             "window_hours": PROMO_WINDOW_HOURS, "max_time": max_time,
-            "pickup_outlet": PROMO_PICKUP_OUTLET}
+            "pickup_outlet": settings.get("pickup_outlet")}
