@@ -259,3 +259,111 @@ def guide_txns(name, kind=None):
                           fields=["type", "amount", "reference_invoice", "bill_total",
                                   "percent_used", "note"],
                           order_by="creation asc")
+
+
+# ─── Customer accounts, tokens and the OTP cache ────────────────────────────
+
+
+def customer_doctypes(case=None):
+    """Make sure Customer Account / Customer Token exist, without recreating them.
+
+    `setup_customer_accounts()` deletes both DocTypes before rebuilding them, so
+    calling it to "ensure" they exist drops every account and token on the site
+    — including rows a test three classes away is still holding a token for.
+    Only call it when the DocType is genuinely missing.
+    """
+    import luuvcrm.api as api
+
+    if not (frappe.db.exists("DocType", "Customer Account")
+            and frappe.db.exists("DocType", "Customer Token")):
+        api.setup_customer_accounts()
+
+
+def customer_profile_fields():
+    """Add Customer Account's address/area columns if the site has not got them.
+
+    customer_update_profile installs them at runtime, so a test asserting on
+    them is only doing what the first real save would do anyway.
+    """
+    import luuvcrm.api as api
+
+    customer_doctypes()
+    if not frappe.db.has_column("Customer Account", "address"):
+        api._install_customer_profile_fields()
+
+
+def drop_customer(case, mobile):
+    """Clear the account, tokens and OTP cache for a number — now and afterwards.
+
+    Now as well as afterwards because `customer_set_pin` commits, so a row it
+    creates outlives the test's rollback; and the cleanup has to commit its own
+    delete for the same reason — otherwise the *next* test's rollback puts the
+    row straight back and every later registration is told the account already
+    exists.
+    """
+    def drop():
+        for name in frappe.get_all("Customer Account", filters={"mobile": mobile}, pluck="name"):
+            frappe.delete_doc("Customer Account", name, force=True, ignore_permissions=True)
+        for name in frappe.get_all("Customer Token", filters={"mobile": mobile}, pluck="name"):
+            frappe.delete_doc("Customer Token", name, force=True, ignore_permissions=True)
+        frappe.db.commit()
+        forget_customer_cache(mobile)
+
+    drop()
+    case.addCleanup(drop)
+
+
+def customer_account(case, mobile, pin="1234", name=None, hashed=True):
+    """A Customer Account with a PIN, hashed the way customer_set_pin stores it.
+
+    `hashed=False` writes the PIN in plaintext, which is what accounts created
+    before Phase 1's S6 look like — the shape customer_verify_pin has to keep
+    accepting while it upgrades them.
+    """
+    import luuvcrm.api as api
+
+    customer_doctypes()
+    drop_customer(case, mobile)
+    doc = frappe.get_doc({
+        "doctype": "Customer Account",
+        "mobile": mobile,
+        "customer_name": name or (PREFIX + "Customer"),
+        "pin": api._hash_pin(pin) if hashed else pin,
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert(ignore_permissions=True)
+    return doc.name
+
+
+def customer_token(case, mobile, age_days=0):
+    """A Customer Token for a number, optionally backdated past its 7-day life."""
+    import secrets
+
+    from frappe.utils import add_days, now_datetime
+
+    customer_doctypes()
+    token = secrets.token_hex(16)
+    doc = frappe.get_doc({
+        "doctype": "Customer Token",
+        "token": token,
+        "mobile": mobile,
+        "created": add_days(now_datetime(), -age_days) if age_days else now_datetime(),
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert(ignore_permissions=True)
+    _cleanup(case, "Customer Token", doc.name)
+    return token
+
+
+def forget_customer_cache(mobile):
+    """Clear the OTP and PIN-lockout keys for a number.
+
+    delete_value drops the key from frappe.local.cache as well as from redis,
+    which is the point: a plain get_value() miss earlier in the same bench
+    process is remembered locally, so without this a later test reads the stale
+    None instead of the code the endpoint just wrote.
+    """
+    cache = frappe.cache()
+    for key in (f"wa_otp:{mobile}", f"wa_otp_cool:{mobile}", f"wa_otp_tries:{mobile}",
+                f"wa_verified:{mobile}", f"lf_pin_fail:{mobile}"):
+        cache.delete_value(key)

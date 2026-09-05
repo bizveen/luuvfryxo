@@ -2887,7 +2887,8 @@ def customer_set_pin():
     # WhatsApp confirmation: if a code was sent for this number and not yet verified,
     # the registration can't skip it (soft gate — no OTP sent means WA is down/absent).
     cache = frappe.cache()
-    if cache.get_value(f"wa_otp:{mobile}") and not cache.get_value(f"wa_verified:{mobile}"):
+    if (cache.get_value(f"wa_otp:{mobile}", expires=True)
+            and not cache.get_value(f"wa_verified:{mobile}", expires=True)):
         return {"success": False, "error": "Confirm the WhatsApp code first"}
 
     account = frappe.get_doc({
@@ -5990,7 +5991,7 @@ def wa_send_otp():
             "QR Promo Code", {"mobile": mobile, "status": ["in", ["Registered", "Redeemed"]]}):
         return {"sent": False, "verified": True}
     cache = frappe.cache()
-    if cache.get_value(f"wa_otp_cool:{mobile}"):
+    if cache.get_value(f"wa_otp_cool:{mobile}", expires=True):
         return {"sent": True, "cooldown": True}  # one was sent moments ago — reuse it
     code = "".join(secrets.choice("0123456789") for _ in range(4))
     ok = _send_wa_reply(_wa_number(mobile),
@@ -6005,17 +6006,24 @@ def wa_send_otp():
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def wa_verify_otp():
-    """Check the WhatsApp code; marks the mobile verified for 15 minutes."""
+    """Check the WhatsApp code; marks the mobile verified for 15 minutes.
+
+    Every cache read in the OTP flow passes expires=True. Without it a miss is
+    remembered in frappe.local.cache while set_value(expires_in_sec=...)
+    deliberately does not update that dict — so the attempt counter never left
+    zero and the cooldown never held whenever two of these calls shared a
+    request. Separate HTTP requests hid it; a test does not.
+    """
     mobile = (frappe.local.form_dict.get("mobile") or "").strip()
     code = (frappe.local.form_dict.get("code") or "").strip()
     if not mobile or not code:
         return {"ok": False, "error": "Code required"}
     cache = frappe.cache()
     tries_key = f"wa_otp_tries:{mobile}"
-    tries = int(cache.get_value(tries_key) or 0)
+    tries = int(cache.get_value(tries_key, expires=True) or 0)
     if tries >= 5:
         return {"ok": False, "error": "Too many attempts — request a new code"}
-    real = cache.get_value(f"wa_otp:{mobile}")
+    real = cache.get_value(f"wa_otp:{mobile}", expires=True)
     if real is None:
         return {"ok": False, "error": "Code expired — tap Resend"}
     real = real.decode() if isinstance(real, bytes) else str(real)
