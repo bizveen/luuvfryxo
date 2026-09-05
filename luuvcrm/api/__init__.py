@@ -31,6 +31,10 @@ from luuvcrm.api.approvals import (
     resolve_approval,
     setup_check_printed,
 )
+from luuvcrm.api.brand import (
+    APPS,
+    manifest,
+)
 from luuvcrm.api.customers import (
     CUSTOMER_TOKEN_DAYS,
     PIN_LOCKOUT_SEC,

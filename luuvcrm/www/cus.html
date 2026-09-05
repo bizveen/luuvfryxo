@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>{{ restaurant_name or "Luuv Fryxo" }}</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
-<link rel="manifest" href="/cus_manifest.json">
+<link rel="manifest" href="/api/method/luuvcrm.api.manifest?app=cus">
 <meta name="theme-color" content="#F15207">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -151,6 +151,7 @@ input,button{font-family:inherit;}
 
 .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);max-width:90%;text-align:center;}
 </style>
+{% include "templates/includes/brand.html" %}
 </head>
 <body>
 {% set emoji = {'Beverages':'🥤','Biryani & Naan Combos':'🍛','Cheese Kottu':'🧀','Coffee & Tea':'☕','Desserts':'🍨','European Dishes & Salads':'🥗','Fried Rice':'🍚','Grills':'🥩','Indian Cuisine':'🍛','Kottu':'🥘','North Asian':'🥟','Pizza':'🍕','Rice & Curry':'🍛','Seafood':'🦐','Sides & Accompaniments':'🧆','Signature Kottu':'⭐','Sizzler Platters':'🔥','Soups':'🥣','Sri Lankan Fusion':'🌴','Vegetarian':'🥦'} %}

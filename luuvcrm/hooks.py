@@ -22,7 +22,13 @@ required_apps = ["erpnext", "hospitality"]
 
 app_include_css = "/assets/luuvcrm/css/luuvcrm_desk.css"
 
-extend_website_context = ["luuvcrm.overrides.branding.update_website_context"]
+# The brand — name, accent, icons — as a Jinja global, so every page can read it
+# from templates/includes/brand.html without each one having to put it in its own
+# context. A page with no .py at all still gets it.
+#
+# NOT `extend_website_context`: that hook does not exist in this Frappe, so the
+# branding module it pointed at had never once been called.
+jinja = {"methods": ["luuvcrm.overrides.branding.brand"]}
 boot_session = ["luuvcrm.overrides.branding.boot_session"]
 
 # /app = Frappe Desk (bare /app is untouched — login works); only customer

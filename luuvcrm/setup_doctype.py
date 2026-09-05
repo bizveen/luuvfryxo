@@ -457,18 +457,38 @@ def ensure_settings_single():
     from luuvcrm import settings
 
     owner_keys = [k for k in settings.KEYS if k.home == settings.OWNER]
+
+    def _field(k):
+        return {"fieldname": k.name, "label": k.name.replace("_", " ").title(),
+                "fieldtype": "Data", "description": k.about}
+
     if not frappe.db.exists("DocType", settings.SETTINGS_DOCTYPE):
         frappe.get_doc({
             "doctype": "DocType", "name": settings.SETTINGS_DOCTYPE,
             "module": "Zeloura", "custom": 1, "issingle": 1,
-            "fields": [{"fieldname": k.name, "label": k.name.replace("_", " ").title(),
-                        "fieldtype": "Data", "description": k.about}
-                       for k in owner_keys],
+            "fields": [_field(k) for k in owner_keys],
             "permissions": [{"role": "System Manager", "read": 1, "write": 1,
                              "create": 1, "delete": 1},
                             {"role": "Restaurant Owner", "read": 1, "write": 1}],
         }).insert(ignore_permissions=True)
         print(f"  + DocType {settings.SETTINGS_DOCTYPE}")
+
+    else:
+        # A key added to settings.KEYS after the DocType was created has no
+        # field yet, and settings.get() would quietly keep returning the
+        # default with no way to change it. The promise in settings.py is that
+        # adding a setting is one row there and nothing else; this is what
+        # keeps it.
+        doc = frappe.get_doc("DocType", settings.SETTINGS_DOCTYPE)
+        have = {f.fieldname for f in doc.fields}
+        added = [k for k in owner_keys if k.name not in have]
+        if added:
+            for k in added:
+                doc.append("fields", _field(k))
+            doc.flags.ignore_permissions = True
+            doc.save(ignore_permissions=True)
+            print(f"  + {settings.SETTINGS_DOCTYPE}: "
+                  + ", ".join(k.name for k in added))
 
     # Seed each field with the declared default, once. Only when empty: a blank
     # here means "not set" and falls back to the same default anyway, so this is

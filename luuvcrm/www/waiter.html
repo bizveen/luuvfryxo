@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Luuv Fryxo">
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon.svg">
-<link rel="icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/assets/luuvcrm/app/icon-192.png">
+<link rel="icon" href="/assets/luuvcrm/app/icon-192.png">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Waiter | Luuv Fryxo</title>
@@ -305,6 +305,7 @@
       .w-items { grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); }
     }
   </style>
+{% include "templates/includes/brand.html" %}
 </head>
 <body>
 <meta name="csrf-token" content="{{ csrf_token }}">
@@ -878,7 +879,7 @@ function sendWhatsApp() {
 function notifyWaiter(title, body) {
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon: '/icon.svg' });
+    new Notification(title, { body, icon: '/assets/luuvcrm/app/icon-192.png' });
   } else if (Notification.permission === 'default') {
     Notification.requestPermission();
   }

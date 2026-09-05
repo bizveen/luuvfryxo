@@ -59,6 +59,22 @@ KEYS = [
     Key("pickup_outlet", OWNER, "Kurunegala",
         "Free-meal promo orders are collected here, and nowhere else."),
 
+    # ── the look ─────────────────────────────────────────────────────────────
+    # A second restaurant is not a second Luuv Fryxo. These are read into every
+    # page's context by overrides/branding.py and rendered as CSS custom
+    # properties, so one value changes the accent on 24 screens at once.
+    Key("brand_color", OWNER, "#F15207",
+        "The accent: buttons, links, the highlighted tab. A hex colour."),
+    Key("brand_color_dark", OWNER, "#D84804",
+        "The pressed/hover shade of the accent. A little darker than it."),
+    Key("brand_logo", OWNER, "/assets/luuvcrm/app/icon-192.png",
+        "Shown in page headers. Any URL the browser can reach — upload one in "
+        "the Desk and paste its /files/ link."),
+    Key("brand_icon_192", OWNER, "/assets/luuvcrm/app/icon-192.png",
+        "Home-screen icon, 192x192 PNG."),
+    Key("brand_icon_512", OWNER, "/assets/luuvcrm/app/icon-512.png",
+        "Home-screen icon, 512x512 PNG."),
+
     # ── the deployment's, set in site_config.json ────────────────────────────
     Key("public_url", OPERATOR, "https://luuvgrand.com",
         "Root of the links that go out in WhatsApp. No trailing slash."),
