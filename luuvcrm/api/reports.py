@@ -6,7 +6,7 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 from frappe import _
-from luuvcrm import roles
+from luuvcrm import branch, roles
 
 from luuvcrm.api.approvals import _format_approvals, _pending_and_recent_approvals
 
@@ -21,7 +21,7 @@ def get_manager_dashboard():
     today = _today()
 
     invoices = frappe.get_all("POS Invoice",
-        filters={"docstatus": 1, "posting_date": today},
+        filters={"docstatus": 1, "posting_date": today, **branch.invoice_filters()},
         fields=["name", "grand_total", "creation"])
     revenue = sum(float(i.grand_total or 0) for i in invoices)
     sales_count = len(invoices)
@@ -48,7 +48,7 @@ def get_manager_dashboard():
     hourly_list = [{"hour": h, "amount": hourly[h]} for h in sorted(hourly.keys())]
 
     # top items today (from paid POS Orders)
-    paid_orders = frappe.get_all("POS Order",
+    paid_orders = frappe.get_list("POS Order",
         filters={"pos_invoice": ["!=", ""], "creation": [">=", today]}, pluck="name")
     tally = {}
     for name in paid_orders:
@@ -63,7 +63,7 @@ def get_manager_dashboard():
         key=lambda x: -x["revenue"])[:5]
 
     # voids today
-    voids = frappe.get_all("POS Order",
+    voids = frappe.get_list("POS Order",
         filters={"docstatus": 2, "kitchen_status": "Cancelled", "modified": [">=", today]},
         fields=["grand_total"])
     void_count = len(voids)
@@ -83,7 +83,7 @@ def get_manager_dashboard():
         opened_at = str(opening.period_start_date)
         cashier = frappe.get_value("User", opening.user, "full_name") or opening.user
         if frappe.db.exists("DocType", "POS Cash Movement"):
-            rows = frappe.get_all("POS Cash Movement",
+            rows = frappe.get_list("POS Cash Movement",
                 filters={"pos_opening_entry": opening.name},
                 fields=["direction", "amount", "reason", "cashier", "movement_time"],
                 order_by="movement_time desc")
@@ -140,6 +140,10 @@ def get_manager_sales_report(days=7):
 
     end = getdate(_today())
     start = add_days(end, -(days - 1))
+    # Raw SQL sees no permission layer, so the branch has to be said out loud.
+    # Empty for an Owner, and on a site with one branch or no cost centres set.
+    _inv_cond, _inv_params = branch.sql_cost_center()
+    _pi_cond, _pi_params = branch.sql_cost_center("pi")
 
     # ── daily revenue + sale count (one grouped query) ──
     rows = frappe.db.sql(
@@ -149,9 +153,10 @@ def get_manager_sales_report(days=7):
                COUNT(*) AS cnt
         FROM `tabPOS Invoice`
         WHERE docstatus = 1 AND posting_date BETWEEN %s AND %s
+        """ + _inv_cond + """
         GROUP BY posting_date
         """,
-        (start, end), as_dict=True)
+        (start, end) + _inv_params, as_dict=True)
     by_date = {str(r.d): {"revenue": float(r.revenue or 0), "count": int(r.cnt or 0)} for r in rows}
 
     daily = []
@@ -204,8 +209,9 @@ def get_manager_sales_report(days=7):
         FROM `tabSales Taxes and Charges` t
         INNER JOIN `tabPOS Invoice` pi ON pi.name = t.parent AND pi.docstatus = 1
         WHERE t.parenttype = 'POS Invoice' AND pi.posting_date BETWEEN %s AND %s
+        """ + _pi_cond + """
         """,
-        (start, end), as_dict=True)[0]
+        (start, end) + _pi_params, as_dict=True)[0]
     service_charge = float(tax.sc or 0)
     other_charges = float(tax.other or 0)
     net_sales = total_revenue - service_charge - other_charges
@@ -240,7 +246,7 @@ def get_manager_day_report(date=None):
     day_end = str(add_days(day, 1))
 
     invoices = frappe.get_all("POS Invoice",
-        filters={"docstatus": 1, "posting_date": day},
+        filters={"docstatus": 1, "posting_date": day, **branch.invoice_filters()},
         fields=["name", "grand_total", "creation"])
     revenue = sum(float(i.grand_total or 0) for i in invoices)
     sales_count = len(invoices)
@@ -292,7 +298,7 @@ def get_manager_day_report(date=None):
              for r in item_rows if r.name]
 
     # voids that day
-    voids = frappe.get_all("POS Order",
+    voids = frappe.get_list("POS Order",
         filters=[["docstatus", "=", 2], ["kitchen_status", "=", "Cancelled"],
                  ["modified", ">=", day_start], ["modified", "<", day_end]],
         fields=["grand_total"])
@@ -331,6 +337,7 @@ def get_manager_monthly_sales(months=12):
         start_year -= 1
     start = datetime.date(start_year, start_month, 1)
 
+    _inv_cond, _inv_params = branch.sql_cost_center()
     rows = frappe.db.sql(
         """
         SELECT DATE_FORMAT(posting_date, '%%Y-%%m') AS ym,
@@ -338,9 +345,10 @@ def get_manager_monthly_sales(months=12):
                COUNT(*) AS cnt
         FROM `tabPOS Invoice`
         WHERE docstatus = 1 AND posting_date >= %s
+        """ + _inv_cond + """
         GROUP BY ym
         """,
-        (start,), as_dict=True)
+        (start,) + _inv_params, as_dict=True)
     by_ym = {r.ym: r for r in rows}
 
     out = []
@@ -429,6 +437,9 @@ def get_manager_purchase_report(days=7):
     # requested_at is a Datetime; upper bound is exclusive start-of-next-day.
     range_start = str(start)
     range_end = str(add_days(end, 1))
+    # Purchase Bill is ours, so it carries the branch itself — no cost centre
+    # hop needed. Raw SQL sees no permission layer, so say it out loud.
+    _pb_cond, _pb_params = branch.sql_restaurant("pb")
 
     # ── daily spend + bill count (one grouped query over the line items) ──
     rows = frappe.db.sql(
@@ -440,9 +451,10 @@ def get_manager_purchase_report(days=7):
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
+        """ + _pb_cond + """
         GROUP BY DATE(pb.requested_at)
         """,
-        (range_start, range_end), as_dict=True)
+        (range_start, range_end) + _pb_params, as_dict=True)
     by_date = {str(r.d): {"spend": float(r.spend or 0), "count": int(r.cnt or 0)} for r in rows}
 
     daily = []
@@ -470,10 +482,11 @@ def get_manager_purchase_report(days=7):
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
+        """ + _pb_cond + """
         GROUP BY yw, wk_start
         ORDER BY wk_start
         """,
-        (range_start, range_end), as_dict=True)
+        (range_start, range_end) + _pb_params, as_dict=True)
     weekly = [{
         "week_start": str(r.wk_start),
         "label": formatdate(getdate(r.wk_start), "d MMM"),
@@ -492,10 +505,11 @@ def get_manager_purchase_report(days=7):
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
+        """ + _pb_cond + """
         GROUP BY pb.vendor
         ORDER BY spend DESC
         """,
-        (range_start, range_end), as_dict=True)
+        (range_start, range_end) + _pb_params, as_dict=True)
     vendors = [{"name": r.name or "—", "spend": float(r.spend or 0), "count": int(r.cnt or 0)}
                for r in vrows]
 
@@ -509,10 +523,11 @@ def get_manager_purchase_report(days=7):
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
+        """ + _pb_cond + """
         GROUP BY name
         ORDER BY spend DESC
         """,
-        (range_start, range_end), as_dict=True)
+        (range_start, range_end) + _pb_params, as_dict=True)
     items = [{"name": r.name, "qty": float(r.qty or 0), "spend": float(r.spend or 0)}
              for r in irows if r.name]
 

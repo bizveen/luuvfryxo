@@ -554,7 +554,7 @@ def get_cash_movements():
     if not opening or not frappe.db.exists("DocType", "POS Cash Movement"):
         return {"in_total": 0, "out_total": 0, "moves": []}
 
-    rows = frappe.get_all("POS Cash Movement",
+    rows = frappe.get_list("POS Cash Movement",
         filters={"pos_opening_entry": opening},
         fields=["name", "direction", "amount", "reason", "cashier", "movement_time"],
         order_by="movement_time desc")

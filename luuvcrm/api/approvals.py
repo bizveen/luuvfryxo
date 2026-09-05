@@ -68,11 +68,11 @@ def _pending_and_recent_approvals(action=None, include_recent=True):
     if action:
         pending_filters["action"] = action
         recent_filters.append(["action", "=", action])
-    pending = frappe.get_all("POS Approval", filters=pending_filters,
+    pending = frappe.get_list("POS Approval", filters=pending_filters,
                              fields=fields, order_by="requested_at desc")
     if not include_recent:
         return pending
-    recent = frappe.get_all("POS Approval", filters=recent_filters,
+    recent = frappe.get_list("POS Approval", filters=recent_filters,
                             fields=fields, order_by="modified desc", limit_page_length=15)
     return pending + recent
 def _format_approvals(rows):
@@ -324,7 +324,7 @@ def get_approval_days():
     """
     if not frappe.db.exists("DocType", "POS Approval"):
         return {"days": {}}
-    rows = frappe.get_all("POS Approval", filters={"status": "pending"},
+    rows = frappe.get_list("POS Approval", filters={"status": "pending"},
                           fields=["name", "requested_at", "action", "action_payload"])
     days = {}
     for r in rows:

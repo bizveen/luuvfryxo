@@ -39,7 +39,7 @@ def get_tables():
     return {"tables": tables}
 @frappe.whitelist()
 def get_tables_with_status():
-    active = frappe.get_all("POS Order",
+    active = frappe.get_list("POS Order",
         filters=[
             ["docstatus", "=", 0],
             ["kitchen_status", "!=", "Served"],
@@ -93,7 +93,7 @@ def send_to_kitchen():
         from frappe.utils import add_to_date, now_datetime
         incoming = sorted((it.get("item"), 1 if _item_is_takeaway(it, order_type) else 0,
                            max(int(it.get("qty", 1)), 1)) for it in items)
-        for dup_name in frappe.get_all("POS Order", filters={
+        for dup_name in frappe.get_list("POS Order", filters={
                 "docstatus": 0, "kitchen_status": "Draft", "restaurant_table": table,
                 "owner": frappe.session.user, "pos_invoice": ["in", ["", None]],
                 "creation": [">", add_to_date(now_datetime(), seconds=-20)]},
@@ -221,7 +221,7 @@ def send_to_kitchen():
 
 @frappe.whitelist()
 def get_ongoing_orders():
-    orders = frappe.get_all("POS Order",
+    orders = frappe.get_list("POS Order",
         filters={"docstatus": 0, "order_source": ["in", ["Walk-in", "Waiter"]]},
         fields=["name", "customer_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "pos_invoice", "order_type",
@@ -240,7 +240,7 @@ def get_ongoing_orders():
 
 @frappe.whitelist()
 def get_kiosk_orders():
-    orders = frappe.get_all("POS Order",
+    orders = frappe.get_list("POS Order",
         filters={"docstatus": 0, "order_source": "Online"},
         fields=["name", "customer_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "pos_invoice"],
@@ -263,7 +263,7 @@ def get_completed_orders():
     if opening_name:
         filters["pos_opening_entry"] = opening_name
 
-    orders = frappe.get_all("POS Order",
+    orders = frappe.get_list("POS Order",
         filters=filters,
         fields=["name", "customer_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "modified", "order_source", "pos_invoice", "order_type",
@@ -476,7 +476,7 @@ def get_table_orders():
     table = frappe.local.form_dict.get("table", "")
     if not table:
         return {"orders": []}
-    orders = frappe.get_all("POS Order",
+    orders = frappe.get_list("POS Order",
         filters={"docstatus": 0, "restaurant_table": table},
         fields=["name", "customer_name", "waiter_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "notes", "kitchen_status",
@@ -500,7 +500,7 @@ def get_my_orders():
     get_kitchen_orders which the kitchen display needs). Powers the waiter app's 'My Orders'
     tab: shows status, lets the waiter add more items (Add items) or mark served."""
     today = frappe.utils.today()
-    orders = frappe.get_all("POS Order",
+    orders = frappe.get_list("POS Order",
         filters={"owner": frappe.session.user, "creation": [">=", today]},
         fields=["name", "restaurant_table", "kitchen_status", "grand_total", "creation",
                 "order_source", "notes", "pos_invoice"],

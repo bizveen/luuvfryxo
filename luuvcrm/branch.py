@@ -180,6 +180,57 @@ def all_restaurants():
     return frappe.get_all("Restaurant", pluck="name", order_by="name asc")
 
 
+# ─── Who sees which branch ───────────────────────────────────────────────────
+# A User Permission is the whole mechanism. Frappe applies it to every doctype
+# with a Link to `Restaurant`, on every `frappe.get_list` — which is why the
+# reads were flipped. There is no filtering code in this app, and there should
+# not be: hand-written filters are the thing that gets forgotten on the one
+# screen nobody thought about.
+#
+# The Owner needs nothing at all. No User Permission means no restriction, so
+# giving them the role and leaving this alone is what makes them see everything.
+
+def assign(user, restaurant):
+    """Restrict `user` to one branch. Idempotent.
+
+    Adding a *second* restaurant for the same user widens them to both, which is
+    Frappe's own semantics and occasionally what you want — a manager covering
+    two sites — so it is allowed rather than refused.
+    """
+    if not frappe.db.exists("Restaurant", restaurant):
+        frappe.throw(f"No such Restaurant: {restaurant}")
+    existing = frappe.db.exists("User Permission",
+                                {"user": user, "allow": "Restaurant",
+                                 "for_value": restaurant})
+    if existing:
+        return {"created": False, "name": existing}
+    doc = frappe.get_doc({"doctype": "User Permission", "user": user,
+                          "allow": "Restaurant", "for_value": restaurant,
+                          "apply_to_all_doctypes": 1})
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return {"created": True, "name": doc.name}
+
+
+def unassign(user, restaurant=None):
+    """Drop a user's branch restriction. With no restaurant, drops them all —
+    which is how somebody is promoted to seeing every branch."""
+    filters = {"user": user, "allow": "Restaurant"}
+    if restaurant:
+        filters["for_value"] = restaurant
+    names = frappe.get_all("User Permission", filters=filters, pluck="name")
+    for name in names:
+        frappe.delete_doc("User Permission", name, force=True, ignore_permissions=True)
+    if names:
+        frappe.db.commit()
+    return {"removed": len(names)}
+
+
+def assigned(user):
+    """The branches a user is restricted to. Empty means every branch."""
+    return _permitted_restaurants(user)
+
+
 # ─── Stamping it on a row ────────────────────────────────────────────────────
 
 def stamp(doc, method=None):
@@ -199,6 +250,61 @@ def stamp(doc, method=None):
         # A row that fails to get a branch is a reporting problem. A row that
         # fails to save is a cashier who cannot sell.
         frappe.log_error(frappe.get_traceback(), "branch.stamp failed")
+
+
+# ─── Scoping a report ────────────────────────────────────────────────────────
+# `frappe.get_list` covers the doctypes with a `restaurant` link. Two things it
+# cannot cover, and both are how the manager reports get their numbers:
+#
+#   * raw `frappe.db.sql`, which no permission layer sees;
+#   * ERPNext's own POS Invoice, which has no `restaurant` field — but does
+#     carry `cost_center`, put there by the POS Profile that raised it. That is
+#     the whole reason a branch is a Cost Center: the money separates itself in
+#     ERPNext's own ledger, and a report only has to say which one it wants.
+#
+# Both helpers return nothing at all — no condition, no parameters — when the
+# session is unrestricted, when there is only one branch, or when the dimension
+# has not been configured yet. That last case matters: the live site's invoices
+# all have an empty cost centre today, so a filter that did not degrade would
+# turn every report to zero the day it shipped. `check()` reports the gap
+# instead, which is the honest way round.
+
+def _scoped_to():
+    """The single branch this session is restricted to, or None for no scoping.
+
+    None for an Owner (no User Permission), for Administrator, and while there
+    is only one branch to be restricted to.
+    """
+    if len(all_restaurants()) < 2:
+        return None
+    allowed = _permitted_restaurants(frappe.session.user)
+    return allowed[0] if len(allowed) == 1 else None
+
+
+def sql_restaurant(alias=""):
+    """`(condition, params)` narrowing one of this app's doctypes by branch."""
+    scoped = _scoped_to()
+    if not scoped:
+        return "", ()
+    prefix = f"{alias}." if alias else ""
+    return f" AND {prefix}`{FIELD}` = %s", (scoped,)
+
+
+def sql_cost_center(alias=""):
+    """`(condition, params)` narrowing ERPNext's invoices by branch."""
+    scoped = _scoped_to()
+    centre = cost_center(scoped) if scoped else None
+    if not centre:
+        return "", ()
+    prefix = f"{alias}." if alias else ""
+    return f" AND {prefix}`cost_center` = %s", (centre,)
+
+
+def invoice_filters():
+    """Filter dict for a `get_all` over POS Invoice / Sales Invoice."""
+    scoped = _scoped_to()
+    centre = cost_center(scoped) if scoped else None
+    return {"cost_center": centre} if centre else {}
 
 
 # ─── The field ───────────────────────────────────────────────────────────────
@@ -362,7 +468,30 @@ def check():
             problems.append(f"POS Profile {profile}: no Restaurant — a sale rung up here "
                             "cannot be attributed to a branch")
 
+    for user in _managers():
+        if not assigned(user):
+            problems.append(f"{user} is a Restaurant Manager with no branch — "
+                            "they see every branch, like an Owner")
+
     left = unbranched()
     if left:
         problems.append(f"rows with no branch, visible to every branch: {left}")
     return problems
+
+
+def _managers():
+    """Enabled users holding Restaurant Manager and not Owner or System Manager.
+
+    Those two are *meant* to see everything, so a missing User Permission is
+    correct for them and a problem for anybody else.
+    """
+    from luuvcrm import roles
+
+    out = []
+    for user in frappe.get_all("User", filters={"enabled": 1}, pluck="name"):
+        if user in ("Administrator", "Guest"):
+            continue
+        held = set(frappe.get_roles(user))
+        if roles.RESTAURANT_MANAGER in held and not (held & set(roles.OWNER_ROLES)):
+            out.append(user)
+    return out

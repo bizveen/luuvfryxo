@@ -19,7 +19,7 @@ def get_kitchen_orders():
                "grand_total", "creation", "order_source", "notes", "kitchen_status"]
     if frappe.db.has_column("POS Order", "scheduled_time"):
         _fields.append("scheduled_time")
-    orders = frappe.get_all("POS Order",
+    orders = frappe.get_list("POS Order",
         filters={"kitchen_status": ["not in", ["Served", "Draft", "Cancelled"]]},
         fields=_fields,
         order_by="creation asc"

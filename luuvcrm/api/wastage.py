@@ -82,7 +82,7 @@ def get_wastage(days=7):
         return {"rows": [], "total": 0, "days": int(days or 7)}
     days = max(1, min(int(days or 7), 90))
     start = frappe.utils.add_days(frappe.utils.today(), -days + 1)
-    rows = frappe.get_all("Wastage", filters={"creation": [">=", start]},
+    rows = frappe.get_list("Wastage", filters={"creation": [">=", start]},
         fields=["name", "item", "item_name", "qty", "uom", "cost", "reason",
                 "recorded_by", "creation"],
         order_by="creation desc", limit=100)

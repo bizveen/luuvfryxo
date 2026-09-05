@@ -268,7 +268,7 @@ def get_purchase_bills():
     roles.require_pos()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "approved_today": 0, "pending_amt": 0, "week": 0}
-    rows = frappe.get_all("Purchase Bill", filters={}, fields=["name", "status", "requested_at"],
+    rows = frappe.get_list("Purchase Bill", filters={}, fields=["name", "status", "requested_at"],
                           order_by="requested_at desc", limit_page_length=60)
     bills = [_bill_dict(r.name) for r in rows]
     today = frappe.utils.today()

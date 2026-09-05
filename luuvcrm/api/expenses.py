@@ -206,7 +206,7 @@ def get_expenses():
     roles.require_pos()
     if not frappe.db.exists("DocType", "Expense"):
         return {"expenses": [], "approved_today": 0, "pending_amt": 0, "week": 0}
-    rows = frappe.get_all("Expense", fields=["name"], order_by="requested_at desc",
+    rows = frappe.get_list("Expense", fields=["name"], order_by="requested_at desc",
                           limit_page_length=60)
     expenses = [_expense_dict(r.name) for r in rows]
     today = frappe.utils.today()

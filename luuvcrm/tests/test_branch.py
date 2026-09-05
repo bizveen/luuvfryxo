@@ -443,3 +443,196 @@ class TestTheConfigurationCheck(BranchTestCase):
         frappe.db.set_value("POS Order", order.name, branch.FIELD, None,
                             update_modified=False)
         self.assertTrue(any("visible to every branch" in p for p in branch.check()))
+
+
+class TestTwoBranchesActuallyStayApart(BranchTestCase):
+    """The test that makes the Owner role real rather than cosmetic.
+
+    Everything else in this module is machinery. This is the claim: a manager of
+    branch A sees no order, bill, expense, approval, wastage or activity row
+    from branch B, and the Owner sees both — with no filtering code anywhere in
+    the app, because the filtering is Frappe's. A User Permission plus
+    `frappe.get_list` is the entire mechanism, which is why the reads were
+    flipped off `get_all`.
+    """
+
+    def setUp(self):
+        super().setUp()
+        _drop_test_restaurants()
+        self.a = frappe.get_all("Restaurant", pluck="name")[0]
+        self.b = _restaurant(self, "Branch-ISO")
+
+        self.mgr_a = _user(self, "iso-mgr-a", roles.RESTAURANT_MANAGER)
+        self.mgr_b = _user(self, "iso-mgr-b", roles.RESTAURANT_MANAGER)
+        self.owner = _user(self, "iso-owner", roles.RESTAURANT_OWNER)
+        branch.assign(self.mgr_a, self.a)
+        branch.assign(self.mgr_b, self.b)
+        branch.unassign(self.owner)          # an Owner is a manager with no restriction
+        for user in (self.mgr_a, self.mgr_b, self.owner):
+            self.addCleanup(branch.unassign, user)
+
+        self.rows = {dt: self._row(dt) for dt in
+                     ("Purchase Bill", "Expense", "Wastage", "POS Approval",
+                      "POS Cash Movement", "LF Activity Log")}
+
+    def _row(self, doctype):
+        """One row in each branch, identical but for the branch."""
+        made = {}
+        for tag, restaurant in (("a", self.a), ("b", self.b)):
+            doc = frappe.get_doc({"doctype": doctype, branch.FIELD: restaurant})
+            doc.flags.ignore_mandatory = True
+            doc.insert(ignore_permissions=True, ignore_mandatory=True)
+            self.addCleanup(lambda d=doctype, n=doc.name: frappe.db.exists(d, n) and
+                            frappe.delete_doc(d, n, force=True, ignore_permissions=True))
+            made[tag] = doc.name
+        return made
+
+    def _visible(self, user, doctype):
+        previous = frappe.session.user
+        frappe.set_user(user)
+        try:
+            return set(frappe.get_list(doctype, pluck="name", limit_page_length=0))
+        finally:
+            frappe.set_user(previous)
+
+    def test_a_manager_sees_their_own_branch_and_not_the_other(self):
+        for doctype, made in self.rows.items():
+            with self.subTest(doctype=doctype):
+                seen = self._visible(self.mgr_a, doctype)
+                self.assertIn(made["a"], seen, f"manager A cannot see their own {doctype}")
+                self.assertNotIn(made["b"], seen,
+                                 f"manager A can see branch B's {doctype}")
+
+    def test_and_the_other_manager_sees_the_mirror_image(self):
+        for doctype, made in self.rows.items():
+            with self.subTest(doctype=doctype):
+                seen = self._visible(self.mgr_b, doctype)
+                self.assertIn(made["b"], seen)
+                self.assertNotIn(made["a"], seen)
+
+    def test_the_owner_sees_both(self):
+        """No User Permission, no restriction — no special case in the code."""
+        self.assertEqual(branch.assigned(self.owner), [])
+        for doctype, made in self.rows.items():
+            with self.subTest(doctype=doctype):
+                seen = self._visible(self.owner, doctype)
+                self.assertIn(made["a"], seen)
+                self.assertIn(made["b"], seen)
+
+    def test_orders_are_scoped_the_same_way(self):
+        """POS Order through the endpoint the manager screens actually call,
+        rather than a bare get_list — the flip is only worth anything if the
+        endpoints went with it."""
+        order_a = self.order()
+        frappe.db.set_value("POS Order", order_a.name, branch.FIELD, self.b,
+                            update_modified=False)
+        seen = self._visible(self.mgr_a, "POS Order")
+        self.assertNotIn(order_a.name, seen)
+        frappe.db.set_value("POS Order", order_a.name, branch.FIELD, self.a,
+                            update_modified=False)
+        self.assertIn(order_a.name, self._visible(self.mgr_a, "POS Order"))
+
+    def test_a_manager_with_no_branch_is_reported_rather_than_left_wide_open(self):
+        """The quiet failure: forget the User Permission and the manager
+        silently has Owner's reach."""
+        branch.unassign(self.mgr_a)
+        self.assertTrue(any(self.mgr_a in p and "no branch" in p
+                            for p in branch.check()))
+
+    def test_the_owner_is_not_reported_for_the_same_thing(self):
+        self.assertFalse(any(self.owner in p for p in branch.check()))
+
+
+class TestTheReportsAreBranchAware(BranchTestCase):
+    """`frappe.get_list` cannot reach the manager reports.
+
+    Two reasons, and the reports are made of both: raw `frappe.db.sql`, which no
+    permission layer sees, and ERPNext's POS Invoice, which has no `restaurant`
+    field. The invoice carries `cost_center` instead — put there by the POS
+    Profile that raised it — which is the whole reason a branch is a Cost
+    Center: the money separates itself in ERPNext's own ledger and the report
+    only has to say which one it wants.
+    """
+
+    def setUp(self):
+        super().setUp()
+        _drop_test_restaurants()
+        self.a = frappe.get_all("Restaurant", pluck="name")[0]
+
+    def test_nothing_is_scoped_while_there_is_one_branch(self):
+        """A filter that did not degrade would turn every report to zero on a
+        site that has not been configured for two branches yet."""
+        self.assertEqual(branch.sql_cost_center(), ("", ()))
+        self.assertEqual(branch.sql_restaurant("pb"), ("", ()))
+        self.assertEqual(branch.invoice_filters(), {})
+
+    def test_nor_is_an_owner_scoped_once_there_are_two(self):
+        _restaurant(self, "Branch-REP")
+        owner = _user(self, "rep-owner", roles.RESTAURANT_OWNER)
+        branch.unassign(owner)
+        self.as_user(owner)
+        self.assertEqual(branch.sql_cost_center(), ("", ()))
+        self.assertEqual(branch.invoice_filters(), {})
+
+    def test_a_restricted_manager_is_scoped_by_their_cost_centre(self):
+        other = _restaurant(self, "Branch-REP2")
+        centre = _cost_centre(self, "CC-REP")
+        frappe.db.set_value("Restaurant", other, "cost_center", centre)
+        user = _user(self, "rep-mgr", roles.RESTAURANT_MANAGER)
+        branch.assign(user, other)
+        self.addCleanup(branch.unassign, user)
+        self.as_user(user)
+        condition, params = branch.sql_cost_center("pi")
+        self.assertIn("pi.`cost_center` = %s", condition)
+        self.assertEqual(params, (centre,))
+        self.assertEqual(branch.invoice_filters(), {"cost_center": centre})
+
+    def test_our_own_doctypes_scope_by_the_branch_itself(self):
+        """Purchase Bill is ours and carries the branch, so no cost-centre hop."""
+        other = _restaurant(self, "Branch-REP3")
+        user = _user(self, "rep-mgr2", roles.RESTAURANT_MANAGER)
+        branch.assign(user, other)
+        self.addCleanup(branch.unassign, user)
+        self.as_user(user)
+        condition, params = branch.sql_restaurant("pb")
+        self.assertIn("pb.`restaurant` = %s", condition)
+        self.assertEqual(params, (other,))
+
+    def test_a_branch_with_no_cost_centre_scopes_nothing_rather_than_zero(self):
+        """The live site's invoices all have an empty cost centre today. A
+        filter that did not degrade would blank the reports the day it shipped;
+        check() reports the gap instead, which is the honest way round."""
+        other = _restaurant(self, "Branch-REP4")          # no cost_center set
+        user = _user(self, "rep-mgr3", roles.RESTAURANT_MANAGER)
+        branch.assign(user, other)
+        self.addCleanup(branch.unassign, user)
+        self.as_user(user)
+        self.assertEqual(branch.sql_cost_center(), ("", ()))
+        frappe.set_user("Administrator")
+        self.assertTrue(any("no Cost Center" in p for p in branch.check()))
+
+    def test_every_report_still_answers(self):
+        """Scoped or not, the five manager reports must not throw — the SQL is
+        string-concatenated, so a parameter count that does not line up is a
+        500 on the manager's phone rather than a wrong number."""
+        for fn, kwargs in ((api.get_manager_dashboard, {}),
+                           (api.get_manager_sales_report, {"days": 7}),
+                           (api.get_manager_day_report, {}),
+                           (api.get_manager_monthly_sales, {"months": 3}),
+                           (api.get_manager_purchase_report, {"days": 7})):
+            with self.subTest(report=fn.__name__):
+                self.assertIsInstance(fn(**kwargs), dict)
+
+    def test_and_still_answers_when_it_is_scoped(self):
+        other = _restaurant(self, "Branch-REP5")
+        centre = _cost_centre(self, "CC-REP5")
+        frappe.db.set_value("Restaurant", other, "cost_center", centre)
+        user = _user(self, "rep-mgr4", roles.RESTAURANT_MANAGER)
+        branch.assign(user, other)
+        self.addCleanup(branch.unassign, user)
+        self.as_user(user)
+        for fn, kwargs in ((api.get_manager_sales_report, {"days": 7}),
+                           (api.get_manager_monthly_sales, {"months": 3}),
+                           (api.get_manager_purchase_report, {"days": 7})):
+            with self.subTest(report=fn.__name__):
+                self.assertIsInstance(fn(**kwargs), dict)

@@ -193,7 +193,7 @@ def get_context(context):
         ["name", "period_start_date"], as_dict=True)
     context.shift = {"status": "open"} if opening else None
 
-    ongoing_count = frappe.get_all("POS Order",
+    ongoing_count = frappe.get_list("POS Order",
         filters={"docstatus": 0, "order_source": "Walk-in", "pos_invoice": ""},
         pluck="name"
     )
