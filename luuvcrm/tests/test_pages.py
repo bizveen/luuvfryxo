@@ -5,8 +5,9 @@ without anything failing: `get_context` that never checks a role still renders,
 and the screen simply works for whoever asks. So these tests call the context
 builders directly and assert on the refusal, not on the markup.
 
-Only `/pos` for now — the route table in `docs/ROADMAP.md` §2b is not settled,
-and a test that pins a gate before the decision is made just has to be rewritten.
+`/pos` and the customer aliases for now — the rest of the route table in
+`docs/ROADMAP.md` §2b is not settled, and a test that pins a gate before the
+decision is made just has to be rewritten.
 """
 
 import importlib
@@ -130,3 +131,67 @@ class TestTheGateOnPos(PageTestCase):
         ctx = self.context(self.pos)
         if frappe.db.count("Item", {"disabled": 0}):
             self.assertTrue(ctx.items_flat, "no items reached the POS screen")
+
+
+class TestTheOldCustomerRoutesStillLand(PageTestCase):
+    """`/customer`, `/myorders` and `/my_orders` all became `/cus`.
+
+    They are not deleted, and should not be: each one is a link already sitting
+    in somebody's WhatsApp thread or printed on a QR sticker. What they are is
+    four lines of redirect each — the 530- and 311-line copies of the old order
+    page that sat behind two of them never rendered, because `get_context`
+    raises before the template is reached.
+    """
+
+    ALIASES = ("customer", "myorders", "my_orders")
+
+    def alias(self, name):
+        return importlib.import_module(f"luuvcrm.www.{name}")
+
+    def redirect(self, name, query=b""):
+        """Call the alias the way a request does, and return where it points."""
+        previous = getattr(frappe.local, "request", None)
+        frappe.local.request = frappe._dict(query_string=query)
+        self.addCleanup(setattr, frappe.local, "request", previous)
+        with self.assertRaises(frappe.Redirect):
+            self.context(self.alias(name))
+        return frappe.local.flags.redirect_location
+
+    def test_every_old_route_lands_on_cus(self):
+        for name in self.ALIASES:
+            with self.subTest(route=name):
+                self.assertEqual(self.redirect(name), "/cus")
+
+    def test_the_deep_link_survives_the_hop(self):
+        """?phone= is from a WhatsApp link, ?ref= from a referral, ?promo= from
+        a sticker QR. Dropping the query string turns a personalised link into
+        a generic one — the customer lands in the app as a stranger."""
+        for name in self.ALIASES:
+            with self.subTest(route=name):
+                self.assertEqual(self.redirect(name, b"phone=0770000001&ref=ABC"),
+                                 "/cus?phone=0770000001&ref=ABC")
+
+    def test_they_all_go_through_one_redirect(self):
+        """Three copies of the same eight lines is how one of them ends up
+        dropping the query string and nobody notices."""
+        from luuvcrm.www import cus
+        for name in self.ALIASES:
+            with self.subTest(route=name):
+                self.assertIs(self.alias(name).redirect_to_cus, cus.redirect_to_cus)
+
+    def test_no_stale_copy_of_the_old_page_is_left_behind(self):
+        """The .html sibling exists only so the route resolves; the redirect
+        fires first. A full page there is dead code that reads as live."""
+        for name in self.ALIASES:
+            with self.subTest(route=name):
+                html = frappe.read_file(
+                    frappe.get_app_path("luuvcrm", "www", f"{name}.html"))
+                self.assertLess(len(html), 400, f"{name}.html should be a stub")
+                self.assertIn("/cus", html)
+
+    def test_the_whatsapp_auto_reply_links_to_the_app_itself(self):
+        """It pointed at /myorders, which only bounces to /cus. One hop fewer,
+        and the link in the thread stays right if the alias is ever dropped."""
+        from luuvcrm import api
+        source = frappe.read_file(api.__file__)
+        self.assertIn("View your orders: https://luuvgrand.com/cus", source)

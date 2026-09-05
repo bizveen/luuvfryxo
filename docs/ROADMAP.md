@@ -75,14 +75,14 @@ Every page and its current gate:
 | `/admin` | login + roles | ✅ correct |
 | `/qrcodes` | **public** | + Manager role — it lists every table's kiosk URL |
 | `/cus` | guest, token auth | ✅ correct |
-| `/customer` | public | **delete** — superseded by `/cus` |
-| `/myorders`, `/my_orders` | public | keep **one**, delete the other |
+| `/customer`, `/myorders`, `/my_orders` | public | ✅ correct — 301 aliases to `/cus`, kept for links already sent |
 | `/kiosk`, `/order`, `/track`, `/menu`, `/home`, `/claim`, `/pos-login` | public | ✅ correct |
 | `/app2` | public | **delete** — see below |
 
 - [ ] Add the four missing role gates (`/waiter`, `/kitchen`, `/purchases`, `/qrpromo`) and fix `/qrcodes`.
 - [ ] **Delete `/app2`.** It re-hosted the Frappe desk to work around `luuvcrm/www/app.py` shadowing `/app`. That file no longer exists, and none of the three hooks its own docstring says it needs (`website_route_rules`, `on_session_creation`) are wired in `hooks.py` — so `redirect_desk_login` is dead code and the route is vestigial.
-- [ ] Delete `/customer`, and one of `/myorders` / `/my_orders`. Check the live site's traffic first to see which one customers actually reach.
+- [x] **`/customer`, `/myorders`, `/my_orders`.** They were never duplicate apps — all three already 301 to `/cus`, and had since the PWA moved there. What was actually there was 841 lines of stale HTML: `myorders.html` (530) and `my_orders.html` (311) were copies of the retired order-history page, sitting behind a `get_context` that raises `frappe.Redirect` before a template is ever reached, so they read as live and rendered never. Both are five-line stubs now, matching `customer.html`, and the three redirects share one `redirect_to_cus()` in `cus.py` instead of three copies of the same query-string handling.
+  **They stay as aliases, not deletions** — each is a link already in customers' hands: `/customer?phone=` in WhatsApp threads, `?promo=` on printed QR stickers. The WhatsApp auto-reply, which still pointed at `/myorders`, now links `/cus` directly. 5 tests in `test_pages.py`.
 - [x] **Collapse the three POS pages.** pos3 was the complete one — the tablet layer, the iMin printer bridge and the Google-Docs print layouts all landed there and were never ported back — so it is what `/pos` now serves. `pos.html`/`pos.py` (superseded) and `pos2.html`/`pos2.py` (previously live) are deleted, `KNOWN_APPS` carries one `"pos"`, and `/admin`'s POS tile, the `get_print_templates` dotted path and the 401/403 redirect all point at `/pos`. Two things fell out of it: the staging **print-only guard is gone** (a switch that silently stops the till taking money has no place on the till), and with it a redeclared `guestCheckClick` that shadowed the real one — the counter had been getting "Send to kitchen first" where pos2 autosaved the ticket. 11 tests in `test_pages.py`.
   - [ ] **Before this reaches the live site:** every counter tablet has `/pos2` bookmarked and will 404. Either re-point the bookmarks during a close, or add a one-line `/pos2` → `/pos` redirect page for one release and delete it after.
 - [ ] Write the surviving route table into `DEVELOPER_GUIDE.md` so the next person does not have to reverse-engineer it.

@@ -6,6 +6,23 @@ no_cache = 1
 login_required = False
 
 
+def redirect_to_cus():
+    """301 to /cus, carrying the query string.
+
+    Three old routes still reach customers: /customer (the PWA's address until
+    2026-07-12), /myorders and /my_orders. They are links already sent — in
+    WhatsApp threads, on printed QR stickers — so they are kept as aliases
+    rather than deleted, and each is four lines of redirect over this.
+
+    The query string has to survive: ?phone= comes from a WhatsApp link, ?ref=
+    from a referral, ?promo= from a sticker QR, and dropping it turns a
+    personalised link into a generic one.
+    """
+    qs = frappe.request.query_string.decode() if frappe.request and frappe.request.query_string else ""
+    frappe.local.flags.redirect_location = "/cus" + (("?" + qs) if qs else "")
+    raise frappe.Redirect
+
+
 def get_context(context):
     """Customer PWA (/cus — moved off /app, which belongs to Frappe Desk;
     previously /customer, shortened to /cus for WhatsApp/QR links).

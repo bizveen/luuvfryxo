@@ -3654,7 +3654,7 @@ def process_wa_reply(doc, method):
 
     auto_reply = (
         "Thank you for messaging Luuv Fryxo! 🎉\n\n"
-        "View your orders: https://luuvgrand.com/myorders\n"
+        "View your orders: https://luuvgrand.com/cus\n"
         "To confirm a pending order, reply OK\n\n"
         "We will get back to you shortly!"
     )

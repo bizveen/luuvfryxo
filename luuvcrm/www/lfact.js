@@ -3,7 +3,7 @@
  * Sibling of lferr.js: that one reports what BREAKS, this one reports what the
  * staff DO. Loaded right after it on the staff PWAs:
  *
- *     <script src="/lfact.js?v=1" data-app="pos2"></script>
+ *     <script src="/lfact.js?v=1" data-app="pos"></script>
  *
  * Why a client-side tracker at all, when api.py already logs every write:
  * the server only ever sees the RESULT. When a cashier's finger lands twice on
@@ -14,7 +14,7 @@
  * Design notes:
  *   - Events are queued and flushed in batches (the POS taps fast; one POST per
  *     tap would put the log in the critical path of the cart).
- *   - The queue survives a reload and a dead wifi in localStorage — pos2 runs
+ *   - The queue survives a reload and a dead wifi in localStorage — the POS runs
  *     offline regularly, and a trail with a hole in it answers nothing.
  *   - Every tap carries the bill total BEFORE and AFTER it, so the timeline
  *     reads like a bank statement and a wrong tap is visible without maths.
@@ -175,7 +175,7 @@
   }
 
   /* ── auto-wrap an app's existing cart functions ────────────────────────
-   * pos2/waiter declare their cart handlers as top-level `function foo(){}` in a
+   * pos/waiter declare their cart handlers as top-level `function foo(){}` in a
    * classic inline <script>, so they live on `window` and can be wrapped without
    * touching a single line inside them. The original runs FIRST and its return
    * value is passed straight back; logging happens after and can never change
