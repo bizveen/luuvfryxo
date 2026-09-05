@@ -224,3 +224,27 @@ def ensure_pos_docperms(role=CASHIER):
     if granted:
         frappe.clear_cache()
     return granted
+
+# ─── Separation of duties ────────────────────────────────────────────────────
+# Not a role, but the same kind of rule: it says who may act, and it is asked
+# from three places (approvals, purchases, expenses). It lived in api.py, and
+# putting it here is also what lets those three stop importing each other.
+
+
+def block_self_approval(requested_by):
+    """Separation of duties: whoever raised a request cannot be the one who
+    answers it.
+
+    This used to apply to purchase bills only, on the reasoning that a cashier
+    asking for a discount on their own sale is a smaller thing than entering
+    money paid to a vendor. But resolve_approval's own gate is a POS role, not a
+    manager one — so a cashier could grant their own discount, which is the one
+    thing the approval flow exists to prevent. It now covers every kind.
+
+    No role is exempt: a manager who raises a request still needs a second pair
+    of eyes. Answering somebody else's request is unchanged, so a shift with two
+    people on it can still work without a manager present.
+    """
+    if requested_by and requested_by == frappe.session.user:
+        frappe.throw(_("You raised this request — someone else has to answer it"),
+                     frappe.PermissionError)

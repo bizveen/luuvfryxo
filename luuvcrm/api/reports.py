@@ -1,0 +1,538 @@
+"""The manager's numbers: today, the day, the month, the bill, the buying.
+
+Split out of the single 7,338-line api.py; every name here is re-exported
+from `luuvcrm.api`, so the whitelisted method paths are unchanged.
+"""
+
+import frappe
+from frappe import _
+from luuvcrm import roles
+
+from luuvcrm.api.approvals import _format_approvals, _pending_and_recent_approvals
+
+
+# ─── Manager dashboard (today's sales, cash drawer, approvals) ─────
+
+@frappe.whitelist()
+def get_manager_dashboard():
+    """Aggregate today's POS activity for the Manager phone dashboard (all cashiers)."""
+    roles.require_manager()
+    from frappe.utils import get_datetime, today as _today
+    today = _today()
+
+    invoices = frappe.get_all("POS Invoice",
+        filters={"docstatus": 1, "posting_date": today},
+        fields=["name", "grand_total", "creation"])
+    revenue = sum(float(i.grand_total or 0) for i in invoices)
+    sales_count = len(invoices)
+    avg = revenue / sales_count if sales_count else 0
+
+    # payment mix + cash sales
+    pay = {}
+    cash_sales = 0
+    for inv in invoices:
+        doc = frappe.get_doc("POS Invoice", inv.name)
+        for p in (doc.payments or []):
+            mode = p.mode_of_payment or "Other"
+            amt = float(p.amount or 0)
+            pay[mode] = pay.get(mode, 0) + amt
+            if mode == "Cash":
+                cash_sales += amt
+    payments = [{"mode": m, "amount": a} for m, a in sorted(pay.items(), key=lambda x: -x[1])]
+
+    # hourly revenue
+    hourly = {}
+    for inv in invoices:
+        h = get_datetime(inv.creation).hour
+        hourly[h] = hourly.get(h, 0) + float(inv.grand_total or 0)
+    hourly_list = [{"hour": h, "amount": hourly[h]} for h in sorted(hourly.keys())]
+
+    # top items today (from paid POS Orders)
+    paid_orders = frappe.get_all("POS Order",
+        filters={"pos_invoice": ["!=", ""], "creation": [">=", today]}, pluck="name")
+    tally = {}
+    for name in paid_orders:
+        od = frappe.get_doc("POS Order", name)
+        for it in (od.get("items") or []):
+            key = it.item_name or it.item
+            t = tally.setdefault(key, {"qty": 0, "rev": 0})
+            t["qty"] += int(it.qty or 0)
+            t["rev"] += float(it.rate or 0) * int(it.qty or 0)
+    top_items = sorted(
+        [{"name": k, "qty": v["qty"], "revenue": v["rev"]} for k, v in tally.items()],
+        key=lambda x: -x["revenue"])[:5]
+
+    # voids today
+    voids = frappe.get_all("POS Order",
+        filters={"docstatus": 2, "kitchen_status": "Cancelled", "modified": [">=", today]},
+        fields=["grand_total"])
+    void_count = len(voids)
+    void_amt = sum(float(v.grand_total or 0) for v in voids)
+
+    # cash drawer — the open shift (any cashier)
+    opening = frappe.db.get_value("POS Opening Entry",
+        {"docstatus": 1, "status": "Open"}, ["name", "period_start_date", "user"], as_dict=True)
+    float_amt = 0
+    cash_in = cash_out = 0
+    cash_moves = []
+    opened_at = ""
+    cashier = ""
+    if opening:
+        od = frappe.get_doc("POS Opening Entry", opening.name)
+        float_amt = sum(float(d.opening_amount or 0) for d in (od.balance_details or []))
+        opened_at = str(opening.period_start_date)
+        cashier = frappe.get_value("User", opening.user, "full_name") or opening.user
+        if frappe.db.exists("DocType", "POS Cash Movement"):
+            rows = frappe.get_all("POS Cash Movement",
+                filters={"pos_opening_entry": opening.name},
+                fields=["direction", "amount", "reason", "cashier", "movement_time"],
+                order_by="movement_time desc")
+            for r in rows:
+                amt = float(r.amount or 0)
+                if r.direction == "in":
+                    cash_in += amt
+                else:
+                    cash_out += amt
+                cash_moves.append({
+                    "direction": r.direction, "amount": amt, "reason": r.reason or "",
+                    "cashier": frappe.get_value("User", r.cashier, "full_name") or r.cashier,
+                    "time": frappe.utils.pretty_date(r.movement_time),
+                })
+    expected_drawer = float_amt + cash_sales + cash_in - cash_out
+
+    return {
+        "date": today,
+        "revenue": revenue,
+        "sales_count": sales_count,
+        "avg_ticket": avg,
+        "void_count": void_count,
+        "void_amount": void_amt,
+        "payments": payments,
+        "hourly": hourly_list,
+        "top_items": top_items,
+        "cash": {
+            "opened_at": opened_at,
+            "cashier": cashier,
+            "float": float_amt,
+            "cash_sales": cash_sales,
+            "cash_in": cash_in,
+            "cash_out": cash_out,
+            "expected": expected_drawer,
+            "moves": cash_moves,
+        },
+        "approvals": _format_approvals(_pending_and_recent_approvals()),
+    }
+@frappe.whitelist()
+def get_manager_sales_report(days=7):
+    """Daily sales trend + item-wise sales over the last N days (all cashiers).
+
+    Powers the Manager app 'Reports' tab: a day-by-day revenue chart plus a
+    full item-wise breakdown for the same window.
+    """
+    roles.require_manager()
+    from frappe.utils import getdate, add_days, today as _today, formatdate
+
+    try:
+        days = int(days)
+    except Exception:
+        days = 7
+    days = max(1, min(days, 92))  # cap the window
+
+    end = getdate(_today())
+    start = add_days(end, -(days - 1))
+
+    # ── daily revenue + sale count (one grouped query) ──
+    rows = frappe.db.sql(
+        """
+        SELECT posting_date AS d,
+               COALESCE(SUM(grand_total), 0) AS revenue,
+               COUNT(*) AS cnt
+        FROM `tabPOS Invoice`
+        WHERE docstatus = 1 AND posting_date BETWEEN %s AND %s
+        GROUP BY posting_date
+        """,
+        (start, end), as_dict=True)
+    by_date = {str(r.d): {"revenue": float(r.revenue or 0), "count": int(r.cnt or 0)} for r in rows}
+
+    daily = []
+    cur = start
+    while cur <= end:
+        key = str(cur)
+        rec = by_date.get(key, {"revenue": 0, "count": 0})
+        daily.append({
+            "date": key,
+            "label": formatdate(cur, "d MMM"),
+            "weekday": formatdate(cur, "EEE"),
+            "revenue": rec["revenue"],
+            "count": rec["count"],
+        })
+        cur = add_days(cur, 1)
+
+    total_revenue = sum(d["revenue"] for d in daily)
+    total_sales = sum(d["count"] for d in daily)
+    avg_ticket = total_revenue / total_sales if total_sales else 0
+    best_day = max(daily, key=lambda d: d["revenue"]) if daily else None
+
+    # ── item-wise sales over the window (from paid POS Orders) ──
+    item_rows = frappe.db.sql(
+        """
+        SELECT COALESCE(soi.item_name, soi.item) AS name,
+               SUM(soi.qty) AS qty,
+               SUM(soi.rate * soi.qty) AS revenue
+        FROM `tabPOS Order Item` soi
+        INNER JOIN `tabPOS Order` so ON so.name = soi.parent
+        WHERE so.pos_invoice IS NOT NULL AND so.pos_invoice != ''
+          AND so.creation >= %s AND so.creation < %s
+        GROUP BY name
+        ORDER BY revenue DESC
+        """,
+        (start, add_days(end, 1)), as_dict=True)
+    items = [{"name": r.name, "qty": int(r.qty or 0), "revenue": float(r.revenue or 0)}
+             for r in item_rows if r.name]
+    items_revenue = sum(i["revenue"] for i in items) or 1
+
+    # ── revenue breakdown: service charge vs other charges vs net sales ──
+    # Service charge is posted as a Sales Taxes and Charges row (description
+    # "Service Charge", account "Service - LF") by _append_service_charge_tax,
+    # NOT a line item. Bucket the range's tax rows by that description; net sales
+    # is the remainder so the three segments always sum to Total revenue.
+    tax = frappe.db.sql(
+        """
+        SELECT
+          COALESCE(SUM(CASE WHEN t.description = 'Service Charge' THEN t.tax_amount ELSE 0 END), 0) AS sc,
+          COALESCE(SUM(CASE WHEN t.description <> 'Service Charge' THEN t.tax_amount ELSE 0 END), 0) AS other
+        FROM `tabSales Taxes and Charges` t
+        INNER JOIN `tabPOS Invoice` pi ON pi.name = t.parent AND pi.docstatus = 1
+        WHERE t.parenttype = 'POS Invoice' AND pi.posting_date BETWEEN %s AND %s
+        """,
+        (start, end), as_dict=True)[0]
+    service_charge = float(tax.sc or 0)
+    other_charges = float(tax.other or 0)
+    net_sales = total_revenue - service_charge - other_charges
+
+    return {
+        "days": days,
+        "start": str(start),
+        "end": str(end),
+        "daily": daily,
+        "items": items,
+        "items_revenue": items_revenue,
+        "total_revenue": total_revenue,
+        "total_sales": total_sales,
+        "avg_ticket": avg_ticket,
+        "best_day": best_day,
+        "revenue_breakdown": {
+            "net_sales": net_sales,
+            "service_charge": service_charge,
+            "other_charges": other_charges,
+            "total": total_revenue,
+        },
+    }
+@frappe.whitelist()
+def get_manager_day_report(date=None):
+    """Full breakdown of a single day — powers the drill-down when a manager
+    taps a bar on the Reports daily chart (payment mix, hourly, item-wise)."""
+    roles.require_manager()
+    from frappe.utils import getdate, add_days, formatdate, get_datetime, today as _today
+
+    day = getdate(date or _today())
+    day_start = str(day)
+    day_end = str(add_days(day, 1))
+
+    invoices = frappe.get_all("POS Invoice",
+        filters={"docstatus": 1, "posting_date": day},
+        fields=["name", "grand_total", "creation"])
+    revenue = sum(float(i.grand_total or 0) for i in invoices)
+    sales_count = len(invoices)
+    avg = revenue / sales_count if sales_count else 0
+
+    # payment mix + hourly revenue + the day's bill list (newest first)
+    pay = {}
+    hourly = {}
+    bills = []
+    for inv in invoices:
+        doc = frappe.get_doc("POS Invoice", inv.name)
+        modes = []
+        for p in (doc.payments or []):
+            mode = p.mode_of_payment or "Other"
+            amt = float(p.amount or 0)
+            pay[mode] = pay.get(mode, 0) + amt
+            if amt and mode not in modes:
+                modes.append(mode)
+        created = get_datetime(inv.creation)
+        h = created.hour
+        hourly[h] = hourly.get(h, 0) + float(inv.grand_total or 0)
+        bills.append({
+            "name": inv.name,
+            "no": inv.name.split("-")[-1],
+            "time": created.strftime("%I:%M %p").lstrip("0"),
+            "creation": str(inv.creation),
+            "total": float(inv.grand_total or 0),
+            "modes": modes,
+        })
+    bills.sort(key=lambda b: b["creation"], reverse=True)
+    payments = [{"mode": m, "amount": a} for m, a in sorted(pay.items(), key=lambda x: -x[1])]
+    hourly_list = [{"hour": h, "amount": hourly[h]} for h in sorted(hourly.keys())]
+
+    # item-wise sales for the day (from paid POS Orders)
+    item_rows = frappe.db.sql(
+        """
+        SELECT COALESCE(soi.item_name, soi.item) AS name,
+               SUM(soi.qty) AS qty,
+               SUM(soi.rate * soi.qty) AS revenue
+        FROM `tabPOS Order Item` soi
+        INNER JOIN `tabPOS Order` so ON so.name = soi.parent
+        WHERE so.pos_invoice IS NOT NULL AND so.pos_invoice != ''
+          AND so.creation >= %s AND so.creation < %s
+        GROUP BY name
+        ORDER BY revenue DESC
+        """,
+        (day_start, day_end), as_dict=True)
+    items = [{"name": r.name, "qty": int(r.qty or 0), "revenue": float(r.revenue or 0)}
+             for r in item_rows if r.name]
+
+    # voids that day
+    voids = frappe.get_all("POS Order",
+        filters=[["docstatus", "=", 2], ["kitchen_status", "=", "Cancelled"],
+                 ["modified", ">=", day_start], ["modified", "<", day_end]],
+        fields=["grand_total"])
+
+    return {
+        "date": day_start,
+        "label": formatdate(day, "EEE d MMM"),
+        "revenue": revenue,
+        "sales_count": sales_count,
+        "avg_ticket": avg,
+        "void_count": len(voids),
+        "void_amount": sum(float(v.grand_total or 0) for v in voids),
+        "payments": payments,
+        "hourly": hourly_list,
+        "items": items,
+        "bills": bills,
+    }
+@frappe.whitelist()
+def get_manager_monthly_sales(months=12):
+    """Month-by-month revenue for the Manager Reports tab (last N calendar months,
+    zero-filled so quiet months still show)."""
+    roles.require_manager()
+    import datetime
+    from frappe.utils import getdate, formatdate, today as _today
+
+    try:
+        months = int(months)
+    except Exception:
+        months = 12
+    months = max(1, min(months, 24))
+
+    end = getdate(_today())
+    start_year, start_month = end.year, end.month - (months - 1)
+    while start_month <= 0:
+        start_month += 12
+        start_year -= 1
+    start = datetime.date(start_year, start_month, 1)
+
+    rows = frappe.db.sql(
+        """
+        SELECT DATE_FORMAT(posting_date, '%%Y-%%m') AS ym,
+               COALESCE(SUM(grand_total), 0) AS revenue,
+               COUNT(*) AS cnt
+        FROM `tabPOS Invoice`
+        WHERE docstatus = 1 AND posting_date >= %s
+        GROUP BY ym
+        """,
+        (start,), as_dict=True)
+    by_ym = {r.ym: r for r in rows}
+
+    out = []
+    y, mo = start_year, start_month
+    for _ in range(months):
+        ym = "%04d-%02d" % (y, mo)
+        r = by_ym.get(ym)
+        revenue = float(r.revenue or 0) if r else 0
+        cnt = int(r.cnt or 0) if r else 0
+        out.append({"ym": ym, "label": formatdate(datetime.date(y, mo, 1), "MMM"),
+                    "year": y, "yy": str(y)[2:], "revenue": revenue, "count": cnt,
+                    "avg_ticket": (revenue / cnt) if cnt else 0})
+        mo += 1
+        if mo == 13:
+            mo = 1
+            y += 1
+
+    best = max(out, key=lambda m: m["revenue"]) if out else None
+    return {"months": out, "best": best,
+            "total_revenue": sum(m["revenue"] for m in out),
+            "total_sales": sum(m["count"] for m in out)}
+@frappe.whitelist()
+def get_manager_bill_detail(name=None):
+    """Everything on one POS Invoice — powers the manager's tap-a-bill drill-down
+    (items, discount, taxes/SC, payments, cashier, table)."""
+    roles.require_manager()
+    from frappe.utils import get_datetime, formatdate
+
+    if not name or not frappe.db.exists("POS Invoice", name):
+        frappe.throw(_("Bill not found"))
+    doc = frappe.get_doc("POS Invoice", name)
+
+    items = [{"name": i.item_name or i.item_code, "qty": float(i.qty or 0),
+              "rate": float(i.rate or 0), "amount": float(i.amount or 0)}
+             for i in (doc.items or [])]
+    taxes = [{"label": (t.description or t.account_head or "Charge"),
+              "amount": float(t.tax_amount or 0)}
+             for t in (doc.taxes or []) if float(t.tax_amount or 0)]
+    payments = [{"mode": p.mode_of_payment or "Other", "amount": float(p.amount or 0)}
+                for p in (doc.payments or []) if float(p.amount or 0)]
+
+    order = frappe.db.get_value("POS Order", {"pos_invoice": name},
+        ["name", "restaurant_table", "order_source", "customer_name", "waiter_name"],
+        as_dict=True) or {}
+    table = (order.get("restaurant_table") or "").split("-")[-1] if order.get("restaurant_table") else ""
+
+    created = get_datetime(doc.creation)
+    return {
+        "name": doc.name,
+        "no": doc.name.split("-")[-1],
+        "date_label": formatdate(doc.posting_date, "EEE d MMM"),
+        "time": created.strftime("%I:%M %p").lstrip("0"),
+        "cashier": frappe.get_value("User", doc.owner, "full_name") or doc.owner,
+        "customer": order.get("customer_name") or doc.customer_name or "",
+        "table": table,
+        "source": order.get("order_source") or "",
+        "items": items,
+        "net_total": float(doc.net_total or 0),
+        "discount": float(doc.discount_amount or 0),
+        "taxes": taxes,
+        "grand_total": float(doc.grand_total or 0),
+        "payments": payments,
+        "is_return": bool(doc.is_return),
+    }
+@frappe.whitelist()
+def get_manager_purchase_report(days=7):
+    """Daily + weekly purchasing spend over the last N days (approved bills only).
+
+    Powers the Manager app 'Purchases' tab: a day-by-day and week-by-week spend
+    chart plus top-vendor and top-item breakdowns. Spend is summed from the bill
+    line items (qty * price) to match how the /purchases app recomputes totals.
+    Purchase Bill is non-submittable, so we filter on status='approved' (committed
+    spend), not docstatus; the effective purchase date is `requested_at`.
+    """
+    roles.require_manager()
+    from frappe.utils import getdate, add_days, formatdate, today as _today
+
+    try:
+        days = int(days)
+    except Exception:
+        days = 7
+    days = max(1, min(days, 92))  # cap the window
+
+    end = getdate(_today())
+    start = add_days(end, -(days - 1))
+    # requested_at is a Datetime; upper bound is exclusive start-of-next-day.
+    range_start = str(start)
+    range_end = str(add_days(end, 1))
+
+    # ── daily spend + bill count (one grouped query over the line items) ──
+    rows = frappe.db.sql(
+        """
+        SELECT DATE(pb.requested_at) AS d,
+               COALESCE(SUM(pbi.qty * pbi.price), 0) AS spend,
+               COUNT(DISTINCT pb.name) AS cnt
+        FROM `tabPurchase Bill Item` pbi
+        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        WHERE pb.status = 'approved'
+          AND pb.requested_at >= %s AND pb.requested_at < %s
+        GROUP BY DATE(pb.requested_at)
+        """,
+        (range_start, range_end), as_dict=True)
+    by_date = {str(r.d): {"spend": float(r.spend or 0), "count": int(r.cnt or 0)} for r in rows}
+
+    daily = []
+    cur = start
+    while cur <= end:
+        key = str(cur)
+        rec = by_date.get(key, {"spend": 0, "count": 0})
+        daily.append({
+            "date": key,
+            "label": formatdate(cur, "d MMM"),
+            "weekday": formatdate(cur, "EEE"),
+            "spend": rec["spend"],
+            "count": rec["count"],
+        })
+        cur = add_days(cur, 1)
+
+    # ── weekly spend (ISO weeks, Monday-anchored) ──
+    wrows = frappe.db.sql(
+        """
+        SELECT YEARWEEK(pb.requested_at, 3) AS yw,
+               DATE(DATE_SUB(pb.requested_at, INTERVAL WEEKDAY(pb.requested_at) DAY)) AS wk_start,
+               COALESCE(SUM(pbi.qty * pbi.price), 0) AS spend,
+               COUNT(DISTINCT pb.name) AS cnt
+        FROM `tabPurchase Bill Item` pbi
+        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        WHERE pb.status = 'approved'
+          AND pb.requested_at >= %s AND pb.requested_at < %s
+        GROUP BY yw, wk_start
+        ORDER BY wk_start
+        """,
+        (range_start, range_end), as_dict=True)
+    weekly = [{
+        "week_start": str(r.wk_start),
+        "label": formatdate(getdate(r.wk_start), "d MMM"),
+        "weekday": "Wk",
+        "spend": float(r.spend or 0),
+        "count": int(r.cnt or 0),
+    } for r in wrows]
+
+    # ── top vendors ──
+    vrows = frappe.db.sql(
+        """
+        SELECT pb.vendor AS name,
+               COALESCE(SUM(pbi.qty * pbi.price), 0) AS spend,
+               COUNT(DISTINCT pb.name) AS cnt
+        FROM `tabPurchase Bill Item` pbi
+        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        WHERE pb.status = 'approved'
+          AND pb.requested_at >= %s AND pb.requested_at < %s
+        GROUP BY pb.vendor
+        ORDER BY spend DESC
+        """,
+        (range_start, range_end), as_dict=True)
+    vendors = [{"name": r.name or "—", "spend": float(r.spend or 0), "count": int(r.cnt or 0)}
+               for r in vrows]
+
+    # ── top items bought ──
+    irows = frappe.db.sql(
+        """
+        SELECT COALESCE(pbi.item_name, pbi.item) AS name,
+               SUM(pbi.qty) AS qty,
+               COALESCE(SUM(pbi.qty * pbi.price), 0) AS spend
+        FROM `tabPurchase Bill Item` pbi
+        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        WHERE pb.status = 'approved'
+          AND pb.requested_at >= %s AND pb.requested_at < %s
+        GROUP BY name
+        ORDER BY spend DESC
+        """,
+        (range_start, range_end), as_dict=True)
+    items = [{"name": r.name, "qty": float(r.qty or 0), "spend": float(r.spend or 0)}
+             for r in irows if r.name]
+
+    total_spend = sum(d["spend"] for d in daily)
+    bill_count = sum(d["count"] for d in daily)
+    avg_bill = total_spend / bill_count if bill_count else 0
+    best_day = max(daily, key=lambda d: d["spend"]) if daily else None
+
+    return {
+        "days": days,
+        "start": str(start),
+        "end": str(end),
+        "daily": daily,
+        "weekly": weekly,
+        "vendors": vendors,
+        "vendors_spend": sum(v["spend"] for v in vendors) or 1,
+        "items": items,
+        "items_spend": sum(i["spend"] for i in items) or 1,
+        "total_spend": total_spend,
+        "bill_count": bill_count,
+        "avg_bill": avg_bill,
+        "best_day": best_day,
+    }

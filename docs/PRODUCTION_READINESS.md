@@ -216,7 +216,35 @@ There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/
 
 ## 5. Code health
 
-- **`api.py` is 7,095 lines and 316 KB.** It holds POS, kitchen, loyalty, customers, purchases, expenses, approvals, promos, tour guides, wastage, WhatsApp and reporting. Split it into `luuvcrm/api/` — `pos.py`, `orders.py`, `purchases.py`, `manager.py`, `loyalty.py`, `guides.py`, `whatsapp.py` — keeping the public method paths stable via re-exports so no client breaks.
+- ~~**`api.py` is 7,095 lines and 316 KB.**~~ **Resolved.** It is `luuvcrm/api/`, 22 modules, one per domain:
+
+| Module | Lines |
+|---|---|
+| `orders.py` | 807 |
+| `guides.py` | 590 |
+| `shifts.py` | 570 |
+| `reports.py` | 538 |
+| `purchases.py` | 490 |
+| `printing.py` | 444 |
+| `payments.py` | 416 |
+| `customers.py` | 403 |
+| `approvals.py` | 361 |
+| `promos.py` | 334 |
+| `loyalty.py` | 324 |
+| `__init__.py` | 320 |
+| `whatsapp.py` | 290 |
+| `schema.py` | 259 |
+| `menu.py` | 246 |
+| `kiosk.py` | 222 |
+| `expenses.py` | 220 |
+| `kitchen.py` | 178 |
+| `offline.py` | 171 |
+| `wastage.py` | 137 |
+| `pricing.py` | 128 |
+| `wa.py` | 70 |
+| `routing.py` | 41 |
+
+  `__init__.py` re-exports all 261 names, so every `luuvcrm.api.<name>` path a page, hook or WhatsApp link calls resolves unchanged.
 - ~~**`/pos3` was declared throwaway and is now the largest file in the project.**~~ **Resolved.** pos3 was promoted: all the work that mattered had landed there and was never ported back, so it is `/pos` now, and `pos2.html`/`pos2.py` plus the original `pos.html`/`pos.py` are deleted. One POS implementation.
 - **Duplicate pages:** `myorders.html` (530 lines) and `my_orders.html` (311) are both live; so are `/customer` and `/cus`. Pick one of each.
 - **Branding is split three ways:** the app is `luuvcrm`, `hooks.py` says `Zeloura` / "Zeloura Collective — Network Fashion Platform", every page says "Luuv Fryxo", and the module is `Zeloura`. For a product you intend to resell, this needs to become one configurable brand read from a settings DocType — a second customer cannot be called Luuv Fryxo.
@@ -252,7 +280,7 @@ There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/
 ### Phase 4 — Make it a product (3–6 weeks)
 15. One brand, read from settings. No "Luuv Fryxo" in code.
 16. Collapse three POS pages into one; collapse the duplicate pages.
-17. Split `api.py`.
+17. ~~Split `api.py`.~~ Done.
 18. Multi-tenant check: confirm every query is site-scoped and nothing assumes a single `Restaurant` record (`api.py:13` does `frappe.get_value("Restaurant", {}, "name")` — the *first* restaurant, whichever that is).
 19. Backups, monitoring, an upgrade runbook.
 

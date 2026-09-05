@@ -192,6 +192,6 @@ class TestTheOldCustomerRoutesStillLand(PageTestCase):
     def test_the_whatsapp_auto_reply_links_to_the_app_itself(self):
         """It pointed at /myorders, which only bounces to /cus. One hop fewer,
         and the link in the thread stays right if the alias is ever dropped."""
-        from luuvcrm import api
-        source = frappe.read_file(api.__file__)
+        source = frappe.read_file(
+            frappe.get_app_path("luuvcrm", "api", "whatsapp.py"))
         self.assertIn("View your orders: https://luuvgrand.com/cus", source)

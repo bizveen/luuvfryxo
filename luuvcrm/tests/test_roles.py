@@ -181,15 +181,38 @@ class TestNoDuplicateRoleSets(FrappeTestCase):
     """Four copies of the role sets lived in three files and drifted apart. One
     module owns them now."""
 
-    def test_modules_take_their_roles_from_the_roles_module(self):
+    def test_no_module_declares_its_own_role_set(self):
+        """The check that keeps them from drifting apart again.
+
+        `luuvcrm.api` is a package now, so this walks every module in it rather
+        than reading one file — which is the point: 22 modules is 22 chances to
+        paste a role set back in."""
         import inspect
+        import pkgutil
+        import importlib
 
         from luuvcrm import activity, api
         from luuvcrm.www import manager
-        for module in (api, activity, manager):
+
+        modules = [activity, manager, api]
+        modules += [importlib.import_module(f"luuvcrm.api.{m.name}")
+                    for m in pkgutil.iter_modules(api.__path__)]
+        for module in modules:
             with self.subTest(module=module.__name__):
-                src = inspect.getsource(module)
-                self.assertNotIn('ROLES = {"', src,
+                self.assertNotIn('ROLES = {"', inspect.getsource(module),
                                  f"{module.__name__} declares its own role set again")
-                self.assertIn("roles", [n for n in dir(module)],
-                              f"{module.__name__} should import luuvcrm.roles")
+
+    def test_the_modules_that_gate_on_roles_get_them_from_one_place(self):
+        import importlib
+
+        from luuvcrm import activity, roles
+        from luuvcrm.www import manager
+
+        gated = [activity, manager,
+                 importlib.import_module("luuvcrm.api.approvals"),
+                 importlib.import_module("luuvcrm.api.purchases"),
+                 importlib.import_module("luuvcrm.api.reports")]
+        for module in gated:
+            with self.subTest(module=module.__name__):
+                self.assertIs(getattr(module, "roles", None), roles,
+                              f"{module.__name__} should gate through luuvcrm.roles")

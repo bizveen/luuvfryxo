@@ -25,7 +25,7 @@ Where LuuvCRM becomes software a second restaurant can install. Structural work 
 | Declare dependencies (B4) | Only matters for a fresh install. |
 | One brand from settings | Rewrites strings across all 25 pages. |
 | Collapse `/pos`, `/pos2`, `/pos3` (done) | Deleted the file the restaurant is using. Landing it on main needs the counter bookmarks re-pointed in the same close — see the note under ROADMAP §2b. |
-| Split `api.py` | 7,095 lines moving at once — merges badly with anything. |
+| Split `api.py` (done) | 7,338 lines moved at once — merges badly with anything, so it landed here in one commit. |
 | Performance work (P1–P6) | Judgement call: see below. |
 
 ## Keeping them from diverging

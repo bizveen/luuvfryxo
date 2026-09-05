@@ -19,6 +19,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from luuvcrm import api
+from luuvcrm.api import wa
 from luuvcrm.tests import fixtures as fx
 
 
@@ -157,7 +158,7 @@ class TestTheWhatsAppGateOnRegistration(CustomerAuthTestCase):
         self.assertTrue(result["success"])
 
     def test_an_unconfirmed_code_blocks_registration(self):
-        with patch.object(api, "_send_wa_reply", return_value=True):
+        with patch.object(wa, "_send_wa_reply", return_value=True):
             self.call(api.wa_send_otp, mobile=self.MOBILE)
         result = self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234", name="Sunil")
         self.assertFalse(result["success"])
@@ -166,7 +167,7 @@ class TestTheWhatsAppGateOnRegistration(CustomerAuthTestCase):
 
     def test_confirming_the_code_lets_registration_through(self):
         sent = {}
-        with patch.object(api, "_send_wa_reply", return_value=True) as send:
+        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
             self.call(api.wa_send_otp, mobile=self.MOBILE)
             sent["body"] = send.call_args[0][1]
         code = _code_from(sent["body"])
@@ -456,7 +457,7 @@ class TestSendingTheCode(CustomerAuthTestCase):
         self.addCleanup(fx.forget_customer_cache, self.MOBILE)
 
     def test_it_sends_a_four_digit_code_to_the_international_number(self):
-        with patch.object(api, "_send_wa_reply", return_value=True) as send:
+        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
             result = self.call(api.wa_send_otp, mobile=self.MOBILE)
         self.assertTrue(result["sent"])
         to, body = send.call_args[0]
@@ -465,7 +466,7 @@ class TestSendingTheCode(CustomerAuthTestCase):
         self.assertEqual(_code_from(body), frappe.cache().get_value(f"wa_otp:{self.MOBILE}"))
 
     def test_a_short_number_is_refused_before_anything_is_sent(self):
-        with patch.object(api, "_send_wa_reply", return_value=True) as send:
+        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
             result = self.call(api.wa_send_otp, mobile="0771")
         self.assertFalse(result["sent"])
         self.assertEqual(result["error"], "Valid mobile required")
@@ -475,7 +476,7 @@ class TestSendingTheCode(CustomerAuthTestCase):
         """A site with no WhatsApp Account gets False from _send_wa_reply. If a
         code were cached anyway, the soft gate on registration would then block
         a customer who can never receive one."""
-        with patch.object(api, "_send_wa_reply", return_value=False):
+        with patch.object(wa, "_send_wa_reply", return_value=False):
             result = self.call(api.wa_send_otp, mobile=self.MOBILE)
         self.assertFalse(result["sent"])
         self.assertIsNone(frappe.cache().get_value(f"wa_otp:{self.MOBILE}", expires=True))
@@ -483,7 +484,7 @@ class TestSendingTheCode(CustomerAuthTestCase):
     def test_a_second_request_inside_the_cooldown_reuses_the_first_code(self):
         """Tapping Resend twice must not invalidate the code already on the
         customer's phone — and must not send two messages."""
-        with patch.object(api, "_send_wa_reply", return_value=True) as send:
+        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
             self.call(api.wa_send_otp, mobile=self.MOBILE)
             first = _code_from(send.call_args[0][1])
             result = self.call(api.wa_send_otp, mobile=self.MOBILE)
@@ -500,7 +501,7 @@ class TestConfirmingTheCode(CustomerAuthTestCase):
         super().setUp()
         fx.forget_customer_cache(self.MOBILE)
         self.addCleanup(fx.forget_customer_cache, self.MOBILE)
-        with patch.object(api, "_send_wa_reply", return_value=True) as send:
+        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
             self.call(api.wa_send_otp, mobile=self.MOBILE)
             self.code = _code_from(send.call_args[0][1])
 
