@@ -1,11 +1,26 @@
 import frappe
 
+from luuvcrm import roles
+
 no_cache = 1
 
+
 def get_context(context):
+    """The kitchen display (/kitchen).
+
+    Kitchen Staff and anyone above them: a waiter marks food served from here,
+    and a cashier covering the pass needs it too. See roles.KITCHEN_ROLES.
+
+    This used to set `redirect_location` for a guest and then fall through
+    without raising, so the flag was set and ignored and the whole screen —
+    every open order, table by table — rendered for anyone who asked. The raise
+    is what makes a redirect a redirect.
+    """
     if frappe.session.user == "Guest":
         frappe.local.flags.redirect_location = "/pos-login?redirect=/kitchen"
-        return
+        raise frappe.Redirect
+
+    roles.require_kitchen()
 
     context.no_sidebar = True
     context.no_header = True

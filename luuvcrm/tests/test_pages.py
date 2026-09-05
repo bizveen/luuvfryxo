@@ -5,9 +5,9 @@ without anything failing: `get_context` that never checks a role still renders,
 and the screen simply works for whoever asks. So these tests call the context
 builders directly and assert on the refusal, not on the markup.
 
-`/pos` and the customer aliases for now — the rest of the route table in
-`docs/ROADMAP.md` §2b is not settled, and a test that pins a gate before the
-decision is made just has to be rewritten.
+The route table in `docs/ROADMAP.md` §2b is settled for the staff pages; the
+handful still marked undecided there are left alone, because a gate test written
+before the decision just gets rewritten.
 """
 
 import importlib
@@ -25,6 +25,11 @@ def _user(email, role):
             "send_welcome_email": 0, "roles": [{"role": role}],
         }).insert(ignore_permissions=True)
     return email
+
+
+def _as(role):
+    """A throwaway user holding exactly one role."""
+    return _user(f"lf-test-page-{role.lower().replace(' ', '-')}@example.com", role)
 
 
 class PageTestCase(FrappeTestCase):
@@ -195,3 +200,108 @@ class TestTheOldCustomerRoutesStillLand(PageTestCase):
         source = frappe.read_file(
             frappe.get_app_path("luuvcrm", "api", "whatsapp.py"))
         self.assertIn("View your orders: https://luuvgrand.com/cus", source)
+
+
+class TestTheStaffPagesAreGated(PageTestCase):
+    """A page module is the one place a guard can be forgotten without anything
+    failing: a `get_context` that never checks a role still renders, and the
+    screen simply works for whoever asks.
+
+    Four of these had a login and no role check, and `/qrcodes` had neither.
+    Each case below names what the page actually gives away.
+    """
+
+    #: page module -> (the lowest role that should get in, a role that should not)
+    GATES = {
+        "waiter":    (roles.WAITER, roles.KITCHEN_STAFF),
+        "kitchen":   (roles.KITCHEN_STAFF, None),
+        "purchases": (roles.RESTAURANT_MANAGER, roles.CASHIER),
+        "qrpromo":   (roles.RESTAURANT_MANAGER, roles.CASHIER),
+        "qrcodes":   (roles.RESTAURANT_MANAGER, roles.CASHIER),
+    }
+
+    def page(self, name):
+        return importlib.import_module(f"luuvcrm.www.{name}")
+
+    def test_a_guest_never_reaches_any_of_them(self):
+        """/kitchen used to set `redirect_location` and then fall through
+        without raising — the flag was set, ignored, and the whole screen
+        rendered for anyone who asked. /qrcodes did not even check."""
+        self.as_user("Guest")
+        for name in self.GATES:
+            with self.subTest(page=name):
+                if name == "waiter":
+                    # /waiter answers a guest with an inline login form rather
+                    # than a redirect, and must not build the menu.
+                    ctx = self.context(self.page(name))
+                    self.assertTrue(ctx.get("is_login"))
+                    self.assertIsNone(ctx.get("menu_groups"))
+                    continue
+                with self.assertRaises(frappe.Redirect):
+                    self.context(self.page(name))
+                self.assertIn("/pos-login?redirect=/", frappe.local.flags.redirect_location)
+
+    def test_the_role_the_page_is_for_gets_in(self):
+        for name, (allowed, _denied) in self.GATES.items():
+            with self.subTest(page=name, role=allowed):
+                self.as_user(_as(allowed))
+                self.context(self.page(name))
+
+    def test_a_role_the_page_is_not_for_is_refused(self):
+        for name, (_allowed, denied) in self.GATES.items():
+            if denied is None:
+                continue
+            with self.subTest(page=name, role=denied):
+                self.as_user(_as(denied))
+                with self.assertRaises(frappe.PermissionError):
+                    self.context(self.page(name))
+
+    def test_a_manager_gets_into_everything(self):
+        """The role sets are cumulative on purpose — a manager covering the
+        floor must not be locked out of the floor."""
+        self.as_user(_as(roles.RESTAURANT_MANAGER))
+        for name in self.GATES:
+            with self.subTest(page=name):
+                self.context(self.page(name))
+
+    def test_qrcodes_is_the_table_map_and_is_no_longer_public(self):
+        """It lists every table and the kiosk URL that orders against it, so
+        while it was public anyone could order to any table from anywhere."""
+        self.as_user(_as(roles.RESTAURANT_MANAGER))
+        ctx = self.context(self.page("qrcodes"))
+        self.assertIsInstance(ctx.qr_list, list)
+        for row in ctx.qr_list:
+            self.assertIn("/kiosk?table=", row["url"])
+
+
+class TestEveryStaffPageReportsItsErrors(PageTestCase):
+    """`lferr.js` is what turns "the app is being weird" into a row somebody can
+    read. It was on six pages and missing from the two the floor and the kitchen
+    actually hold — which is where the reports are worth most."""
+
+    STAFF_PAGES = ("pos", "waiter", "kitchen", "manager", "purchases", "admin",
+                   "activity", "errors")
+
+    def test_the_reporter_is_loaded(self):
+        for page in self.STAFF_PAGES:
+            html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", f"{page}.html"))
+            with self.subTest(page=page):
+                self.assertIn("/lferr.js", html)
+
+    def test_it_tags_the_rows_with_an_app_the_log_knows(self):
+        """An unrecognised `data-app` is bucketed as "other" and the /errors app
+        chips stop being able to separate one screen from another."""
+        import re
+
+        from luuvcrm import activity
+        for page in self.STAFF_PAGES:
+            html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", f"{page}.html"))
+            found = re.search(r'lferr\.js[^>]*data-app="([^"]+)"', html)
+            with self.subTest(page=page):
+                self.assertIsNotNone(found, f"{page} loads lferr.js without a data-app")
+                self.assertIn(found.group(1), activity.KNOWN_APPS)
+
+    def test_it_can_reach_the_endpoint_it_posts_to(self):
+        js = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "lferr.js"))
+        self.assertIn("/api/method/luuvcrm.api.log_client_error", js)
+        frappe.is_whitelisted(frappe.get_attr("luuvcrm.api.log_client_error"))

@@ -127,6 +127,9 @@
 </head>
 <body>
 <meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First scripts on the page so they are listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="kitchen"></script>
+<script src="/lfact.js?v=1" data-app="kitchen"></script>
 
 <div class="k-header">
   <div class="k-brand">🍳 Kitchen <span>Display</span></div>

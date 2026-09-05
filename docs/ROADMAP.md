@@ -66,27 +66,31 @@ Every page and its current gate:
 | Route | Gate today | Should be |
 |---|---|---|
 | `/pos` | login + POS roles | ✅ correct — one POS route, `/pos2` and `/pos3` deleted |
-| `/waiter` | login only | + Waiter role |
-| `/kitchen` | login only | + Kitchen Staff role |
-| `/purchases` | login only | + Manager role |
-| `/qrpromo` | login only | + Manager role |
+| `/waiter` | login + Waiter roles | ✅ correct |
+| `/kitchen` | login + Kitchen roles | ✅ correct — it used to render for a guest |
+| `/purchases` | login + Manager roles | ✅ correct |
+| `/qrpromo` | login + Manager roles | ✅ correct |
 | `/guide` | login only | token auth is correct; drop the session redirect |
 | `/manager`, `/activity`, `/errors` | login + Manager roles | ✅ correct |
 | `/admin` | login + roles | ✅ correct |
-| `/qrcodes` | **public** | + Manager role — it lists every table's kiosk URL |
+| `/qrcodes` | login + Manager roles | ✅ correct — it was public, and it lists every table's kiosk URL |
 | `/cus` | guest, token auth | ✅ correct |
 | `/customer`, `/myorders`, `/my_orders` | public | ✅ correct — 301 aliases to `/cus`, kept for links already sent |
 | `/kiosk`, `/order`, `/track`, `/menu`, `/home`, `/claim`, `/pos-login` | public | ✅ correct |
 | `/app2` | public | **delete** — see below |
 
-- [ ] Add the four missing role gates (`/waiter`, `/kitchen`, `/purchases`, `/qrpromo`) and fix `/qrcodes`.
+- [x] **Added the four missing role gates and fixed `/qrcodes`.** `/waiter` → `require_waiter()`, `/kitchen` → `require_kitchen()`, `/purchases` and `/qrpromo` → `require_manager()`, `/qrcodes` → a login redirect it never had plus `require_manager()`. Two were worse than "missing a role check":
+  - **`/kitchen` rendered in full to a logged-out stranger.** It set `frappe.local.flags.redirect_location` for a guest and then fell through without raising, so the flag was set and ignored: 200, 27 KB, every open order table by table. The raise is what makes a redirect a redirect.
+  - **`/qrcodes` was public and is the table map** — every table and the kiosk URL that orders against it, so anyone who loaded it could order to any table without being in the building.
+
+  9 tests in `test_pages.py`, and the guest path re-checked through the real renderer: all five now 301 to `/pos-login`, except `/waiter`, which answers with its inline login form and builds no menu.
 - [ ] **Delete `/app2`.** It re-hosted the Frappe desk to work around `luuvcrm/www/app.py` shadowing `/app`. That file no longer exists, and none of the three hooks its own docstring says it needs (`website_route_rules`, `on_session_creation`) are wired in `hooks.py` — so `redirect_desk_login` is dead code and the route is vestigial.
 - [x] **`/customer`, `/myorders`, `/my_orders`.** They were never duplicate apps — all three already 301 to `/cus`, and had since the PWA moved there. What was actually there was 841 lines of stale HTML: `myorders.html` (530) and `my_orders.html` (311) were copies of the retired order-history page, sitting behind a `get_context` that raises `frappe.Redirect` before a template is ever reached, so they read as live and rendered never. Both are five-line stubs now, matching `customer.html`, and the three redirects share one `redirect_to_cus()` in `cus.py` instead of three copies of the same query-string handling.
   **They stay as aliases, not deletions** — each is a link already in customers' hands: `/customer?phone=` in WhatsApp threads, `?promo=` on printed QR stickers. The WhatsApp auto-reply, which still pointed at `/myorders`, now links `/cus` directly. 5 tests in `test_pages.py`.
 - [x] **Collapse the three POS pages.** pos3 was the complete one — the tablet layer, the iMin printer bridge and the Google-Docs print layouts all landed there and were never ported back — so it is what `/pos` now serves. `pos.html`/`pos.py` (superseded) and `pos2.html`/`pos2.py` (previously live) are deleted, `KNOWN_APPS` carries one `"pos"`, and `/admin`'s POS tile, the `get_print_templates` dotted path and the 401/403 redirect all point at `/pos`. Two things fell out of it: the staging **print-only guard is gone** (a switch that silently stops the till taking money has no place on the till), and with it a redeclared `guestCheckClick` that shadowed the real one — the counter had been getting "Send to kitchen first" where pos2 autosaved the ticket. 11 tests in `test_pages.py`.
   - [ ] **Before this reaches the live site:** every counter tablet has `/pos2` bookmarked and will 404. Either re-point the bookmarks during a close, or add a one-line `/pos2` → `/pos` redirect page for one release and delete it after.
 - [ ] Write the surviving route table into `DEVELOPER_GUIDE.md` so the next person does not have to reverse-engineer it.
-- [~] Test: one test asserting every page module's context builder enforces its expected gate. `test_pages.py` does it for `/pos` — guest redirected to `/pos-login?redirect=/pos`, a Kitchen Staff user refused, a Cashier served. Extend it to the rest once the table above is settled; a gate test written before the decision just gets rewritten.
+- [~] Test: one test asserting every page module's context builder enforces its expected gate. `test_pages.py` covers `/pos`, `/waiter`, `/kitchen`, `/purchases`, `/qrpromo` and `/qrcodes` — for each, a guest turned away, the role the page is for let in, and a role it is not for refused. Still to add once the rows above are decided: `/guide`, `/manager`, `/activity`, `/errors`, `/admin`, and the public pages.
 
 ---
 
@@ -217,7 +221,7 @@ The pivotal work. Nothing after this is possible without it.
 - [x] **Split `api.py` into a package.** 7,338 lines became `luuvcrm/api/`, 22 modules, largest `orders.py` at 807. Every one of the 144 whitelisted paths still resolves — `luuvcrm.api.place_order` and the rest are strings in pages, in `hooks.py`, in WhatsApp links already sent, so `__init__.py` re-exports all 261 names and the test asserts `frappe.get_attr` returns the *same function object*, which is what `is_whitelisted` needs. Three import rings turned out to be misplacements and were fixed rather than worked around: `_block_self_approval` is a permission rule and moved to `roles.py`, `promo_status` was a promo endpoint sitting among the customer ones, `PROMO_WA_NUMBER` is the restaurant's WhatsApp number rather than a promo detail and moved to `api/wa.py`. Sending a WhatsApp message now has one seam (`wa._send_wa_reply`) instead of four bound copies — a test that stubbed the sender used to stub only its own module's. 8 tests in `test_api_package.py`, including a 1,000-line tripwire per module.
 - [x] **The front-end error log was never wired up.** `log_client_error`, `get_client_errors`, `resolve_client_error` and `clear_client_errors` did not exist — not in the package, not in the 7,338-line file before it. `lferr.js` is the first script on every staff PWA and posts each front-end error to `luuvcrm.api.log_client_error` inside a fire-and-forget try/catch, so every report had 404'd in silence for the reporter's whole life; `/errors` and the `/admin` badge answered nothing. The alarm was off, and an app with the alarm off looks exactly like an app with no errors. Written in `luuvcrm/api/errors.py` against the contract the pages already speak, with the `LF Client Error` DocType installed the same runtime way as `LF Activity Log`. Rows are keyed by a fingerprint of (app, kind, message, source, line) so a render loop on eight tills is one row with a count, not thousands; reads are manager-gated because a row carries a stack trace, a page URL, a user id and a device string; and a daily purge drops fixed rows after 30 days and open ones after 180. 35 tests in `test_client_errors.py`.
 - [ ] **`get_my_network` and `/network` belong to the other product.** `network.html` is titled "My Network — Zeloura Collective" and calls `luuvcrm.api.get_my_network`, which does not exist. Left alone deliberately: it is part of the Zeloura fashion-site code whose fate is a Phase 6 decision, and writing the endpoint would be building on something that may be deleted.
-- [ ] **`lferr.js` is missing from `/waiter` and `/kitchen`.** Its own docstring lists waiter among the pages that load it; the tag is not in either file. Those two are the screens the floor and the kitchen actually hold, so they are the errors most worth catching.
+- [x] **`lferr.js` on `/waiter` and `/kitchen`.** It was on six pages and missing from the two the floor and the kitchen actually hold. Added with `lfact.js` alongside it, in the same order `pos.html` uses — the CSRF meta first, then the reporters, before any of the page's own script can throw. A test now asserts every staff page loads it and tags rows with an app `KNOWN_APPS` recognises.
 - [ ] Decide the fate of `zeloura_api.py` and the `Zeloura Theme` / `Zeloura Product` fashion-site code. It appears to belong to a different product.
 - [ ] Move the 14 `check_*` / `debug_*` / `fix_*` scratch scripts out of the importable package.
 - [ ] Serve one copy of the 70 MB print APK, from `public/`; delete the `www/` duplicate.

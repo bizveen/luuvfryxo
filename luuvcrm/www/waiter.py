@@ -1,10 +1,13 @@
 import frappe
 from itertools import groupby
+from luuvcrm import roles
 from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
 
 def get_context(context):
+    """The waiter PWA (/waiter). Waiter and anyone above — see roles.WAITER_ROLES;
+    a cashier covering the floor can take orders too."""
     context.no_sidebar = True
     context.no_header = True
     context.no_footer = True
@@ -24,6 +27,8 @@ def get_context(context):
             context["custom_login_html"] = html
             context["is_login"] = True
         return
+
+    roles.require_waiter()
 
     user = frappe.session.user
     context.current_user_full = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()

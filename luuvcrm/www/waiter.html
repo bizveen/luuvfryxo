@@ -308,6 +308,9 @@
 </head>
 <body>
 <meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First scripts on the page so they are listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="waiter"></script>
+<script src="/lfact.js?v=1" data-app="waiter"></script>
 
 <!-- Header -->
 <div class="w-header">
