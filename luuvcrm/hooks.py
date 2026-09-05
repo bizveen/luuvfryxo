@@ -37,3 +37,13 @@ doc_events = {
         "after_insert": "luuvcrm.api.process_wa_reply",
     },
 }
+
+# Stamp the branch on every row this app owns, on the way in. A field somebody
+# has to remember to set is a field that ends up empty, and an empty branch is a
+# row that stays visible to every branch. See luuvcrm/branch.py.
+for _branched in (
+    "POS Order", "Purchase Bill", "Expense", "Wastage",
+    "POS Approval", "POS Cash Movement", "LF Activity Log",
+):
+    doc_events.setdefault(_branched, {})["before_insert"] = "luuvcrm.branch.stamp"
+del _branched

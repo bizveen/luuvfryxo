@@ -1,6 +1,8 @@
-import frappe
 from itertools import groupby
-from luuvcrm import roles
+
+import frappe
+
+from luuvcrm import branch, roles
 from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
@@ -33,7 +35,7 @@ def get_context(context):
     user = frappe.session.user
     context.current_user_full = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()
 
-    restaurant_name = frappe.get_value("Restaurant", {}, "name")
+    restaurant_name = branch.current()
     context.menu_groups = []
     context.tables = []
     context.service_charge_rate = 0

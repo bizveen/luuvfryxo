@@ -1,5 +1,8 @@
-import frappe
 from itertools import groupby
+
+import frappe
+
+from luuvcrm import branch
 from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
@@ -9,7 +12,7 @@ def get_context(context):
     context.no_header = True
     context.no_footer = True
 
-    restaurant_name = frappe.get_value("Restaurant", {}, "name")
+    restaurant_name = branch.current()
     context.restaurant = None
     context.menu_groups = []
     context.opening_time = "11:00 AM"

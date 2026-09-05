@@ -120,14 +120,24 @@ Get the roles and DocPerms right, then flip. Not the other way round.
 
 ### The work
 
+**Done so far: the safe half.** The field exists, rows are stamped and backfilled,
+and nothing asks for "the first restaurant" any more. None of it changes what
+anyone can see — on a one-restaurant site every path returns exactly what it
+returned before, and there are tests that say so. What is left is the half that
+changes visibility, and it is sequenced deliberately: see *What has to be true
+first* above.
+
+
 - [ ] **Decide what a branch is.** Recommended: one **ERPNext Company per restaurant**, with the `Restaurant` record linking to it, plus a POS Profile per branch carrying that company's Warehouse and Cost Center. ERPNext is natively multi-company, so invoices, stock and P&L scope themselves.
-- [ ] Add a `restaurant` Link field to `POS Order`, `Purchase Bill`, `Expense`, `Wastage`, `POS Approval`, `POS Cash Movement` and `LF Activity Log`. Today **none of them have one** — only `Restaurant Table` links to `Restaurant`, so a takeaway order belongs to no branch at all.
-- [ ] Default it from the user's POS Profile on insert. Never a dropdown the cashier has to remember.
-- [ ] Replace the 14 `frappe.get_value("Restaurant", {}, "name")` lookups — *the first restaurant, whichever it is* — with the branch resolved from the session (`api.py:13, 115, 3082, 6002` and nine page context builders).
+- [x] **`restaurant` Link field on all seven doctypes**, in `luuvcrm/branch.py`, installed by `luuvcrm/patches/v1_0/add_branch_field.py`. Read-only: it is stamped, never typed.
+  **Watch this one.** `create_custom_field` adds the column itself for a Custom DocType but *not* for one that lives in the repo, where it stays metadata until the next schema sync — and `POS Order` is a repo doctype. It failed exactly that way first time, in the worst available manner: the field was in the meta, so a save set it and the value went nowhere, and a `has_column`-based "is everything branched?" check read a clean zero. `ensure_branch_field()` now calls `frappe.db.updatedb()` for any doctype whose meta has the field and whose table does not, and there is a test for the column rather than the field.
+- [x] **Stamped on insert** by `branch.stamp`, wired in `hooks.py` as `before_insert` for all seven. It never raises: a row that fails to get a branch is a reporting problem, a row that fails to save is a cashier who cannot sell.
+- [x] **All 14 replaced with `branch.current()`**, which resolves in this order, each step a stronger statement than the next: a User Permission on `Restaurant` → the open shift's POS Profile, through its company → any POS Profile assigned to the user → the only Restaurant, if there is exactly one. There is deliberately no "first of several" step: with two restaurants and nothing to go on it returns `None`, because a wrong branch is worse than no branch — nothing anywhere would say so. A test greps for the old call so it cannot come back.
 - [ ] Convert the 51 `frappe.get_all` calls to `frappe.get_list`, after the DocPerms above are right. Verified: `get_list` does **not** truncate — `limit_page_length` is `None` unless passed (`db_query.py:380`), despite what its docstring says.
-- [ ] Create the `Restaurant Owner` role. No User Permission for it.
+- [x] Create the `Restaurant Owner` role. No User Permission for it — done in Phase 2a (`roles.ensure_roles()`, `patches/v1_0/create_roles.py`). `branch.current()` already relies on the *absence* of a User Permission meaning "every branch", so the Owner needs no code of its own.
 - [ ] Give each Restaurant Manager a User Permission on their `Restaurant`.
 - [ ] Make the manager reports branch-aware, with an all-branches roll-up that only Owner sees.
+- [ ] **Decide how a public page picks its branch.** `/menu`, `/home`, `/order`, `/kiosk` and `/cus` have no session user, so `branch.current()` falls through to "the only restaurant" and returns `None` the day there are two — a blank menu rather than the wrong one, which is the right failure but not an answer. They need the branch in the URL (a per-branch link, or `/kiosk?table=` already implies one). Surfaced by the resolver; not a problem that existed while there was one restaurant.
 - [ ] **Test: a two-restaurant fixture, asserting a manager of branch A sees no order, bill, expense, approval or activity row from branch B — and that Owner sees both.** That test is what makes the Owner role real rather than cosmetic.
 
 ### Migrating the live restaurant safely
@@ -143,9 +153,10 @@ else:
 
 **A row whose link field is empty stays visible to everyone.** So:
 
-- [ ] Adding the field to live data is safe on its own — every existing row is NULL, so nothing disappears from anybody's screen. Do this first and let it settle.
-- [ ] **Backfill** every existing row to the live restaurant, in a patch. Until that is done, isolation is incomplete: legacy rows leak across branches precisely because they are empty.
-- [ ] Verify zero NULLs in every table before relying on the isolation.
+- [x] Adding the field is done and is safe on its own — every existing row is NULL, so nothing disappears from anybody's screen while `apply_strict_user_permissions` is off.
+- [x] **Backfill written** (`branch.backfill()`, run by the same patch). It defaults to the only restaurant and refuses to guess once there are two — at that point somebody has to say which of them the history belongs to. On the test site it filled 152 rows across Purchase Bill, POS Approval and LF Activity Log.
+  **A bug worth remembering:** the first version selected the empty rows with `{restaurant: ["in", [None, ""]]}`, which cannot match anything — in SQL `NULL IN (NULL)` is NULL, not true — so it reported filling zero rows and `unbranched()` reported a clean all-good. The filter is `["is", "not set"]`, which builds `ifnull(field, '') = ''`. Same failure shape as the missing column above: the check that says "done" is the one that has to be hardest to fool.
+- [x] `branch.unbranched()` is that check, and it counts a doctype whose column is *missing* as every row unbranched rather than skipping it — skipping is how a half-installed field reads as a clean zero. Currently `{}` on the test site.
 - [ ] Keep **`apply_strict_user_permissions` OFF** until the backfill is verified. Turning it on flips that `ifnull` branch off and every un-backfilled row vanishes for every non-Owner at once. Consider turning it on afterwards — with it off, a row that somehow loses its branch silently becomes visible to all.
 - [ ] Order of operations on the live site: add field → backfill → verify → create the second Restaurant → assign POS Profiles → grant User Permissions. Never create the second restaurant before the backfill.
 

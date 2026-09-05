@@ -1,4 +1,4 @@
-﻿import frappe
+import frappe
 
 from luuvcrm import roles
 

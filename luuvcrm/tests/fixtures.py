@@ -11,6 +11,8 @@ rather than something that looks like real data.
 import frappe
 from frappe.utils import add_days, today
 
+from luuvcrm import branch
+
 PREFIX = "_LFT-"
 
 
@@ -99,7 +101,7 @@ def menu_rate(case, item_code, rate):
     `delete from tabItem Price where price_list = %s` — which would wipe prices
     the test (and anything else on the site) depends on.
     """
-    restaurant = frappe.get_value("Restaurant", {}, "name")
+    restaurant = branch.current()
     menu_name = frappe.db.get_value("Restaurant", restaurant, "active_menu")
     if not menu_name:
         raise RuntimeError("the test site has no active Restaurant Menu")
@@ -131,7 +133,7 @@ def forget_menu_cache():
 
 def service_charge(case, percent):
     """Set the restaurant's service charge for one test and put it back after."""
-    restaurant = frappe.get_value("Restaurant", {}, "name")
+    restaurant = branch.current()
     previous = frappe.db.get_value("Restaurant", restaurant, "service_charge")
     frappe.db.set_value("Restaurant", restaurant, "service_charge", percent)
     case.addCleanup(frappe.db.set_value, "Restaurant", restaurant, "service_charge", previous)

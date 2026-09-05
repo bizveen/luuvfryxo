@@ -6,11 +6,13 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 
+from luuvcrm import branch
+
 
 # ─── Helpers ────────────────────────────────────────────
 
 def _get_service_charge_rate():
-    restaurant_name = frappe.get_value("Restaurant", {}, "name")
+    restaurant_name = branch.current()
     if not restaurant_name:
         return 0.0
     return float(frappe.db.get_value("Restaurant", restaurant_name, "service_charge") or 0)
@@ -101,7 +103,7 @@ def _menu_row_rates():
         return cached
     rates = {}
     try:
-        restaurant = frappe.get_value("Restaurant", {}, "name")
+        restaurant = branch.current()
         active_menu = frappe.db.get_value("Restaurant", restaurant, "active_menu") if restaurant else None
         if active_menu:
             for row in frappe.get_all("Restaurant Menu Item",

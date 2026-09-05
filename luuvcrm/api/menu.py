@@ -6,7 +6,7 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 from frappe import _
-from luuvcrm import roles
+from luuvcrm import branch, roles
 
 from luuvcrm.api.pricing import _get_pos_price_list, _resolve_item_rate
 
@@ -100,7 +100,7 @@ def setup_item_addons():
 
 
 def _active_menu_doc():
-    restaurant_name = frappe.get_value("Restaurant", {}, "name")
+    restaurant_name = branch.current()
     active = frappe.get_value("Restaurant", restaurant_name, "active_menu") if restaurant_name else None
     if not active:
         frappe.throw(_("No active menu is configured on the Restaurant"))

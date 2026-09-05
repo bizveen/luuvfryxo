@@ -7,6 +7,8 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 import frappe
 from frappe.utils import now_datetime
 
+from luuvcrm import branch
+
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
     _get_pos_price_list,
@@ -28,7 +30,7 @@ from luuvcrm.api.shifts import (
 
 @frappe.whitelist(allow_guest=True)
 def get_menu_data():
-    restaurant_name = frappe.get_value("Restaurant", {}, "name")
+    restaurant_name = branch.current()
     items = []
     tables = []
     restaurant = frappe.get_doc("Restaurant", restaurant_name) if restaurant_name else None

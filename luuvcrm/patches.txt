@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 luuvcrm.patches.v1_0.create_roles
 luuvcrm.patches.v1_0.grant_pos_permissions
+luuvcrm.patches.v1_0.add_branch_field
