@@ -33,7 +33,9 @@ from frappe.utils import now_datetime, cint, flt
 DOCTYPE = "LF Activity Log"
 
 # Apps we accept in the `app` column. Anything else is stored as "other".
-KNOWN_APPS = {"app", "app2", "pos2", "pos3", "waiter", "manager", "kitchen", "purchases", "admin",
+# "pos2"/"pos3" are gone with the pages; rows already written keep their old
+# value, since this set only normalises what is being written now.
+KNOWN_APPS = {"app", "app2", "pos", "waiter", "manager", "kitchen", "purchases", "admin",
               "cus", "kiosk", "guide", "qrpromo", "errors", "activity", "server"}
 
 # ─── Flag rules (the "human error" detector) ──────────────────────────────
@@ -603,7 +605,7 @@ KEEP_DAYS_FLAGGED = 365
 
 def purge_activity_log():
     """Daily scheduler job: plain rows older than 90 days, flagged rows older than
-    a year. pos2 writes a lot and this runs on a small VPS."""
+    a year. The POS writes a lot and this runs on a small VPS."""
     try:
         if not frappe.db.exists("DocType", DOCTYPE):
             return

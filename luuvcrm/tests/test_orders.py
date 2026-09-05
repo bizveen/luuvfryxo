@@ -149,7 +149,7 @@ class TestUpdateOrder(OrderTestCase):
         self.assertEqual(int(order.items[0].sent_qty), 1)
 
     def test_it_keeps_the_waiter_note_the_cashier_does_not_resend(self):
-        """pos2 does not send notes back; without this a cashier autosave would
+        """The POS does not send notes back; without this a cashier autosave would
         wipe 'no chilli' off the kitchen ticket."""
         order = self.order([{"item": self.burger, "qty": 1, "notes": "no chilli"}])
         self.call(api.update_order, order_name=order.name,
@@ -166,7 +166,7 @@ class TestUpdateOrder(OrderTestCase):
                       expected_table="_LFT-Some-Other-Table",
                       items=json.dumps([{"item": self.burger, "qty": 5}]))
         self.assertIn("order-table-mismatch", str(caught.exception),
-                      "pos2 matches on this marker to reset and refresh")
+                      "the POS matches on this marker to reset and refresh")
         order.reload()
         self.assertEqual(order.items[0].qty, 1, "the order must be untouched")
 

@@ -1911,7 +1911,7 @@ def update_order():
     This was allow_guest=True. Since POS Order names are a guessable sequence,
     that let anyone on the internet rewrite any open bill's items, quantities,
     customer and phone — and the rebuild is then pushed into the linked invoice
-    below. Only /pos, /pos2 and /pos3 call this, and all three are behind a
+    below. Only /pos calls this, and it is behind a
     login, so the guard costs nothing.
 
     The save below runs under the caller's own permissions. It used to pass
@@ -1944,7 +1944,7 @@ def update_order():
     # Guard against the table-swap race: the client says which table it THINKS
     # this order is on; if the order actually belongs to another table, refuse
     # the full-items rebuild instead of silently mixing tickets. The marker
-    # "order-table-mismatch" is matched by pos2.html to reset + refresh.
+    # "order-table-mismatch" is matched by pos.html to reset + refresh.
     expected_table = (data.get("expected_table") or "").strip()
     if expected_table and (pos_order.restaurant_table or "") != expected_table:
         frappe.throw(_("order-table-mismatch: Order {0} is on {1}, not {2} — refresh the table view").format(
@@ -1957,9 +1957,9 @@ def update_order():
     # Preserve per-line "already fired to kitchen" qty across the full items rebuild,
     # so a re-print of the KOT shows only the newly added items.
     # Keyed by (item, takeaway) so a same-item dine-in/takeaway split keeps each line's fired qty.
-    # Also preserve each line's per-item note (pos2 doesn't send notes back, so without this a
+    # Also preserve each line's per-item note (the POS doesn't send notes back, so without this a
     # cashier autosave would wipe the waiter's kitchen instructions). Distinct notes for the same
-    # (item, takeaway) group are joined, since pos2 folds them into a single cart line.
+    # (item, takeaway) group are joined, since the POS folds them into a single cart line.
     _ensure_item_notes_field()
     sent_map = {}
     notes_map = {}
@@ -2045,7 +2045,7 @@ def update_order():
 @frappe.whitelist()
 def get_order_changelog(order_name):
     """Edit history of an order. Staff only — it names the user behind each edit,
-    so it was never something to hand a guest. Only /pos, /pos2 and /pos3 call it."""
+    so it was never something to hand a guest. Only /pos calls it."""
     roles.require_pos()
     if not order_name:
         return {"changelog": []}
@@ -4499,7 +4499,7 @@ def create_expense():
     """Record an expense and route it to the manager for approval.
 
     Deliberately does NOT write a POS Cash Movement. The drawer's expected cash is computed in two
-    places that must agree — pos2's close dialog (client-side) and ERPNext's expected_amount — and
+    places that must agree — the POS close dialog (client-side) and ERPNext's expected_amount — and
     neither accounts for pay-outs. Subtracting an expense in only one of them is worse than in
     neither, so an expense is a record, not a till movement. The shift is stored for context only.
     """
@@ -5489,7 +5489,7 @@ def get_order_flags(order_name):
 def setup_item_addons():
     """Create the `POS Item Addon` mapping DocType (idempotent). One row = one
     add-on offered with a menu item; manage rows from Desk (/app/pos-item-addon).
-    pos2 reads enabled rows and pops an add-on picker when the item is added."""
+    The POS reads enabled rows and pops an add-on picker when the item is added."""
     frappe.only_for("System Manager")
     if frappe.db.exists("DocType", "POS Item Addon"):
         return {"created": False, "exists": True}
@@ -6054,7 +6054,7 @@ def promo_status():
 
 # ─── Manager menu settings (/manager Settings tab: add/edit menu items) ──────
 # Price writes go to Item Price in the POS selling price list because that is
-# the authority in _resolve_item_rate — pos2/app/kiosk all resolve through it,
+# the authority in _resolve_item_rate — pos/app/kiosk all resolve through it,
 # so an edit here shows up on the POS on its next page load.
 
 
@@ -6254,7 +6254,7 @@ def route_app_requests():
 # automatic cashback: each partner's OWN percent of the bill, credited when the
 # bill is paid (place_order / process_payment / pay_split). Balances are paid
 # out later by a manager. Payouts are record-only — never a POS Cash Movement,
-# for the same reason create_expense() stays out of the drawer: pos2's
+# for the same reason create_expense() stays out of the drawer: the POS's
 # client-side close reconciliation and ERPNext's expected_amount both ignore
 # drawer pay-outs, so writing one would make the close look short.
 # Guides are external people — no Frappe Users. The /guide PWA authenticates
@@ -6826,7 +6826,7 @@ def guide_detail(guide=None):
 @frappe.whitelist(methods=["POST"])
 def record_guide_payout(guide=None, amount=None, note=""):
     """Pay a guide part/all of their balance. RECORD-ONLY: this deliberately
-    does NOT write a POS Cash Movement — pos2's client-side close recon and
+    does NOT write a POS Cash Movement — the POS's client-side close recon and
     ERPNext's expected_amount both ignore drawer pay-outs (same rationale as
     create_expense), so the drawer is left untouched and the payout lives only
     in the guide's ledger."""
@@ -6876,7 +6876,7 @@ def update_guide(guide=None, guide_name=None, role=None, percent=None, status=No
 
 # ─── Thermal print formats: FOOD / BEVERAGES / TAKEAWAY sections ────────────
 # The three DB Print Formats are the PRIMARY print path (render_pos_print);
-# pos2's built-in builders are only the fallback. Their HTML lives here so it
+# The POS's built-in builders are only the fallback. Their HTML lives here so it
 # is version-controlled; setup_print_sections() pushes it into the DB docs.
 # The Jinja classifier mirrors _is_beverage_item(): Item Group first, item-name
 # keywords as fallback. Section headers print only when >1 section has items.

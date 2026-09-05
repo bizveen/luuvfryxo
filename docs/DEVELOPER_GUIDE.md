@@ -39,7 +39,7 @@ frappe v15.119  →  erpnext v15.120  →  hospitality  →  luuvcrm
 
 ### Things to know before you touch anything
 
-- **`/pos2` is the live POS.** `/pos3` is a staging copy that was meant to be temporary and is now the largest file in the project; `/pos` is the superseded original. Read the docstring at the top of `www/pos3.py` before editing either.
+- **`/pos` is the POS.** There is one. There used to be three (`/pos`, `/pos2` and the `/pos3` staging copy); pos3 had all the work, so it became `/pos` and the other two were deleted. Read the header comment at the top of `www/pos.html` before editing it — the tablet layer, the printer bridge and the Google-Docs print layouts are all documented there.
 - **`/myorders` and `/my_orders` are two live copies of the same screen.** So are `/customer` and `/cus`. Check which one the client is actually using before you fix a bug in one.
 - **The brand is hard-coded.** "Luuv Fryxo" appears in every page; `hooks.py` says "Zeloura"; the app is `luuvcrm`. Same product, three names.
 - **`zeloura_api.py` and `zeloura/` clothing code** (`Zeloura Theme`, `Zeloura Product`, `get_landing`) are from a different product. Confirm with the owner before removing.
@@ -118,7 +118,7 @@ bench --site dev.localhost execute luuvcrm.add_seed_data.run
 
 ### Verify
 
-Log in, then open `/admin` — it links every sub-app. `/pos2` should show your menu and tables. If prices are 0, your `Item Price` rows are missing or expired (`_resolve_item_rate`, `api.py:70`, requires `selling=1` and a valid date range).
+Log in, then open `/admin` — it links every sub-app. `/pos` should show your menu and tables. If prices are 0, your `Item Price` rows are missing or expired (`_resolve_item_rate`, `api.py:70`, requires `selling=1` and a valid date range).
 
 ---
 
@@ -270,7 +270,7 @@ Before any site serves real money:
 
 ### 4.4 The print companion
 
-`luuvcrm-print.apk` (70 MB) is an Android app that bridges the browser to an iMin thermal printer. Two byte-identical copies exist, in `public/` and `www/` — serve the `public/` one and delete the other. `pos3.html` reads `localStorage['lf_paper_cols']` for the paper width (32 for 58 mm, 48 for 80 mm).
+`luuvcrm-print.apk` (70 MB) is an Android app that bridges the browser to an iMin thermal printer. Two byte-identical copies exist, in `public/` and `www/` — serve the `public/` one and delete the other. `pos.html` reads `localStorage['lf_paper_cols']` for the paper width (32 for 58 mm, 48 for 80 mm).
 
 ---
 
@@ -279,11 +279,11 @@ Before any site serves real money:
 | Task | File |
 |---|---|
 | Add a POS endpoint | `luuvcrm/api.py` |
-| Change POS behaviour | `luuvcrm/www/pos2.html` (**not** pos3 or pos) |
+| Change POS behaviour | `luuvcrm/www/pos.html` |
 | Change the manager app | `luuvcrm/www/manager.html` + `manager.py` |
 | Change purchasing / approvals | `luuvcrm/www/purchases.html` + `api.py` purchases section |
 | Change the kitchen display | `luuvcrm/www/kitchen.html` |
-| Change receipt or KOT layout | `get_receipt_print_data` / `get_kot_print_data` in `api.py`; `LFTemplate` in `pos3.html` |
+| Change receipt or KOT layout | `get_receipt_print_data` / `get_kot_print_data` in `api.py`; `LFTemplate` in `pos.html` |
 | Add a staff-action log entry | `luuvcrm.activity.log_activity` |
 | Change the order schema | `luuvcrm/zeloura/doctype/pos_order/pos_order.json` |
 | Add a scheduled job | `hooks.py` → `scheduler_events` |
@@ -296,6 +296,6 @@ Before any site serves real money:
 
 1. Read `PRODUCTION_READINESS.md` end to end.
 2. Get a local site running (§2) — the manual bootstrap will teach you the data model faster than reading will.
-3. Place an order on `/pos2`, watch it on `/kitchen`, pay it, print the receipt. Then find that flow in `api.py`.
+3. Place an order on `/pos`, watch it on `/kitchen`, pay it, print the receipt. Then find that flow in `api.py`.
 4. Fix the four critical security findings. They are small, they are well-defined, and they are the fastest way to learn the request path.
 5. Only then start on the schema-into-the-repo work. It is the largest job and everything else waits on it.

@@ -41,7 +41,7 @@ Done — `luuvcrm/roles.py`, commit below. The four role sets that lived in thre
   |---|---|---|---|
   | **Kitchen Staff** | Kitchen | `/kitchen` — advance order status | Everything else |
   | **Waiter** | Floor | `/waiter` — take and amend own orders | Take payment, see the day's totals |
-  | **Cashier** | Counter | `/pos2` — sell, take payment, open/close shift | See reports, approve anything |
+  | **Cashier** | Counter | `/pos` — sell, take payment, open/close shift | See reports, approve anything |
   | **Restaurant Manager** | Branch manager | `/manager`, `/purchases`, `/activity`, `/errors`, menu, approvals — **for their own branch** | See other branches, change schema |
   | **Restaurant Owner** | Owner | Everything a manager can, **across every branch**, plus consolidated reporting | Change schema |
   | **System Manager** | Developer / installer | Frappe's own admin role: create doctypes, migrate, edit permissions, manage users | — *not a business role* |
@@ -65,7 +65,7 @@ Every page and its current gate:
 
 | Route | Gate today | Should be |
 |---|---|---|
-| `/pos`, `/pos2`, `/pos3` | login + POS roles | **one** POS route |
+| `/pos` | login + POS roles | ✅ correct — one POS route, `/pos2` and `/pos3` deleted |
 | `/waiter` | login only | + Waiter role |
 | `/kitchen` | login only | + Kitchen Staff role |
 | `/purchases` | login only | + Manager role |
@@ -83,9 +83,10 @@ Every page and its current gate:
 - [ ] Add the four missing role gates (`/waiter`, `/kitchen`, `/purchases`, `/qrpromo`) and fix `/qrcodes`.
 - [ ] **Delete `/app2`.** It re-hosted the Frappe desk to work around `luuvcrm/www/app.py` shadowing `/app`. That file no longer exists, and none of the three hooks its own docstring says it needs (`website_route_rules`, `on_session_creation`) are wired in `hooks.py` — so `redirect_desk_login` is dead code and the route is vestigial.
 - [ ] Delete `/customer`, and one of `/myorders` / `/my_orders`. Check the live site's traffic first to see which one customers actually reach.
-- [ ] **Collapse the three POS pages.** `/pos2` is live, `/pos` is superseded, `/pos3` is a staging copy whose own docstring says it is throwaway — and which is now the largest file in the project. Decide which survives, port anything missing, delete the other two, and drop `pos3` from `KNOWN_APPS` in `activity.py`.
+- [x] **Collapse the three POS pages.** pos3 was the complete one — the tablet layer, the iMin printer bridge and the Google-Docs print layouts all landed there and were never ported back — so it is what `/pos` now serves. `pos.html`/`pos.py` (superseded) and `pos2.html`/`pos2.py` (previously live) are deleted, `KNOWN_APPS` carries one `"pos"`, and `/admin`'s POS tile, the `get_print_templates` dotted path and the 401/403 redirect all point at `/pos`. Two things fell out of it: the staging **print-only guard is gone** (a switch that silently stops the till taking money has no place on the till), and with it a redeclared `guestCheckClick` that shadowed the real one — the counter had been getting "Send to kitchen first" where pos2 autosaved the ticket. 11 tests in `test_pages.py`.
+  - [ ] **Before this reaches the live site:** every counter tablet has `/pos2` bookmarked and will 404. Either re-point the bookmarks during a close, or add a one-line `/pos2` → `/pos` redirect page for one release and delete it after.
 - [ ] Write the surviving route table into `DEVELOPER_GUIDE.md` so the next person does not have to reverse-engineer it.
-- [ ] Test: one test asserting every page module's context builder enforces its expected gate. This is the test that stops a new page shipping ungated.
+- [~] Test: one test asserting every page module's context builder enforces its expected gate. `test_pages.py` does it for `/pos` — guest redirected to `/pos-login?redirect=/pos`, a Kitchen Staff user refused, a Cashier served. Extend it to the rest once the table above is settled; a gate test written before the decision just gets rewritten.
 
 ---
 
@@ -205,7 +206,7 @@ The pivotal work. Nothing after this is possible without it.
 - [ ] **P2** Move activity logging off the request path — `frappe.enqueue`, or a direct parameterised INSERT instead of a full ORM document plus its own `db.commit()`.
 - [ ] **P3** Add limits to the 50 unbounded `frappe.get_all` calls.
 - [ ] **P4** Add indexes on `POS Order.mobile`, `.restaurant_table`, `.pos_invoice`, `Purchase Bill.status`, `LF Activity Log.flag`. Confirm with `EXPLAIN` first.
-- [ ] **P5** Extend `www/sw.js` to the pages that are actually live — it caches `/pos`, not `/pos2`. Add an asset build; `pos3.html` is 220 KB unminified.
+- [~] **P5** `www/sw.js` caches `/pos`, which is now the live page — that half fixed itself when the three POS pages collapsed into one. Still to do: an asset build. `pos.html` is 220 KB unminified.
 - [ ] **P6** Pause the 30 polling timers on `document.hidden`.
 
 ---

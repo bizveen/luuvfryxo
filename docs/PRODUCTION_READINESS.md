@@ -17,9 +17,7 @@ Everything in this report is reproducible against the current tree; file and lin
 
 | Surface | Route | Audience | State |
 |---|---|---|---|
-| POS (live) | `/pos2` | Cashier | Production |
-| POS (staging copy) | `/pos3` | Cashier | **Throwaway that outgrew its parent** — 2728 lines vs pos2's 1421 |
-| POS (original) | `/pos` | — | 3331 lines, superseded, still routable |
+| POS | `/pos` | Cashier | Production — one page since the three collapsed; `/pos2` and `/pos3` are deleted |
 | Waiter PWA | `/waiter` | Floor staff | Production |
 | Kitchen display | `/kitchen` | Kitchen | Production |
 | Self-order kiosk | `/kiosk` | Customer | Production |
@@ -202,13 +200,13 @@ Hot filters that are custom fields and therefore unindexed unless explicitly add
 
 ### P5 · No asset build (medium)
 
-Every page is one hand-written HTML file with inline `<style>` and up to 7 inline `<script>` blocks. `pos3.html` is 220 KB, `pos.html` 188 KB, `manager.html` 144 KB — uncompressed, unminified, re-downloaded whenever the page is not cached. On a restaurant's phone over 4G that is the difference between a 1-second and a 5-second cold start.
+Every page is one hand-written HTML file with inline `<style>` and up to 7 inline `<script>` blocks. `pos.html` is 220 KB, `manager.html` 144 KB — uncompressed, unminified, re-downloaded whenever the page is not cached. On a restaurant's phone over 4G that is the difference between a 1-second and a 5-second cold start.
 
-There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/kitchen` — not `/pos2`, which is the live POS, and not `/manager` or `/purchases`.
+There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/kitchen` — not `/manager` or `/purchases`. (It named the right POS route all along; what changed is that `/pos` is now the live one.)
 
 ### P6 · Polling everywhere (low, but adds up)
 
-30 `setInterval` timers across 10 pages, several at 1s and 5s. `pos.html` and `pos3.html` run 6 each. On a shared restaurant WiFi with 8 devices this is constant chatter. Long-poll or Frappe's socket.io realtime would cut it dramatically; at minimum, pause timers on `document.hidden`.
+30 `setInterval` timers across 10 pages, several at 1s and 5s. `pos.html` runs 6. On a shared restaurant WiFi with 8 devices this is constant chatter. Long-poll or Frappe's socket.io realtime would cut it dramatically; at minimum, pause timers on `document.hidden`.
 
 ### P7 · Two 70 MB APKs on disk
 
@@ -219,7 +217,7 @@ There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/
 ## 5. Code health
 
 - **`api.py` is 7,095 lines and 316 KB.** It holds POS, kitchen, loyalty, customers, purchases, expenses, approvals, promos, tour guides, wastage, WhatsApp and reporting. Split it into `luuvcrm/api/` — `pos.py`, `orders.py`, `purchases.py`, `manager.py`, `loyalty.py`, `guides.py`, `whatsapp.py` — keeping the public method paths stable via re-exports so no client breaks.
-- **`/pos3` was declared throwaway and is now the largest file in the project.** Its own docstring says "do not build anything that depends on this" and "these get ported back into pos2 and this file is deleted". Either finish the port or promote pos3 to be the live POS and delete `pos.html` and `pos2.html`. Three POS implementations is the single biggest source of future confusion.
+- ~~**`/pos3` was declared throwaway and is now the largest file in the project.**~~ **Resolved.** pos3 was promoted: all the work that mattered had landed there and was never ported back, so it is `/pos` now, and `pos2.html`/`pos2.py` plus the original `pos.html`/`pos.py` are deleted. One POS implementation.
 - **Duplicate pages:** `myorders.html` (530 lines) and `my_orders.html` (311) are both live; so are `/customer` and `/cus`. Pick one of each.
 - **Branding is split three ways:** the app is `luuvcrm`, `hooks.py` says `Zeloura` / "Zeloura Collective — Network Fashion Platform", every page says "Luuv Fryxo", and the module is `Zeloura`. For a product you intend to resell, this needs to become one configurable brand read from a settings DocType — a second customer cannot be called Luuv Fryxo.
 - **Dev debris in the app package:** 14 one-off scripts (`check_*.py`, `debug_*.py`, `fix_*.py`, `add_seed_data.py`, `populate*.py`, `assign_groups.py`, `migrate_theme_content.py`, `zeloura_setup.py`) sit next to production code. Gitignored, but present on the server. Move to `scripts/` outside the importable package.
@@ -249,7 +247,7 @@ There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/
 11. P1 — kill the N+1s, starting with the manager dashboard.
 12. P2 — move activity logging off the request path.
 13. P3, P4 — limits and indexes.
-14. P5 — extend the service worker to `/pos2`, `/manager`, `/purchases`; minify.
+14. P5 — extend the service worker to `/manager` and `/purchases`; minify.
 
 ### Phase 4 — Make it a product (3–6 weeks)
 15. One brand, read from settings. No "Luuv Fryxo" in code.

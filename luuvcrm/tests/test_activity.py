@@ -131,8 +131,8 @@ class TestWriting(FrappeTestCase):
         self.assertEqual(row.app, "other")
 
     def test_a_known_app_is_kept(self):
-        row = self.row(self.log(action="test_app2", app="pos2"))
-        self.assertEqual(row.app, "pos2")
+        row = self.row(self.log(action="test_app2", app="pos"))
+        self.assertEqual(row.app, "pos")
 
     def test_logging_never_raises_whatever_it_is_given(self):
         """The caller is a live POS: a logger that throws breaks the app it

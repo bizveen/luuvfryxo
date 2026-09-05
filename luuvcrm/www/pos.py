@@ -1,8 +1,83 @@
+"""/pos — the POS screen. The one at the counter.
+
+There were three of these: /pos (superseded), /pos2 (live) and /pos3 (a UI
+staging copy of pos2 taken 2026-08-26, on which all the tablet, printer-bridge
+and Google-Docs-template work then happened). pos3 was the complete one, so it
+is what survives; /pos2 and the old /pos are gone and this file is the only POS
+context builder.
+
+It only READS — menu, tables, shift, POS profiles. Keep it that way: backend
+behaviour belongs in an api.py endpoint, not in a page context builder, so the
+kiosk and the waiter screen get the same answer as the till.
+"""
+
 import frappe
 from frappe import _
 from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
+
+# ─── Google-Docs print templates ────────────────────────────────────────────
+# The Guest Check / KOT / Receipt layouts live in three Google Docs so the
+# manager can change wording, order or spacing without a deploy. Each doc is
+# shared "Anyone with the link – Viewer" and read here as plain text through
+# the export URL. The syntax the docs use is documented in "LF Print - README"
+# and rendered client-side by LFTemplate in pos.html.
+#
+# Still here rather than in api.py because it is the page's own data, not a
+# business endpoint; move it if a second screen ever needs the templates.
+# Table-based docs (2026-08-26 evening): each doc is one two-column table sized
+# to the 80 mm roll, so the cashier lays the receipt out cell by cell. The txt
+# export renders a table row as "left<TAB>right"; LFTemplate turns that into
+# its "left | right" column syntax.
+# v3 docs (2026-08-26 night): pure formatting — bold / centred merged cells /
+# 14pt titles instead of the = > * markers. Must be shared "Anyone with the
+# link – Viewer" or the export returns a 401 login page.
+PRINT_TEMPLATE_DOCS = {
+    "guest_check": "1mm7END8RlwTuAZ0a0ryc2byzBcz9ASlWnQFoDWQ3oe4",
+    "kot":         "1KaMNISg6so4QnYvNXxBFxVPKCHJAhLwf7vwaWvhfmdI",
+    "receipt":     "1fWz6M4FbEKnnHSbLoD8cv7MkpXXIQ4vg2AsfPU5Xck0",
+    "zreport":     "1fBf5WnAwLbDIC5mdeYTHO_xcfqY5MtAmIZFZjpeXO9Q",   # shift-close Z report (2026-08-28)
+}
+# HTML, not txt: the HTML export keeps per-cell alignment, bold, font size,
+# merged cells and column widths, so the doc's own formatting drives the
+# print (LFTemplate.htmlRows). The txt export flattens all of that away.
+_DOC_EXPORT = "https://docs.google.com/document/d/{id}/export?format=html"
+_TPL_TTL = 120            # seconds a fetched doc is served from cache
+_TPL_LAST_GOOD_TTL = 0    # last-good copies never expire — a dead Google must not stop bills
+
+
+@frappe.whitelist()
+def get_print_templates():
+    """All three templates as {kind: text}. Cached 2 min; falls back to the
+    last good copy when Google is unreachable, and to "" (client uses its
+    built-in layout) when there has never been one."""
+    import requests
+    out, source = {}, {}
+    for kind, doc_id in PRINT_TEMPLATE_DOCS.items():
+        ck = f"lf_print_tpl:{kind}"
+        cached = frappe.cache().get_value(ck)
+        if cached:
+            out[kind], source[kind] = cached, "cache"
+            continue
+        try:
+            r = requests.get(_DOC_EXPORT.format(id=doc_id), timeout=6, allow_redirects=True)
+            ctype = (r.headers.get("content-type") or "")
+            text = r.content.decode("utf-8-sig", errors="replace").replace("\r\n", "\n")
+            # a login page is also text/html — the doc itself always carries a table
+            ok = r.ok and "text/html" in ctype and "<table" in text
+            if ok:
+                frappe.cache().set_value(ck, text, expires_in_sec=_TPL_TTL)
+                frappe.cache().set_value(ck + ":last_good", text)
+                out[kind], source[kind] = text, "google"
+                continue
+            frappe.logger("pos").warning(f"print template {kind}: HTTP {r.status_code} "
+                                          f"{r.headers.get('content-type')} — is the doc shared 'Anyone with the link'?")
+        except Exception as e:  # network / DNS / timeout
+            frappe.logger("pos").warning(f"print template {kind}: {e}")
+        last = frappe.cache().get_value(ck + ":last_good")
+        out[kind], source[kind] = (last or ""), ("last_good" if last else "none")
+    return {"templates": out, "source": source, "docs": PRINT_TEMPLATE_DOCS}
 
 def get_context(context):
     context.no_sidebar = True
@@ -40,9 +115,15 @@ def get_context(context):
         active_menu = restaurant.active_menu
         price_list = _get_pos_price_list()
 
-        if active_menu:
+        if active_menu and frappe.db.exists("Restaurant Menu", active_menu):
             menu = frappe.get_doc("Restaurant Menu", active_menu)
             if menu.enabled:
+                # add-on mappings (POS Item Addon rows; manage from Desk: /app/pos-item-addon)
+                addon_map = {}
+                if frappe.db.exists("DocType", "POS Item Addon"):
+                    for r in frappe.get_all("POS Item Addon", filters={"enabled": 1},
+                                            fields=["item", "addon_item"]):
+                        addon_map.setdefault(r.item, []).append(r.addon_item)
                 items = []
                 for item_row in menu.items:
                     item_code = item_row.item
@@ -56,6 +137,7 @@ def get_context(context):
                         "image": item_doc.image or "",
                         "rate": _resolve_item_rate(item_code, item_row.rate, price_list),
                         "group": item_doc.item_group or "General",
+                        "addons": ",".join(addon_map.get(item_code, [])),
                     }
                     items.append(entry)
 
@@ -68,6 +150,36 @@ def get_context(context):
                     groups.append({"name": key, "items": list(group)})
                 context.menu_groups = groups
 
+    if not context.items_flat:
+        # Fallback: load active items directly from Item master when no restaurant menu exists
+        price_list = _get_pos_price_list()
+        addon_map = {}
+        if frappe.db.exists("DocType", "POS Item Addon"):
+            for r in frappe.get_all("POS Item Addon", filters={"enabled": 1},
+                                    fields=["item", "addon_item"]):
+                addon_map.setdefault(r.item, []).append(r.addon_item)
+        all_items = frappe.get_all("Item", filters={"disabled": 0}, fields=["name", "item_code", "item_name", "description", "image", "standard_rate", "item_group"])
+        items = []
+        for item_doc in all_items:
+            item_code = item_doc.item_code or item_doc.name
+            entry = {
+                "code": item_code,
+                "name": item_doc.item_name or item_code,
+                "description": item_doc.description or "",
+                "image": item_doc.image or "",
+                "rate": _resolve_item_rate(item_code, item_doc.standard_rate, price_list),
+                "group": item_doc.item_group or "General",
+                "addons": ",".join(addon_map.get(item_code, [])),
+            }
+            items.append(entry)
+        items.sort(key=lambda x: (x.get("group", ""), x.get("rate", 0)))
+        context.items_flat = items
+        from itertools import groupby
+        groups = []
+        for key, group in groupby(items, key=lambda x: x["group"]):
+            groups.append({"name": key, "items": list(group)})
+        context.menu_groups = groups
+
     _tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
     for t in _tables:
         parts = t.name.split("-")
@@ -75,7 +187,7 @@ def get_context(context):
     context.tables = _tables
 
     opening = frappe.db.get_value("POS Opening Entry",
-        {"status": "Open", "user": user},
+        {"docstatus": 1, "status": "Open", "user": user},
         ["name", "period_start_date"], as_dict=True)
     context.shift = {"status": "open"} if opening else None
 

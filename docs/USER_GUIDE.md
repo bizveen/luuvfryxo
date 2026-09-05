@@ -8,7 +8,7 @@ Everything the restaurant's staff need, screen by screen. Written for people who
 
 | Role | Screen | Device |
 |---|---|---|
-| Cashier | `/pos2` | Counter tablet or PC |
+| Cashier | `/pos` | Counter tablet or PC |
 | Waiter | `/waiter` | Phone |
 | Kitchen | `/kitchen` | Kitchen screen or tablet |
 | Customer at the table | `/kiosk` | Shared tablet |
@@ -19,11 +19,11 @@ Everything the restaurant's staff need, screen by screen. Written for people who
 
 Everyone signs in at `/pos-login` with the email and password the manager creates. **Never share one login between two people** — the activity trail and the sales reports are keyed to who was signed in.
 
-Add `/pos2`, `/waiter`, `/manager` and `/purchases` to the phone's home screen (Chrome → ⋮ → *Add to Home screen*). They then open full-screen like ordinary apps.
+Add `/pos`, `/waiter`, `/manager` and `/purchases` to the phone's home screen (Chrome → ⋮ → *Add to Home screen*). They then open full-screen like ordinary apps.
 
 ---
 
-## 1. Cashier — `/pos2`
+## 1. Cashier — `/pos`
 
 Three tabs along the bottom: **Sale**, **Tables**, **Orders**.
 

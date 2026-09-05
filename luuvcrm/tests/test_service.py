@@ -101,7 +101,7 @@ class TestCancellingAnOrder(FloorTestCase):
 
 
 class TestDiscardingAnEmptyTicket(FloorTestCase):
-    """pos2 opens a ticket as soon as the cashier taps an item, so clearing the
+    """The POS opens a ticket as soon as the cashier taps an item, so clearing the
     cart has to clean up after itself — but only when nothing real happened."""
 
     def test_a_ticket_nothing_was_fired_from_is_deleted(self):

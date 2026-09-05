@@ -16,5 +16,6 @@
 - **Print button load failure** (all www pages): Closing tag pattern `</script></body></html>` (no newlines) was corrected to match actual file formatting with newlines.
 
 ### Changed
+- **One POS page** — `/pos2` and `/pos3` are deleted and `/pos` serves what used to be pos3, which is where the tablet layer, the iMin printer bridge and the Google-Docs print layouts actually live. The staging print-only guard went with them, and with it a redeclared `guestCheckClick` that shadowed the real one: the guest check autosaves the ticket again instead of answering "Send to kitchen first". `/admin`'s POS tile, `KNOWN_APPS`, the 401/403 redirect and the `get_print_templates` dotted path all follow. **Counter tablets bookmarked on `/pos2` need re-pointing.**
 - `pos.html`, `waiter.html`, `kitchen.html`, `api.py` — all four files updated for print capability.
 - `pos3.html` — `LFTemplate` divider handling (`toLine`, `toHTML`, `flatten`).

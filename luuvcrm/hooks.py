@@ -25,7 +25,7 @@ after_request = ["luuvcrm.activity.log_request_activity"]
 
 scheduler_events = {
     "daily": [
-        # Plain rows kept 90 days, flagged rows a year. pos2 writes a lot.
+        # Plain rows kept 90 days, flagged rows a year. The POS writes a lot.
         "luuvcrm.activity.purge_activity_log",
     ],
 }
