@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- **Front-end error log, wired up at last** (`luuvcrm/api/errors.py`): `log_client_error`, `get_client_errors`, `resolve_client_error`, `clear_client_errors`. `lferr.js` had been posting every staff-PWA error to `luuvcrm.api.log_client_error` since it shipped — an endpoint that did not exist — and because the reporter is fire-and-forget inside a try/catch, every report 404'd silently while `/errors` and the `/admin` badge showed nothing. Repeats collapse onto one row by fingerprint (app, kind, message, source, line) with a hit count, so a render loop across eight tills is one entry; reads are manager-gated; a daily job drops fixed rows after 30 days and open ones after 180.
 - **Print Receipt** (`pos.html`): "🖨️ Print Receipt" button in order success overlay. Calls `get_receipt_print_data` API and renders a formatted receipt in a new print window.
 - **Print KOT** (`waiter.html`): "🖨️ Print KOT" button in order placement success overlay. Calls `get_kot_print_data` API and renders a Kitchen Order Ticket in a new print window.
 - **Print KOT** (`kitchen.html`): "🖨️ KOT" button in each order card footer. Re-prints KOT from the kitchen view.

@@ -56,6 +56,23 @@ from luuvcrm.api.customers import (
     wa_send_otp,
     wa_verify_otp,
 )
+from luuvcrm.api.errors import (
+    CLIENT_ERROR_DOCTYPE,
+    CLIENT_ERROR_KEEP_OPEN_DAYS,
+    CLIENT_ERROR_KEEP_RESOLVED_DAYS,
+    CLIENT_ERROR_KINDS,
+    _clip_text,
+    _client_error_fingerprint,
+    _client_error_row,
+    _ensure_client_error_doctype,
+    _install_client_errors,
+    clear_client_errors,
+    get_client_errors,
+    log_client_error,
+    purge_client_errors,
+    resolve_client_error,
+    setup_client_errors,
+)
 from luuvcrm.api.expenses import (
     EXPENSE_CATEGORIES,
     _decide_expense,

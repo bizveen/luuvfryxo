@@ -27,6 +27,8 @@ scheduler_events = {
     "daily": [
         # Plain rows kept 90 days, flagged rows a year. The POS writes a lot.
         "luuvcrm.activity.purge_activity_log",
+        # Resolved client errors go after a month, open ones after six.
+        "luuvcrm.api.errors.purge_client_errors",
     ],
 }
 
