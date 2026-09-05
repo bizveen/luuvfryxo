@@ -45,9 +45,10 @@ JSON under `luuvcrm/zeloura/doctype/` is the real fix (`PRODUCTION_READINESS.md`
 §B1) and is a separate job, because it needs the live schema verified field by
 field first.
 
-NOTE: `api.setup_customer_accounts()` and `create_theme_doctype.create()` are
-deliberately not called from here — both delete existing records before
-recreating them. The safe equivalents are below.
+NOTE: `api.setup_customer_accounts()` is deliberately not called from here — it
+deletes the Customer Account and Customer Token DocTypes before recreating them,
+which on a live site takes every account and every signed-in session with it.
+The safe equivalent is below.
 """
 
 import frappe
@@ -219,10 +220,9 @@ CUSTOM_FIELDS = [
     {"dt": "Purchase Bill", "fieldname": "paid_by", "label": "Paid By", "fieldtype": "Link", "options": "User",
      "insert_after": "paid_at"},
 
-    # Zeloura storefront item attributes (JSON blobs parsed by zeloura_api)
-    {"dt": "Item", "fieldname": "z_sizes", "label": "Zeloura Sizes (JSON)", "fieldtype": "Long Text"},
-    {"dt": "Item", "fieldname": "z_colors", "label": "Zeloura Colors (JSON)", "fieldtype": "Long Text"},
-    {"dt": "Item", "fieldname": "z_images", "label": "Zeloura Images (JSON)", "fieldtype": "Long Text"},
+    # (The three z_* storefront attributes went with zeloura_api.py. Nothing
+    # declares them now; a site that already has the columns keeps them, empty
+    # and unread, until somebody drops them by hand.)
 ]
 
 _CF_KEYS = ("options", "description", "default", "insert_after", "read_only", "no_copy",

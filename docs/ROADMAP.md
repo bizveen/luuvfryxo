@@ -23,7 +23,8 @@ Closed the holes that were reachable from the internet. Commit `22ce0d1`, 22 tes
 - [x] **S7** `get_order_changelog` staff-only; `get_order_items` returns receipt fields only to guests
 - [x] **S8** Customer token expiry enforced on read
 - [x] Public menu no longer ships `wa.me/9470XXXXXXX`
-- [ ] **S7b** `/track` still enumerable by order name. Needs a signed link (order name + HMAC) instead of a bare name, and `get_order_items` verifying it. *Deferred from Phase 1 — it changes every WhatsApp link already in customers' hands, so it needs the settings work below.*
+- [x] **S7b** `/track` is no longer enumerable. A guest must present an HMAC of the order name keyed on the site's own encryption key; `api.track_url()` builds the signed link. An unsigned request and a nonexistent order get the same empty answer, because telling them apart is most of what an enumerator wants. Staff are exempt — `/admin` opens `/track` bare.
+  **The reason it was deferred was wrong.** It was held back because it "changes every WhatsApp link already in customers' hands" — but no message sends a `/track` link at all. The one place that builds a customer-facing tracking link sends them to `/cus`, and the variable named `track_url` in `whatsapp.py` points there too. Nothing in the wild broke.
 
 ---
 
@@ -238,7 +239,7 @@ The pivotal work. Nothing after this is possible without it.
 - [~] **Endpoint coverage: 38 of 157 whitelisted endpoints at the start of this pass.** Measured, not guessed — `test_service.py` was the first batch, `test_loyalty.py` the second, `test_customer_auth.py` the third. Remaining, in rough order of risk: promo campaigns (6), the guide app's own endpoints (13), expenses/wastage/food cost (6), manager report arithmetic (6), print payloads (5), menu editing (3), and one test looping every `setup_*` for idempotency.
 - [ ] CI on every push: `run-tests --app luuvcrm`, `ruff`, `eslint`. (`ruff` is not installed on this machine.)
 - [ ] A fresh-install smoke test in CI (Phase 3's acceptance test).
-- [ ] Fix `luuvcrm/test_child_parent.py` — a scratch script pointing at a hard-coded site named `clothing`, sitting where a test should be. Delete or convert.
+- [x] Deleted `luuvcrm/test_child_parent.py` — it was a Zeloura scratch script pointing at a hard-coded site named `clothing`, and went with the rest of that code.
 
 ---
 
@@ -262,9 +263,9 @@ The pivotal work. Nothing after this is possible without it.
 - [x] **The front-end error log was never wired up.** `log_client_error`, `get_client_errors`, `resolve_client_error` and `clear_client_errors` did not exist — not in the package, not in the 7,338-line file before it. `lferr.js` is the first script on every staff PWA and posts each front-end error to `luuvcrm.api.log_client_error` inside a fire-and-forget try/catch, so every report had 404'd in silence for the reporter's whole life; `/errors` and the `/admin` badge answered nothing. The alarm was off, and an app with the alarm off looks exactly like an app with no errors. Written in `luuvcrm/api/errors.py` against the contract the pages already speak, with the `LF Client Error` DocType installed the same runtime way as `LF Activity Log`. Rows are keyed by a fingerprint of (app, kind, message, source, line) so a render loop on eight tills is one row with a count, not thousands; reads are manager-gated because a row carries a stack trace, a page URL, a user id and a device string; and a daily purge drops fixed rows after 30 days and open ones after 180. 35 tests in `test_client_errors.py`.
 - [ ] **`get_my_network` and `/network` belong to the other product.** `network.html` is titled "My Network — Zeloura Collective" and calls `luuvcrm.api.get_my_network`, which does not exist. Left alone deliberately: it is part of the Zeloura fashion-site code whose fate is a Phase 6 decision, and writing the endpoint would be building on something that may be deleted.
 - [x] **`lferr.js` on `/waiter` and `/kitchen`.** It was on six pages and missing from the two the floor and the kitchen actually hold. Added with `lfact.js` alongside it, in the same order `pos.html` uses — the CSRF meta first, then the reporters, before any of the page's own script can throw. A test now asserts every staff page loads it and tags rows with an app `KNOWN_APPS` recognises.
-- [ ] Decide the fate of `zeloura_api.py` and the `Zeloura Theme` / `Zeloura Product` fashion-site code. It appears to belong to a different product.
-- [ ] Move the 14 `check_*` / `debug_*` / `fix_*` scratch scripts out of the importable package.
-- [ ] Serve one copy of the 70 MB print APK, from `public/`; delete the `www/` duplicate.
+- [x] **Deleted the Zeloura fashion code** — `zeloura_api.py`, `zeloura_setup.py`, the three theme scripts, the three populate scripts, `test_child_parent.py`, and the `/network` and `/shop` pages: 11 files. Nothing restaurant-side imported any of it, no hook referenced it, and the DocTypes it wanted (`Zeloura Theme`, `Zeloura Product`, …) are not on the site. The three `z_*` storefront attributes on `Item` went out of the schema declaration with it.
+- [x] **Deleted the 11 scratch scripts** (`check_*`, `debug_*`, `fix_*`). They were gitignored, so the repo was already clean — but they sat in the importable package on the server. The gitignore patterns stay as a guard: a script worth keeping belongs in a bench command or a patch, not in the package.
+- [x] **One APK.** The `www/` duplicate is gone; `public/luuvcrm-print.apk` is the copy, served at `/assets/luuvcrm/luuvcrm-print.apk`. Nothing linked either, so no page changed.
 - [ ] Backups, monitoring, an upgrade runbook, and the production checklist in `DEVELOPER_GUIDE.md` §4.3.
 
 ---

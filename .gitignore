@@ -16,7 +16,12 @@ __pycache__
 site_config.json
 *.local.json
 
-# One-off debug / data-fix scratch scripts (run once against the live DB)
+# One-off debug / data-fix scratch scripts. The 11 that were here are deleted;
+# these patterns stay so the next one does not get committed by accident. A
+# script worth keeping belongs in a bench command or a patch, not in the package.
 luuvcrm/check_*.py
 luuvcrm/debug_*.py
 luuvcrm/fix_*.py
+
+# Generated knowledge-graph cache (the /graphify skill's output)
+graphify-out/

@@ -4,6 +4,10 @@ Split out of the single 7,338-line api.py; every name here is re-exported
 from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
+import hashlib
+import hmac
+from urllib.parse import quote
+
 import frappe
 from frappe import _
 import json
@@ -440,24 +444,57 @@ def _order_fully_paid(pos_order):
     return all((int(i.get("paid_qty") or 0) >= int(i.qty or 0)) for i in items)
 # ─── Order Items Detail ──────────────────────────────────
 
+def track_signature(order_name):
+    """The proof that whoever holds this link was given it.
+
+    Keyed on the site's own encryption key, so it cannot be produced from the
+    order name alone and is different on every site. Truncated to 32 hex
+    characters: 128 bits is far past what a link in a chat message needs, and a
+    shorter link is one people will actually paste.
+    """
+    from frappe.utils.password import get_encryption_key
+
+    return hmac.new(get_encryption_key().encode(),
+                    str(order_name).encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def track_url(order_name):
+    """The link to give a customer for one order. Signed."""
+    from luuvcrm import settings
+
+    return settings.url(f"/track?order={quote(str(order_name))}"
+                        f"&s={track_signature(order_name)}")
+
+
 @frappe.whitelist(allow_guest=True)
-def get_order_items(order_name):
+def get_order_items(order_name, s=None):
     """Lines on an order.
 
-    Stays guest-readable because /track is a genuinely public page: the customer
-    arrives from a WhatsApp link holding nothing but the order name. What a guest
-    gets is trimmed to what a receipt shows — the billing and kitchen-progress
-    counters (paid_qty, sent_qty, remaining) and kitchen notes are staff data and
-    are returned only to a signed-in user.
+    Guest-readable, because /track is a genuinely public page: the customer
+    arrives holding a link and nothing else. What a guest gets is trimmed to
+    what a receipt shows — the billing and kitchen-progress counters (paid_qty,
+    sent_qty, remaining) and the kitchen notes are staff data and go only to a
+    signed-in user.
 
-    Order names are still a guessable sequence, so this remains an enumeration
-    surface for "what did table 4 eat". Closing that properly means handing /track
-    a signed link instead of a bare name — tracked as follow-up, not fixed here.
+    **S7b.** A guest also has to present the signature. Order names are a
+    guessable sequence (`POS-00104`), so a bare name made this an enumeration
+    surface: walk the numbers and read what every table ate, along with the
+    customer name on the order. The signature is what turns "knows the format"
+    into "was given this link".
+
+    Nothing in the wild breaks. This was deferred on the grounds that it changes
+    every WhatsApp link already in customers' hands — but no message sends a
+    /track link at all. The one place that builds a customer-facing tracking
+    link sends them to /cus, and /admin opens /track as staff, who are exempt.
     """
     if not order_name:
         return {"items": []}
-    doc = frappe.get_doc("POS Order", order_name)
     staff = frappe.session.user != "Guest"
+    if not staff and not hmac.compare_digest(str(s or ""), track_signature(order_name)):
+        # Deliberately the same answer as an order that does not exist: telling
+        # the difference is most of what an enumerator wants.
+        return {"items": []}
+    doc = frappe.get_doc("POS Order", order_name)
     items = []
     for i in (doc.get("items") or []):
         row = {"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate,

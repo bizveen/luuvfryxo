@@ -36,6 +36,8 @@
 async function loadOrder() {
   const params = new URLSearchParams(window.location.search);
   const orderName = params.get('order');
+  // S7b: the link carries a signature; without it a guest gets nothing back.
+  const sig = params.get('s') || '';
   const app = document.getElementById('app');
 
   if (!orderName) {
@@ -44,7 +46,7 @@ async function loadOrder() {
   }
 
   try {
-    const res = await fetch('/api/method/luuvcrm.api.get_order_items?order_name=' + encodeURIComponent(orderName));
+    const res = await fetch('/api/method/luuvcrm.api.get_order_items?order_name=' + encodeURIComponent(orderName) + '&s=' + encodeURIComponent(sig));
     const data = await res.json();
     const msg = data.message || {};
     const items = msg.items || [];

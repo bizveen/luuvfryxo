@@ -227,10 +227,13 @@ class TestOrderEndpointsRefuseOutsiders(OrderTestCase):
 
     def test_a_guest_sees_a_receipt_not_the_kitchen_counters(self):
         order = self.order([{"item": self.burger, "qty": 2}])
+        # The signature is what a guest has to hold at all now (S7b); what this
+        # test is about is what they get once they do.
+        sig = api.track_signature(order.name)
         previous = frappe.session.user
         frappe.set_user("Guest")
         self.addCleanup(frappe.set_user, previous)
-        line = api.get_order_items(order.name)["items"][0]
+        line = api.get_order_items(order.name, s=sig)["items"][0]
         self.assertIn("qty", line)
         self.assertIn("rate", line)
         for staff_only in ("paid_qty", "sent_qty", "remaining", "notes"):

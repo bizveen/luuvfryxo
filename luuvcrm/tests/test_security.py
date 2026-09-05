@@ -9,12 +9,14 @@ Run: bench --site <site> run-tests --app luuvcrm
 """
 
 import inspect
+import json
 import re
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from luuvcrm import api
+from luuvcrm.tests import fixtures as fx
 
 
 def _source(fn):
@@ -240,3 +242,92 @@ class TestPublicPagesCarryNoPlaceholders(FrappeTestCase):
             html = fh.read()
         self.assertNotIn("MANAGER_PIN", html)
         self.assertNotIn("4321", html)
+
+
+class TestTrackIsNoLongerEnumerable(FrappeTestCase):
+    """S7b — the last of the Phase 1 findings.
+
+    `/track` took a bare order name, and order names are a guessable sequence:
+    `POS-00104`, `POS-00105`. Walking them read back what every table ate and
+    the customer name on the order. A guest now has to present a signature
+    keyed on the site's own encryption key, which is what turns "knows the
+    format" into "was given this link".
+
+    It was deferred on the grounds that it changes every WhatsApp link already
+    in customers' hands. That turned out not to be true — no message sends a
+    /track link; the one that builds a customer-facing tracking link sends them
+    to /cus, and /admin opens /track as staff, who are exempt.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.burger = fx.item(self, "TRK-BURGER")
+        fx.item_price(self, self.burger, 400)
+        previous = frappe.local.form_dict
+        frappe.local.form_dict = frappe._dict(
+            items=json.dumps([{"item": self.burger, "qty": 2}]), order_type="Take Away")
+        try:
+            result = api.send_to_kitchen()
+        finally:
+            frappe.local.form_dict = previous
+        self.order = result["name"] if isinstance(result, dict) else result
+        self.addCleanup(lambda: frappe.db.exists("POS Order", self.order) and
+                        frappe.delete_doc("POS Order", self.order, force=True,
+                                          ignore_permissions=True))
+
+    def as_guest(self):
+        previous = frappe.session.user
+        frappe.set_user("Guest")
+        self.addCleanup(frappe.set_user, previous)
+
+    def test_a_guest_with_only_the_order_name_gets_nothing(self):
+        self.as_guest()
+        self.assertEqual(api.get_order_items(self.order)["items"], [])
+
+    def test_a_guest_with_the_signature_gets_the_receipt(self):
+        sig = api.track_signature(self.order)
+        self.as_guest()
+        items = api.get_order_items(self.order, s=sig)["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["qty"], 2)
+
+    def test_a_wrong_signature_is_refused(self):
+        self.as_guest()
+        self.assertEqual(api.get_order_items(self.order, s="0" * 32)["items"], [])
+
+    def test_one_order_s_signature_does_not_open_another(self):
+        """Otherwise a customer with one real link reads every order."""
+        other = api.track_signature("POS-00001")
+        self.as_guest()
+        self.assertEqual(api.get_order_items(self.order, s=other)["items"], [])
+
+    def test_a_missing_order_answers_exactly_like_an_unsigned_one(self):
+        """Telling the two apart is most of what an enumerator wants: it turns
+        a guess into a confirmed order number."""
+        self.as_guest()
+        self.assertEqual(api.get_order_items(self.order),
+                         api.get_order_items("POS-does-not-exist"))
+
+    def test_staff_still_open_it_without_a_signature(self):
+        """/admin links /track bare, and a cashier checking an order should not
+        need to construct a link."""
+        self.assertTrue(api.get_order_items(self.order)["items"])
+
+    def test_the_signature_is_not_derivable_from_the_name(self):
+        from frappe.utils.password import get_encryption_key
+        sig = api.track_signature(self.order)
+        self.assertEqual(len(sig), 32)
+        self.assertNotIn(self.order.lower(), sig.lower())
+        self.assertTrue(get_encryption_key(), "signing key must exist")
+
+    def test_the_link_helper_produces_a_usable_url(self):
+        url = api.track_url(self.order)
+        self.assertIn("/track?order=", url)
+        self.assertIn(f"&s={api.track_signature(self.order)}", url)
+
+    def test_the_page_sends_the_signature_through(self):
+        """A signed endpoint and a page that never passes the signature is a
+        page that shows every customer an empty order."""
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "track.html"))
+        self.assertIn("params.get('s')", html)
+        self.assertIn("&s=", html)
