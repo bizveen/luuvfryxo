@@ -58,14 +58,6 @@ from luuvcrm.api.errors import _install_client_errors
 
 # ─── Shared permission blocks ────────────────────────────────────────────────
 
-# Only System Manager is declared with the DocType. Everything else — which
-# role may read, write, create or delete each of these — lives in
-# `luuvcrm/roles.py` (APP_DOCPERMS / APP_DOCPERM_REVOKE) and is applied by
-# `ensure_app_docperms()` at the end of execute(). One source of truth, because
-# two of them is how a Cashier ended up able to answer their own approval.
-MANAGER = {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1}
-
-
 # ─── Roles ───────────────────────────────────────────────────────────────────
 # Declared in `luuvcrm/roles.py`, not here. That module owns the role model —
 # five business roles including Restaurant Owner, which this file's earlier
@@ -83,320 +75,46 @@ MANAGER = {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete
 # Order matters: a Link field's target and a child table's row type must already
 # exist when the parent is created.
 
-def _dt(name, fields, permissions=None, **flags):
-    return dict({"name": name, "fields": fields,
-                 "permissions": permissions if permissions is not None else [MANAGER]}, **flags)
 
-
-DOCTYPES = [
-    # ── Kiosk / menu presentation ──
-    _dt("Item Review", [
-        {"fieldname": "item", "label": "Item", "fieldtype": "Link", "options": "Item", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "customer_name", "label": "Customer Name", "fieldtype": "Data", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "rating", "label": "Rating", "fieldtype": "Rating", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "comment", "label": "Comment", "fieldtype": "Small Text"},
-        {"fieldname": "submitted_by", "label": "Submitted By", "fieldtype": "Data"},
-    ]),
-
-    # Add-on suggestions shown next to a menu item in the POS (managed from Desk
-    # at /app/pos-item-addon). pos2 reads the enabled rows and pops a picker.
-    _dt("POS Item Addon", [
-        {"fieldname": "item", "label": "Menu Item", "fieldtype": "Link", "options": "Item", "reqd": 1,
-         "in_list_view": 1, "in_standard_filter": 1},
-        {"fieldname": "addon_item", "label": "Add-on Item", "fieldtype": "Link", "options": "Item", "reqd": 1,
-         "in_list_view": 1},
-        {"fieldname": "enabled", "label": "Enabled", "fieldtype": "Check", "default": "1", "in_list_view": 1},
-    ], naming_rule="Random", autoname="hash", track_changes=1),
-
-    # Kitchen routing. Item.kitchen_group links here, so this comes before the
-    # custom fields pass.
-    _dt("Kitchen Group", [
-        {"fieldname": "group_name", "label": "Group Name", "fieldtype": "Data", "reqd": 1, "unique": 1,
-         "in_list_view": 1},
-        {"fieldname": "display_order", "label": "Display Order", "fieldtype": "Int", "default": 0},
-        {"fieldname": "color", "label": "Color", "fieldtype": "Data", "description": "Hex color e.g. #F59E0B"},
-    ]),
-
-    # ── WhatsApp ──
-    # `api.send_order_whatsapp()` probes this with
-    # `frappe.db.exists("WhatsApp Account", {})` — a *record* check, which raises
-    # when the DocType itself is absent. So it has to exist even on sites that
-    # never configure WhatsApp.
-    _dt("WhatsApp Account", [
-        {"fieldname": "account_name", "label": "Account Name", "fieldtype": "Data", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "url", "label": "API URL", "fieldtype": "Data", "default": "https://graph.facebook.com"},
-        {"fieldname": "version", "label": "API Version", "fieldtype": "Data", "default": "v21.0"},
-        {"fieldname": "phone_id", "label": "Phone Number ID", "fieldtype": "Data"},
-        {"fieldname": "token", "label": "Access Token", "fieldtype": "Password"},
-    ]),
-
-    # ── Storefront accounts (/cus, /customer) ──
-    # `address` and `area` were bolted on later by setup_customer_profile_fields;
-    # they are part of the definition now.
-    _dt("Customer Account", [
-        {"fieldname": "mobile", "label": "Mobile", "fieldtype": "Data", "reqd": 1, "unique": 1, "in_list_view": 1},
-        {"fieldname": "customer_name", "label": "Customer Name", "fieldtype": "Data"},
-        {"fieldname": "pin", "label": "PIN", "fieldtype": "Data", "reqd": 1},
-        {"fieldname": "last_login", "label": "Last Login", "fieldtype": "Datetime"},
-        {"fieldname": "address", "label": "Address", "fieldtype": "Small Text"},
-        {"fieldname": "area", "label": "Area", "fieldtype": "Data"},
-    ]),
-    _dt("Customer Token", [
-        {"fieldname": "token", "label": "Token", "fieldtype": "Data", "reqd": 1, "unique": 1},
-        {"fieldname": "mobile", "label": "Mobile", "fieldtype": "Data", "reqd": 1},
-        {"fieldname": "created", "label": "Created", "fieldtype": "Datetime", "reqd": 1},
-    ]),
-
-    # ── Loyalty ──
-    _dt("Loyalty Customer", [
-        {"fieldname": "customer_name", "label": "Customer Name", "fieldtype": "Data"},
-        {"fieldname": "mobile", "label": "Mobile", "fieldtype": "Data", "reqd": 1, "unique": 1, "in_list_view": 1},
-        {"fieldname": "referral_code", "label": "Referral Code", "fieldtype": "Data", "unique": 1},
-        {"fieldname": "referred_by", "label": "Referred By", "fieldtype": "Link", "options": "Loyalty Customer"},
-        {"fieldname": "cashback_balance", "label": "Cashback Balance", "fieldtype": "Currency", "default": 0},
-        {"fieldname": "total_earned", "label": "Total Earned", "fieldtype": "Currency", "default": 0},
-        {"fieldname": "total_redeemed", "label": "Total Redeemed", "fieldtype": "Currency", "default": 0},
-    ]),
-    _dt("Cashback Transaction", [
-        {"fieldname": "loyalty_customer", "label": "Loyalty Customer", "fieldtype": "Link",
-         "options": "Loyalty Customer", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "type", "label": "Type", "fieldtype": "Select",
-         "options": "Earn\nRedeem\nReferral Discount", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "level", "label": "Level", "fieldtype": "Int"},
-        {"fieldname": "amount", "label": "Amount", "fieldtype": "Currency", "reqd": 1},
-        {"fieldname": "reference_order", "label": "Reference Order", "fieldtype": "Data"},
-        {"fieldname": "notes", "label": "Notes", "fieldtype": "Small Text"},
-    ]),
-    _dt("Loyalty Settings", [
-        {"fieldname": "level_1_percent", "label": "Level 1 (%)", "fieldtype": "Percent", "default": 5.0},
-        {"fieldname": "level_2_percent", "label": "Level 2 (%)", "fieldtype": "Percent", "default": 2.0},
-        {"fieldname": "level_3_percent", "label": "Level 3 (%)", "fieldtype": "Percent", "default": 1.0},
-        {"fieldname": "min_redeem", "label": "Minimum Redeem (LKR)", "fieldtype": "Currency", "default": 200},
-        {"fieldname": "referral_discount_percent", "label": "Referral Discount (%)", "fieldtype": "Percent",
-         "default": 5.0},
-        {"fieldname": "expiry_days", "label": "Expiry Days", "fieldtype": "Int", "default": 365},
-    ], issingle=1),
-
-    # ── Cash drawer ──
-    # A pay-in / pay-out log linked to the shift's POS Opening Entry.
-    _dt("POS Cash Movement", [
-        {"fieldname": "pos_opening_entry", "label": "POS Opening Entry", "fieldtype": "Link",
-         "options": "POS Opening Entry", "in_list_view": 1},
-        {"fieldname": "direction", "label": "Direction", "fieldtype": "Select", "options": "in\nout",
-         "reqd": 1, "in_list_view": 1},
-        {"fieldname": "amount", "label": "Amount", "fieldtype": "Currency", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "reason", "label": "Reason", "fieldtype": "Small Text"},
-        {"fieldname": "cashier", "label": "Cashier", "fieldtype": "Link", "options": "User", "in_list_view": 1},
-        {"fieldname": "movement_time", "label": "Time", "fieldtype": "Datetime", "in_list_view": 1},
-    ], naming_rule="Random", autoname="hash", track_changes=1),
-
-    # ── Manager approvals ──
-    # `expense` joined approval_type later (setup_expenses appended it via
-    # _ensure_select_option) and `manager_comment` later still (setup_wastage);
-    # both are in the definition now. ensure_select_options() below catches up
-    # sites created before either landed.
-    _dt("POS Approval", [
-        {"fieldname": "approval_type", "label": "Type", "fieldtype": "Select",
-         "options": "void\nprice\nitem\nbill\ndiscount\nedit\nexpense", "in_list_view": 1},
-        {"fieldname": "pos_order", "label": "POS Order", "fieldtype": "Link", "options": "POS Order",
-         "in_list_view": 1},
-        {"fieldname": "title", "label": "Title", "fieldtype": "Data", "in_list_view": 1},
-        {"fieldname": "subhead", "label": "Subhead", "fieldtype": "Small Text"},
-        {"fieldname": "details_json", "label": "Details JSON", "fieldtype": "Long Text"},
-        {"fieldname": "flag_text", "label": "Flag", "fieldtype": "Data"},
-        {"fieldname": "action", "label": "Action", "fieldtype": "Data"},
-        {"fieldname": "action_payload", "label": "Action Payload", "fieldtype": "Long Text"},
-        {"fieldname": "status", "label": "Status", "fieldtype": "Select", "options": "pending\napproved\nrejected",
-         "default": "pending", "in_list_view": 1},
-        {"fieldname": "manager_comment", "label": "Manager Comment", "fieldtype": "Small Text"},
-        {"fieldname": "requested_by", "label": "Requested By", "fieldtype": "Link", "options": "User"},
-        {"fieldname": "requested_at", "label": "Requested At", "fieldtype": "Datetime"},
-        {"fieldname": "resolved_by", "label": "Resolved By", "fieldtype": "Link", "options": "User"},
-        {"fieldname": "resolved_at", "label": "Resolved At", "fieldtype": "Datetime"},
-    ], naming_rule="Random", autoname="hash", track_changes=1),
-
-    # ── Purchases ── child table first, the parent's Table field points at it
-    _dt("Purchase Bill Item", [
-        {"fieldname": "item", "label": "Item", "fieldtype": "Link", "options": "Item", "in_list_view": 1},
-        {"fieldname": "item_name", "label": "Item Name", "fieldtype": "Data", "in_list_view": 1},
-        {"fieldname": "uom", "label": "UOM", "fieldtype": "Data"},
-        {"fieldname": "qty", "label": "Qty", "fieldtype": "Float", "in_list_view": 1},
-        {"fieldname": "price", "label": "Price", "fieldtype": "Currency", "in_list_view": 1},
-        {"fieldname": "old_price", "label": "Old Price", "fieldtype": "Currency"},
-    ], permissions=[], istable=1, editable_grid=1),
-    _dt("Purchase Bill", [
-        {"fieldname": "vendor", "label": "Vendor", "fieldtype": "Data", "in_list_view": 1, "reqd": 1},
-        {"fieldname": "note", "label": "Note", "fieldtype": "Small Text"},
-        {"fieldname": "receipt_image", "label": "Receipt", "fieldtype": "Attach Image"},
-        {"fieldname": "total", "label": "Total", "fieldtype": "Currency", "in_list_view": 1},
-        {"fieldname": "status", "label": "Status", "fieldtype": "Select", "options": "pending\napproved\nrejected",
-         "default": "pending", "in_list_view": 1},
-        {"fieldname": "items", "label": "Items", "fieldtype": "Table", "options": "Purchase Bill Item"},
-        {"fieldname": "requested_by", "label": "Requested By", "fieldtype": "Link", "options": "User"},
-        {"fieldname": "requested_at", "label": "Requested At", "fieldtype": "Datetime"},
-        {"fieldname": "resolved_by", "label": "Resolved By", "fieldtype": "Link", "options": "User"},
-        {"fieldname": "resolved_at", "label": "Resolved At", "fieldtype": "Datetime"},
-    ], naming_rule="Random", autoname="hash", track_changes=1),
-
-    # ── Expenses ── category first, Expense.category links to it
-    _dt("Expense Category", [
-        {"fieldname": "category_name", "label": "Category", "fieldtype": "Data", "reqd": 1, "unique": 1,
-         "in_list_view": 1},
-        {"fieldname": "disabled", "label": "Disabled", "fieldtype": "Check", "default": "0", "in_list_view": 1},
-    ], naming_rule="By fieldname", autoname="field:category_name",
-        allow_rename=1, track_changes=1),
-    _dt("Expense", [
-        {"fieldname": "category", "label": "Category", "fieldtype": "Link", "options": "Expense Category",
-         "reqd": 1, "in_list_view": 1},
-        {"fieldname": "payee", "label": "Paid To", "fieldtype": "Data", "in_list_view": 1},
-        {"fieldname": "amount", "label": "Amount", "fieldtype": "Currency", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "expense_date", "label": "Date", "fieldtype": "Date", "in_list_view": 1},
-        {"fieldname": "bill_ref", "label": "Bill / Account No", "fieldtype": "Data"},
-        {"fieldname": "note", "label": "Note", "fieldtype": "Small Text"},
-        {"fieldname": "receipt_image", "label": "Receipt", "fieldtype": "Attach Image"},
-        {"fieldname": "pos_profile", "label": "Outlet", "fieldtype": "Link", "options": "POS Profile"},
-        {"fieldname": "pos_opening_entry", "label": "Shift", "fieldtype": "Link", "options": "POS Opening Entry"},
-        {"fieldname": "status", "label": "Status", "fieldtype": "Select", "options": "pending\napproved\nrejected",
-         "default": "pending", "in_list_view": 1},
-        {"fieldname": "requested_by", "label": "Requested By", "fieldtype": "Link", "options": "User"},
-        {"fieldname": "requested_at", "label": "Requested At", "fieldtype": "Datetime"},
-        {"fieldname": "resolved_by", "label": "Resolved By", "fieldtype": "Link", "options": "User"},
-        {"fieldname": "resolved_at", "label": "Resolved At", "fieldtype": "Datetime"},
-    ], naming_rule="Random", autoname="hash", track_changes=1),
-
-    # ── Wastage ──
-    _dt("Wastage", [
-        {"fieldname": "item", "label": "Item", "fieldtype": "Link", "options": "Item", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "item_name", "label": "Item Name", "fieldtype": "Data"},
-        {"fieldname": "qty", "label": "Qty", "fieldtype": "Float", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "uom", "label": "Unit", "fieldtype": "Data"},
-        {"fieldname": "cost", "label": "Cost", "fieldtype": "Currency", "in_list_view": 1},
-        {"fieldname": "reason", "label": "Reason", "fieldtype": "Small Text"},
-        {"fieldname": "recorded_by", "label": "Recorded By", "fieldtype": "Link", "options": "User"},
-    ]),
-
-    # ── QR promo (sticker QR → register in /cus → free meal on first order) ──
-    _dt("QR Promo Campaign", [
-        {"fieldname": "campaign_name", "label": "Campaign Name", "fieldtype": "Data", "reqd": 1, "unique": 1,
-         "in_list_view": 1},
-        {"fieldname": "free_item", "label": "Free Item", "fieldtype": "Link", "options": "Item", "in_list_view": 1},
-        {"fieldname": "active", "label": "Active", "fieldtype": "Check", "default": "1"},
-    ], naming_rule="By fieldname", autoname="field:campaign_name", track_changes=1),
-    _dt("QR Promo Code", [
-        {"fieldname": "code", "label": "Code", "fieldtype": "Data", "reqd": 1, "unique": 1, "in_list_view": 1},
-        {"fieldname": "campaign", "label": "Campaign", "fieldtype": "Link", "options": "QR Promo Campaign",
-         "in_list_view": 1},
-        {"fieldname": "batch", "label": "Batch", "fieldtype": "Data", "in_list_view": 1},
-        {"fieldname": "status", "label": "Status", "fieldtype": "Select", "options": "New\nRegistered\nRedeemed",
-         "default": "New", "in_list_view": 1},
-        {"fieldname": "mobile", "label": "Mobile", "fieldtype": "Data"},
-        {"fieldname": "registered_on", "label": "Registered On", "fieldtype": "Datetime"},
-        {"fieldname": "redeemed_on", "label": "Redeemed On", "fieldtype": "Datetime"},
-        {"fieldname": "pos_order", "label": "POS Order", "fieldtype": "Link", "options": "POS Order"},
-    ], naming_rule="By fieldname", autoname="field:code", track_changes=1),
-
-    # ── Tour guides (commission scheme) ──
-    _dt("Tour Guide", [
-        {"fieldname": "guide_name", "label": "Guide Name", "fieldtype": "Data", "in_list_view": 1},
-        {"fieldname": "whatsapp", "label": "WhatsApp", "fieldtype": "Data", "reqd": 1, "unique": 1,
-         "in_list_view": 1},
-        {"fieldname": "role", "label": "Role", "fieldtype": "Select", "options": "Guide\nDriver\nHelper",
-         "default": "Guide", "in_list_view": 1},
-        {"fieldname": "cashback_percent", "label": "Cashback %", "fieldtype": "Percent",
-         "default": GUIDE_DEFAULT_PERCENT},
-        {"fieldname": "status", "label": "Status", "fieldtype": "Select", "options": "Invited\nActive",
-         "default": "Invited", "in_list_view": 1},
-        {"fieldname": "password_hash", "label": "Password Hash", "fieldtype": "Data"},
-        {"fieldname": "cashback_balance", "label": "Cashback Balance", "fieldtype": "Currency", "default": 0},
-        {"fieldname": "total_earned", "label": "Total Earned", "fieldtype": "Currency", "default": 0},
-        {"fieldname": "total_paid", "label": "Total Paid", "fieldtype": "Currency", "default": 0},
-        {"fieldname": "created_by_user", "label": "Created By", "fieldtype": "Link", "options": "User"},
-        {"fieldname": "notes", "label": "Notes", "fieldtype": "Small Text"},
-    ]),
-    _dt("Guide Token", [
-        {"fieldname": "token", "label": "Token", "fieldtype": "Data", "reqd": 1, "unique": 1},
-        {"fieldname": "guide", "label": "Guide", "fieldtype": "Link", "options": "Tour Guide", "reqd": 1},
-        {"fieldname": "created", "label": "Created", "fieldtype": "Datetime", "reqd": 1},
-    ]),
-    # "Redeem" (a guide paying for their own meal out of balance) was appended
-    # after this doctype first shipped; it is in the base options now.
-    _dt("Guide Cashback Txn", [
-        {"fieldname": "guide", "label": "Guide", "fieldtype": "Link", "options": "Tour Guide", "reqd": 1,
-         "in_list_view": 1},
-        {"fieldname": "type", "label": "Type", "fieldtype": "Select", "options": "Earn\nPayout\nRedeem",
-         "reqd": 1, "in_list_view": 1},
-        {"fieldname": "amount", "label": "Amount", "fieldtype": "Currency", "reqd": 1, "in_list_view": 1},
-        {"fieldname": "reference_order", "label": "Reference Order", "fieldtype": "Data"},
-        {"fieldname": "reference_invoice", "label": "Reference Invoice", "fieldtype": "Data"},
-        {"fieldname": "bill_total", "label": "Bill Total (base)", "fieldtype": "Currency"},
-        {"fieldname": "percent_used", "label": "Percent Used", "fieldtype": "Percent"},
-        {"fieldname": "note", "label": "Note", "fieldtype": "Small Text"},
-        {"fieldname": "paid_by", "label": "Paid By", "fieldtype": "Link", "options": "User"},
-    ]),
-    _dt("Guide Invite Code", [
-        {"fieldname": "code", "label": "Code", "fieldtype": "Data", "reqd": 1, "unique": 1, "in_list_view": 1},
-        {"fieldname": "status", "label": "Status", "fieldtype": "Select", "options": "New\nUsed", "default": "New",
-         "in_list_view": 1},
-        {"fieldname": "used_by", "label": "Used By", "fieldtype": "Link", "options": "Tour Guide",
-         "in_list_view": 1},
-        {"fieldname": "used_on", "label": "Used On", "fieldtype": "Datetime"},
-        {"fieldname": "created_by_user", "label": "Created By", "fieldtype": "Link", "options": "User"},
-    ]),
-    # Manager-editable global default %, beats the GUIDE_DEFAULT_PERCENT literal.
-    _dt("Guide Settings", [
-        {"fieldname": "default_percent", "label": "Default Cashback %", "fieldtype": "Percent",
-         "default": GUIDE_DEFAULT_PERCENT},
-    ], issingle=1),
-
-    # ── Staff activity trail ──
-    # Named `LF Activity Log` because Frappe core already owns `Activity Log`.
-    # Kept in sync with luuvcrm/activity.py, which reads and writes these fields.
-    _dt("LF Activity Log", [
-        {"fieldname": "app", "label": "App", "fieldtype": "Data", "search_index": 1, "in_list_view": 1},
-        {"fieldname": "action", "label": "Action", "fieldtype": "Data", "search_index": 1, "in_list_view": 1},
-        {"fieldname": "label", "label": "Label", "fieldtype": "Data", "in_list_view": 1},
-        {"fieldname": "source", "label": "Source", "fieldtype": "Select", "options": "server\nclient\nrequest",
-         "default": "server"},
-        {"fieldname": "user", "label": "User", "fieldtype": "Data", "search_index": 1},
-        {"fieldname": "user_full", "label": "User Name", "fieldtype": "Data"},
-        # What it happened to
-        {"fieldname": "ref_doctype", "label": "Ref DocType", "fieldtype": "Data"},
-        {"fieldname": "ref_name", "label": "Ref Name", "fieldtype": "Data", "search_index": 1},
-        {"fieldname": "bill_no", "label": "Bill", "fieldtype": "Data", "search_index": 1},
-        {"fieldname": "table", "label": "Table", "fieldtype": "Data"},
-        {"fieldname": "item", "label": "Item", "fieldtype": "Data"},
-        {"fieldname": "item_name", "label": "Item Name", "fieldtype": "Data"},
-        {"fieldname": "qty", "label": "Qty", "fieldtype": "Float", "precision": "2"},
-        # Money
-        {"fieldname": "amount", "label": "Amount", "fieldtype": "Float", "precision": "2", "in_list_view": 1},
-        {"fieldname": "total_before", "label": "Total Before", "fieldtype": "Float", "precision": "2"},
-        {"fieldname": "total_after", "label": "Total After", "fieldtype": "Float", "precision": "2"},
-        # The point of the whole thing
-        {"fieldname": "flag", "label": "Flagged", "fieldtype": "Check", "default": "0", "search_index": 1,
-         "in_list_view": 1},
-        {"fieldname": "flag_reason", "label": "Flag Reason", "fieldtype": "Data"},
-        {"fieldname": "flag_note", "label": "Flag Note", "fieldtype": "Small Text"},
-        {"fieldname": "reviewed", "label": "Reviewed", "fieldtype": "Check", "default": "0"},
-        {"fieldname": "reviewed_by", "label": "Reviewed By", "fieldtype": "Data"},
-        {"fieldname": "reviewed_at", "label": "Reviewed At", "fieldtype": "Datetime"},
-        # Context
-        {"fieldname": "detail", "label": "Detail", "fieldtype": "Long Text"},
-        {"fieldname": "page", "label": "Page", "fieldtype": "Data"},
-        {"fieldname": "ip", "label": "IP", "fieldtype": "Data"},
-        {"fieldname": "device", "label": "Device", "fieldtype": "Small Text"},
-        {"fieldname": "session_id", "label": "Session", "fieldtype": "Data", "search_index": 1},
-        {"fieldname": "seq", "label": "Seq", "fieldtype": "Int"},
-        {"fieldname": "client_ts", "label": "Client Time", "fieldtype": "Datetime"},
-        {"fieldname": "ok", "label": "OK", "fieldtype": "Check", "default": "1"},
-        {"fieldname": "err", "label": "Error", "fieldtype": "Small Text"},
-        {"fieldname": "ms", "label": "Duration ms", "fieldtype": "Int"},
-    ], naming_rule="Random", autoname="hash"),
-]
+#: The DocTypes this app owns. Their *shape* — fields, permissions, naming —
+#: lives in `luuvcrm/zeloura/doctype/<name>/<name>.json`, which Frappe syncs
+#: on install and on every migrate. This list is only the roll-call, so
+#: `report_drift()` can say when one of them failed to arrive.
+#:
+#: They used to be declared here in full and created with `custom: 1`, which
+#: kept them out of migrate's path and made this file a second definition
+#: that could drift from the JSON. It is not one any more.
+EXPECTED_DOCTYPES = (
+    "Item Review",
+    "POS Item Addon",
+    "Kitchen Group",
+    "WhatsApp Account",
+    "Customer Account",
+    "Customer Token",
+    "Loyalty Customer",
+    "Cashback Transaction",
+    "Loyalty Settings",
+    "POS Cash Movement",
+    "POS Approval",
+    "Purchase Bill Item",
+    "Purchase Bill",
+    "Expense Category",
+    "Expense",
+    "Wastage",
+    "QR Promo Campaign",
+    "QR Promo Code",
+    "Tour Guide",
+    "Guide Token",
+    "Guide Cashback Txn",
+    "Guide Invite Code",
+    "Guide Settings",
+    "LF Activity Log",
+)
 
 
 # ─── Custom fields ───────────────────────────────────────────────────────────
 # Fields the Python/JS code reads or writes but that no DocType JSON defines.
-# Applied after DOCTYPES, so the fields hanging off Purchase Bill and the
+# Applied after the DocTypes exist, so the fields hanging off Purchase Bill and the
 # Kitchen Group link have something to attach to.
 # Order matters only where `insert_after` points at another row in this list.
 CUSTOM_FIELDS = [
@@ -628,21 +346,22 @@ def _has_field(dt, fieldname):
 # ─── DocTypes ────────────────────────────────────────────────────────────────
 
 def ensure_doctypes():
-    created = 0
-    for spec in DOCTYPES:
-        spec = dict(spec)
-        name = spec.pop("name")
-        if frappe.db.exists("DocType", name):
-            continue
-        frappe.get_doc(dict({
-            "doctype": "DocType",
-            "name": name,
-            "module": "Zeloura",
-            "custom": 1,
-        }, **spec)).insert(ignore_permissions=True)
-        print(f"  + DocType {name}")
-        created += 1
-    print(f"DocTypes: {created} created, {len(DOCTYPES) - created} already present")
+    """Check the DocTypes arrived. Creating them is Frappe's job now.
+
+    `install_app` runs `sync_for()` — which imports every DocType JSON in the
+    app — before it calls `after_install`, and `bench migrate` does the same on
+    an existing site. So by the time this runs they should all be here, and one
+    that is not means the JSON is missing or the sync failed, which is worth
+    saying out loud rather than papering over by creating a second version of it
+    from a Python dict.
+    """
+    missing = [n for n in EXPECTED_DOCTYPES if not frappe.db.exists("DocType", n)]
+    if missing:
+        print(f"  ! {len(missing)} DocType(s) missing after sync: {', '.join(missing)}")
+        print("    run `bench --site <site> migrate` — they come from "
+              "luuvcrm/zeloura/doctype/*/")
+    else:
+        print(f"DocTypes: all {len(EXPECTED_DOCTYPES)} present")
 
 
 def ensure_select_options():
@@ -808,7 +527,7 @@ def report_drift():
 
         bench --site <site> execute luuvcrm.setup_doctype.report_drift
     """
-    missing_doctypes = [d["name"] for d in DOCTYPES if not frappe.db.exists("DocType", d["name"])]
+    missing_doctypes = [n for n in EXPECTED_DOCTYPES if not frappe.db.exists("DocType", n)]
     missing_fields = [
         f"{f['dt']}.{f['fieldname']}" for f in CUSTOM_FIELDS
         if frappe.db.exists("DocType", f["dt"]) and not _has_field(f["dt"], f["fieldname"])

@@ -16,6 +16,9 @@ A fresh site and a migrated site have to end up the same, and these tests are
 what says so.
 """
 
+import json
+import pathlib
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
@@ -143,3 +146,93 @@ class TestTheHookIsWired(FrappeTestCase):
         find out we were wrong about that."""
         from luuvcrm import hooks
         self.assertFalse(getattr(hooks, "after_migrate", None))
+
+
+def _doctype_folders():
+    root = pathlib.Path(frappe.get_app_path("luuvcrm", "zeloura", "doctype"))
+    return [d for d in sorted(root.iterdir())
+            if d.is_dir() and (d / f"{d.name}.json").exists()]
+
+
+class TestTheDocTypesShipAsFiles(FrappeTestCase):
+    """B1: the schema is in the repo as DocType JSON, so `bench migrate` syncs
+    it and a field change has a migration path. They used to be created at
+    runtime with `custom: 1`, which kept them out of migrate's way entirely."""
+
+    def test_every_expected_doctype_has_a_json_file(self):
+        shipped = {json.loads((d / f"{d.name}.json").read_text())["name"]
+                   for d in _doctype_folders()}
+        missing = [n for n in setup.EXPECTED_DOCTYPES if n not in shipped]
+        self.assertEqual(missing, [], "declared but not shipped as JSON")
+
+    def test_none_of_them_is_a_custom_doctype_any_more(self):
+        for d in _doctype_folders():
+            spec = json.loads((d / f"{d.name}.json").read_text())
+            with self.subTest(doctype=spec["name"]):
+                self.assertFalse(spec.get("custom"),
+                                 "custom: 1 keeps it out of migrate's path")
+                self.assertEqual(spec.get("module"), "Zeloura")
+
+    def test_the_site_agrees(self):
+        for name in setup.EXPECTED_DOCTYPES:
+            with self.subTest(doctype=name):
+                self.assertTrue(frappe.db.exists("DocType", name))
+                self.assertFalse(frappe.db.get_value("DocType", name, "custom"))
+
+
+class TestEveryControllerCanBeImported(FrappeTestCase):
+    """The one that matters most in this file.
+
+    `bench migrate` calls `remove_orphan_doctypes()`, which treats a DocType
+    whose controller raises ImportError as orphaned **and deletes it**. The
+    class name is not free: `import_controller` looks for
+    `doctype.replace(" ", "").replace("-", "")` exactly — so `POS Approval`
+    needs `POSApproval`, not `PosApproval`.
+
+    Generating them with a plain title-case rule produced `PosApproval`,
+    `QRPromoCode` as `QrPromoCode`, `LFActivityLog` as `LfActivityLog` and four
+    more; the next migrate found seven orphans and deleted them. The tables and
+    their rows survived — `remove_orphan_doctypes` is documented as
+    non-destructive — but every field definition, permission and naming rule
+    went, which on a live site is an app that no longer starts.
+    """
+
+    def test_the_class_name_is_the_one_frappe_looks_for(self):
+        for d in _doctype_folders():
+            spec = json.loads((d / f"{d.name}.json").read_text())
+            src = (d / f"{d.name}.py").read_text()
+            want = spec["name"].replace(" ", "").replace("-", "")
+            with self.subTest(doctype=spec["name"]):
+                self.assertIn(f"class {want}(", src,
+                              f"migrate would call {spec['name']} orphaned and delete it")
+
+    def test_frappe_can_actually_load_every_one(self):
+        """Belt and braces: ask Frappe rather than pattern-matching the source.
+        This is the exact call `remove_orphan_doctypes` makes."""
+        from frappe.model.base_document import get_controller
+        for name in setup.EXPECTED_DOCTYPES:
+            with self.subTest(doctype=name):
+                get_controller(name)
+
+    def test_a_controller_file_exists_for_each(self):
+        for d in _doctype_folders():
+            with self.subTest(doctype=d.name):
+                self.assertTrue((d / f"{d.name}.py").exists())
+                self.assertTrue((d / "__init__.py").exists())
+
+
+class TestTheShapeIsDeclaredInOnePlace(FrappeTestCase):
+    def test_setup_doctype_no_longer_redeclares_the_fields(self):
+        """It used to carry the full field list as Python dicts *and* the JSON
+        shipped alongside — two definitions of the same thing, free to drift."""
+        src = frappe.read_file(frappe.get_app_path("luuvcrm", "setup_doctype.py"))
+        self.assertNotIn("DOCTYPES = [", src)
+        self.assertNotIn("def _dt(", src)
+
+    def test_it_checks_rather_than_creates(self):
+        """`install_app` syncs the JSON before calling `after_install`, so by the
+        time execute() runs they exist. Creating them again from Python is how
+        the two definitions drift apart."""
+        import inspect
+        src = inspect.getsource(setup.ensure_doctypes)
+        self.assertNotIn("insert(", src)

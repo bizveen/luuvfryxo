@@ -5,6 +5,16 @@ app_description = "Zeloura Collective — Network Fashion Platform"
 app_email = "hello@zeloura.com"
 app_license = "mit"
 
+# B4. Not a pyproject dependency — those are pip packages, and these are Frappe
+# apps that bench resolves. `frappe.installer.install_app()` reads this hook and
+# installs each one first, so `bench install-app luuvcrm` on a clean bench brings
+# erpnext and hospitality with it instead of failing at the first import.
+#
+# hospitality supplies Restaurant, Restaurant Table and Restaurant Menu, and
+# declares erpnext as its own requirement — naming both anyway, because the
+# order matters and a reader should not have to follow a chain to learn it.
+required_apps = ["erpnext", "hospitality"]
+
 app_include_css = "/assets/luuvcrm/css/luuvcrm_desk.css"
 
 extend_website_context = ["luuvcrm.overrides.branding.update_website_context"]

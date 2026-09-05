@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-29 10:24:06.624630",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "level_1_percent",
+  "level_2_percent",
+  "level_3_percent",
+  "min_redeem",
+  "referral_discount_percent",
+  "expiry_days"
+ ],
+ "fields": [
+  {
+   "default": "5",
+   "fieldname": "level_1_percent",
+   "fieldtype": "Percent",
+   "label": "Level 1 (%)"
+  },
+  {
+   "default": "2",
+   "fieldname": "level_2_percent",
+   "fieldtype": "Percent",
+   "label": "Level 2 (%)"
+  },
+  {
+   "default": "1",
+   "fieldname": "level_3_percent",
+   "fieldtype": "Percent",
+   "label": "Level 3 (%)"
+  },
+  {
+   "default": "200",
+   "fieldname": "min_redeem",
+   "fieldtype": "Currency",
+   "label": "Minimum Redeem (LKR)"
+  },
+  {
+   "default": "5",
+   "fieldname": "referral_discount_percent",
+   "fieldtype": "Percent",
+   "label": "Referral Discount (%)"
+  },
+  {
+   "default": "365",
+   "fieldname": "expiry_days",
+   "fieldtype": "Int",
+   "label": "Expiry Days"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-05 17:53:31.131404",
+ "modified_by": "Administrator",
+ "module": "Zeloura",
+ "name": "Loyalty Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
