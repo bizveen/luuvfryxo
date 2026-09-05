@@ -216,3 +216,93 @@ class TestNoDuplicateRoleSets(FrappeTestCase):
             with self.subTest(module=module.__name__):
                 self.assertIs(getattr(module, "roles", None), roles,
                               f"{module.__name__} should gate through luuvcrm.roles")
+
+
+class TestTheDocPermsTheScreensNeed(FrappeTestCase):
+    """Until Phase 2c nothing read through `frappe.get_list`, so the permission
+    table was decoration and nobody noticed it was wrong.
+
+    It was wrong in the direction that matters: a Restaurant Manager could not
+    read Purchase Bill, Expense, Wastage or POS Approval — their own screens —
+    while a Cashier could, and Restaurant Table was manager-only, so the till
+    would have lost its table map the moment a read started applying
+    permissions. These tests are what stop that coming back, because the symptom
+    is a blank screen rather than an error.
+    """
+
+    def test_the_site_has_everything_the_table_asks_for(self):
+        self.assertEqual(roles.missing_docperms(), {},
+                         "run luuvcrm.patches.v1_0.grant_app_permissions")
+
+    def test_granting_again_changes_nothing(self):
+        before = roles.missing_docperms()
+        roles.ensure_app_docperms()
+        self.assertEqual(roles.missing_docperms(), before)
+
+    def test_a_manager_can_read_their_own_screens(self):
+        for doctype in ("Purchase Bill", "Expense", "Wastage", "POS Approval",
+                        "POS Cash Movement", "LF Activity Log"):
+            with self.subTest(doctype=doctype):
+                self.assertTrue(
+                    _role_may(roles.RESTAURANT_MANAGER, doctype, "read"),
+                    f"a manager cannot read {doctype}")
+
+    def test_an_owner_can_read_everything_a_manager_can(self):
+        """DocPerms do not inherit — OWNER_ROLES being a superset governs this
+        app's own guards and nothing Frappe does."""
+        for doctype, by_perm in roles.APP_DOCPERMS.items():
+            if not frappe.db.exists("DocType", doctype):
+                continue
+            if roles.RESTAURANT_MANAGER not in by_perm.get("read", ()):
+                continue
+            with self.subTest(doctype=doctype):
+                self.assertTrue(_role_may(roles.RESTAURANT_OWNER, doctype, "read"))
+
+    def test_the_till_can_still_see_the_tables(self):
+        for role in (roles.CASHIER, roles.WAITER, roles.KITCHEN_STAFF):
+            with self.subTest(role=role):
+                self.assertTrue(_role_may(role, "Restaurant Table", "read"))
+
+    def test_the_till_may_raise_a_request_but_not_answer_it(self):
+        """Separation of duties, in the permission table as well as in the
+        guard: a cashier creates an approval, a manager decides it."""
+        self.assertTrue(_role_may(roles.CASHIER, "POS Approval", "create"))
+        self.assertFalse(_role_may(roles.CASHIER, "POS Approval", "write"))
+        self.assertTrue(_role_may(roles.RESTAURANT_MANAGER, "POS Approval", "write"))
+
+    def test_no_guard_can_be_walked_around_through_the_generic_api(self):
+        """Frappe exposes every doctype over its own REST API, where DocPerms
+        are the only thing in the way — so a rule enforced in an endpoint alone
+        is advisory. This is the list of grants that made one so."""
+        self.assertEqual(roles.walkable_docperms(), {},
+                         "run luuvcrm.patches.v1_0.grant_app_permissions")
+
+    def test_the_till_cannot_edit_what_the_restaurant_owes_a_guide(self):
+        """`cashback_balance` is money, and the txn rows are its ledger."""
+        for perm in ("write", "create", "delete"):
+            with self.subTest(perm=perm):
+                self.assertFalse(_role_may(roles.CASHIER, "Tour Guide", perm))
+                self.assertFalse(_role_may(roles.CASHIER, "Guide Cashback Txn", perm))
+        self.assertTrue(_role_may(roles.CASHIER, "Tour Guide", "read"))
+
+    def test_nobody_at_the_till_can_erase_a_trail(self):
+        for doctype in ("POS Approval", "Wastage", "POS Cash Movement"):
+            with self.subTest(doctype=doctype):
+                self.assertFalse(_role_may(roles.CASHIER, doctype, "delete"))
+
+    def test_revoking_again_changes_nothing(self):
+        self.assertEqual(roles.revoke_app_docperms(), {})
+
+    def test_the_staff_trail_is_manager_reading_only(self):
+        self.assertFalse(_role_may(roles.CASHIER, "LF Activity Log", "read"))
+        self.assertFalse(_role_may(roles.WAITER, "LF Activity Log", "read"))
+        self.assertTrue(_role_may(roles.RESTAURANT_MANAGER, "LF Activity Log", "read"))
+
+
+def _role_may(role, doctype, perm):
+    rows = frappe.get_all("Custom DocPerm", filters={"parent": doctype, "role": role},
+                          fields=[perm])
+    if not rows:
+        rows = frappe.get_all("DocPerm", filters={"parent": doctype, "role": role},
+                              fields=[perm])
+    return any(r.get(perm) for r in rows)

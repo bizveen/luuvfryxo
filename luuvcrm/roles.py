@@ -194,6 +194,190 @@ POS_DOCPERMS = {
 }
 
 
+#: DocPerms on the doctypes this app owns (plus hospitality's three, which it
+#: only reads). Declared here rather than in each `setup_*` because the whole
+#: point of Phase 2c is that these become load-bearing: `frappe.get_list`
+#: applies them, and until now `frappe.get_all` meant nobody noticed they were
+#: wrong. And they were wrong in the direction that matters — a Restaurant
+#: Manager could not read Purchase Bill, Expense, Wastage or POS Approval,
+#: which are their own screens, while a Cashier could; and Restaurant Table was
+#: manager-only, so the till would have lost its table map on the day the reads
+#: flipped.
+#:
+#: Frappe DocPerms do not inherit. `MANAGER_ROLES` being a superset of
+#: `POS_ROLES` governs this app's own `require_*` guards and nothing else, so
+#: every role that needs a permission is named here explicitly.
+_TILL = (CASHIER,)
+_FLOOR = (WAITER,)
+_KITCHEN = (KITCHEN_STAFF,)
+_MANAGERS = (RESTAURANT_MANAGER, RESTAURANT_OWNER)
+
+APP_DOCPERMS = {
+    # Money out. A cashier enters a bill or an expense; only a manager decides
+    # it — which is the approval flow, and why write is not granted at the till.
+    "Purchase Bill":      {"read": _TILL + _MANAGERS, "create": _TILL + _MANAGERS,
+                           "write": _MANAGERS, "delete": _MANAGERS},
+    "Expense":            {"read": _TILL + _MANAGERS, "create": _TILL + _MANAGERS,
+                           "write": _MANAGERS, "delete": _MANAGERS},
+    "Wastage":            {"read": _TILL + _FLOOR + _MANAGERS,
+                           "create": _TILL + _FLOOR + _MANAGERS,
+                           "write": _MANAGERS, "delete": _MANAGERS},
+    # Anyone on the floor may ask for an approval; only a manager answers it.
+    "POS Approval":       {"read": _TILL + _FLOOR + _MANAGERS,
+                           "create": _TILL + _FLOOR + _MANAGERS,
+                           "write": _MANAGERS, "delete": _MANAGERS},
+    "POS Cash Movement":  {"read": _TILL + _MANAGERS, "create": _TILL + _MANAGERS,
+                           "write": _MANAGERS, "delete": _MANAGERS},
+    # The staff trail and the error log are about staff, so they are manager
+    # reading only. Nobody writes them through permissions — the server does,
+    # with ignore_permissions, which is the point of an append-only trail.
+    "LF Activity Log":    {"read": _MANAGERS},
+    "LF Client Error":    {"read": _MANAGERS, "write": _MANAGERS, "delete": _MANAGERS},
+    # Hospitality's, and read-only to us. The till, the floor and the kitchen
+    # all need the table map; without it the POS has nothing to seat anyone at.
+    "Restaurant":         {"read": _TILL + _FLOOR + _KITCHEN + _MANAGERS},
+    "Restaurant Table":   {"read": _TILL + _FLOOR + _KITCHEN + _MANAGERS,
+                           "write": _TILL + _MANAGERS},
+    "Restaurant Menu":    {"read": _TILL + _FLOOR + _KITCHEN + _MANAGERS},
+    # Reference data the screens resolve against.
+    "Expense Category":   {"read": _TILL + _MANAGERS},
+    "POS Item Addon":     {"read": _TILL + _FLOOR + _MANAGERS},
+    "Tour Guide":         {"read": _TILL + _MANAGERS, "create": _MANAGERS,
+                           "write": _MANAGERS},
+    "Guide Cashback Txn": {"read": _TILL + _MANAGERS},
+    "Loyalty Customer":   {"read": _MANAGERS},
+}
+
+
+#: Permissions to take *away*, each one because the app's own guards can be
+#: walked around while it stands. Frappe exposes every doctype over its generic
+#: REST API, where DocPerms are the only thing in the way — so a rule enforced
+#: only in an endpoint is advisory.
+#:
+#: Verified, not assumed: with `Cashier: rwcd` on POS Approval a cashier could
+#: load their own pending request, set `status` to "approved" and save it,
+#: skipping `resolve_approval` and `block_self_approval` entirely — the same
+#: hole as "a cashier could approve their own discount", through a different
+#: door — and could then delete the record of having done it.
+#:
+#: This list is deliberately short. `ensure_app_docperms()` otherwise only ever
+#: adds, because taking a permission away is how a screen goes blank in the
+#: middle of service; every entry here is a case where leaving it costs more.
+APP_DOCPERM_REVOKE = {
+    # Raise a request, do not answer it, and do not erase it.
+    "POS Approval":       {CASHIER: ("write", "delete"), WAITER: ("write", "delete")},
+    "Purchase Bill":      {CASHIER: ("write", "delete")},
+    "Expense":            {CASHIER: ("write", "delete")},
+    # Trails. The person a record is about must not be able to edit or drop it.
+    "Wastage":            {CASHIER: ("write", "delete"), WAITER: ("write", "delete")},
+    "POS Cash Movement":  {CASHIER: ("write", "delete")},
+    # Money. `cashback_balance` is what the restaurant owes a guide, and the
+    # txn rows are its ledger; the till reads both and writes neither.
+    "Tour Guide":         {CASHIER: ("write", "create", "delete")},
+    "Guide Cashback Txn": {CASHIER: ("write", "create", "delete")},
+}
+
+
+def revoke_app_docperms():
+    """Take away the permissions in APP_DOCPERM_REVOKE. Idempotent.
+
+    The app's own writes to these doctypes go through `ignore_permissions`,
+    which is what makes this safe: the till keeps working through the endpoints
+    that are meant to be its only way in.
+    """
+    from frappe.permissions import update_permission_property
+
+    revoked = {}
+    for doctype, by_role in APP_DOCPERM_REVOKE.items():
+        if not frappe.db.exists("DocType", doctype):
+            continue
+        for role, perms in by_role.items():
+            if not frappe.db.exists("Role", role):
+                continue
+            for perm in perms:
+                if _role_has(doctype, role, perm):
+                    update_permission_property(doctype, role, 0, perm, 0)
+                    revoked.setdefault(doctype, []).append(f"{role}:{perm}")
+    if revoked:
+        frappe.clear_cache()
+    return revoked
+
+
+def _role_has(doctype, role, perm):
+    rows = frappe.get_all("Custom DocPerm", filters={"parent": doctype, "role": role},
+                          fields=[perm])
+    if not rows:
+        rows = frappe.get_all("DocPerm", filters={"parent": doctype, "role": role},
+                              fields=[perm])
+    return any(r.get(perm) for r in rows)
+
+
+def walkable_docperms():
+    """Permissions APP_DOCPERM_REVOKE says must be gone and that are still
+    there. Each one is a guard that can be stepped around."""
+    still = {}
+    for doctype, by_role in APP_DOCPERM_REVOKE.items():
+        if not frappe.db.exists("DocType", doctype):
+            continue
+        for role, perms in by_role.items():
+            for perm in perms:
+                if frappe.db.exists("Role", role) and _role_has(doctype, role, perm):
+                    still.setdefault(doctype, []).append(f"{role}:{perm}")
+    return still
+
+
+def ensure_app_docperms():
+    """Grant the DocPerms in APP_DOCPERMS. Idempotent.
+
+    Only ever adds. A permission somebody granted by hand for a reason this
+    module does not know about is left alone, because taking one away is how a
+    screen goes blank in the middle of service.
+    """
+    from frappe.permissions import add_permission, update_permission_property
+
+    granted = {}
+    for doctype, by_perm in APP_DOCPERMS.items():
+        if not frappe.db.exists("DocType", doctype):
+            continue        # created by a setup_* nobody has run on this site yet
+        for perm, role_names in by_perm.items():
+            for role in role_names:
+                if not frappe.db.exists("Role", role):
+                    continue
+                add_permission(doctype, role, 0)
+                update_permission_property(doctype, role, 0, perm, 1)
+                granted.setdefault(doctype, set()).add(f"{role}:{perm}")
+    if granted:
+        frappe.clear_cache()
+    return {dt: sorted(v) for dt, v in granted.items()}
+
+
+def missing_docperms():
+    """What APP_DOCPERMS asks for and the site does not have.
+
+    The check to run before flipping a read from `get_all` to `get_list`: that
+    flip makes the permission table load-bearing everywhere at once, and a gap
+    shows up as a blank screen rather than an error.
+    """
+    from frappe.permissions import get_all_perms
+
+    missing = {}
+    for doctype, by_perm in APP_DOCPERMS.items():
+        if not frappe.db.exists("DocType", doctype):
+            continue
+        for perm, role_names in by_perm.items():
+            for role in role_names:
+                if not frappe.db.exists("Role", role):
+                    continue
+                rows = frappe.get_all("Custom DocPerm",
+                                      filters={"parent": doctype, "role": role},
+                                      fields=[perm]) or \
+                    frappe.get_all("DocPerm", filters={"parent": doctype, "role": role},
+                                   fields=[perm])
+                if not any(r.get(perm) for r in rows):
+                    missing.setdefault(doctype, []).append(f"{role}:{perm}")
+    return missing
+
+
 def ensure_pos_docperms(role=CASHIER):
     """Grant `role` what it needs to run a shift on ERPNext's doctypes. Idempotent.
 

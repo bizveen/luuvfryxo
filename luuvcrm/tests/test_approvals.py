@@ -276,3 +276,53 @@ class TestPurchaseBillDecision(FrappeTestCase):
         doc = self.bill(self.tomato, 0)
         api._decide_purchase_bill(doc.name, "approved")
         self.assertIsNone(self.buying_price(self.tomato))
+
+
+class TestTheGuardsCannotBeWalkedAround(ApprovalTestCase):
+    """`resolve_approval` refuses to let somebody answer their own request.
+
+    But the guard is in *our* endpoint, and Frappe exposes every doctype over
+    its own generic REST API, where DocPerms are the only thing standing in the
+    way. POS Approval was created granting Cashier read/write/create/delete, so
+    the question is whether a cashier can simply write `status` on the row and
+    skip the whole flow — the same bug as "a cashier could approve their own
+    discount", reached through a different door.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cashier = self.user_with(roles.CASHIER, "walkaround")
+
+    def _own_request(self):
+        self.as_user(self.cashier)
+        result = self.call(api.create_approval, approval_type="discount",
+                           title="_LFT walkaround")
+        name = result["name"] if isinstance(result, dict) else result
+        self._approvals.append(name)
+        return name
+
+    def test_the_endpoint_refuses_a_cashier_answering_their_own_request(self):
+        name = self._own_request()
+        with self.assertRaises(frappe.PermissionError):
+            self.call(api.resolve_approval, name=name, decision="approved")
+
+    def test_and_so_does_writing_the_row_directly(self):
+        """The one that matters. If this passes by writing the field, every
+        guard in approvals.py is advisory."""
+        name = self._own_request()
+        self.as_user(self.cashier)
+        with self.assertRaises(frappe.PermissionError):
+            doc = frappe.get_doc("POS Approval", name)
+            doc.status = "approved"
+            doc.save()
+        frappe.set_user("Administrator")
+        self.assertEqual(frappe.db.get_value("POS Approval", name, "status"), "pending")
+
+    def test_nor_can_a_cashier_delete_the_record_of_it(self):
+        """An approval trail somebody can erase is not a trail."""
+        name = self._own_request()
+        self.as_user(self.cashier)
+        with self.assertRaises(frappe.PermissionError):
+            frappe.delete_doc("POS Approval", name)
+        frappe.set_user("Administrator")
+        self.assertTrue(frappe.db.exists("POS Approval", name))
