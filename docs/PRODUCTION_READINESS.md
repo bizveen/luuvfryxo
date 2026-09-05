@@ -40,7 +40,7 @@ Backend: 156 whitelisted endpoints (144 in `api.py`), 36 of them guest-accessibl
 
 ## 2. Blockers — must fix before any third party gets this
 
-### B1 · The schema is not in the repo (critical)
+### B1 · The schema is not in the repo — *half fixed*
 
 Only `POS Order` and `POS Order Item` ship as DocType JSON. These 24 are built by HTTP calls at runtime:
 
@@ -48,7 +48,21 @@ Only `POS Order` and `POS Order Item` ship as DocType JSON. These 24 are built b
 
 Consequences: a new install is a manual ritual of calling ~27 endpoints in an undocumented order; there is no migration path when a field changes; `bench migrate` does nothing; two sites will silently drift apart; you cannot roll back.
 
-**Fix:** export every runtime doctype with `bench export-fixtures` / move them to `luuvcrm/zeloura/doctype/*/`, convert the `create_custom_field` calls into `patches.txt` entries, and add an `after_install` hook. Delete the `setup_*` endpoints once the schema is declarative. This is the single largest piece of work and everything else depends on it.
+**Done.** All of it is declared in `luuvcrm/setup_doctype.py` — 24 DocTypes, 32 custom fields, 2 property setters, the roles and DocPerms (from `roles.py`, which owns them), the branch column, and the reference rows the screens cannot work without. `after_install` runs it, so `bench install-app luuvcrm` provisions a fresh site on its own, and `report_drift()` reports read-only what a given site is missing. Verified against this site: **zero drift, and re-running changes nothing.**
+
+Three definitions were wrong and are corrected against what a working site actually has:
+
+- `Item.kitchen_group` is a Link to `Kitchen Group`, not `Data` — `get_menu()` resolves it with `frappe.db.get_value("Kitchen Group", …)`.
+- `POS Order.order_type` is a Select of `Dine In / Take Away / Delivery`, not `Data` defaulting to `Dine-In`, which `_is_takeaway()` never matched — so take-away orders were charged service charge.
+- `Sales Invoice.pos_order` was missing entirely. `_link_invoice_to_order()` writes `pos_order` to whichever invoice type the sale became, and `pos_order.json` declares a Document Link through that fieldname, so leaving it off made Frappe reject the field with `Unknown column 'tabSales Invoice.pos_order'`.
+
+**Still open.** The DocTypes are created `custom: 1`, matching the live site, so they live in the DB and `bench migrate` still ignores them — no migration path when a field changes, and no rollback. Finishing it:
+
+1. Run `report_drift()` against **production** and reconcile every difference. The definitions were reconstructed from the `setup_*` code, not read off the live DB, so a field somebody added by hand in the Desk will not be in them.
+2. Convert `DOCTYPES` to DocType JSON under `luuvcrm/zeloura/doctype/*/` with `custom: 0`, and the custom fields into numbered `patches.txt` entries.
+3. Delete the `setup_*` endpoints from `api.py`.
+
+Step 1 must happen before step 2: a DocType JSON that disagrees with the live table is applied by the next `bench migrate`, silently.
 
 ### B2 · Duplicate, conflicting `POS Order` definition (critical)
 
@@ -265,7 +279,7 @@ There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/
 5. Write regression tests for exactly these paths, so the fixes cannot silently revert.
 
 ### Phase 2 — Make it installable (2–4 weeks)
-6. B1 — schema into the repo: DocType JSON, `patches.txt`, `after_install`, fixtures. **The pivotal task.**
+6. B1 — schema into the repo. **The pivotal task.** `setup_doctype.py` + `after_install` are done; what remains is reconciling against the live site, then DocType JSON and `patches.txt`.
 7. B2 — delete the duplicate `POS Order`.
 8. B4 — declare erpnext + hospitality.
 9. Prove it: `bench new-site`, `bench install-app luuvcrm`, working POS with zero manual steps. That test *is* the definition of done.

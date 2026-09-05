@@ -39,6 +39,9 @@ frappe v15.119  →  erpnext v15.120  →  hospitality  →  luuvcrm
 
 ### Things to know before you touch anything
 
+- **The schema ships in the repo.** `luuvcrm/setup_doctype.py` declares every DocType, custom field, property setter, role, DocPerm and the branch column, and runs from `after_install` — a fresh site comes up from `bench install-app luuvcrm` alone, and you no longer call the `setup_*` endpoints by hand. It is create-only and idempotent; `report_drift()` says read-only what a site is missing.
+  It has to carry the patches' work too: `frappe.installer.set_all_patches_as_completed()` marks every patch as done on a fresh install *without running it*, so `after_install` is all a new site gets. That is why `execute()` calls into `roles` and `branch` rather than declaring permissions of its own.
+  Still open (`PRODUCTION_READINESS.md` §B1): the DocTypes are created `custom: 1`, matching live, so they live in the DB and `bench migrate` ignores them.
 - **`/pos` is the POS.** There is one. There used to be three (`/pos`, `/pos2` and the `/pos3` staging copy); pos3 had all the work, so it became `/pos` and the other two were deleted. Read the header comment at the top of `www/pos.html` before editing it — the tablet layer, the printer bridge and the Google-Docs print layouts are all documented there.
 - **`/customer`, `/myorders` and `/my_orders` are 301s to `/cus`,** not copies of it. They are kept because each is a link already in a customer's hands. The customer app is `/cus` and nowhere else.
 - **The brand is hard-coded.** "Luuv Fryxo" appears in every page; `hooks.py` says "Zeloura"; the app is `luuvcrm`. Same product, three names.

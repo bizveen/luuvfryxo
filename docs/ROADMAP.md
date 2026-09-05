@@ -189,9 +189,11 @@ else:
 The pivotal work. Nothing after this is possible without it.
 
 - [ ] **B2 first** — delete the duplicate `luuvcrm/doctype/POS Order`, which conflicts with `luuvcrm/zeloura/doctype/` on `autoname` and on whether the invoice link points at `POS Invoice` or `Sales Invoice`. Verify against the live schema before deleting.
-- [ ] Export the 24 runtime DocTypes into `luuvcrm/zeloura/doctype/`, with the DocPerms decided in Phase 2a.
+- [~] Export the 24 runtime DocTypes into `luuvcrm/zeloura/doctype/`, with the DocPerms decided in Phase 2a. They are **declared** in `setup_doctype.DOCTYPES` now, but created `custom: 1` — so they live in the DB and `bench migrate` still ignores them. **Run `report_drift()` against production and reconcile before converting to JSON:** the definitions were reconstructed from the `setup_*` code, not read off the live DB, and a DocType JSON that disagrees with the live table is applied by the next migrate, silently.
 - [ ] Convert the ~24 `create_custom_field` calls into numbered `patches.txt` entries.
-- [ ] Write `after_install`, following `docs/SEED_DATA.md` §D: verify erpnext + hospitality, create roles, item groups and UOMs, create `LuuvCRM Settings`, POS Profile and payment modes, seed expense categories, print next steps.
+- [x] **`after_install` written**, running `luuvcrm/setup_doctype.py`: 24 DocTypes, 32 custom fields, 2 property setters, roles + DocPerms (delegated to `roles.py`), the branch column, `LF Client Error`, and the reference rows — kitchen groups, expense categories, the `Walk In` customer, the settings singles. `report_drift()` says read-only what a site is missing. Verified on this site: zero drift, and re-running changes nothing. 11 tests in `test_setup.py`.
+  **The thing to remember:** `frappe.installer.set_all_patches_as_completed()` marks every patch as done on a fresh install *without running it*, so none of the four patches in `patches.txt` fires on a new site — `after_install` is all it gets, and it has to do everything they do or a fresh site and a migrated site are different sites.
+  Still missing from it, per `SEED_DATA.md` §D: `LuuvCRM Settings`, the POS Profile, payment modes, item groups and UOMs.
 - [ ] Create the **`LuuvCRM Settings`** single (`SEED_DATA.md` §B1). Many later items depend on it: brand, manager PIN, WhatsApp number, feature flags, service charge, price lists.
 - [ ] Move the demo menu to `luuvcrm/demo/` behind an explicit `bench execute`.
 - [ ] **B4** — declare erpnext and hospitality in `pyproject.toml`.

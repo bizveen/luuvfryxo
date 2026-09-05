@@ -1,6 +1,8 @@
 # Seed Data — what a fresh LuuvCRM site needs
 
-**Status today:** there is no install-time seeding. `hooks.py` has no `after_install`, `patches.txt` is empty, and `add_seed_data.py` is a gitignored one-off script. Everything below either lives inside a `setup_*` HTTP endpoint that someone has to remember to call, or does not exist at all.
+**Status today:** `hooks.py` has an `after_install` that runs `luuvcrm/setup_doctype.py`, which provisions the schema and the reference rows the screens cannot work without — the roles and their DocPerms, the branch column, the kitchen groups, the expense categories, the `Walk In` customer, and the `Loyalty Settings` / `Guide Settings` singles. Each is guarded on an empty table, so a manager who deletes a row does not get it back. `patches.txt` carries four patches for sites that already exist; note that a *fresh* install marks them done without running them, which is why `after_install` has to do the same work.
+
+Still open: `add_seed_data.py` is a gitignored one-off script, and the raw materials, print formats, POS Profile, price lists and `Restaurant` record are still manual or still live inside a `setup_*` HTTP endpoint that someone has to remember to call. §B1 — the settings single — does not exist at all.
 
 This document is the target: what a new site should have the moment `bench install-app luuvcrm` finishes.
 

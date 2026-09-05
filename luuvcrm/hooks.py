@@ -19,9 +19,21 @@ before_request = ["luuvcrm.api.route_app_requests"]
 # activity stack. Runs in the request's finally block, after the DB has been
 # committed/rolled back, so it commits its own row.
 # NOTE: activity.py MUST be deployed before this file — the hook imports it on
-# every request. (after_migrate → setup_doctype stays repo-only for now: that
-# module is not on the server.)
+# every request.
 after_request = ["luuvcrm.activity.log_request_activity"]
+
+# The whole schema — DocTypes, custom fields, property setters, roles, DocPerms,
+# the branch column — in luuvcrm/setup_doctype.py. Wired to after_install only,
+# so `bench install-app luuvcrm` provisions a fresh site on its own and a deploy
+# never touches an existing one. On an existing site, run it by hand:
+#   bench --site <site> execute luuvcrm.setup_doctype.report_drift   # read-only
+#   bench --site <site> execute luuvcrm.setup_doctype.execute
+# Deliberately NOT after_migrate: every step there is create-only, but a live
+# deploy is the wrong place to discover we were wrong about that.
+#
+# It has to carry the patches' work too — Frappe marks every patch as completed
+# on a fresh install without running it, so after_install is all a new site gets.
+after_install = "luuvcrm.setup_doctype.after_install"
 
 scheduler_events = {
     "daily": [
