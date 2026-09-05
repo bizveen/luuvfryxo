@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- **`/owner`** — every branch side by side (revenue, sales, average bill, cash, approvals waiting) and the setup behind them: Cost Center, Warehouse, which till belongs to which branch, which manager sees only theirs. Phase 2c built the multi-restaurant machinery and left it reachable only from a Python console; `roles.require_owner()` existed and nothing called it. A branch with no Cost Center reads "not set up" rather than `Rs 0`.
 - **The 24 DocTypes ship as JSON** under `luuvcrm/zeloura/doctype/`, `custom: 0`, so `bench migrate` syncs them and a field change finally has a migration path. `setup_doctype` keeps a roll-call for the drift report and checks rather than creates — `install_app` syncs the JSON before `after_install` runs.
 - **`required_apps = ["erpnext", "hospitality"]`** in `hooks.py` (B4). Not a pyproject dependency: those are pip packages, these are Frappe apps bench resolves, and `install_app` reads this hook to install them first.
 - **The schema, declared in the repo** (`luuvcrm/setup_doctype.py`, ported from the `schema-in-repo` branch): 24 DocTypes, 32 custom fields, 2 property setters, the roles and DocPerms, the branch column and the reference rows the screens need. `after_install` runs it, so `bench install-app luuvcrm` provisions a fresh site instead of needing ~27 `setup_*` endpoints called by hand in an undocumented order. `report_drift()` reports read-only what a site is missing — zero on this one.

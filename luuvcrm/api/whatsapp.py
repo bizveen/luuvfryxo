@@ -60,8 +60,9 @@ def send_order_whatsapp(order_name):
         f"Reply *OK* to accept this order."
     )
 
-    # Send to restaurant monitoring number
-    to_number = "94773429923"
+    # The number the restaurant watches for new orders. A setting, not a
+    # literal — this is the first thing a second restaurant changes.
+    to_number = settings.get("wa_order_number")
 
     try:
         import requests

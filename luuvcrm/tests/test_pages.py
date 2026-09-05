@@ -199,7 +199,8 @@ class TestTheOldCustomerRoutesStillLand(PageTestCase):
         and the link in the thread stays right if the alias is ever dropped."""
         source = frappe.read_file(
             frappe.get_app_path("luuvcrm", "api", "whatsapp.py"))
-        self.assertIn("View your orders: https://luuvgrand.com/cus", source)
+        self.assertIn('"View your orders: " + settings.url("/cus")', source)
+        self.assertNotIn("/myorders", source)
 
 
 class TestTheStaffPagesAreGated(PageTestCase):

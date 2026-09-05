@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<!--
+  /owner — every branch side by side, and the setup behind them.
+
+  Phase 2c built the multi-restaurant machinery and left it reachable only from
+  a Python console. This screen is what makes the Restaurant Owner role mean
+  something: it compares branches (every other report sums them, which answers
+  the wrong question when you own two) and it exposes the four things that have
+  to be true before two branches stay apart — a Cost Center each, a Warehouse
+  each, a till that names its branch, and a manager restricted to theirs.
+
+  Design tokens are manager.html's, deliberately: this is the same product and
+  the same person's phone.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ brand_name }} Owner</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First scripts on the page so they are listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="owner"></script>
+<script src="/lfact.js?v=1" data-app="owner"></script>
+<meta name="theme-color" content="#F15207">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;
+  --gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
+  --gray-500:#837A70;--gray-600:#5E564E;--gray-700:#423D38;--gray-900:#1A1714;
+  --green-500:#1E9E5A;--amber-500:#F0A323;--red-500:#E23D3D;
+  --color-primary:var(--orange-500);--text-strong:var(--gray-900);--text-body:var(--gray-700);
+  --text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);
+  --border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --color-success:var(--green-500);--color-success-subtle:#E6F5EC;
+  --color-warning:var(--amber-500);--color-warning-subtle:#FDF1DC;
+  --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;
+  --font-display:'Poppins',system-ui,-apple-system,sans-serif;
+  --font-body:'DM Sans',system-ui,-apple-system,sans-serif;
+  --font-mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --radius-md:10px;--radius-lg:14px;--radius-pill:999px;
+  --shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--gray-50);color:var(--text-body);font-family:var(--font-body);
+     font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 72px}
+
+.top{display:flex;align-items:center;gap:12px;padding:18px 0 16px;flex-wrap:wrap}
+.top h1{font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--text-strong);margin:0;line-height:1.2}
+.top .sub{font-size:12.5px;color:var(--text-muted);margin-top:2px}
+.top .spacer{flex:1}
+.who{font-size:12.5px;color:var(--text-muted);font-family:var(--font-mono)}
+.lnk{font-size:13px;color:var(--orange-700);text-decoration:none;font-weight:600;
+     border:1.5px solid var(--orange-100);background:var(--orange-50);
+     padding:6px 12px;border-radius:var(--radius-pill)}
+.lnk:hover{background:var(--orange-100)}
+
+h2{font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-strong);
+   margin:26px 0 10px;display:flex;align-items:center;gap:9px}
+h2 .cnt{font-family:var(--font-mono);font-size:11.5px;font-weight:500;color:var(--text-faint)}
+
+.card{background:var(--surface-card);border:1px solid var(--border-subtle);
+      border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+
+/* the comparison — one column per branch */
+.cmp{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{padding:11px 16px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--gray-100)}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+thead th{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--text-strong);
+         background:var(--surface-sunken);border-bottom:1.5px solid var(--border-subtle)}
+thead th:first-child{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;
+                     text-transform:uppercase;font-weight:500;color:var(--text-faint)}
+tbody tr:last-child td{border-bottom:none}
+td.n{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--text-strong)}
+td.n.big{font-size:16px;font-weight:500}
+td.na{color:var(--text-faint);font-family:var(--font-body);font-size:13px}
+tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-strong);
+          border-top:1.5px solid var(--border-subtle)}
+.warnpill{display:inline-block;font-family:var(--font-mono);font-size:11px;font-weight:500;
+          color:var(--red-500);background:var(--color-danger-subtle);
+          border-radius:var(--radius-pill);padding:1px 8px;margin-inline-start:6px}
+
+/* problems */
+.probs{background:var(--color-warning-subtle);border:1px solid #F2DCB0;
+       border-radius:var(--radius-lg);padding:14px 18px;margin-top:14px}
+.probs .hd{font-family:var(--font-display);font-weight:700;font-size:13.5px;
+           color:var(--gray-900);margin-bottom:7px}
+.probs ul{margin:0;padding-inline-start:18px;display:grid;gap:5px}
+.probs li{font-size:13.5px;color:var(--gray-700)}
+.ok{background:var(--color-success-subtle);border:1px solid #BFE3CD;border-radius:var(--radius-lg);
+    padding:12px 18px;margin-top:14px;font-size:13.5px;color:#10603A}
+
+/* setup */
+.br{border-bottom:1px solid var(--gray-100);padding:16px}
+.br:last-child{border-bottom:none}
+.br .nm{font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--text-strong)}
+.br .meta{font-family:var(--font-mono);font-size:11.5px;color:var(--text-faint);margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:12px}
+label{display:block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--text-faint);margin-bottom:4px}
+select,input[type=text]{width:100%;padding:9px 11px;font-family:inherit;font-size:14px;
+       color:var(--text-strong);background:#fff;border:1.5px solid var(--border-default);
+       border-radius:var(--radius-md);outline:none}
+select:focus,input[type=text]:focus{border-color:var(--orange-500);box-shadow:0 0 0 3px var(--orange-50)}
+.miss{border-color:var(--red-500)}
+button{font-family:var(--font-display);font-weight:700;font-size:13.5px;cursor:pointer;
+       border-radius:var(--radius-pill);padding:9px 18px;border:1.5px solid transparent;
+       background:var(--color-primary);color:#fff}
+button:hover{background:var(--orange-600)}
+button.ghost{background:#fff;color:var(--text-body);border-color:var(--border-default)}
+button.ghost:hover{background:var(--gray-100)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--orange-500);outline-offset:2px}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}
+.row > div{flex:1;min-width:170px}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--gray-900);
+       color:#fff;font-size:14px;padding:11px 20px;border-radius:var(--radius-pill);
+       box-shadow:0 8px 22px rgba(0,0,0,.25);z-index:99}
+.empty{padding:26px 18px;text-align:center;color:var(--text-faint);font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <h1>{{ brand_name }}</h1>
+      <div class="sub">Owner — every branch</div>
+    </div>
+    <span class="spacer"></span>
+    <span class="who">{{ current_user_full }}</span>
+    <a class="lnk" href="/manager">Manager</a>
+    <a class="lnk" href="/admin">Admin</a>
+  </div>
+
+  <h2>අද <span class="cnt" id="theDate"></span></h2>
+  <div class="card cmp"><table id="cmp"><tbody><tr><td class="empty">Loading…</td></tr></tbody></table></div>
+  <div id="probs"></div>
+
+  <h2>Branches <span class="cnt" id="brCount"></span></h2>
+  <div class="card" id="setup"><div class="empty">Loading…</div></div>
+
+  <h2>Add a branch</h2>
+  <div class="card" style="padding:16px">
+    <div class="row">
+      <div><label for="newName">Name</label><input type="text" id="newName" placeholder="Colombo"></div>
+      <div><label for="newCc">Cost Center</label><select id="newCc"></select></div>
+      <div><label for="newWh">Warehouse</label><select id="newWh"></select></div>
+      <button onclick="addBranch()">Add branch</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin:12px 0 0;max-width:64ch">
+      A branch keeps its money apart from the others by its <strong>Cost Center</strong> and its
+      stock by its <strong>Warehouse</strong>. Both can be set later, but until the Cost Center is
+      there this branch's takings cannot be told from anyone else's.
+    </p>
+  </div>
+
+</div>
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+let SETUP = null;
+
+function money(v){ return v === null || v === undefined ? null
+  : 'Rs ' + Math.round(v).toLocaleString('en-LK'); }
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+async function call(method, data){
+  try{
+    const body = new URLSearchParams(data || {});
+    const res = await fetch('/api/method/luuvcrm.api.' + method, {
+      method: data ? 'POST' : 'GET',
+      credentials: 'include',
+      headers: {'X-Frappe-CSRF-Token': CSRF,
+                'Content-Type': 'application/x-www-form-urlencoded'},
+      body: data ? body.toString() : undefined
+    });
+    if(res.status === 401 || res.status === 403){ location.href = '/pos-login?redirect=/owner'; return null; }
+    const json = await res.json();
+    if(!res.ok){ toast(json._server_messages ? JSON.parse(json._server_messages)[0] : 'Could not save'); return null; }
+    return json.message;
+  }catch(e){ toast('Network problem'); return null; }
+}
+
+/* ── the comparison ─────────────────────────────────────────────────────── */
+const ROWS = [
+  ['Revenue',   'revenue',   money, true],
+  ['Sales',     'sales_count', v => v === null ? null : String(v), false],
+  ['Avg bill',  'avg_ticket', money, false],
+  ['Cash',      'cash',      money, false],
+];
+
+function renderCompare(d){
+  document.getElementById('theDate').textContent = d.date;
+  const bs = d.branches;
+  if(!bs.length){
+    document.getElementById('cmp').innerHTML = '<tbody><tr><td class="empty">No restaurants yet.</td></tr></tbody>';
+    return;
+  }
+  const head = '<thead><tr><th>&nbsp;</th>' + bs.map(b => '<th>' + esc(b.restaurant) + '</th>').join('')
+    + (bs.length > 1 ? '<th>Total</th>' : '') + '</tr></thead>';
+
+  const body = ROWS.map(([label, key, fmt, big]) => {
+    const cells = bs.map(b => {
+      const v = fmt(b[key]);
+      return v === null
+        ? '<td class="na" title="This branch has no Cost Center, so its takings cannot be told apart">not set up</td>'
+        : '<td class="n' + (big ? ' big' : '') + '">' + esc(v) + '</td>';
+    }).join('');
+    const tot = bs.length > 1
+      ? '<td class="n' + (big ? ' big' : '') + '">' + esc(fmt(
+          key === 'avg_ticket'
+            ? (d.totals.sales_count ? d.totals.revenue / d.totals.sales_count : 0)
+            : d.totals[key]) ?? '—') + '</td>'
+      : '';
+    return '<tr><td>' + label + '</td>' + cells + tot + '</tr>';
+  }).join('');
+
+  const appr = '<tr class="tot"><td>Waiting for you</td>' + bs.map(b =>
+      '<td class="n">' + b.approvals_pending
+      + (b.approvals_pending ? '<span class="warnpill">approve</span>' : '') + '</td>').join('')
+    + (bs.length > 1 ? '<td class="n">' + d.totals.approvals_pending + '</td>' : '') + '</tr>';
+
+  document.getElementById('cmp').innerHTML = head + '<tbody>' + body + appr + '</tbody>';
+
+  const box = document.getElementById('probs');
+  if(d.problems.length){
+    box.className = 'probs';
+    box.innerHTML = '<div class="hd">Not set up yet</div><ul>'
+      + d.problems.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>';
+  } else if(d.single_branch){
+    box.className = ''; box.innerHTML = '';
+  } else {
+    box.className = 'ok';
+    box.textContent = 'Every branch is set up: its own Cost Center and Warehouse, a till that names it, and a manager who sees only it.';
+  }
+}
+
+/* ── the setup list ─────────────────────────────────────────────────────── */
+function opts(list, chosen, blank){
+  return (blank ? '<option value="">' + blank + '</option>' : '')
+    + list.map(v => '<option value="' + esc(v) + '"' + (v === chosen ? ' selected' : '') + '>'
+        + esc(v) + '</option>').join('');
+}
+
+function renderSetup(d){
+  SETUP = d;
+  document.getElementById('brCount').textContent = d.branches.length + (d.branches.length === 1 ? ' branch' : ' branches');
+  document.getElementById('newCc').innerHTML = opts(d.cost_centers, null, 'Choose later');
+  document.getElementById('newWh').innerHTML = opts(d.warehouses, null, 'Choose later');
+
+  document.getElementById('setup').innerHTML = d.branches.map(b => `
+    <div class="br">
+      <div class="nm">${esc(b.restaurant)}</div>
+      <div class="meta">${esc(b.company || 'no company')} · ${b.rows} order${b.rows === 1 ? '' : 's'}</div>
+      <div class="grid">
+        <div>
+          <label>Cost Center</label>
+          <select class="${b.cost_center ? '' : 'miss'}"
+                  onchange="saveBranch('${esc(b.restaurant)}', this.value, null)">
+            ${opts(d.cost_centers, b.cost_center, '— none —')}
+          </select>
+        </div>
+        <div>
+          <label>Warehouse</label>
+          <select class="${b.warehouse ? '' : 'miss'}"
+                  onchange="saveBranch('${esc(b.restaurant)}', null, this.value)">
+            ${opts(d.warehouses, b.warehouse, '— none —')}
+          </select>
+        </div>
+        <div>
+          <label>Tills here</label>
+          <select onchange="setTill(this.value, '${esc(b.restaurant)}')">
+            ${opts(d.tills.filter(t => !b.tills.includes(t)), null,
+                   b.tills.length ? b.tills.join(', ') : '— none —')}
+          </select>
+        </div>
+        <div>
+          <label>Manager sees only this</label>
+          <select onchange="setManager(this.value, '${esc(b.restaurant)}')">
+            ${opts(d.managers.filter(m => !b.managers.includes(m)), null,
+                   b.managers.length ? b.managers.join(', ') : '— nobody —')}
+          </select>
+        </div>
+      </div>
+    </div>`).join('') || '<div class="empty">No restaurants yet.</div>';
+}
+
+/* ── actions ────────────────────────────────────────────────────────────── */
+async function saveBranch(restaurant, cost_center, warehouse){
+  const p = {restaurant};
+  if(cost_center !== null) p.cost_center = cost_center;
+  if(warehouse !== null) p.warehouse = warehouse;
+  if(await call('update_branch', p)){ toast('Saved'); load(); }
+}
+async function setTill(pos_profile, restaurant){
+  if(!pos_profile) return;
+  if(await call('assign_till', {pos_profile, restaurant})){ toast(pos_profile + ' → ' + restaurant); load(); }
+}
+async function setManager(user, restaurant){
+  if(!user) return;
+  if(await call('assign_manager', {user, restaurant})){ toast(user + ' sees only ' + restaurant); load(); }
+}
+async function addBranch(){
+  const restaurant_name = document.getElementById('newName').value.trim();
+  if(!restaurant_name){ toast('Give the branch a name'); return; }
+  const r = await call('create_branch', {
+    restaurant_name,
+    cost_center: document.getElementById('newCc').value,
+    warehouse: document.getElementById('newWh').value
+  });
+  if(r){ document.getElementById('newName').value = ''; toast(restaurant_name + ' added'); load(); }
+}
+
+async function load(){
+  const [overview, setup] = await Promise.all([
+    call('get_owner_overview'), call('get_branch_setup')
+  ]);
+  if(overview) renderCompare(overview);
+  if(setup) renderSetup(setup);
+}
+load();
+setInterval(() => { if(!document.hidden) load(); }, 60000);
+</script>
+</body>
+</html>
