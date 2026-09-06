@@ -4023,45 +4023,48 @@ def get_purchase_bills():
 @frappe.whitelist()
 def get_purchase_day_summary(date=None):
     """One day's purchasing at a glance: what was entered, what it cost, where it
-    stands and who was involved.
+    stands, who was involved — and the day's bills themselves.
 
-    Powers the day card above the Bills list in the Manager app. The day owns a
-    bill by `requested_at` (when it was entered), so the numbers here always add
-    up to that day's entries no matter when a manager got round to approving
-    them; `approved_by` therefore names whoever resolved *those* bills, which may
-    have happened later. Totals are summed from the line items (qty * price), the
-    way the purchase report and the /purchases app both compute them.
+    Powers the day card above the Bills list in the Manager app, which lists the
+    bills grouped by status. The day owns a bill by `requested_at` (when it was
+    entered), so the numbers always add up to that day's entries no matter when a
+    manager got round to approving them; `approved_by` therefore names whoever
+    resolved *those* bills, which may have happened later. Each bill carries its
+    full line items, so tapping one opens the same breakdown sheet as the Bills
+    list without a second call.
     """
     from frappe.utils import getdate, add_days, formatdate, today as _today
 
-    if not frappe.db.exists("DocType", "Purchase Bill"):
-        return {"date": str(getdate(date or _today())), "bills": 0, "total": 0,
-                "approved": {"count": 0, "total": 0}, "pending": {"count": 0, "total": 0},
-                "rejected": {"count": 0, "total": 0}, "entered_by": [], "approved_by": []}
-
     day = getdate(date or _today())
-    rows = frappe.db.sql(
-        """
-        SELECT pb.name, pb.status, pb.requested_by, pb.resolved_by,
-               COALESCE(SUM(pbi.qty * pbi.price), 0) AS total
-        FROM `tabPurchase Bill` pb
-        LEFT JOIN `tabPurchase Bill Item` pbi ON pbi.parent = pb.name
-        WHERE pb.requested_at >= %s AND pb.requested_at < %s
-        GROUP BY pb.name, pb.status, pb.requested_by, pb.resolved_by
-        """,
-        (str(day), str(add_days(day, 1))), as_dict=True)
+    empty = {"date": str(day), "label": formatdate(day, "EEE, d MMM"),
+             "is_today": str(day) == str(getdate(_today())), "bills": [], "count": 0,
+             "total": 0, "approved": {"count": 0, "total": 0},
+             "pending": {"count": 0, "total": 0}, "rejected": {"count": 0, "total": 0},
+             "entered_by": [], "approved_by": []}
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        return empty
+
+    # half-open on a Datetime column, so midnight belongs to the next day only
+    names = frappe.get_all("Purchase Bill",
+                           filters=[["requested_at", ">=", str(day)],
+                                    ["requested_at", "<", str(add_days(day, 1))]],
+                           fields=["name", "requested_by", "resolved_by"],
+                           order_by="requested_at desc", limit_page_length=0)
+    if not names:
+        return empty
+    bills = [_bill_dict(r.name) for r in names]
 
     buckets = {k: {"count": 0, "total": 0.0} for k in ("approved", "pending", "rejected")}
     entered, approved_by = {}, {}
-    for r in rows:
-        amt = float(r.total or 0)
-        b = buckets.setdefault(r.status or "pending", {"count": 0, "total": 0.0})
-        b["count"] += 1
-        b["total"] += amt
+    for r, b in zip(names, bills):
+        amt = b["total"]
+        bucket = buckets.setdefault(b["status"] or "pending", {"count": 0, "total": 0.0})
+        bucket["count"] += 1
+        bucket["total"] += amt
         e = entered.setdefault(r.requested_by or "", {"count": 0, "total": 0.0})
         e["count"] += 1
         e["total"] += amt
-        if r.status == "approved" and r.resolved_by:
+        if b["status"] == "approved" and r.resolved_by:
             a = approved_by.setdefault(r.resolved_by, {"count": 0, "total": 0.0})
             a["count"] += 1
             a["total"] += amt
@@ -4072,12 +4075,10 @@ def get_purchase_day_summary(date=None):
                for u, v in d.items()]
         return sorted(out, key=lambda x: -x["total"])
 
-    return {
-        "date": str(day),
-        "label": formatdate(day, "EEE, d MMM"),
-        "is_today": str(day) == str(getdate(_today())),
-        "bills": len(rows),
-        "total": round(sum(float(r.total or 0) for r in rows), 2),
+    empty.update({
+        "bills": bills,
+        "count": len(bills),
+        "total": round(sum(b["total"] for b in bills), 2),
         "approved": {"count": buckets["approved"]["count"],
                      "total": round(buckets["approved"]["total"], 2)},
         "pending": {"count": buckets["pending"]["count"],
@@ -4086,7 +4087,8 @@ def get_purchase_day_summary(date=None):
                      "total": round(buckets["rejected"]["total"], 2)},
         "entered_by": people(entered),
         "approved_by": people(approved_by),
-    }
+    })
+    return empty
 
 
 @frappe.whitelist()

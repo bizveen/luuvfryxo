@@ -87,7 +87,8 @@ class TestPurchaseDaySummary(FrappeTestCase):
         self._bill(1, 999, "rejected", by="Guest", resolved_by="Administrator")
 
         m = api.get_purchase_day_summary()
-        self.assertEqual(m["bills"] - base["bills"], 4)
+        self.assertEqual(m["count"] - base["count"], 4)
+        self.assertEqual(len(m["bills"]), m["count"])
         self.assertEqual(m["total"] - base["total"], 200 + 50 + 30 + 999)
         for k, cnt, amt in (("approved", 2, 250), ("pending", 1, 30), ("rejected", 1, 999)):
             self.assertEqual(m[k]["count"] - base[k]["count"], cnt, k)
@@ -106,11 +107,17 @@ class TestPurchaseDaySummary(FrappeTestCase):
         self.assertEqual(round(appr["Administrator"]["total"]
                                - base_appr.get("Administrator", {}).get("total", 0), 2), 250)
 
+        # the card lists the day's bills, newest first, with the lines the sheet needs
+        mine = [b for b in m["bills"] if b["vendor"] == "Test Vendor"]
+        self.assertEqual(len(mine), 4)
+        self.assertTrue(all(b["lines"] for b in mine))
+        self.assertEqual({b["status"] for b in mine}, {"approved", "pending", "rejected"})
+
     def test_todays_bill_does_not_show_up_on_another_day(self):
         prev = add_days(today(), -1)
         base = api.get_purchase_day_summary(date=prev)
         self.assertFalse(base["is_today"])
         self._bill(2, 100, "approved")
         m = api.get_purchase_day_summary(date=prev)
-        self.assertEqual(m["bills"], base["bills"])
+        self.assertEqual(m["count"], base["count"])
         self.assertEqual(m["total"], base["total"])
