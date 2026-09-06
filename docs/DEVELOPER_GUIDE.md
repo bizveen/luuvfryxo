@@ -223,11 +223,48 @@ Python is tabs, double quotes, 110 columns (`pyproject.toml`).
 
 ### Tests
 
-There are none. `luuvcrm/test_child_parent.py` is a scratch script, not a test. If you add anything to the money path, add the test with it:
+622 of them, in `luuvcrm/tests/`. If you add anything to the money path, add the test with it:
 
 ```bash
-bench --site dev.localhost run-tests --app luuvcrm
+bench --site test.localhost run-tests --app luuvcrm
+bench --site test.localhost run-tests --module luuvcrm.tests.test_payments   # one file
 ```
+
+**Read the summary, not the tail.** `report_drift()` prints after the result, so
+`run-tests ... | tail -20` shows you `missing DocTypes: 0` and hides
+`FAILED (failures=6)` — and the pipe makes the exit code the tail's. Redirect and
+grep instead:
+
+```bash
+bench --site test.localhost run-tests --app luuvcrm > /tmp/suite.txt 2>&1
+grep -E "^Ran |^OK$|^FAILED|^FAIL:" /tmp/suite.txt
+```
+
+**Do not run `main`'s tests against a site `product` is tested on.** `main` still
+builds its schema at runtime, so its fixtures recreate DocTypes as `custom: 1`
+and take them back out of `bench migrate`'s path.
+
+### The acceptance test
+
+The suite runs against a site that already exists. The question that actually
+decides whether this is a product — *can somebody else install it?* — needs a
+site that does not:
+
+```bash
+MARIADB_ROOT_PASSWORD=... ./scripts/acceptance.sh
+```
+
+It creates a throwaway site, installs the app, runs ERPNext's own setup wizard
+(the installer's step, not ours), then takes a real sale through the real
+endpoints: schema present and not `custom: 1`, roles usable, a menu item added
+through the app, a shift opened, two burgers sold and billed, the manager's
+dashboard showing the money, and the reference rows the screens need. Then it
+drops the site. `--keep-site` leaves it up to look around.
+
+It **reports rather than stops**: every step is caught, so one failure does not
+hide the four behind it. What comes back is the list of things a fresh site
+still cannot do, which is the remaining Phase 3 work written by the software
+instead of guessed at.
 
 ---
 

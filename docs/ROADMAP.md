@@ -206,7 +206,10 @@ The pivotal work. Nothing after this is possible without it.
 - [ ] Move the demo menu to `luuvcrm/demo/` behind an explicit `bench execute`.
 - [x] **B4 — declared, but in `hooks.py`, not `pyproject.toml`.** `required_apps = ["erpnext", "hospitality"]`: pyproject dependencies are pip packages, and these are Frappe apps that bench resolves. `frappe.installer.install_app()` reads this hook and installs each first, so `bench install-app luuvcrm` on a clean bench brings them with it instead of failing at the first import.
 - [ ] Delete every `setup_*` endpoint once its work lives in a patch or fixture.
-- [ ] **The acceptance test:** `bench new-site` → `install-app luuvcrm` → a working sale, with zero manual steps and no HTTP `setup_*` call. Automate it in CI. **This is what "installable" means; nothing else counts.**
+- [~] **The acceptance test:** `bench new-site` → `install-app luuvcrm` → a working sale, with zero manual steps and no HTTP `setup_*` call. **This is what "installable" means; nothing else counts.**
+  **The harness is written** — `scripts/acceptance.sh` builds a throwaway site and drops it again; `luuvcrm/tests/fresh_install.py` runs inside it and takes a sale through the real endpoints: schema present and not `custom: 1`, roles present *and enabled*, a menu item added through the app, a shift opened, two sold and billed, the manager's dashboard showing the money, and the reference rows the screens cannot work without. ERPNext's setup wizard runs first, in the shell script rather than the Python, to keep the line visible: that is the installer's own step, and everything after it must work with no further help.
+  It **reports rather than stops** — every step is caught, because a traceback at step one hides the four problems behind it. What comes back is the list of what a fresh site still cannot do.
+  **Not run yet:** `bench new-site` needs the MariaDB root password, which is the user's to supply. Until it has been run and passed, this item is not done — a harness that has never run is a guess with a shell script around it. (CI is dropped; this is run by hand.)
 
 ---
 
@@ -242,7 +245,7 @@ The pivotal work. Nothing after this is possible without it.
 - [x] **Customer auth and the WhatsApp OTP.** `customer_create_or_login`, `customer_set_pin`, `customer_verify_pin`, `customer_get_profile`, `customer_update_profile`, `wa_send_otp`, `wa_verify_otp` — 56 tests in `test_customer_auth.py`. The PIN stored salted and per-account rather than as typed; a wrong PIN and an unknown number answering identically so the endpoint cannot be used as a customer directory; the five-try lockout holding even against the right PIN, counting unknown numbers too, and not spilling from one number to another; legacy plaintext PINs signing in and being upgraded in place; the token as the only credential, expiring on read at seven days; blank profile fields not wiping what is there; and the OTP's cooldown, single use, and five-guess limit.
 - [~] **Endpoint coverage: 38 of 157 whitelisted endpoints at the start of this pass.** Measured, not guessed — `test_service.py` was the first batch, `test_loyalty.py` the second, `test_customer_auth.py` the third. Remaining, in rough order of risk: promo campaigns (6), the guide app's own endpoints (13), expenses/wastage/food cost (6), manager report arithmetic (6), print payloads (5), menu editing (3), and one test looping every `setup_*` for idempotency.
 - [ ] ~~CI on every push.~~ **Dropped** — the owner does not want it. Tests are run by hand: `bench --site <site> run-tests --app luuvcrm --module luuvcrm.tests.test_<x>`.
-- [ ] A fresh-install smoke test, run by hand rather than in CI (Phase 3's acceptance test).
+- [~] A fresh-install smoke test, run by hand rather than in CI — `scripts/acceptance.sh`, see Phase 3. Written; not yet run.
 - [x] Deleted `luuvcrm/test_child_parent.py` — it was a Zeloura scratch script pointing at a hard-coded site named `clothing`, and went with the rest of that code.
 
 ---
