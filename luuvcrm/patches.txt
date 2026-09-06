@@ -8,3 +8,4 @@ luuvcrm.patches.v1_0.create_roles
 luuvcrm.patches.v1_0.grant_pos_permissions
 luuvcrm.patches.v1_0.add_branch_field
 luuvcrm.patches.v1_0.grant_app_permissions
+luuvcrm.patches.v1_0.sync_settings_fields

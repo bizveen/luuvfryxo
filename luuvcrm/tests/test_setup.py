@@ -180,6 +180,50 @@ class TestTheDocTypesShipAsFiles(FrappeTestCase):
                 self.assertFalse(frappe.db.get_value("DocType", name, "custom"))
 
 
+class TestNothingRebuildsADocTypeAtRuntime(FrappeTestCase):
+    """The conversion in B1 is only worth anything if it stays converted.
+
+    `setup_customer_accounts()` deleted `Customer Account` and `Customer Token`
+    and rebuilt them from a Python dict with `custom: 1` — every call. That
+    dropped every customer account and signed out every customer holding a
+    token, and put both DocTypes back outside `bench migrate`'s path. The test
+    suite called it to "ensure" they existed, which is how it was caught.
+    """
+
+    PAIR = ("Customer Account", "Customer Token")
+
+    def test_the_endpoint_reports_and_does_not_rebuild(self):
+        from luuvcrm import api
+        before = {d: frappe.db.get_value("DocType", d, "modified") for d in self.PAIR}
+        out = api.setup_customer_accounts()
+        self.assertEqual(out["status"], "present")
+        self.assertEqual(sorted(out["present"]), sorted(self.PAIR))
+        for d in self.PAIR:
+            with self.subTest(doctype=d):
+                self.assertEqual(frappe.db.get_value("DocType", d, "modified"), before[d],
+                                 "it touched the DocType")
+                self.assertFalse(frappe.db.get_value("DocType", d, "custom"))
+
+    def test_the_source_no_longer_deletes_them(self):
+        source = frappe.read_file(frappe.get_app_path("luuvcrm", "api", "customers.py"))
+        body = source[source.index("def setup_customer_accounts"):]
+        body = body[:body.index("\ndef ")]
+        self.assertNotIn("delete_doc", body)
+        self.assertNotIn('"custom": 1', body)
+
+    def test_the_profile_fields_ship_with_the_doctype(self):
+        """They were added at runtime by a `dt.save()`, which is what marked the
+        DocType custom on a site that did not have them yet."""
+        spec = json.loads((pathlib.Path(frappe.get_app_path(
+            "luuvcrm", "zeloura", "doctype", "customer_account"))
+            / "customer_account.json").read_text())
+        names = {f["fieldname"] for f in spec["fields"]}
+        self.assertLessEqual({"address", "area"}, names)
+        for column in ("address", "area"):
+            with self.subTest(column=column):
+                self.assertTrue(frappe.db.has_column("Customer Account", column))
+
+
 class TestEveryControllerCanBeImported(FrappeTestCase):
     """The one that matters most in this file.
 

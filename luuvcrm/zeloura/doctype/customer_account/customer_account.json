@@ -9,7 +9,9 @@
   "mobile",
   "customer_name",
   "pin",
-  "last_login"
+  "last_login",
+  "address",
+  "area"
  ],
  "fields": [
   {
@@ -35,12 +37,22 @@
    "fieldname": "last_login",
    "fieldtype": "Datetime",
    "label": "Last Login"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "area",
+   "fieldtype": "Data",
+   "label": "Area"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-05 17:53:30.891333",
+ "modified": "2026-09-06 15:30:00.000000",
  "modified_by": "Administrator",
  "module": "Zeloura",
  "name": "Customer Account",

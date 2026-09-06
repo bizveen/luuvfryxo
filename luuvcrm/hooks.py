@@ -34,13 +34,6 @@ app_include_css = "/assets/luuvcrm/css/luuvcrm_desk.css"
 # global stays for `brand.html`, which needs the colours and icons too.
 jinja = {"methods": ["luuvcrm.overrides.branding.brand"]}
 update_website_context = ["luuvcrm.overrides.branding.update_website_context"]
-
-# A key added to settings.KEYS needs a field on the LuuvCRM Settings single, or
-# the owner can never change it — `settings.get()` just keeps handing back the
-# declared default. `after_install` builds those fields on a fresh site; this is
-# what gives an existing one the same treatment. Idempotent: it adds what is
-# missing and leaves what is there, so it is safe on every migrate.
-after_migrate = ["luuvcrm.setup_doctype.ensure_settings_single"]
 boot_session = ["luuvcrm.overrides.branding.boot_session"]
 
 # /app = Frappe Desk (bare /app is untouched — login works); only customer

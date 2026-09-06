@@ -40,7 +40,7 @@ def _customer(case, mobile, balance=0.0, name=None):
 
 
 def _token(case, mobile):
-    api.setup_customer_accounts()
+    fx.customer_doctypes(case)
     token = api._get_or_create_customer_token(mobile)
     case.addCleanup(lambda: [
         frappe.delete_doc("Customer Token", t, force=True, ignore_permissions=True)

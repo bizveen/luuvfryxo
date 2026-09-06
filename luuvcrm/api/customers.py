@@ -19,43 +19,36 @@ from luuvcrm.api import wa
 
 @frappe.whitelist()
 def setup_customer_accounts():
-    """One-time setup: create Customer Account + Customer Token DocTypes."""
+    """Report whether Customer Account and Customer Token are on this site.
+
+    **It used to delete both DocTypes and rebuild them** — with `custom: 1`, on
+    every call, from a Python dict. Two things wrong with that, and they are
+    different sizes:
+
+    - Dropping `Customer Account` drops every customer's account and PIN, and
+      dropping `Customer Token` signs out every customer holding a session. A
+      whitelisted endpoint any System Manager could call, with no confirmation.
+    - `custom: 1` takes the DocType straight back out of `bench migrate`'s path,
+      undoing the conversion Phase 3 exists for. That is how it was found: the
+      test suite called this to "ensure" the DocTypes existed, and
+      `test_setup.test_the_site_agrees` failed the moment it did.
+
+    Both now ship as JSON under `luuvcrm/zeloura/doctype/`, so creating them is
+    Frappe's job — `install_app` and `bench migrate` sync them. This says what is
+    there and what is not, and changes nothing.
+    """
     frappe.only_for("System Manager")
-    created = []
-    if frappe.db.exists("DocType", "Customer Account"):
-        frappe.delete_doc("DocType", "Customer Account", force=1)
-        frappe.db.commit()
-    if not frappe.db.exists("DocType", "Customer Account"):
-        doc = frappe.get_doc({
-            "doctype": "DocType", "name": "Customer Account", "module": "Zeloura", "custom": 1,
-            "fields": [
-                {"fieldname": "mobile", "label": "Mobile", "fieldtype": "Data", "reqd": 1, "unique": 1, "in_list_view": 1},
-                {"fieldname": "customer_name", "label": "Customer Name", "fieldtype": "Data"},
-                {"fieldname": "pin", "label": "PIN", "fieldtype": "Data", "reqd": 1},
-                {"fieldname": "last_login", "label": "Last Login", "fieldtype": "Datetime"},
-            ],
-            "permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1}],
-        })
-        doc.insert()
-        created.append("Customer Account")
+    wanted = ["Customer Account", "Customer Token"]
+    missing = [d for d in wanted if not frappe.db.exists("DocType", d)]
+    return {
+        "status": "missing" if missing else "present",
+        "present": [d for d in wanted if d not in missing],
+        "missing": missing,
+        "hint": ("run `bench --site <site> migrate` — they come from "
+                 "luuvcrm/zeloura/doctype/") if missing else "",
+    }
 
-    if frappe.db.exists("DocType", "Customer Token"):
-        frappe.delete_doc("DocType", "Customer Token", force=1)
-        frappe.db.commit()
-    if not frappe.db.exists("DocType", "Customer Token"):
-        doc = frappe.get_doc({
-            "doctype": "DocType", "name": "Customer Token", "module": "Zeloura", "custom": 1,
-            "fields": [
-                {"fieldname": "token", "label": "Token", "fieldtype": "Data", "reqd": 1, "unique": 1},
-                {"fieldname": "mobile", "label": "Mobile", "fieldtype": "Data", "reqd": 1},
-                {"fieldname": "created", "label": "Created", "fieldtype": "Datetime", "reqd": 1},
-            ],
-            "permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1}],
-        })
-        doc.insert()
-        created.append("Customer Token")
 
-    return {"status": "created" if created else "already_exists", "created": created}
 # ─── Customer Account API ─────────────────────────────────
 
 def _get_or_create_customer_token(mobile):
@@ -261,7 +254,13 @@ def customer_get_orders():
 # ─── Customer profile (name / address / area — one account per number) ─────
 
 def _install_customer_profile_fields():
-    """Add address + area fields to Customer Account (idempotent)."""
+    """Add address + area to Customer Account if an old site has not got them.
+
+    They are declared in `customer_account.json` now, so a synced site already
+    has them and this does nothing. That matters: the `dt.save()` below is what
+    marked the DocType custom on a site that was missing them, which quietly
+    took it out of `bench migrate`'s path again.
+    """
     dt = frappe.get_doc("DocType", "Customer Account")
     have = {f.fieldname for f in dt.fields}
     added = []
