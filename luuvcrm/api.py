@@ -3917,6 +3917,10 @@ def _bill_dict(name):
         "receipt_image": doc.receipt_image or "", "status": doc.status or "pending",
         "by": frappe.get_value("User", doc.requested_by, "full_name") or doc.requested_by or "",
         "time": frappe.utils.pretty_date(doc.requested_at) if doc.requested_at else "",
+        # who settled it, for the grouped Bills list and the drill-down sheet
+        "resolved_by": (frappe.get_value("User", doc.resolved_by, "full_name")
+                        or doc.resolved_by or "") if doc.get("resolved_by") else "",
+        "resolved_time": frappe.utils.pretty_date(doc.resolved_at) if doc.get("resolved_at") else "",
         "lines": lines, "total": total,
         "payment_status": pay_status,
         "due": (doc.status == "approved" and pay_status != "paid"),

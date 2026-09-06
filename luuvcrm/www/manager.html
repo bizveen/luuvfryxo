@@ -1106,29 +1106,53 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   let purchBills=[];
   const BILL_TONE={approved:['var(--color-success)','var(--color-success-subtle)','Approved'],pending:['#9a6207','var(--color-warning-subtle)','Pending'],rejected:['var(--color-danger)','var(--color-danger-subtle)','Rejected']};
+  // Grouped: pending first (they still want a decision), then approved, then
+  // rejected — each row carries the vendor, the money, and the person behind it.
+  const BILL_GROUPS=[['pending','Pending','⏳'],['approved','Approved','✅'],['rejected','Rejected','✕']];
   async function loadPurchaseBills(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       purchBills=m.bills||[];
       document.getElementById('purchBillCount').textContent=purchBills.length?(purchBills.length+' bill'+(purchBills.length===1?'':'s')):'';
-      document.getElementById('purchBillList').innerHTML=purchBills.length?purchBills.map((b,i)=>{ const t=BILL_TONE[b.status]||BILL_TONE.pending;
-        return `<div onclick="openBill(${i})" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <span style="width:42px;height:42px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:'🏪'}</span>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:14.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</div>
-            <div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(b.lines||[]).length} item${(b.lines||[]).length===1?'':'s'} · ${esc(b.by)} · ${esc(b.time)}</div>
-          </div>
-          <div style="flex:none;text-align:right;">
-            <div class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(b.total)}</div>
-            <span style="display:inline-block;font-size:10.5px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-pill);padding:2px 9px;margin-top:3px;">${t[2]}</span>
-          </div>
-        </div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No bills yet.</div>';
+      document.getElementById('purchBillList').innerHTML=purchBills.length?renderBillGroups():'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No bills yet.</div>';
       icons();
     }catch(e){}
+  }
+  function renderBillGroups(){
+    return BILL_GROUPS.map(([st,label,icon])=>{
+      const idx=purchBills.map((b,i)=>[b,i]).filter(([b])=>(b.status||'pending')===st);
+      if(!idx.length) return '';
+      const t=BILL_TONE[st]; const total=idx.reduce((a,[b])=>a+(b.total||0),0);
+      return `<div style="margin-top:12px;">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 11px;background:${t[1]};border-radius:var(--radius-md);margin-bottom:2px;">
+          <span style="font-size:12.5px;">${icon}</span>
+          <span style="font-family:var(--font-display);font-weight:800;font-size:13px;color:${t[0]};flex:1;">${label} · ${idx.length}</span>
+          <span class="mono" style="font-size:13px;font-weight:500;color:${t[0]};">Rs ${nfmt(total)}</span>
+        </div>
+        ${idx.map(([b,i])=>billRow(b,i)).join('')}
+      </div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No bills yet.</div>';
+  }
+  function billRow(b,i){
+    const t=BILL_TONE[b.status]||BILL_TONE.pending;
+    const n=(b.lines||[]).length;
+    // the settled bills name their approver; a pending one only has its author
+    const settled=b.status!=='pending'&&b.resolved_by;
+    return `<div onclick="openBill(${i})" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+      <span style="width:42px;height:42px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:'🏪'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</div>
+        <div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n} item${n===1?'':'s'} · ✍️ ${esc(b.by)} · ${esc(b.time)}</div>
+      </div>
+      <div style="flex:none;text-align:right;">
+        <div class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(b.total)}</div>
+        ${settled?`<div style="font-size:11px;font-weight:700;color:${t[0]};margin-top:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.status==='approved'?'✅':'✕'} ${esc(b.resolved_by)}</div>`:''}
+      </div>
+    </div>`;
   }
   function openBill(i){
     const b=purchBills[i]; if(!b) return; const t=BILL_TONE[b.status]||BILL_TONE.pending;
     document.getElementById('billTitle').textContent=b.vendor||'Purchase bill';
-    document.getElementById('billMeta').textContent=[b.by,b.time].filter(Boolean).join(' · ');
+    document.getElementById('billMeta').textContent=['✍️ '+(b.by||'—'),b.time].filter(Boolean).join(' · ')
+      +(b.resolved_by?(' · '+(b.status==='approved'?'✅':'✕')+' '+b.resolved_by+(b.resolved_time?' '+b.resolved_time:'')):'');
     const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const changed=l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;
       return `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
         <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;">${emojiFor(l.name)}</span>

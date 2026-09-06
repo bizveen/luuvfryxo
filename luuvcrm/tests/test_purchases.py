@@ -62,6 +62,22 @@ class TestPurchases(FrappeTestCase):
         with self.assertRaises(frappe.PermissionError):
             api.resolve_purchase_bill()
 
+    def test_bill_dict_names_the_approver(self):
+        """The Bills list groups by status and shows who settled each bill, so the
+        approver has to travel with the bill, not just the requester."""
+        bill = make_purchase_bill([{"item": "_LFT-TEST-ITEM", "qty": 2, "price": 150}])
+        pending = api._bill_dict(bill.name)
+        self.assertEqual(pending["status"], "pending")
+        self.assertEqual(pending["resolved_by"], "")
+        self.assertEqual(pending["resolved_time"], "")
+
+        api._decide_purchase_bill(bill.name, "approved")
+        done = api._bill_dict(bill.name)
+        self.assertEqual(done["status"], "approved")
+        self.assertTrue(done["resolved_by"])
+        self.assertTrue(done["resolved_time"])
+        self.assertEqual(done["by"], pending["by"])  # the requester is untouched
+
     def test_rename_fixes_display_name_and_unit(self):
         # name + unit change; item_code (the link) and price stay put
         make_item("_LFT-TEST-ITEM")
