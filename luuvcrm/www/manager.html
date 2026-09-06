@@ -318,6 +318,19 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           </div>
           <div id="purchItems" style="display:flex;flex-direction:column;"></div>
         </div>
+        <!-- day summary: what was entered today, where it stands, who did it -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-top:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Day summary</div>
+              <div style="font-size:12.5px;color:var(--text-muted);" id="pdayLabel">—</div>
+            </div>
+            <button class="yrStep" onclick="stepPDay(-1)" title="Previous day"><i data-lucide="chevron-left"></i></button>
+            <button class="yrStep" id="pdayNext" onclick="stepPDay(1)" title="Next day"><i data-lucide="chevron-right"></i></button>
+          </div>
+          <div id="pdayBody"></div>
+        </div>
+
         <!-- recent bills (tap one → full breakdown sheet) -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-top:14px;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;">
@@ -755,7 +768,8 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   async function resolve(name,decision){
     const comment=((apprState[name]||{}).comment||'').trim();
     try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:comment}); if(!r) return; const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ delete apprState[name]; _apprSig=null; toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
+      if(r.ok && d.message && d.message.ok){ delete apprState[name]; _apprSig=null; pLoaded=false;  // the day summary + bills list are now stale
+        toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
       else toast('Could not resolve'); }catch(e){ toast('Connection error'); } }
 
   // ── Month picker (shared by the Reports and Purchases range toggles) ──
@@ -989,7 +1003,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     renderPurchaseChart(); }
   async function loadPurchases(force){
     if(pLoaded && !force) return; pLoaded=true;
-    loadPurchaseBills();
+    loadPurchaseBills(); loadPurchaseDay();
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_purchase_report',pArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       pData=m;
       document.getElementById('purchSub').textContent=(pMonth?monthRange(pMonth).label:'Last '+m.days+' days')+' · '+(m.start||'')+' → '+(m.end||'');
@@ -1042,6 +1056,50 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       const w=inner.scrollWidth; svg.setAttribute('width',w); svg.setAttribute('height',H);
       const pts=[...inner.querySelectorAll('.pcol')].map((el,i)=>{ const x=el.offsetLeft+el.offsetWidth/2; const y=VAL_H+GAP+BAR_H-Math.min(BAR_H,ma[i]/ymax*BAR_H); return x.toFixed(1)+','+y.toFixed(1); }).join(' ');
       svg.innerHTML=`<polyline points="${pts}" fill="none" stroke="var(--gray-700)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>`; });
+  }
+
+  // ── Day summary: one day's bills — what it cost, where it stands, who did it ──
+  let pDay='';  // '' = today; the arrows walk backwards from there
+  function _shiftDay(iso,n){ const p=(iso||'').split('-'); const d=p.length===3?new Date(+p[0],+p[1]-1,+p[2]):new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate()+n); return _d2s(d); }
+  function stepPDay(n){ const base=pDay||_d2s(new Date()); const next=_shiftDay(base,n);
+    if(next>_d2s(new Date())) return;  // no walking into tomorrow
+    pDay=next; loadPurchaseDay(); }
+  async function loadPurchaseDay(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_day_summary',pDay?{date:pDay}:{}); if(!r) return;
+      const d=await r.json(); const m=d.message; if(!m) return; renderPurchaseDay(m); }catch(e){}
+  }
+  function renderPurchaseDay(m){
+    pDay=m.date;
+    document.getElementById('pdayLabel').textContent=(m.is_today?'Today · ':'')+(m.label||m.date);
+    document.getElementById('pdayNext').disabled=!!m.is_today;
+    const body=document.getElementById('pdayBody');
+    if(!m.bills){ body.innerHTML='<div style="color:var(--text-faint);font-size:13px;padding:6px 0 2px;">No bills entered on this day.</div>'; icons(); return; }
+    const tile=(label,v,tone,bg)=>`<div style="flex:1;min-width:0;background:${bg};border-radius:var(--radius-lg);padding:11px 12px;">
+        <div style="font-size:12px;font-weight:700;color:${tone};">${label}</div>
+        <div class="mono" style="font-size:17px;font-weight:500;color:var(--text-strong);margin-top:2px;">Rs ${nfmt(v.total)}</div>
+        <div style="font-size:11.5px;color:var(--text-muted);">${v.count} bill${v.count===1?'':'s'}</div>
+      </div>`;
+    // whoever entered or approved, with what it came to — the manager's 'who do I ask'
+    const who=(title,rows,icon)=>rows.length?`<div style="margin-top:14px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;">${title}</div>
+        ${rows.map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-subtle);">
+          <span style="width:30px;height:30px;border-radius:9px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:15px;flex:none;">${icon}</span>
+          <div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(p.name)}</div>
+          <div style="font-size:11.5px;color:var(--text-muted);">${p.count} bill${p.count===1?'':'s'}</div></div>
+          <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(p.total)}</span>
+        </div>`).join('')}</div>`:'';
+    body.innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+        <span class="mono" style="font-size:26px;font-weight:500;color:var(--text-strong);letter-spacing:-.02em;">Rs ${nfmt(m.total)}</span>
+        <span style="font-size:12.5px;color:var(--text-muted);">${m.bills} bill${m.bills===1?'':'s'} entered</span>
+      </div>
+      <div style="display:flex;gap:9px;">
+        ${tile('Approved',m.approved,'var(--color-success)','var(--surface-sunken)')}
+        ${tile('Pending',m.pending,'var(--color-warning)','var(--surface-sunken)')}
+        ${m.rejected.count?tile('Rejected',m.rejected,'var(--color-danger)','var(--surface-sunken)'):''}
+      </div>
+      ${who('Entered by',m.entered_by||[],'✍️')}
+      ${who('Approved by',m.approved_by||[],'✅')}`;
+    icons();
   }
 
   // ── Recent purchase bills: list + per-bill drill-down sheet ──

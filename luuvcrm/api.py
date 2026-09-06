@@ -4017,6 +4017,75 @@ def get_purchase_bills():
 
 
 @frappe.whitelist()
+def get_purchase_day_summary(date=None):
+    """One day's purchasing at a glance: what was entered, what it cost, where it
+    stands and who was involved.
+
+    Powers the day card above the Bills list in the Manager app. The day owns a
+    bill by `requested_at` (when it was entered), so the numbers here always add
+    up to that day's entries no matter when a manager got round to approving
+    them; `approved_by` therefore names whoever resolved *those* bills, which may
+    have happened later. Totals are summed from the line items (qty * price), the
+    way the purchase report and the /purchases app both compute them.
+    """
+    from frappe.utils import getdate, add_days, formatdate, today as _today
+
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        return {"date": str(getdate(date or _today())), "bills": 0, "total": 0,
+                "approved": {"count": 0, "total": 0}, "pending": {"count": 0, "total": 0},
+                "rejected": {"count": 0, "total": 0}, "entered_by": [], "approved_by": []}
+
+    day = getdate(date or _today())
+    rows = frappe.db.sql(
+        """
+        SELECT pb.name, pb.status, pb.requested_by, pb.resolved_by,
+               COALESCE(SUM(pbi.qty * pbi.price), 0) AS total
+        FROM `tabPurchase Bill` pb
+        LEFT JOIN `tabPurchase Bill Item` pbi ON pbi.parent = pb.name
+        WHERE pb.requested_at >= %s AND pb.requested_at < %s
+        GROUP BY pb.name, pb.status, pb.requested_by, pb.resolved_by
+        """,
+        (str(day), str(add_days(day, 1))), as_dict=True)
+
+    buckets = {k: {"count": 0, "total": 0.0} for k in ("approved", "pending", "rejected")}
+    entered, approved_by = {}, {}
+    for r in rows:
+        amt = float(r.total or 0)
+        b = buckets.setdefault(r.status or "pending", {"count": 0, "total": 0.0})
+        b["count"] += 1
+        b["total"] += amt
+        e = entered.setdefault(r.requested_by or "", {"count": 0, "total": 0.0})
+        e["count"] += 1
+        e["total"] += amt
+        if r.status == "approved" and r.resolved_by:
+            a = approved_by.setdefault(r.resolved_by, {"count": 0, "total": 0.0})
+            a["count"] += 1
+            a["total"] += amt
+
+    def people(d):
+        out = [{"user": u, "name": (frappe.get_value("User", u, "full_name") or u or "—"),
+                "count": v["count"], "total": round(v["total"], 2)}
+               for u, v in d.items()]
+        return sorted(out, key=lambda x: -x["total"])
+
+    return {
+        "date": str(day),
+        "label": formatdate(day, "EEE, d MMM"),
+        "is_today": str(day) == str(getdate(_today())),
+        "bills": len(rows),
+        "total": round(sum(float(r.total or 0) for r in rows), 2),
+        "approved": {"count": buckets["approved"]["count"],
+                     "total": round(buckets["approved"]["total"], 2)},
+        "pending": {"count": buckets["pending"]["count"],
+                    "total": round(buckets["pending"]["total"], 2)},
+        "rejected": {"count": buckets["rejected"]["count"],
+                     "total": round(buckets["rejected"]["total"], 2)},
+        "entered_by": people(entered),
+        "approved_by": people(approved_by),
+    }
+
+
+@frappe.whitelist()
 def search_purchase_bills(q=None, status=None, limit=30, offset=0):
     """Reach past the 60 newest bills the Bills list holds.
 
