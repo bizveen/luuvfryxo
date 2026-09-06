@@ -638,10 +638,18 @@ input,button{font-family:inherit;}
     const list=apprQ?apprRows.filter(a=>apprHay(a).includes(apprQ)):apprRows;
     document.getElementById('apprList').innerHTML=list.length?(apprQ?`<div style="font-size:12px;color:var(--text-faint);margin:-2px 0 10px;">${list.length} of ${apprRows.length} waiting</div>`:'')+list.map(a=>{
       const nl=(a.lines||[]).length, tk=apprTicks[a.name]||{}, nTk=Object.keys(tk).length;
-      const lines=(a.lines||[]).map((l,ix)=>`<label style="display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 0;border-top:1px dashed var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+      const lines=(a.lines||[]).map((l,ix)=>{
+        // Buying-price delta on the line-total basis (old unit price × qty).
+        const op=+l.old_price||0, pr=+l.price||0, q=+l.qty||0;
+        const up=op>0&&pr>op, down=op>0&&pr<op;
+        const note=up?('↑ was Rs '+nfmt(q*op)):(down?('↓ was Rs '+nfmt(q*op)):'');
+        const col=up?'var(--color-danger)':'var(--color-success)';
+        return `<label style="display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 0;border-top:1px dashed var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
         <input type="checkbox" ${tk[ix]?'checked':''} onchange="apprTick('${esc(a.name)}',${ix},this,${nl})" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;">
         <span style="flex:1;min-width:0;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="mono" style="color:var(--text-faint);">${esc(l.qtyStr||'')}</span> ${esc(l.name||'')}</span>
-        <span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></label>`).join('');
+        ${note?`<span style="color:${col};font-weight:700;font-size:10.5px;flex:none;">${note}</span>`:''}
+        <span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></label>`;
+      }).join('');
       const foot=(a.mine
           ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
           : `<input type="text" value="${esc(apprCmts[a.name]||'')}" oninput="apprCmt('${esc(a.name)}',this.value)" placeholder="Comment (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;background:var(--surface-card);">

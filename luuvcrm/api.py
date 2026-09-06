@@ -5062,6 +5062,27 @@ def _format_approvals(rows):
         if u and u not in names:
             names[u] = frappe.get_value("User", u, "full_name") or u
     me = frappe.session.user
+    # Purchase-bill cards show each line's price with a "was Rs X" delta when the
+    # buying price moved. The stored card lines carry only qty/name/total, so overlay
+    # price/old_price/qty/unit from the linked bill — one query for all the bills at
+    # once, matched to the card lines by row order (both are built in the same loop
+    # order in create_purchase_bill).
+    bill_of = {}
+    for r in rows:
+        if (r.get("action") or "") == "purchase_bill":
+            try:
+                b = json.loads(r.get("action_payload") or "{}").get("bill")
+            except Exception:
+                b = None
+            if b:
+                bill_of[r.get("name")] = b
+    bill_items = {}
+    if bill_of:
+        for it in frappe.get_all("Purchase Bill Item",
+                filters={"parent": ["in", list(set(bill_of.values()))]},
+                fields=["parent", "idx", "qty", "price", "old_price", "uom"],
+                order_by="parent asc, idx asc"):
+            bill_items.setdefault(it.parent, []).append(it)
     for r in rows:
         try:
             details = json.loads(r.get("details_json") or "{}")
@@ -5079,13 +5100,25 @@ def _format_approvals(rows):
                 image = frappe.db.get_value("Expense", payload["expense"], "receipt_image") or ""
         except Exception:
             image = ""
+        # Overlay the bill's per-line price detail onto this card's lines (by order).
+        lines = details.get("lines") or []
+        b = bill_of.get(r.get("name"))
+        if b and bill_items.get(b):
+            items = bill_items[b]
+            for i, li in enumerate(lines):
+                if i < len(items) and isinstance(li, dict):
+                    it = items[i]
+                    li["qty"] = it.qty
+                    li["price"] = it.price
+                    li["old_price"] = it.old_price
+                    li["unit"] = it.uom
         out.append({
             "name": r.get("name"),
             "type": r.get("approval_type") or "item",
             "pos_order": r.get("pos_order") or "",
             "title": r.get("title") or "",
             "subhead": r.get("subhead") or "",
-            "lines": details.get("lines") or [],
+            "lines": lines,
             "footer_label": details.get("footer_label") or "",
             "footer_value": details.get("footer_value") or "",
             "flag_text": r.get("flag_text") or "",

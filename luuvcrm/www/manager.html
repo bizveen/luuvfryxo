@@ -685,7 +685,15 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     const st=pending?(apprState[a.name]=apprState[a.name]||{ticks:{},comment:''}):{ticks:{},comment:''};
     const nLines=(a.lines||[]).length;
     const locked=pending&&a.type==='bill'&&a.mine;
-    const lines=(a.lines||[]).map((li,ix)=>`<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
+    const lines=(a.lines||[]).map((li,ix)=>{
+      // Buying-price delta on the line-total basis (old unit price × qty), so it
+      // compares directly with the amount on the right — matches Recent bills.
+      const op=+li.old_price||0, pr=+li.price||0, q=+li.qty||0;
+      const up=op>0&&pr>op, down=op>0&&pr<op;
+      const note=up?('↑ was Rs '+nfmt(q*op)):(down?('↓ was Rs '+nfmt(q*op)):'');
+      const col=up?'var(--color-danger)':'var(--color-success)';
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
+    }).join('');
     const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
     const flag=a.flag_text?`<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-pill);padding:6px 12px;">${a.flag_text}</div>`:'';
     const img=a.image?`<img src="${esc(a.image)}" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:11px;"><div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;text-align:center;">Tap the photo to inspect it full screen</div>`:'';
