@@ -4546,23 +4546,38 @@ def get_manager_dashboard():
     }
 
 
-@frappe.whitelist()
-def get_manager_sales_report(days=7):
-    """Daily sales trend + item-wise sales over the last N days (all cashiers).
-
-    Powers the Manager app 'Reports' tab: a day-by-day revenue chart plus a
-    full item-wise breakdown for the same window.
-    """
-    from frappe.utils import getdate, add_days, today as _today, formatdate
-
+def _report_range(days=7, start=None, end=None, cap=92):
+    """Resolve a report window. An explicit start+end (a chosen month, say) wins,
+    capped to `cap` days; otherwise it is the last `days` ending today. Returns
+    (start_date, end_date, n_days)."""
+    from frappe.utils import getdate, add_days, date_diff, today as _today
+    if start and end:
+        s, e = getdate(start), getdate(end)
+        if s > e:
+            s, e = e, s
+        if date_diff(e, s) + 1 > cap:
+            s = add_days(e, -(cap - 1))
+        return s, e, date_diff(e, s) + 1
     try:
         days = int(days)
     except Exception:
         days = 7
-    days = max(1, min(days, 92))  # cap the window
+    days = max(1, min(days, cap))
+    e = getdate(_today())
+    return add_days(e, -(days - 1)), e, days
 
-    end = getdate(_today())
-    start = add_days(end, -(days - 1))
+
+@frappe.whitelist()
+def get_manager_sales_report(days=7, start=None, end=None):
+    """Daily sales trend + item-wise sales over a window (all cashiers).
+
+    Powers the Manager app 'Reports' tab: a day-by-day revenue chart plus a
+    full item-wise breakdown. The window is the last N days by default, or an
+    explicit start/end (e.g. a whole calendar month picked in the UI).
+    """
+    from frappe.utils import getdate, add_days, today as _today, formatdate
+
+    start, end, days = _report_range(days, start, end)
 
     # ── daily revenue + sale count (one grouped query) ──
     rows = frappe.db.sql(
@@ -4834,25 +4849,20 @@ def get_manager_bill_detail(name=None):
 
 
 @frappe.whitelist()
-def get_manager_purchase_report(days=7):
-    """Daily + weekly purchasing spend over the last N days (approved bills only).
+def get_manager_purchase_report(days=7, start=None, end=None):
+    """Daily + weekly purchasing spend over a window (approved bills only).
 
     Powers the Manager app 'Purchases' tab: a day-by-day and week-by-week spend
-    chart plus top-vendor and top-item breakdowns. Spend is summed from the bill
-    line items (qty * price) to match how the /purchases app recomputes totals.
-    Purchase Bill is non-submittable, so we filter on status='approved' (committed
-    spend), not docstatus; the effective purchase date is `requested_at`.
+    chart plus top-vendor and top-item breakdowns. The window is the last N days
+    by default, or an explicit start/end (e.g. a whole calendar month picked in
+    the UI). Spend is summed from the bill line items (qty * price) to match how
+    the /purchases app recomputes totals. Purchase Bill is non-submittable, so we
+    filter on status='approved' (committed spend), not docstatus; the effective
+    purchase date is `requested_at`.
     """
     from frappe.utils import getdate, add_days, formatdate, today as _today
 
-    try:
-        days = int(days)
-    except Exception:
-        days = 7
-    days = max(1, min(days, 92))  # cap the window
-
-    end = getdate(_today())
-    start = add_days(end, -(days - 1))
+    start, end, days = _report_range(days, start, end)
     # requested_at is a Datetime; upper bound is exclusive start-of-next-day.
     range_start = str(start)
     range_end = str(add_days(end, 1))
@@ -7071,41 +7081,43 @@ def get_wastage(days=7):
 
 
 @frappe.whitelist()
-def get_food_cost_report(days=7):
+def get_food_cost_report(days=7, start=None, end=None):
     """Sales vs costs for the range: food cost (approved purchase bills +
     wastage), overheads (approved Expenses — rent/salaries/utilities etc.) and
     the resulting profit, all against POS revenue. Period-level (no recipes/BOM
-    → no per-dish costing)."""
+    → no per-dish costing). The window is the last N days by default, or an
+    explicit start/end (e.g. a whole calendar month picked in the UI)."""
     _require_menu_manager()
-    days = max(1, min(int(days or 7), 365))
-    start = frappe.utils.add_days(frappe.utils.today(), -days + 1)
+    start, end, days = _report_range(days, start, end, cap=365)
+    # requested_at/creation are Datetimes; the upper bound is start-of-next-day.
+    dt_end = frappe.utils.add_days(end, 1)
     purchases = 0.0
     if frappe.db.exists("DocType", "Purchase Bill"):
         purchases = float(frappe.db.sql("""
             select coalesce(sum(total), 0) from `tabPurchase Bill`
-            where status = 'approved' and requested_at >= %s
-        """, (start,))[0][0] or 0)
+            where status = 'approved' and requested_at >= %s and requested_at < %s
+        """, (start, dt_end))[0][0] or 0)
     wastage = 0.0
     if frappe.db.exists("DocType", "Wastage"):
         wastage = float(frappe.db.sql("""
             select coalesce(sum(cost), 0) from `tabWastage`
-            where creation >= %s
-        """, (start,))[0][0] or 0)
+            where creation >= %s and creation < %s
+        """, (start, dt_end))[0][0] or 0)
     overhead = 0.0
     if frappe.db.exists("DocType", "Expense"):
         overhead = float(frappe.db.sql("""
             select coalesce(sum(amount), 0) from `tabExpense`
             where status = 'approved'
-              and coalesce(expense_date, date(creation)) >= %s
-        """, (start,))[0][0] or 0)
+              and coalesce(expense_date, date(creation)) between %s and %s
+        """, (start, end))[0][0] or 0)
     revenue = float(frappe.db.sql("""
         select coalesce(sum(grand_total), 0) from `tabPOS Invoice`
-        where docstatus = 1 and posting_date >= %s
-    """, (start,))[0][0] or 0)
+        where docstatus = 1 and posting_date between %s and %s
+    """, (start, end))[0][0] or 0)
     food_cost = round(purchases + wastage, 2)
     profit = round(revenue - food_cost - overhead, 2)
     pct = lambda v: round(v * 100.0 / revenue, 1) if revenue > 0 else 0
-    return {"days": days,
+    return {"days": days, "start": str(start), "end": str(end),
             "purchases": round(purchases, 2), "wastage": round(wastage, 2),
             "food_cost": food_cost, "overhead": round(overhead, 2),
             "profit": profit, "revenue": round(revenue, 2),

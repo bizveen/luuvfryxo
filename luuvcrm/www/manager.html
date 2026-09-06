@@ -58,6 +58,8 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 .navb i{width:23px;height:23px;}
 .rangeBtn{border:none;background:transparent;color:var(--text-muted);font-family:var(--font-display);font-weight:700;font-size:13px;padding:7px 15px;border-radius:var(--radius-pill);cursor:pointer;}
 .rangeBtn.active{background:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
+.monthSel{border:1px solid var(--border-subtle);background:var(--surface-sunken);color:var(--text-muted);font-family:var(--font-display);font-weight:700;font-size:13px;padding:8px 30px 8px 15px;border-radius:var(--radius-pill);cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 10px center;background-size:13px;}
+.monthSel.active{background-color:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");}
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
 
 /* ── Desktop / tablet-landscape (≥900px): widen the shell, two-column content.
@@ -188,11 +190,14 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <div style="font-size:13.5px;color:var(--text-muted);" id="reportSub">—</div>
           </div>
         </div>
-        <!-- range toggle -->
-        <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;margin-bottom:16px;" id="rangeToggle">
-          <button class="rangeBtn active" data-days="7" onclick="setRange(7)">7 days</button>
-          <button class="rangeBtn" data-days="30" onclick="setRange(30)">30 days</button>
-          <button class="rangeBtn" data-days="90" onclick="setRange(90)">90 days</button>
+        <!-- range toggle + month picker -->
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;">
+          <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="rangeToggle">
+            <button class="rangeBtn active" data-days="7" onclick="setRange(7)">7 days</button>
+            <button class="rangeBtn" data-days="30" onclick="setRange(30)">30 days</button>
+            <button class="rangeBtn" data-days="90" onclick="setRange(90)">90 days</button>
+          </div>
+          <select class="monthSel" id="repMonth" onchange="setRepMonth(this.value)"></select>
         </div>
         <!-- summary -->
         <div style="background:var(--surface-brand);color:#fff;border-radius:var(--radius-xl);padding:20px 22px;box-shadow:var(--shadow-brand);margin-bottom:14px;">
@@ -257,11 +262,14 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <div style="font-size:13.5px;color:var(--text-muted);" id="purchSub">—</div>
           </div>
         </div>
-        <!-- range toggle -->
-        <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;margin-bottom:12px;" id="pRangeToggle">
-          <button class="rangeBtn active" data-days="7" onclick="setPRange(7)">7 days</button>
-          <button class="rangeBtn" data-days="30" onclick="setPRange(30)">30 days</button>
-          <button class="rangeBtn" data-days="90" onclick="setPRange(90)">90 days</button>
+        <!-- range toggle + month picker -->
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;">
+          <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="pRangeToggle">
+            <button class="rangeBtn active" data-days="7" onclick="setPRange(7)">7 days</button>
+            <button class="rangeBtn" data-days="30" onclick="setPRange(30)">30 days</button>
+            <button class="rangeBtn" data-days="90" onclick="setPRange(90)">90 days</button>
+          </div>
+          <select class="monthSel" id="pMonth" onchange="setPMonth(this.value)"></select>
         </div>
         <!-- granularity toggle -->
         <div style="display:flex;margin-bottom:16px;">
@@ -727,14 +735,36 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       if(r.ok && d.message && d.message.ok){ delete apprState[name]; _apprSig=null; toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
       else toast('Could not resolve'); }catch(e){ toast('Connection error'); } }
 
+  // ── Month picker (shared by the Reports and Purchases range toggles) ──
+  const MON_FULL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const _d2s=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  // A month is 'YYYY-MM'. The current month stops at today — no empty tail.
+  function monthRange(ym){ const p=ym.split('-'), y=+p[0], m=+p[1];
+    const first=new Date(y,m-1,1), last=new Date(y,m,0), t=new Date(); t.setHours(0,0,0,0);
+    return {start:_d2s(first), end:_d2s(last>t?t:last), label:MON_FULL[m-1]+' '+y}; }
+  function fillMonths(sel,n){ const el=document.getElementById(sel); if(!el||el.options.length) return;
+    const t=new Date(); let y=t.getFullYear(), m=t.getMonth();
+    let html='<option value="">Month…</option>';
+    for(let i=0;i<(n||12);i++){ const ym=y+'-'+String(m+1).padStart(2,'0');
+      html+='<option value="'+ym+'">'+MON_FULL[m].slice(0,3)+' '+y+'</option>';
+      if(--m<0){ m=11; y--; } }
+    el.innerHTML=html; }
+
   // ── Reports (daily sales trend + item-wise sales) ──
-  let repDays=7, repLoaded=false;
-  function setRange(d){ repDays=d; document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadReports(true); }
+  let repDays=7, repMonth='', repLoaded=false;
+  function setRange(d){ repDays=d; repMonth=''; const ms=document.getElementById('repMonth'); if(ms){ ms.value=''; ms.classList.remove('active'); }
+    document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadReports(true); }
+  function setRepMonth(ym){ if(!ym){ setRange(repDays); return; }
+    repMonth=ym; const ms=document.getElementById('repMonth'); if(ms){ ms.value=ym; ms.classList.add('active'); }
+    document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.remove('active')); loadReports(true); }
+  // the range args every report call in this tab shares
+  function repArgs(){ if(!repMonth) return {days:repDays}; const r=monthRange(repMonth); return {start:r.start,end:r.end}; }
   async function loadReports(force){
     if(repLoaded && !force) return; repLoaded=true;
     loadFoodCost();
-    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_sales_report',{days:repDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
-      document.getElementById('reportSub').textContent='Last '+m.days+' days · '+(m.start||'')+' → '+(m.end||'');
+    fillMonths('repMonth',12);
+    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_sales_report',repArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      document.getElementById('reportSub').textContent=(repMonth?monthRange(repMonth).label:'Last '+m.days+' days')+' · '+(m.start||'')+' → '+(m.end||'');
       document.getElementById('repRevenue').textContent=nfmt(m.total_revenue);
       document.getElementById('repSales').textContent=m.total_sales;
       document.getElementById('repAvg').textContent=nfmt(m.avg_ticket);
@@ -754,7 +784,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 
   // ── Sales vs costs (food cost + overheads + profit over the range) ──
   async function loadFoodCost(){
-    try{ const r=await _post('/api/method/luuvcrm.api.get_food_cost_report',{days:repDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+    try{ const r=await _post('/api/method/luuvcrm.api.get_food_cost_report',repArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       const fcTone=m.food_cost_pct>40?'var(--color-danger)':(m.food_cost_pct>32?'var(--color-warning)':'var(--color-success)');
       const pTone=(m.profit||0)>=0?'var(--color-success)':'var(--color-danger)';
       const bar=(label,amt,pct,color,sub)=>`<div><div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;"><span style="font-size:14px;font-weight:700;color:var(--text-strong);flex:1;">${label}</span><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(amt)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:46px;text-align:right;">${pct}%</span></div><div style="height:10px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${Math.max(0,Math.min(100,pct))}%;background:${color};border-radius:var(--radius-pill);"></div></div>${sub?`<div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;">${sub}</div>`:''}</div>`;
@@ -875,7 +905,8 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   // ── Monthly sales: last 12 calendar months (loads once; range toggle doesn't affect it) ──
   let monData=null, monLoaded=false;
   async function loadMonthly(){
-    if(monLoaded) return; monLoaded=true;
+    if(monLoaded){ renderMonthlyChart(); return; }  // re-render: the picked month is highlighted here
+    monLoaded=true;
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_monthly_sales',{months:12}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       monData=m;
       document.getElementById('monSub').textContent='Rs '+nfmt(m.total_revenue)+' · '+m.total_sales+' sales'+(m.best&&m.best.revenue>0?(' · best: '+m.best.label+' ’'+m.best.yy):'');
@@ -890,10 +921,11 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     const ymax=niceCeil(dmax);
     const VAL_H=13,GAP=4,BAR_H=chartH(100),LAB_H=14,H=VAL_H+GAP+BAR_H+GAP+LAB_H;
     const cols=series.map((x,i)=>{
-      const pk=x.revenue===dmax&&x.revenue>0;
+      const pk=x.ym===repMonth||(x.revenue===dmax&&x.revenue>0);
       const lab=x.label+((i===0||x.label==='Jan')?' ’'+x.yy:'');
       const val=x.revenue>0?kfmt(x.revenue):'';
-      return `<div title="${x.label} ${x.year}: Rs ${nfmt(x.revenue)} (${x.count} sales · avg Rs ${nfmt(x.avg_ticket)})" style="width:34px;flex:none;display:flex;flex-direction:column;align-items:center;gap:${GAP}px;">
+      const on=x.ym===repMonth;
+      return `<div onclick="setRepMonth('${on?'':x.ym}')" title="${x.label} ${x.year}: Rs ${nfmt(x.revenue)} (${x.count} sales · avg Rs ${nfmt(x.avg_ticket)}) — tap to see this month" style="width:34px;flex:none;display:flex;flex-direction:column;align-items:center;gap:${GAP}px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
         <span class="mono" style="font-size:9.5px;font-weight:500;color:${pk?'var(--color-primary)':'var(--text-muted)'};white-space:nowrap;height:${VAL_H}px;line-height:${VAL_H}px;">${val}</span>
         <div style="height:${BAR_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;"><div style="width:100%;max-width:30px;height:${Math.max(3,Math.round(x.revenue/ymax*BAR_H))}px;background:${pk?'var(--color-primary)':'var(--orange-200)'};border-radius:5px 5px 3px 3px;"></div></div>
         <span class="mono" style="font-size:9.5px;color:var(--text-faint);white-space:nowrap;height:${LAB_H}px;line-height:${LAB_H}px;">${lab}</span>
@@ -902,8 +934,13 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   }
 
   // ── Purchases (daily + weekly approved-bill spend, top vendors, top items) ──
-  let pDays=7, pGran='daily', pData=null, pLoaded=false;
-  function setPRange(d){ pDays=d; document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadPurchases(true); }
+  let pDays=7, pMonth='', pGran='daily', pData=null, pLoaded=false;
+  function setPRange(d){ pDays=d; pMonth=''; const ms=document.getElementById('pMonth'); if(ms){ ms.value=''; ms.classList.remove('active'); }
+    document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadPurchases(true); }
+  function setPMonth(ym){ if(!ym){ setPRange(pDays); return; }
+    pMonth=ym; const ms=document.getElementById('pMonth'); if(ms){ ms.value=ym; ms.classList.add('active'); }
+    document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.remove('active')); loadPurchases(true); }
+  function pArgs(){ if(!pMonth) return {days:pDays}; const r=monthRange(pMonth); return {start:r.start,end:r.end}; }
   function setPGran(g){ pGran=g; document.querySelectorAll('#pGranToggle .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.gran===g));
     document.getElementById('purchChartTitle').textContent=g==='weekly'?'Weekly spend':'Daily spend';
     document.getElementById('purchAvgLegend').style.display=g==='weekly'?'none':'inline-flex';
@@ -911,9 +948,10 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   async function loadPurchases(force){
     if(pLoaded && !force) return; pLoaded=true;
     loadPurchaseBills();
-    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_purchase_report',{days:pDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+    fillMonths('pMonth',12);
+    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_purchase_report',pArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       pData=m;
-      document.getElementById('purchSub').textContent='Last '+m.days+' days · '+(m.start||'')+' → '+(m.end||'');
+      document.getElementById('purchSub').textContent=(pMonth?monthRange(pMonth).label:'Last '+m.days+' days')+' · '+(m.start||'')+' → '+(m.end||'');
       document.getElementById('purchSpend').textContent=nfmt(m.total_spend);
       document.getElementById('purchBills').textContent=m.bill_count;
       document.getElementById('purchAvg').textContent=nfmt(m.avg_bill);
