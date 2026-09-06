@@ -6,11 +6,10 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 
-from luuvcrm import settings
 from frappe import _
 import secrets
 from frappe.utils import now_datetime
-from luuvcrm import roles
+from luuvcrm import roles, settings
 
 from luuvcrm.api.customers import (
     _get_or_create_customer_token,
@@ -231,7 +230,7 @@ def promo_register():
         cust = frappe.db.get_value("Customer Account", {"mobile": mobile}, "customer_name") or ""
         what = item_name or "meal"
         msg = (
-            f"🎁 *Luuv Fryxo — FREE {what}!*\n\n"
+            f"🎁 *{settings.get('brand_name')} — FREE {what}!*\n\n"
             f"Hi{(' ' + cust) if cust else ''}! Your free {what} is locked in ✅\n\n"
             f"Order anything on our app and your free {what} is added to your FIRST order automatically.\n\n"
             f"👉 Order now: {settings.url('/cus')}\n\n"

@@ -6,7 +6,7 @@ no_sitemap = 1
 
 
 def get_context(context):
-    """Admin hub (/admin). Manager-only launcher for every Luuv Fryxo sub-app,
+    """Admin hub (/admin). Manager-only launcher for every sub-app,
     with a slim live-status strip (full dashboards live in /manager)."""
     context.no_sidebar = True
     context.no_header = True

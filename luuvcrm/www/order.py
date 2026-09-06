@@ -2,7 +2,7 @@ from itertools import groupby
 
 import frappe
 
-from luuvcrm import branch
+from luuvcrm import branch, settings
 from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
@@ -17,7 +17,7 @@ def get_context(context):
     context.selected_table = table_name
 
     restaurant_name = branch.current()
-    context.restaurant_name = restaurant_name or "Luuv Fryxo"
+    context.restaurant_name = restaurant_name or settings.get("brand_name")
     context.menu_groups = []
     context.tables = []
 

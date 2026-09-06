@@ -27,8 +27,20 @@ app_include_css = "/assets/luuvcrm/css/luuvcrm_desk.css"
 # context. A page with no .py at all still gets it.
 #
 # NOT `extend_website_context`: that hook does not exist in this Frappe, so the
-# branding module it pointed at had never once been called.
+# branding module it pointed at had never once been called. `update_website_context`
+# is the one that does exist (`base_template_page.py:71`), and it is what puts
+# `brand_name` in every page's context — which is how the 21 pages that used to
+# say "Luuv Fryxo" in their markup now say whose restaurant this is. The Jinja
+# global stays for `brand.html`, which needs the colours and icons too.
 jinja = {"methods": ["luuvcrm.overrides.branding.brand"]}
+update_website_context = ["luuvcrm.overrides.branding.update_website_context"]
+
+# A key added to settings.KEYS needs a field on the LuuvCRM Settings single, or
+# the owner can never change it — `settings.get()` just keeps handing back the
+# declared default. `after_install` builds those fields on a fresh site; this is
+# what gives an existing one the same treatment. Idempotent: it adds what is
+# missing and leaves what is there, so it is safe on every migrate.
+after_migrate = ["luuvcrm.setup_doctype.ensure_settings_single"]
 boot_session = ["luuvcrm.overrides.branding.boot_session"]
 
 # /app = Frappe Desk (bare /app is untouched — login works); only customer

@@ -90,7 +90,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Luuv Fryxo POS</title>
+<title>{{ brand_name }} POS</title>
+<!-- what the counter prints when the Print Format cannot be read: the name, the town under it, the number to call -->
+<script>const BRAND={{ brand_name | tojson }}, OUTLET={{ brand().outlet_line | tojson }}, PHONE={{ brand().contact_phone | tojson }};</script>
 <meta name="csrf-token" content="{{ csrf_token }}">
 <!-- First script on the page so it is listening before anything below can throw. See /errors. -->
 <script src="/lferr.js?v=1" data-app="pos"></script>
@@ -99,7 +101,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
-/* ── Luuv Fryxo design tokens ───────────────────────────── */
+/* ── design tokens ───────────────────────────── */
 :root{
   --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-300:#FF9E68;--orange-400:#FB7430;
   --orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;--orange-800:#8C2F09;--orange-900:#6E280C;
@@ -1146,7 +1148,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     lines.push({cols:['Settings > Divider width.'],aligns:[0],bold:false});
     if(!LFPrint.has()){ printDoc(LFTemplate.toHTML(lines)); return true; }
     var p={version:1,jobId:'ruler:'+Date.now(),type:'PRINT',copies:1,
-           restaurant:{name:'Luuv Fryxo',address:'DIVIDER RULER'},
+           restaurant:{name:BRAND,address:'DIVIDER RULER'},
            invoice:{number:'RULER',date:''},
            items:[{name:'ruler',qty:1,unitPrice:0,total:0}],
            lines:lines};
@@ -1341,6 +1343,9 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
   const PF_KEYS={receipt:'lf_pf_receipt',guest_check:'lf_pf_guestcheck',kot:'lf_pf_kot'};
   // Canonical Frappe Print Format per kind, used when the device hasn't chosen one — so the
   // proper thermal layout (takeaway markers, fonts, spacing) is used, not the bare inline builder.
+  // These are Print Format *record names* on the site, not the brand: a site without them falls
+  // through to the built-in layout below, which does read the brand. Renaming them here without
+  // renaming the records is how a till silently stops using the thermal layout.
   const PF_DEFAULTS={receipt:'Luuv Fryxo Receipt',guest_check:'Guest Check',kot:'Luuv Fryxo KOT'};
   // A POS Order Print Format is a KOT (kitchen ticket) by name; everything else is a bill/guest check.
   const isKotPF=n=>/kot|kitchen/i.test(n||'');
@@ -1389,7 +1394,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     if(d.change && Number(d.change) > 0){
       tenderHtml += `<div class="tot"><b>Balance / Change: ${Number(d.change).toLocaleString()}</b></div>`;
     }
-    return `<h2>Luuv Fryxo</h2><div class="loc">Receipt — ${d.order_name||''}</div><table>${items}</table>
+    return `<h2>${BRAND}</h2><div class="loc">Receipt — ${d.order_name||''}</div><table>${items}</table>
       <div class="tot">Service charge: ${(d.service_charge_amount||0).toLocaleString()}</div><div class="tot"><b>Total: LKR ${(d.grand_total||0).toLocaleString()}</b></div>
       <div class="tot">${(d.payment_mode||'')}</div>${tenderHtml}<div class="t">${new Date().toLocaleString()}</div>`; }
   // Print via a hidden iframe (popups opened after an await get blocked by the browser).
@@ -1516,7 +1521,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     const banner=updated?'<div style="text-align:center;font-weight:700;border:2px solid #000;padding:5px;margin:0 0 8px;font-family:monospace;">UPDATED — REPLACES PREVIOUS BILL</div>':'';
     await printWithFormat(name,'guest_check',async()=>{ const r=await _post('/api/method/luuvcrm.api.get_guest_check_data',{order_name:name}); if(!r) return; const d=await r.json(); const x=d.message||{};
       const items=sectionRows(x.items||[],i=>`<tr><td>${i.qty}× ${i.takeaway?'(takeaway) ':''}${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`);
-      printDoc(`${banner}<h2>Luuv Fryxo</h2><div class="loc">GUEST CHECK — ${x.order_name||''}</div><table>${items}</table>
+      printDoc(`${banner}<h2>${BRAND}</h2><div class="loc">GUEST CHECK — ${x.order_name||''}</div><table>${items}</table>
         <div class="tot">Subtotal: ${(((x.grand_total||0)-(x.service_charge_amount||0))).toLocaleString()}</div>
         <div class="tot">Service charge: ${(x.service_charge_amount||0).toLocaleString()}</div>
         <div class="tot"><b>Total: LKR ${(x.grand_total||0).toLocaleString()}</b></div>
@@ -1838,7 +1843,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         copies:1,
         // The payload has no subtitle slot; restaurant.address is the only
         // centred small line under the name, so the document type goes there.
-        restaurant:clean({ name:'Luuv Fryxo', address:subtitle }),
+        restaurant:clean({ name:BRAND, address:subtitle }),
         invoice:clean({ number:String(d.order_name||d.name||'ZREPORT'), date:stamp(),
                         cashier:opts.cashier||'', table:tableLabel(d.table),
                         orderNumber:opts.orderType||'' }),
@@ -1911,7 +1916,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     // literal brace+hash opens a Jinja comment (HTTP 417).
     var DEFAULTS={
       guest_check:[
-        '= LUUV FRYXO','> Dambulla','> GUEST CHECK','----',
+        '= '+BRAND.toUpperCase(),'> '+OUTLET,'> GUEST CHECK','----',
         'Order | #\x7b\x7border_no}}','\x7b\x7b#if table}}Table | \x7b\x7btable}}\x7b\x7b/if}}','Date | \x7b\x7bdate}} \x7b\x7btime}}',
         '\x7b\x7b#if waiter}}Server | \x7b\x7bwaiter}}\x7b\x7b/if}}','Cashier | \x7b\x7bcashier}}','----',
         '\x7b\x7b#food}}','\x7b\x7bname}} x\x7b\x7bqty}} | Rs.\x7b\x7bamount}}','\x7b\x7b/food}}',
@@ -1928,7 +1933,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         '\x7b\x7b#takeaway}}','* -- TAKEAWAY --','\x7b\x7bqty}} x | \x7b\x7bname}}','\x7b\x7b#if notes}}  | > \x7b\x7bnotes}}\x7b\x7b/if}}','\x7b\x7b/takeaway}}','----',
         '\x7b\x7b#if order_notes}}* Note: \x7b\x7border_notes}}\x7b\x7b/if}}','> \x7b\x7bcashier}}'].join('\n'),
       receipt:[
-        '= LUUV FRYXO','> Dambulla','> RECEIPT','----',
+        '= '+BRAND.toUpperCase(),'> '+OUTLET,'> RECEIPT','----',
         'Bill | #\x7b\x7border_no}}','Date | \x7b\x7bdate}} \x7b\x7btime}}','\x7b\x7b#if table}}Table | \x7b\x7btable}}\x7b\x7b/if}}',
         'Customer | \x7b\x7bcustomer}}','Cashier | \x7b\x7bcashier}}','----',
         '\x7b\x7b#food}}','\x7b\x7bname}} x\x7b\x7bqty}} | Rs.\x7b\x7bamount}}','\x7b\x7b/food}}',
@@ -1937,9 +1942,9 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         'Subtotal | Rs.\x7b\x7bsubtotal}}','\x7b\x7b#if service}}Service charge | Rs.\x7b\x7bservice}}\x7b\x7b/if}}',
         '\x7b\x7b#if discount}}Discount | - Rs.\x7b\x7bdiscount}}\x7b\x7b/if}}','* TOTAL | Rs.\x7b\x7btotal}}','----',
         '\x7b\x7bpayment_mode}} | Rs.\x7b\x7bpaid}}','\x7b\x7b#if change}}Balance | Rs.\x7b\x7bchange}}\x7b\x7b/if}}','----',
-        '> Thank you for your visit!','> 077 8 927 927'].join('\n'),
+        '> Thank you for your visit!','> '+PHONE].join('\n'),
       zreport:[
-        '= LUUV FRYXO','* Z REPORT','> Dambulla','----',
+        '= '+BRAND.toUpperCase(),'* Z REPORT','> '+OUTLET,'----',
         'Cashier | \x7b\x7bcashier}}','Printed | \x7b\x7bdate}} \x7b\x7btime}}',
         'Shift opened | \x7b\x7bperiod_start}}','Shift closed | \x7b\x7bperiod_end}}','----',
         'Orders | \x7b\x7border_count}}','* TOTAL SALES | Rs.\x7b\x7btotal_sales}}','----',
@@ -2022,7 +2027,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
       var fmtDT=function(s){ if(!s) return ''; var d=new Date(String(s).replace(' ','T')); if(isNaN(d)) return ascii(s);
         return two(d.getDate())+'/'+two(d.getMonth()+1)+' '+two(d.getHours())+':'+two(d.getMinutes()); };
       return {
-        restaurant:'Luuv Fryxo', cashier:ascii(z.cashier||opts.cashier||''),
+        restaurant:BRAND, cashier:ascii(z.cashier||opts.cashier||''),
         date:two(now.getDate())+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()]+' '+now.getFullYear(),
         time:two(now.getHours())+':'+two(now.getMinutes()),
         period_start:fmtDT(z.period_start), period_end:fmtDT(z.period_end),
@@ -2043,7 +2048,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
       if(!gt && sub) gt=sub-disc+sc;
       var mode=d.payment_mode||opts.paymentMode||'';
       return {
-        restaurant:'Luuv Fryxo', order_no:shortNo(d.order_name||'')||ascii(d.order_name||''),
+        restaurant:BRAND, order_no:shortNo(d.order_name||'')||ascii(d.order_name||''),
         order_type:ascii(d.order_type||opts.orderType||''), table:(function(t){ if(!t) return ''; var s=String(t).split('-').pop(); return /^\d+$/.test(s)?'Table '+s:ascii(t); })(d.table),
         customer:ascii(d.customer_name||'Walk-in'), waiter:ascii(d.waiter_name||''), cashier:ascii(opts.cashier||''),
         date:two(now.getDate())+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()]+' '+now.getFullYear(),

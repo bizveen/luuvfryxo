@@ -6,12 +6,11 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 
-from luuvcrm import settings
 from frappe import _
 import secrets
 import hashlib
 from frappe.utils import now_datetime
-from luuvcrm import roles
+from luuvcrm import roles, settings
 
 from luuvcrm.api.expenses import _ensure_select_option
 from luuvcrm.api.wa import _normalize_wa_number
@@ -225,7 +224,7 @@ def _guide_invite_text(token, percent, guide_name=""):
     """Magic-link invite: tapping the link logs the guide straight in (the token
     IS the session) — no password to type. WhatsApp possession is the auth root."""
     hello = f"Hi {guide_name}!" if guide_name else "Hi!"
-    return (f"{hello} Welcome to Luuv Fryxo's partner program. "
+    return (f"{hello} Welcome to {settings.get('brand_name')}'s partner program. "
             f"You earn {percent:g}% cashback on every bill you bring us. "
             f"Tap your personal link to open your cashback account:\n"
             f"{guide_app_url()}?t={token}")
@@ -346,7 +345,7 @@ def _finalize_guide_redeem(gname, amount, order_name, invoice_name):
     try:
         token = _get_or_create_guide_token(guide.name)
         wa._send_wa_reply(guide.whatsapp,
-            f"🍔 Rs {amount:,.2f} was paid from your Luuv Fryxo cashback balance"
+            f"🍔 Rs {amount:,.2f} was paid from your {settings.get('brand_name')} cashback balance"
             f"{(' for bill ' + order_name) if order_name else ''}.\n\n"
             f"🏦 Remaining balance: Rs {float(guide.cashback_balance or 0):,.2f}\n\n"
             f"Details: {guide_app_url()}?t={token}")

@@ -22,6 +22,9 @@ def brand(context=None):
     return {
         "brand_name": settings.get("brand_name"),
         "brand_short": settings.get("brand_short"),
+        # printed, not just displayed: the thermal Print Formats read these
+        "outlet_line": settings.get("outlet_line"),
+        "contact_phone": settings.get("contact_phone"),
         "brand_color": settings.get("brand_color"),
         "brand_color_dark": settings.get("brand_color_dark"),
         "brand_logo": settings.get("brand_logo"),

@@ -89,6 +89,73 @@ class TestTheBrandReachesEveryPage(BrandTestCase):
                         head.index("</head>") if "</head>" in head else len(head))
 
 
+class TestNoPageNamesOneClient(BrandTestCase):
+    """The colours were swept first; the words were the half left over. 21 pages
+    said "Luuv Fryxo" in their markup, the WhatsApp replies said it in their
+    text, and the thermal print formats printed it — with one client's town and
+    telephone number under it."""
+
+    #: `PF_DEFAULTS` in pos.html names Print Format *records* the tills point at.
+    #: Renaming those without renaming the records drops a till back to the
+    #: built-in layout, so they are identifiers and stay.
+    ALLOWED = {"pos.html": 2, "printing.py": 2}
+
+    def occurrences(self, path):
+        return path.read_text().count("Luuv Fryxo")
+
+    def test_no_page_says_it_in_its_markup(self):
+        named = {p.name: self.occurrences(p) for p in sorted(PAGES.glob("*.html"))
+                 if self.occurrences(p) > self.ALLOWED.get(p.name, 0)}
+        self.assertEqual(named, {}, "these pages still name one client")
+
+    def test_no_message_says_it_either(self):
+        """A WhatsApp reply, an OTP, a guide's welcome — all of them go out
+        under the restaurant's name, and none of them is this restaurant's."""
+        app = pathlib.Path(frappe.get_app_path("luuvcrm"))
+        named = {}
+        for py in sorted(app.rglob("*.py")):
+            if "tests" in py.parts or py.name in ("settings.py", "hooks.py", "branding.py", "brand.py"):
+                continue          # settings declares the default; the others only describe how it got here
+            n = self.occurrences(py)
+            if n > self.ALLOWED.get(py.name, 0):
+                named[str(py.relative_to(app))] = n
+        self.assertEqual(named, {}, "these modules still name one client")
+
+    def test_the_pages_read_the_name_from_settings(self):
+        self.set_brand(brand_name="Test Kitchen")
+        self.assertEqual(branding.brand()["brand_name"], "Test Kitchen")
+        ctx = frappe._dict()
+        branding.update_website_context(ctx)
+        self.assertEqual(ctx.brand_name, "Test Kitchen")
+        self.assertEqual(ctx.app_name, "Test Kitchen")
+
+    def test_the_context_hook_is_wired(self):
+        """`update_website_context` is what puts `brand_name` in every page's
+        context. The function existed and was never hooked — so every page that
+        used it would have rendered an empty name."""
+        self.assertIn("luuvcrm.overrides.branding.update_website_context",
+                      frappe.get_hooks("update_website_context") or [])
+
+    def test_the_printed_bill_carries_the_restaurant_and_not_a_town(self):
+        """The guest check and the receipt had one client's name, town and
+        telephone number set in the Print Format HTML."""
+        from luuvcrm.api import printing
+        self.set_brand(brand_name="Test Kitchen", outlet_line="Galle",
+                       contact_phone="011 000 0000")
+        for html in (printing.GUEST_CHECK_PF_HTML, printing.RECEIPT_PF_HTML):
+            out = frappe.render_template(html[:html.index("</div>", html.index("r-header")) + 6], {})
+            self.assertIn("Test Kitchen", out)
+            self.assertIn("Galle", out)
+
+    def test_the_till_prints_the_same_name_when_the_format_cannot_be_read(self):
+        """pos.html carries an ESC/POS fallback the counter prints when the
+        Print Format is unreachable. It said LUUV FRYXO / Dambulla in capitals."""
+        html = (PAGES / "pos.html").read_text()
+        self.assertNotIn("LUUV FRYXO", html)
+        self.assertNotIn("Dambulla", html)
+        self.assertIn("BRAND.toUpperCase()", html)
+
+
 class TestTheIconsExist(BrandTestCase):
     """They did not. `/icon.svg` and `/manager-icon-{192,512}.png` were
     referenced by four pages and three manifests and every one of them 404'd —

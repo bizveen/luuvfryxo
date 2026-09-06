@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR Codes - Luuv Fryxo</title>
+  <title>QR Codes - {{ brand_name }}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Inter',-apple-system,sans-serif; background:#fff; color:#1F2937; padding:20px; }
@@ -20,7 +20,7 @@
 </head>
 <body>
 <button class="print-btn" onclick="window.print()">🖨 Print QR Codes</button>
-<h1>📱 Scan to Order - Luuv Fryxo</h1>
+<h1>📱 Scan to Order - {{ brand_name }}</h1>
 <div class="grid">
   {% for qr in qr_list %}
   <div class="card">

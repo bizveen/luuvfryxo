@@ -2,7 +2,7 @@ from itertools import groupby
 
 import frappe
 
-from luuvcrm import branch
+from luuvcrm import branch, settings
 from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
@@ -44,7 +44,7 @@ def get_context(context):
     context.promo_code = (frappe.form_dict.get("promo", "") or "").strip().upper()
 
     restaurant_name = branch.current()
-    context.restaurant_name = restaurant_name or "Luuv Fryxo"
+    context.restaurant_name = restaurant_name or settings.get("brand_name")
     context.menu_groups = []
 
     # Build the menu (same logic as the online order page).

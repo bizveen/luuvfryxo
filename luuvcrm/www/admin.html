@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Admin · Luuv Fryxo</title>
+<title>Admin · {{ brand_name }}</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
 <!-- First script on the page so it is listening before anything below can throw. See /errors. -->
 <script src="/lferr.js?v=1" data-app="admin"></script>
@@ -55,7 +55,7 @@ header{display:flex;align-items:center;gap:14px;padding:22px 0 18px;}
   <header>
     <span class="avatar">{{ (current_user_full[0]|upper) if current_user_full else "A" }}</span>
     <div style="flex:1;min-width:0;">
-      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);line-height:1.15;">Luuv Fryxo · Admin</div>
+      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);line-height:1.15;">{{ brand_name }} · Admin</div>
       <div style="font-size:12.5px;color:var(--text-muted);" id="subline">{{ current_user_full }}</div>
     </div>
     <a href="/api/method/logout" title="Sign out" onclick="return confirm('Sign out?')" style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
@@ -107,7 +107,7 @@ header{display:flex;align-items:center;gap:14px;padding:22px 0 18px;}
       <div style="width:42px; height:42px; border-radius:12px; background:var(--orange-50); color:var(--orange-700); display:flex; align-items:center; justify-content:center; font-size:22px; flex:none;">🤖</div>
       <div style="min-width:0;">
         <div style="font-family:var(--font-display); font-weight:800; font-size:14.5px; color:var(--text-strong);">Download iMin POS App</div>
-        <div style="font-size:12px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">Install Luuv Fryxo iMin POS APK directly</div>
+        <div style="font-size:12px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">Install the {{ brand_name }} iMin POS APK directly</div>
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:10px; flex:none;">

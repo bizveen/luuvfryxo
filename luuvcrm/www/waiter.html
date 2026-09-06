@@ -7,13 +7,14 @@
 <meta name="theme-color" content="#111827">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Luuv Fryxo">
+<meta name="apple-mobile-web-app-title" content="{{ brand_name }}">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/assets/luuvcrm/app/icon-192.png">
 <link rel="icon" href="/assets/luuvcrm/app/icon-192.png">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Waiter | Luuv Fryxo</title>
+  <title>Waiter | {{ brand_name }}</title>
+  <script>const BRAND={{ brand_name | tojson }};</script>  <!-- the name for the strings JavaScript builds: WhatsApp text, printed footers -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -315,7 +316,7 @@
 
 <!-- Header -->
 <div class="w-header">
-  <div class="w-brand">Luuv Fryxo <span class="w-badge">Waiter</span></div>
+  <div class="w-brand">{{ brand_name }} <span class="w-badge">Waiter</span></div>
   <div class="w-table-wrap">
     <span class="w-table-label">Table</span>
     <select id="tableSelect" onchange="onTablePick()">
@@ -871,7 +872,7 @@ function sendWhatsApp() {
   if (num.startsWith('0')) num = num.slice(1);
   if (!num.startsWith(dial)) num = dial + num;
   if (num.length < 9) { alert('Invalid phone number'); return; }
-  const msg = encodeURIComponent(`Hi ${name}! Your order #${order} from Luuv Fryxo is confirmed! 🍽️`);
+  const msg = encodeURIComponent(`Hi ${name}! Your order #${order} from ${BRAND} is confirmed! 🍽️`);
   window.open(`https://wa.me/${num}?text=${msg}`, '_blank');
 }
 
@@ -1278,14 +1279,14 @@ async function printKOT(orderName) {
     let ih = d.items.map(function(i){ var nt = i.notes ? '<div style="font-size:12px;font-weight:normal;font-style:italic;">↳ '+escHtml(i.notes)+'</div>' : ''; var ta = i.takeaway ? ' <strong>[TAKEAWAY]</strong>' : ''; return '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;vertical-align:top;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+ta+nt+'</td></tr>'; }).join('');
     var w = window.open('','_blank','width=300,height=500');
     w.document.write('<!DOCTYPE html><html><head><title>KOT - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .kl{font-size:11px;color:#333;font-weight:bold;margin:4px 0 0;}.hdr h3{margin:4px 0 0;font-size:14px;}.meta{text-align:center;margin-bottom:10px;font-size:13px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}.items{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin:8px 0;}.notes{background:#fff3cd;padding:6px 8px;margin:8px 0;font-size:12px;border-left:3px solid #ffc107;}.ftr{text-align:center;margin-top:10px;font-size:10px;color:#888;}hr{border:none;border-top:1px dashed #ccc;margin:8px 0;}.bl{text-align:center;margin:6px 0;font-size:11px;letter-spacing:1px;}</style></head><body>');
-    w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');
+    w.document.write('<div class="hdr"><h1>'+BRAND.toUpperCase()+'</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');
     w.document.write('<div class="meta"><p><strong>Table:</strong> '+((d.table||'').split('-').pop()||'---')+'</p><p><strong>Source:</strong> '+(d.order_source||'Walk-in')+'</p>');
     if(d.waiter_name) w.document.write('<p><strong>Waiter:</strong> '+d.waiter_name+'</p>');
     w.document.write('<p><strong>'+ds+' '+ts+'</strong></p></div>');
     w.document.write('<div class="items"><table>'+ih+'</table></div>');
     if(d.notes) w.document.write('<div class="notes">'+d.notes+'</div>');
     w.document.write('<hr><div class="bl">* '+d.order_name+' *</div>');
-    w.document.write('<div class="ftr"><p>Thank you &middot; Luuv Fryxo</p></div>');
+    w.document.write('<div class="ftr"><p>Thank you &middot; '+BRAND+'</p></div>');
     w.document.write('<script>window.onload=function(){window.print();window.close();}<'+'/script></body></html>');
     w.document.close();
     _logPrint(name, 'kot');

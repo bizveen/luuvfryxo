@@ -6,11 +6,11 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 
-from luuvcrm import settings
 import secrets
 import hashlib
 from frappe.utils import now_datetime
 
+from luuvcrm import settings
 from luuvcrm.api.wa import _wa_number
 from luuvcrm.api import wa
 
@@ -366,7 +366,7 @@ def wa_send_otp():
         return {"sent": True, "cooldown": True}  # one was sent moments ago — reuse it
     code = "".join(secrets.choice("0123456789") for _ in range(4))
     ok = wa._send_wa_reply(_wa_number(mobile),
-        f"*{code}* is your Luuv Fryxo verification code.\n\n"
+        f"*{code}* is your {settings.get('brand_name')} verification code.\n\n"
         f"Enter it in the app to confirm this WhatsApp number. Valid for 5 minutes.")
     if not ok:
         return {"sent": False}

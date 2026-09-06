@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>{{ restaurant.name if restaurant else "Luuv Fryxo" }}</title>
+<title>{{ restaurant.name if restaurant else brand_name }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -211,14 +211,14 @@ body { font-family:'Inter',-apple-system,sans-serif; background:#F8F9FA; color:#
 
 <!-- ═══ Footer ═══ -->
 <footer class="footer">
-  <div class="brand">{{ restaurant.name if restaurant else "Luuv Fryxo" }}</div>
+  <div class="brand">{{ restaurant.name if restaurant else brand_name }}</div>
   <div class="tagline">Good Food · Great Vibes</div>
   <div class="info">
     <span>📍 {{ restaurant.address or "Kandy, Sri Lanka" }}</span>
     <span>📞 {{ restaurant.phone or "077 123 4567" }}</span>
     <span>🕐 {{ opening_time or "11:00 AM" }} – {{ closing_time or "11:00 PM" }}</span>
   </div>
-  <div class="copy">© 2026 {{ restaurant.name if restaurant else "Luuv Fryxo" }}. All rights reserved.</div>
+  <div class="copy">© 2026 {{ restaurant.name if restaurant else brand_name }}. All rights reserved.</div>
 </footer>
 
 </body>

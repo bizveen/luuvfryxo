@@ -304,7 +304,7 @@ table.tt .gt td { font-size: 12px; font-weight: 900; padding: 3px 0; border-top:
 .fm { text-align: center; margin-top: 4px; font-size: 8px; color: #000; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 .note { text-align: center; font-size: 7px; font-weight: 600; margin-top: 2px; }
 </style>
-<div class="r-header"><h1>Luuv Fryxo</h1><h2>Guest Check</h2><div class="sub">Dambulla</div></div>
+<div class="r-header"><h1>{{ brand().brand_name }}</h1><h2>Guest Check</h2><div class="sub">{{ brand().outlet_line }}</div></div>
 <div class="i-row"><span class="lb">Order</span><span class="vl">{{ doc.name }}</span></div>
 <div class="i-row"><span class="lb">Date</span><span class="vl">{{ frappe.utils.format_datetime(doc.creation, "dd MMM, hh:mm a") }}</span></div>
 {% if doc.restaurant_table %}<div class="i-row"><span class="lb">Table</span><span class="vl">{{ doc.restaurant_table }}</span></div>{% endif %}
@@ -369,7 +369,7 @@ table.tt .gt td { font-size: 12px; font-weight: 900; padding: 3px 0; border-top:
 .fm { text-align: center; margin-top: 4px; font-size: 8px; color: #000; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 .tel { text-align: center; margin-top: 2px; font-size: 11px; font-weight: 900; letter-spacing: 1px; color: #000; }
 </style>
-<div class="r-header"><h1>Luuv Fryxo</h1><h2>Receipt</h2><div class="sub">Dambulla</div></div>
+<div class="r-header"><h1>{{ brand().brand_name }}</h1><h2>Receipt</h2><div class="sub">{{ brand().outlet_line }}</div></div>
 <div class="i-row"><span class="lb">Bill</span><span class="vl">{{ doc.name }}</span></div>
 <div class="i-row"><span class="lb">Date</span><span class="vl">{{ frappe.utils.format_datetime(doc.creation, "dd MMM, hh:mm a") }}</span></div>
 {% if doc.restaurant_table %}<div class="i-row"><span class="lb">Table</span><span class="vl">{{ doc.restaurant_table }}</span></div>{% endif %}
@@ -423,7 +423,7 @@ table.tt .gt td { font-size: 12px; font-weight: 900; padding: 3px 0; border-top:
 </tbody></table>
 <div class="sec"></div>
 <div class="fm">Thank you for your visit!</div>
-<div class="tel">077 8 927 927</div>
+<div class="tel">{{ brand().contact_phone }}</div>
 '''
 @frappe.whitelist()
 def setup_print_sections():
@@ -432,6 +432,9 @@ def setup_print_sections():
     Run: bench --site <site> execute luuvcrm.api.setup_print_sections"""
     frappe.only_for("System Manager")
     updated, missing = [], []
+    # The names are Print Format records the tills already point at (pos.html's
+    # PF_DEFAULTS), so they are identifiers, not branding — renaming one here
+    # without renaming the record drops that till back to the built-in layout.
     for name, html in (("Luuv Fryxo KOT", KOT_PF_HTML),
                        ("Guest Check", GUEST_CHECK_PF_HTML),
                        ("Luuv Fryxo Receipt", RECEIPT_PF_HTML)):

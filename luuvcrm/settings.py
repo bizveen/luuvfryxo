@@ -58,6 +58,10 @@ KEYS = [
         "The number order confirmations are sent from."),
     Key("pickup_outlet", OWNER, "Kurunegala",
         "Free-meal promo orders are collected here, and nowhere else."),
+    Key("outlet_line", OWNER, "Dambulla",
+        "The line under the name on every printed bill — the town or branch."),
+    Key("contact_phone", OWNER, "077 8 927 927",
+        "Printed at the foot of the receipt, for a customer who has to call."),
 
     # ── the look ─────────────────────────────────────────────────────────────
     # A second restaurant is not a second Luuv Fryxo. These are read into every

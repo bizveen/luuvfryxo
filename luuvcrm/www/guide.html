@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Luuv Fryxo — Guide</title>
+<title>{{ brand_name }} — Guide</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
 <meta name="theme-color" content="#F15207">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -63,7 +63,7 @@ h2{font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--te
   <div class="topbar">
     <span class="brand-badge">🧭</span>
     <div>
-      <div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);line-height:1.1;">Luuv Fryxo</div>
+      <div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);line-height:1.1;">{{ brand_name }}</div>
       <div style="font-size:12px;color:var(--text-muted);">Guide partner cashback</div>
     </div>
     <button id="logoutBtn" onclick="logout()" style="display:none;margin-left:auto;background:none;border:none;color:var(--text-muted);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font-display);">Log out</button>
@@ -74,7 +74,7 @@ h2{font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--te
     <div id="scrLogin" style="display:none;padding-top:26px;">
       <div style="font-size:52px;text-align:center;margin-bottom:14px;">🧭</div>
       <div style="font-family:var(--font-display);font-weight:800;font-size:24px;color:var(--text-strong);margin-bottom:6px;text-align:center;">Welcome, partner!</div>
-      <p style="font-size:14.5px;color:var(--text-muted);margin:0 0 8px;text-align:center;line-height:1.55;">Earn cashback on every customer bill you bring to Luuv Fryxo.</p>
+      <p style="font-size:14.5px;color:var(--text-muted);margin:0 0 8px;text-align:center;line-height:1.55;">Earn cashback on every customer bill you bring to {{ brand_name }}.</p>
       <p style="font-size:14.5px;color:var(--text-muted);margin:0 0 24px;text-align:center;line-height:1.55;">Tap below and send us the WhatsApp message that opens — we reply instantly with your <b>personal login link</b>. No passwords!</p>
       <div class="err" id="loginErr"></div>
       <div class="field"><label>Partner code (new partners — ask our staff)</label><input type="text" id="inCode" placeholder="e.g. GD3XK7MP" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;"></div>

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Luuv Fryxo Manager</title>
+<title>{{ brand_name }} Manager</title>
+<script>const BRAND={{ brand_name | tojson }};</script>  <!-- the name for the strings JavaScript builds: WhatsApp text, printed footers -->
 <meta name="csrf-token" content="{{ csrf_token }}">
 <!-- First script on the page so it is listening before anything below can throw. See /errors. -->
 <script src="/lferr.js?v=1" data-app="manager"></script>
@@ -89,7 +90,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <div style="background:var(--surface-brand);color:#fff;padding:64px 32px 54px;border-radius:0 0 var(--radius-2xl) var(--radius-2xl);">
       <div style="display:flex;align-items:center;gap:11px;margin-bottom:40px;">
         <span style="width:42px;height:42px;border-radius:13px;background:rgba(255,255,255,.18);display:inline-flex;align-items:center;justify-content:center;font-size:22px;">🍔</span>
-        <span style="font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-.02em;">Luuv Fryxo</span>
+        <span style="font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-.02em;">{{ brand_name }}</span>
       </div>
       <div style="font-size:14px;font-weight:600;opacity:.82;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px;">Manager</div>
       <div style="font-family:var(--font-display);font-weight:800;font-size:33px;line-height:1.08;letter-spacing:-.02em;">Sign in to your<br>dashboard</div>
@@ -1244,7 +1245,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     }catch(e){ toast('Connection error'); }
   }
   function shareGuideCode(code){
-    const msg='🧭 Join the Luuv Fryxo partner program — earn cashback on every customer bill you bring us!\n\nTap this link and press SEND on the WhatsApp message that opens:\nhttps://wa.me/94724444901?text='+code+'\n\nWe reply instantly with your personal login link.';
+    const msg='🧭 Join the '+BRAND+' partner program — earn cashback on every customer bill you bring us!\n\nTap this link and press SEND on the WhatsApp message that opens:\nhttps://wa.me/94724444901?text='+code+'\n\nWe reply instantly with your personal login link.';
     window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
   }
   function hideGuides(){ document.getElementById('guideOverlay').style.display='none'; }

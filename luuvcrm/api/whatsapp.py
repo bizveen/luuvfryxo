@@ -99,7 +99,7 @@ def send_customer_whatsapp(order_name, mobile, dial="94"):
 
     track_url = settings.url(f"/cus?phone={mobile}")
     message = (
-        f"*Order #{order_name} - Luuv Fryxo* 🎉\n\n"
+        f"*Order #{order_name} - {settings.get('brand_name')}* 🎉\n\n"
         f"Thank you for your order!\n\n"
         f"View your orders: {track_url}\n\n"
         f"Your order is pending confirmation. Please wait for the restaurant to accept it."
@@ -184,7 +184,7 @@ def process_wa_reply(doc, method):
                 pct = float(frappe.db.get_value("Tour Guide", gname, "cashback_percent")
                             or _guide_default_percent())
                 wa._send_wa_reply(mobile,
-                    "🧭 Welcome back to the Luuv Fryxo partner program!\n\n"
+                    f"🧭 Welcome back to the {settings.get('brand_name')} partner program!\n\n"
                     f"Tap your personal link to see your cashback:\n"
                     f"{guide_app_url()}?t={token}\n\n"
                     f"You earn {pct:g}% cashback on every bill you bring us. 🍔")
@@ -207,7 +207,7 @@ def process_wa_reply(doc, method):
                         {"status": "Used", "used_by": guide.name, "used_on": now_datetime()})
                     token = _get_or_create_guide_token(guide.name)
                     wa._send_wa_reply(mobile,
-                        "🧭 Welcome to the Luuv Fryxo partner program!\n\n"
+                        f"🧭 Welcome to the {settings.get('brand_name')} partner program!\n\n"
                         f"You earn {default_pct:g}% cashback on every "
                         f"customer bill you bring us.\n\n"
                         f"Tap your personal link to finish registering — just add "
@@ -219,7 +219,7 @@ def process_wa_reply(doc, method):
                         "Please ask our staff for a new partner code. 🙏")
             else:
                 wa._send_wa_reply(mobile,
-                    "🧭 Luuv Fryxo partner program — earn cashback on every "
+                    f"🧭 {settings.get('brand_name')} partner program — earn cashback on every "
                     "customer bill you bring us!\n\n"
                     "To join, ask our staff for your personal partner code, then "
                     "send it here (it looks like GD3XK7MP).")
@@ -284,7 +284,7 @@ def process_wa_reply(doc, method):
             return
 
     auto_reply = (
-        "Thank you for messaging Luuv Fryxo! 🎉\n\n"
+        f"Thank you for messaging {settings.get('brand_name')}! 🎉\n\n"
         "View your orders: " + settings.url("/cus") + "\n"
         "To confirm a pending order, reply OK\n\n"
         "We will get back to you shortly!"
