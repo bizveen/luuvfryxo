@@ -498,6 +498,7 @@ def list_guides():
     guides = frappe.get_all("Tour Guide",
         fields=["name", "guide_name", "whatsapp", "role", "cashback_percent",
                 "status", "cashback_balance", "total_earned", "total_paid"],
+        limit_page_length=500,
         order_by="cashback_balance desc, guide_name asc")
     for g in guides:
         for f in ("cashback_percent", "cashback_balance", "total_earned", "total_paid"):

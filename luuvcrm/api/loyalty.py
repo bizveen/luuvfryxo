@@ -186,7 +186,8 @@ def loyalty_get_info():
 
     # Get direct referrals (Level 1 downline)
     downline = frappe.get_all("Loyalty Customer", filters={"referred_by": lc_name},
-                              fields=["customer_name", "mobile", "total_earned", "creation"])
+                              fields=["customer_name", "mobile", "total_earned", "creation"],
+                              limit_page_length=200)
     downline_data = [{"name": d.customer_name or d.mobile, "mobile": d.mobile, "total_earned": d.total_earned or 0}
                      for d in downline]
 

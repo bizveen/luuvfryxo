@@ -211,11 +211,11 @@ def get_context(context):
         ["name", "period_start_date"], as_dict=True)
     context.shift = {"status": "open"} if opening else None
 
-    ongoing_count = frappe.get_list("POS Order",
-        filters={"docstatus": 0, "order_source": "Walk-in", "pos_invoice": ""},
-        pluck="name"
-    )
-    context.ongoing_count = len(ongoing_count)
+    # A count, asked as a count. This pulled every draft order's name across the
+    # wire to call len() on the list — and drafts are never cleared, so it grew
+    # for the life of the site, on the page the counter opens every shift.
+    context.ongoing_count = frappe.db.count("POS Order", {
+        "docstatus": 0, "order_source": "Walk-in", "pos_invoice": ""})
 
     context.pos_profiles = frappe.get_all("POS Profile", fields=["name", "warehouse", "company", "currency"])
     context.payment_modes = frappe.get_all("Mode of Payment", fields=["name"], order_by="name asc")

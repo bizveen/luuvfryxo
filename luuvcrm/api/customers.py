@@ -71,6 +71,12 @@ def _get_or_create_customer_token(mobile):
     ct.insert()
     frappe.db.commit()
     return token
+#: The customer PWA shows a recent history, not an archive. The page may ask
+#: for more with `limit`; the ceiling is what stops a request asking for a
+#: whole table on a guest token.
+CUSTOMER_ORDER_PAGE = 20
+CUSTOMER_ORDER_MAX = 100
+
 @frappe.whitelist(allow_guest=True)
 def customer_create_or_login():
     data = frappe.local.form_dict
@@ -178,7 +184,9 @@ def customer_verify_pin():
     if _pin_locked(mobile):
         return {"success": False, "error": "Too many wrong PINs — try again in 15 minutes"}
 
-    accounts = frappe.get_all("Customer Account", filters={"mobile": mobile}, fields=["name", "customer_name"])
+    # One account per number is the invariant; ask for one row, not the set.
+    accounts = frappe.get_all("Customer Account", filters={"mobile": mobile},
+                              fields=["name", "customer_name"], limit_page_length=1)
     if not accounts:
         # Same shape and cost as a wrong PIN: do not confirm which numbers exist.
         _pin_note_failure(mobile)
@@ -221,10 +229,19 @@ def customer_get_orders():
                "whatsapp_status"]
     if frappe.db.has_column("POS Order", "scheduled_time"):
         _fields.append("scheduled_time")
+    # Every order this number has ever placed, newest first — and then a full
+    # document built for each. A regular of two years is hundreds of rows and
+    # hundreds of documents, on a guest request. The PWA shows a recent history,
+    # so it asks for one; `limit` lets it ask for more without another endpoint.
+    try:
+        limit = max(1, min(int(data.get("limit") or CUSTOMER_ORDER_PAGE), CUSTOMER_ORDER_MAX))
+    except Exception:
+        limit = CUSTOMER_ORDER_PAGE
     orders = frappe.get_all("POS Order",
         filters={"mobile": mobile},
         fields=_fields,
-        order_by="creation desc"
+        order_by="creation desc",
+        limit_page_length=limit,
     )
 
     result = []

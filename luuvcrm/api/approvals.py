@@ -68,8 +68,12 @@ def _pending_and_recent_approvals(action=None, include_recent=True):
     if action:
         pending_filters["action"] = action
         recent_filters.append(["action", "=", action])
+    # Pending has no date bound: a request nobody answers is read again on every
+    # poll, for ever. 200 is far past a real queue — reaching it means approvals
+    # are not being answered, which is the manager's problem, not a page's.
     pending = frappe.get_list("POS Approval", filters=pending_filters,
-                             fields=fields, order_by="requested_at desc")
+                             fields=fields, order_by="requested_at desc",
+                             limit_page_length=200)
     if not include_recent:
         return pending
     recent = frappe.get_list("POS Approval", filters=recent_filters,
@@ -325,7 +329,8 @@ def get_approval_days():
     if not frappe.db.exists("DocType", "POS Approval"):
         return {"days": {}}
     rows = frappe.get_list("POS Approval", filters={"status": "pending"},
-                          fields=["name", "requested_at", "action", "action_payload"])
+                          fields=["name", "requested_at", "action", "action_payload"],
+                          limit_page_length=200)
     days = {}
     for r in rows:
         bill = ""

@@ -11,6 +11,15 @@ from luuvcrm import branch, roles
 from luuvcrm.api.approvals import _format_approvals, _pending_and_recent_approvals
 
 
+# ─── A note on limits (P3) ─────────────────────────────────────────────────
+# The reads in this module are deliberately unbounded, and must stay that way.
+# Every one of them is summed — revenue, the payment mix, the item tally, the
+# voids — and a limit on a sum does not make the screen faster, it makes the
+# number wrong, quietly and in the restaurant's favour or against it depending
+# on the day. What bounds them is the filter: each asks for one date, so the row
+# count is one day's trade rather than the table. `test_limits.py` asserts that a
+# day with more sales than any ceiling still reports all of them.
+
 # ─── Manager dashboard (today's sales, cash drawer, approvals) ─────
 
 @frappe.whitelist()

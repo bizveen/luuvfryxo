@@ -183,8 +183,13 @@ def get_promo_overview():
 def get_promo_batch_codes(batch):
     """All codes of one batch (re-download / re-print a printed batch)."""
     roles.require_pos()
+    # This re-prints a batch already in the shop, so a short read is a sheet of
+    # stickers that does not match the ones on the tables. The ceiling clears any
+    # batch the generator makes; it is here to stop a bad `batch` argument
+    # reading the whole table, not to page the answer.
     rows = frappe.get_all("QR Promo Code", filters={"batch": batch},
-                          fields=["code", "status"], order_by="creation asc")
+                          fields=["code", "status"], order_by="creation asc",
+                          limit_page_length=10000)
     return {"batch": batch, "codes": [r.code for r in rows],
             "statuses": {r.code: r.status for r in rows}}
 def _claim_promo_code(code, mobile):

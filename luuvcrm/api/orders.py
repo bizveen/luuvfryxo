@@ -41,6 +41,15 @@ def get_pos_profiles():
 def get_tables():
     tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
     return {"tables": tables}
+#: Ceilings for the polled screens. `get_all`/`get_list` without one reads the
+#: whole table, and every one of these filters on a *status* rather than a date —
+#: so one order stuck in Draft or unpaid is a row that is read again on every
+#: poll, for ever. The numbers are far above a real service; they are a ceiling,
+#: not a page size, and hitting one means something is stuck, not busy.
+OPEN_ORDER_CEILING = 500      # open orders across every table
+SCREEN_ORDER_CEILING = 200    # one screen's worth: ongoing, kiosk, kitchen
+
+
 @frappe.whitelist()
 def get_tables_with_status():
     active = frappe.get_list("POS Order",
@@ -53,6 +62,7 @@ def get_tables_with_status():
         # Deterministic: a table with several open orders binds its tile to the
         # OLDEST one (matches get_table_orders); without this the pick is arbitrary.
         order_by="creation asc",
+        limit_page_length=OPEN_ORDER_CEILING,
     )
     seen = {}
     tables = []
@@ -230,7 +240,8 @@ def get_ongoing_orders():
         fields=["name", "customer_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "pos_invoice", "order_type",
                 "discount_amount", "discount_note"],
-        order_by="creation desc"
+        order_by="creation desc",
+        limit_page_length=SCREEN_ORDER_CEILING,
     )
     # Exclude orders that already have an invoice (already paid)
     orders = [o for o in orders if not o.pos_invoice]
@@ -248,7 +259,8 @@ def get_kiosk_orders():
         filters={"docstatus": 0, "order_source": "Online"},
         fields=["name", "customer_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "pos_invoice"],
-        order_by="creation desc"
+        order_by="creation desc",
+        limit_page_length=SCREEN_ORDER_CEILING,
     )
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
@@ -789,7 +801,8 @@ def get_order_changelog(order_name):
     versions = frappe.get_all("Version",
         filters={"ref_doctype": "POS Order", "docname": order_name},
         fields=["name", "creation", "owner", "data"],
-        order_by="creation asc"
+        order_by="creation asc",
+        limit_page_length=200,
     )
 
     changelog = []

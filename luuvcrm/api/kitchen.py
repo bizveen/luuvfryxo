@@ -9,6 +9,7 @@ from frappe import _
 import json
 from frappe.utils import now_datetime
 
+from luuvcrm.api.orders import SCREEN_ORDER_CEILING
 from luuvcrm.api.shifts import _get_invoice_doc
 
 
@@ -22,7 +23,10 @@ def get_kitchen_orders():
     orders = frappe.get_list("POS Order",
         filters={"kitchen_status": ["not in", ["Served", "Draft", "Cancelled"]]},
         fields=_fields,
-        order_by="creation asc"
+        order_by="creation asc",
+        # A status filter with no date: an order that never reaches Served is on
+        # this screen for ever, and the kitchen polls it. See orders.py.
+        limit_page_length=SCREEN_ORDER_CEILING,
     )
     now_dt = now_datetime()
     for o in orders:
