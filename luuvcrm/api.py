@@ -4985,16 +4985,36 @@ def create_approval():
     if not frappe.db.exists("DocType", "POS Approval"):
         setup_pos_approval()
     data = frappe.local.form_dict
+    approval_type = data.get("approval_type", "void")
+    pos_order = data.get("pos_order", "")
+    action = data.get("action", "")
+    action_payload = data.get("action_payload", "") or ""
+    # Dedupe: the POS leaves a removed/edited item on screen until the manager
+    # approves, so nothing visibly changes after a tap and the cashier taps again
+    # — each tap used to raise a fresh approval (one order once carried ten
+    # identical "remove" cards). If an identical request is already pending, return
+    # it instead of creating another. The key is the WHOLE action: same order, same
+    # type, same action and same payload. A different item/qty produces a different
+    # payload and so still raises its own approval — only true repeats collapse.
+    existing = frappe.db.get_value("POS Approval", {
+        "status": "pending",
+        "approval_type": approval_type,
+        "pos_order": pos_order,
+        "action": action,
+        "action_payload": action_payload,
+    }, "name")
+    if existing:
+        return {"ok": True, "name": existing, "duplicate": True}
     doc = frappe.get_doc({
         "doctype": "POS Approval",
-        "approval_type": data.get("approval_type", "void"),
-        "pos_order": data.get("pos_order", ""),
+        "approval_type": approval_type,
+        "pos_order": pos_order,
         "title": data.get("title", "") or "Approval request",
         "subhead": data.get("subhead", ""),
         "details_json": data.get("details_json", "") or "",
         "flag_text": data.get("flag_text", ""),
-        "action": data.get("action", ""),
-        "action_payload": data.get("action_payload", "") or "",
+        "action": action,
+        "action_payload": action_payload,
         "status": "pending",
         "requested_by": frappe.session.user,
         "requested_at": now_datetime(),
