@@ -50,11 +50,19 @@ class TestThereIsOnePos(PageTestCase):
     and print-template work, so it is what `/pos` now serves; the other two
     files are deleted. This is the test that stops a fourth appearing."""
 
-    def test_pos2_and_pos3_are_gone(self):
-        for name in ("luuvcrm.www.pos2", "luuvcrm.www.pos3"):
-            with self.subTest(module=name):
-                with self.assertRaises(ModuleNotFoundError):
-                    importlib.import_module(name)
+    def test_pos3_is_gone(self):
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("luuvcrm.www.pos3")
+
+    def test_pos2_is_a_redirect_and_not_a_second_till(self):
+        """It survives only as four lines pointing at /pos. A page there again
+        means two counter screens drifting apart, which is what this whole
+        collapse was for."""
+        pos2 = importlib.import_module("luuvcrm.www.pos2")
+        self.assertFalse(hasattr(pos2, "get_print_templates"))
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos2.html"))
+        self.assertLess(len(html), 400, "pos2.html should be a stub")
+        self.assertIn("/pos", html)
 
     def test_the_one_that_is_left_is_the_complete_one(self):
         """pos3's work, not pos2's: the Google-Docs print templates and the
@@ -136,6 +144,34 @@ class TestTheGateOnPos(PageTestCase):
         ctx = self.context(self.pos)
         if frappe.db.count("Item", {"disabled": 0}):
             self.assertTrue(ctx.items_flat, "no items reached the POS screen")
+
+
+class TestTheOldPosBookmarkStillLands(PageTestCase):
+    """Every counter tablet is bookmarked to `/pos2`, the address the till had
+    before the three POS pages became one. The route is kept for one release so
+    a bookmark does not 404 on the counter mid-service."""
+
+    def redirect(self, query=b""):
+        previous = getattr(frappe.local, "request", None)
+        frappe.local.request = frappe._dict(query_string=query)
+        self.addCleanup(setattr, frappe.local, "request", previous)
+        pos2 = importlib.import_module("luuvcrm.www.pos2")
+        with self.assertRaises(frappe.Redirect):
+            self.context(pos2)
+        return frappe.local.flags.redirect_location
+
+    def test_the_bookmark_lands_on_the_till(self):
+        self.assertEqual(self.redirect(), "/pos")
+
+    def test_the_query_string_survives(self):
+        self.assertEqual(self.redirect(b"table=T4"), "/pos?table=T4")
+
+    def test_it_goes_through_the_one_redirect_in_pos(self):
+        """A second copy of the same lines is how one of them ends up dropping
+        the query string and nobody notices."""
+        from luuvcrm.www import pos
+        pos2 = importlib.import_module("luuvcrm.www.pos2")
+        self.assertIs(pos2.redirect_to_pos, pos.redirect_to_pos)
 
 
 class TestTheOldCustomerRoutesStillLand(PageTestCase):

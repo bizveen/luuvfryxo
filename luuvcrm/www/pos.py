@@ -3,8 +3,9 @@
 There were three of these: /pos (superseded), /pos2 (live) and /pos3 (a UI
 staging copy of pos2 taken 2026-08-26, on which all the tablet, printer-bridge
 and Google-Docs-template work then happened). pos3 was the complete one, so it
-is what survives; /pos2 and the old /pos are gone and this file is the only POS
-context builder.
+is what survives; the old /pos is gone, /pos2 is now four lines of redirect for
+the tablets still bookmarked to it, and this file is the only POS context
+builder.
 
 It only READS — menu, tables, shift, POS profiles. Keep it that way: backend
 behaviour belongs in an api.py endpoint, not in a page context builder, so the
@@ -80,6 +81,23 @@ def get_print_templates():
         last = frappe.cache().get_value(ck + ":last_good")
         out[kind], source[kind] = (last or ""), ("last_good" if last else "none")
     return {"templates": out, "source": source, "docs": PRINT_TEMPLATE_DOCS}
+
+def redirect_to_pos():
+    """301 to /pos, carrying the query string.
+
+    `/pos2` was the live counter page until the three POS files collapsed into
+    one, and every counter tablet has it bookmarked — deleting the route makes
+    those bookmarks 404 on the till, mid-service. This is the one release where
+    the old address still lands somewhere; re-point the bookmarks during a close
+    and delete `www/pos2.*` after.
+
+    Guests are not handled here: /pos does its own gate, so a bookmark opened on
+    a signed-out tablet ends at /pos-login and comes back to /pos, not /pos2.
+    """
+    qs = frappe.request.query_string.decode() if frappe.request and frappe.request.query_string else ""
+    frappe.local.flags.redirect_location = "/pos" + (("?" + qs) if qs else "")
+    raise frappe.Redirect
+
 
 def get_context(context):
     context.no_sidebar = True
