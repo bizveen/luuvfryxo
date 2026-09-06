@@ -155,9 +155,20 @@ def setup_activity_log():
     return {"created": True}
 
 
+#: `frappe.db.exists("DocType", ...)` on every write is a query per logged
+#: request, for an answer that cannot change inside a process. Cached per
+#: process, and it no longer *creates*: `LF Activity Log` ships as JSON, so
+#: building it here from a Python dict would mark it `custom: 1` and take it
+#: straight back out of `bench migrate`'s path.
+_doctype_ready = False
+
+
 def _ensure_doctype():
-    if not frappe.db.exists("DocType", DOCTYPE):
-        setup_activity_log()
+    global _doctype_ready
+    if _doctype_ready:
+        return True
+    _doctype_ready = bool(frappe.db.exists("DocType", DOCTYPE))
+    return _doctype_ready
 
 
 # ─── Writer ───────────────────────────────────────────────────────────────
@@ -186,6 +197,35 @@ def _sanitize(d):
     return out
 
 
+def _insert(row, commit=True):
+    """One parameterised INSERT — no Document, no hooks, no validation pass.
+
+    P2. This runs on the request path of every POST to a luuvcrm method, so the
+    trail was costing each of them a full ORM document: naming, validate, the
+    permission machinery and a `db.commit()` of its own. The log is append-only
+    and has no controller and nothing to validate, so none of that bought
+    anything. The row is written straight to the table with `name`, `creation`
+    and the owner columns Frappe would otherwise fill in.
+
+    The commit stays. `log_request_activity` runs in the request's `finally`,
+    after Frappe has already committed or rolled back, so an uncommitted row
+    there would simply be dropped.
+    """
+    row = {k: v for k, v in row.items() if v is not None}
+    name = frappe.generate_hash(length=10)
+    now = now_datetime()
+    user = frappe.session.user or "Administrator"
+    row.update({"name": name, "creation": now, "modified": now,
+                "owner": user, "modified_by": user, "docstatus": 0, "idx": 0})
+    columns = ", ".join("`%s`" % c for c in row)
+    placeholders = ", ".join(["%s"] * len(row))
+    frappe.db.sql("INSERT INTO `tab{0}` ({1}) VALUES ({2})".format(
+        DOCTYPE, columns, placeholders), tuple(row.values()))
+    if commit:
+        frappe.db.commit()
+    return name
+
+
 def log_activity(action, app=None, label=None, source="server", user=None,
                  ref_doctype=None, ref_name=None, bill_no=None, table=None,
                  item=None, item_name=None, qty=None, amount=None,
@@ -209,8 +249,7 @@ def log_activity(action, app=None, label=None, source="server", user=None,
             except Exception:
                 detail = str(detail)
 
-        doc = frappe.get_doc({
-            "doctype": DOCTYPE,
+        row = {
             "app": app,
             "action": _clip(action, 60),
             "label": _clip(label or action, 140),
@@ -240,12 +279,8 @@ def log_activity(action, app=None, label=None, source="server", user=None,
             "ok": 1 if ok else 0,
             "err": _clip(err, 300),
             "ms": cint(ms) if ms is not None else None,
-        })
-        doc.flags.ignore_permissions = True
-        doc.insert()
-        if commit:
-            frappe.db.commit()
-        return doc.name
+        }
+        return _insert(row, commit=commit)
     except Exception:
         try:
             frappe.log_error(frappe.get_traceback(), "log_activity failed")

@@ -82,6 +82,91 @@ class TestWhatIsLogged(FrappeTestCase):
         self.assertEqual(activity.SELF_LOGGED & activity.NEVER_LOGGED, set())
 
 
+class TestTheWriteIsCheap(FrappeTestCase):
+    """P2. This runs on the request path of every POST to a luuvcrm method, so
+    what it costs is paid by the cashier waiting for the till to answer."""
+
+    def setUp(self):
+        super().setUp()
+        self._rows = []
+        self.addCleanup(lambda: [
+            frappe.delete_doc(activity.DOCTYPE, n, force=True, ignore_permissions=True)
+            for n in self._rows if frappe.db.exists(activity.DOCTYPE, n)])
+
+    def log(self, **kwargs):
+        name = activity.log_activity(**kwargs)
+        if name:
+            self._rows.append(name)
+        return name
+
+    def test_it_does_not_build_a_document(self):
+        """It used to be a full ORM insert — naming, validate, the permission
+        machinery — for a table that is append-only and has no controller."""
+        built = []
+        real = frappe.get_doc
+
+        def counting(*args, **kwargs):
+            built.append(args[0] if args else kwargs.get("doctype"))
+            return real(*args, **kwargs)
+
+        frappe.get_doc = counting
+        try:
+            self.log(action="test_cheap")
+        finally:
+            frappe.get_doc = real
+        self.assertNotIn(activity.DOCTYPE, built)
+
+    def test_the_row_still_carries_what_frappe_would_have_filled_in(self):
+        """A hand-written INSERT has to set the columns the ORM sets, or the row
+        cannot be read back, sorted by date, or deleted."""
+        name = self.log(action="test_columns")
+        row = frappe.db.get_value(activity.DOCTYPE, name,
+                                  ["name", "creation", "modified", "owner",
+                                   "modified_by", "docstatus"], as_dict=True)
+        self.assertEqual(row.name, name)
+        self.assertTrue(row.creation)
+        self.assertEqual(row.modified, row.creation)
+        self.assertEqual(row.owner, frappe.session.user)
+        self.assertEqual(row.modified_by, frappe.session.user)
+        self.assertEqual(row.docstatus, 0)
+
+    def test_the_doctype_check_is_asked_once_per_process(self):
+        """`db.exists("DocType", ...)` ran on every logged request, for an answer
+        that cannot change inside a process."""
+        activity._doctype_ready = False
+        asked = []
+        real = frappe.db.exists
+
+        def counting(*args, **kwargs):
+            if args and args[0] == "DocType":
+                asked.append(args[1] if len(args) > 1 else None)
+            return real(*args, **kwargs)
+
+        frappe.db.exists = counting
+        try:
+            for i in range(3):
+                self.log(action=f"test_once_{i}")
+        finally:
+            frappe.db.exists = real
+            activity._doctype_ready = True
+        self.assertEqual(asked.count(activity.DOCTYPE), 1)
+
+    def test_it_no_longer_creates_the_doctype_behind_migrate_s_back(self):
+        """Creating it here would mark it `custom: 1` and undo the conversion —
+        the same trap `setup_customer_accounts` fell into."""
+        activity._doctype_ready = False
+        created = []
+        real = activity.setup_activity_log
+        activity.setup_activity_log = lambda: created.append(True)
+        try:
+            activity._ensure_doctype()
+        finally:
+            activity.setup_activity_log = real
+            activity._doctype_ready = True
+        self.assertEqual(created, [])
+        self.assertFalse(frappe.db.get_value("DocType", activity.DOCTYPE, "custom"))
+
+
 class TestWriting(FrappeTestCase):
     def setUp(self):
         super().setUp()
