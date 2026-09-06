@@ -58,8 +58,13 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 .navb i{width:23px;height:23px;}
 .rangeBtn{border:none;background:transparent;color:var(--text-muted);font-family:var(--font-display);font-weight:700;font-size:13px;padding:7px 15px;border-radius:var(--radius-pill);cursor:pointer;}
 .rangeBtn.active{background:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
-.monthSel{border:1px solid var(--border-subtle);background:var(--surface-sunken);color:var(--text-muted);font-family:var(--font-display);font-weight:700;font-size:13px;padding:8px 30px 8px 15px;border-radius:var(--radius-pill);cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 10px center;background-size:13px;}
-.monthSel.active{background-color:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");}
+.monthBtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-subtle);background:var(--surface-sunken);color:var(--text-muted);font-family:var(--font-display);font-weight:700;font-size:13px;padding:8px 14px;border-radius:var(--radius-pill);cursor:pointer;}
+.monthBtn i{width:14px;height:14px;}
+.monthBtn.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
+.yrStep{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none;}
+.yrStep i{width:17px;height:17px;}
+.mBtn{border:1px solid var(--border-subtle);background:var(--surface-card);color:var(--text-body);font-family:var(--font-display);font-weight:700;font-size:14px;padding:13px 0;border-radius:var(--radius-lg);cursor:pointer;}
+.mBtn.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
 
 /* ── Desktop / tablet-landscape (≥900px): widen the shell, two-column content.
@@ -197,7 +202,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <button class="rangeBtn" data-days="30" onclick="setRange(30)">30 days</button>
             <button class="rangeBtn" data-days="90" onclick="setRange(90)">90 days</button>
           </div>
-          <select class="monthSel" id="repMonth" onchange="setRepMonth(this.value)"></select>
+          <button class="monthBtn" id="repMonthBtn" onclick="openMonthPicker('rep')"><i data-lucide="calendar"></i><span>Month</span></button>
         </div>
         <!-- summary -->
         <div style="background:var(--surface-brand);color:#fff;border-radius:var(--radius-xl);padding:20px 22px;box-shadow:var(--shadow-brand);margin-bottom:14px;">
@@ -269,7 +274,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <button class="rangeBtn" data-days="30" onclick="setPRange(30)">30 days</button>
             <button class="rangeBtn" data-days="90" onclick="setPRange(90)">90 days</button>
           </div>
-          <select class="monthSel" id="pMonth" onchange="setPMonth(this.value)"></select>
+          <button class="monthBtn" id="pMonthBtn" onclick="openMonthPicker('p')"><i data-lucide="calendar"></i><span>Month</span></button>
         </div>
         <!-- granularity toggle -->
         <div style="display:flex;margin-bottom:16px;">
@@ -386,6 +391,24 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <div id="itemErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin-bottom:12px;"></div>
     <button class="lf-btn" id="itemSave" onclick="saveItem()">Save</button>
     <div style="display:flex;align-items:center;gap:7px;color:var(--text-faint);font-size:12px;margin-top:12px;justify-content:center;"><i data-lucide="monitor" style="width:14px;height:14px;"></i> POS picks this up on its next refresh</div>
+  </div>
+</div>
+
+<!-- Month picker sheet (the Reports + Purchases range) -->
+<div id="monthOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideMonthPicker()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <div id="mpTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);flex:1;">Pick a month</div>
+      <button onclick="hideMonthPicker()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:16px;">
+      <button class="yrStep" id="mpPrev" onclick="stepYear(-1)"><i data-lucide="minus"></i></button>
+      <div class="mono" id="mpYear" style="font-family:var(--font-display);font-weight:800;font-size:24px;color:var(--text-strong);min-width:82px;text-align:center;letter-spacing:-.01em;">—</div>
+      <button class="yrStep" id="mpNext" onclick="stepYear(1)"><i data-lucide="plus"></i></button>
+    </div>
+    <div id="mpGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;"></div>
+    <button id="mpClear" onclick="clearMonth()" style="display:none;width:100%;margin-top:14px;border:none;background:transparent;color:var(--color-primary);font-family:var(--font-display);font-weight:700;font-size:13.5px;padding:10px 0;cursor:pointer;">Back to the day range</button>
   </div>
 </div>
 
@@ -742,27 +765,46 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   function monthRange(ym){ const p=ym.split('-'), y=+p[0], m=+p[1];
     const first=new Date(y,m-1,1), last=new Date(y,m,0), t=new Date(); t.setHours(0,0,0,0);
     return {start:_d2s(first), end:_d2s(last>t?t:last), label:MON_FULL[m-1]+' '+y}; }
-  function fillMonths(sel,n){ const el=document.getElementById(sel); if(!el||el.options.length) return;
-    const t=new Date(); let y=t.getFullYear(), m=t.getMonth();
-    let html='<option value="">Month…</option>';
-    for(let i=0;i<(n||12);i++){ const ym=y+'-'+String(m+1).padStart(2,'0');
-      html+='<option value="'+ym+'">'+MON_FULL[m].slice(0,3)+' '+y+'</option>';
-      if(--m<0){ m=11; y--; } }
-    el.innerHTML=html; }
+  // A bottom sheet rather than a dropdown: ± steps the year, so the reach back
+  // is not capped at a list of recent months.
+  const MP_MIN_YEAR=2015;
+  let mpTarget='rep', mpYear=new Date().getFullYear();
+  function mpCurrent(){ return mpTarget==='rep'?repMonth:pMonth; }
+  function openMonthPicker(t){ mpTarget=t||'rep'; const cur=mpCurrent();
+    mpYear=cur?+cur.split('-')[0]:new Date().getFullYear();
+    document.getElementById('mpTitle').textContent=mpTarget==='rep'?'Sales in a month':'Purchases in a month';
+    renderMonthPicker(); document.getElementById('monthOverlay').style.display='flex'; }
+  function hideMonthPicker(){ document.getElementById('monthOverlay').style.display='none'; }
+  function stepYear(d){ mpYear=Math.max(MP_MIN_YEAR,Math.min(new Date().getFullYear(),mpYear+d)); renderMonthPicker(); }
+  function renderMonthPicker(){
+    const now=new Date(), cy=now.getFullYear(), cm=now.getMonth()+1, cur=mpCurrent();
+    document.getElementById('mpYear').textContent=mpYear;
+    document.getElementById('mpPrev').disabled=mpYear<=MP_MIN_YEAR;
+    document.getElementById('mpNext').disabled=mpYear>=cy;
+    document.getElementById('mpGrid').innerHTML=MON_FULL.map((n,i)=>{ const m=i+1, ym=mpYear+'-'+String(m).padStart(2,'0');
+      const future=(mpYear===cy&&m>cm), on=(ym===cur);
+      return `<button class="mBtn${on?' active':''}"${future?' disabled':''} onclick="pickMonth('${ym}')">${n.slice(0,3)}</button>`; }).join('');
+    document.getElementById('mpClear').style.display=cur?'block':'none';
+    icons(); }
+  function pickMonth(ym){ hideMonthPicker(); if(mpTarget==='rep') setRepMonth(ym); else setPMonth(ym); }
+  function clearMonth(){ hideMonthPicker(); if(mpTarget==='rep') setRange(repDays); else setPRange(pDays); }
+  // the trigger pill carries the chosen month, so the range is readable while scrolling
+  function syncMonthBtn(id,ym){ const b=document.getElementById(id); if(!b) return;
+    b.classList.toggle('active',!!ym);
+    b.querySelector('span').textContent=ym?(MON_FULL[+ym.split('-')[1]-1].slice(0,3)+' '+ym.split('-')[0]):'Month'; }
 
   // ── Reports (daily sales trend + item-wise sales) ──
   let repDays=7, repMonth='', repLoaded=false;
-  function setRange(d){ repDays=d; repMonth=''; const ms=document.getElementById('repMonth'); if(ms){ ms.value=''; ms.classList.remove('active'); }
+  function setRange(d){ repDays=d; repMonth=''; syncMonthBtn('repMonthBtn','');
     document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadReports(true); }
   function setRepMonth(ym){ if(!ym){ setRange(repDays); return; }
-    repMonth=ym; const ms=document.getElementById('repMonth'); if(ms){ ms.value=ym; ms.classList.add('active'); }
+    repMonth=ym; syncMonthBtn('repMonthBtn',ym);
     document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.remove('active')); loadReports(true); }
   // the range args every report call in this tab shares
   function repArgs(){ if(!repMonth) return {days:repDays}; const r=monthRange(repMonth); return {start:r.start,end:r.end}; }
   async function loadReports(force){
     if(repLoaded && !force) return; repLoaded=true;
     loadFoodCost();
-    fillMonths('repMonth',12);
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_sales_report',repArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       document.getElementById('reportSub').textContent=(repMonth?monthRange(repMonth).label:'Last '+m.days+' days')+' · '+(m.start||'')+' → '+(m.end||'');
       document.getElementById('repRevenue').textContent=nfmt(m.total_revenue);
@@ -935,10 +977,10 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 
   // ── Purchases (daily + weekly approved-bill spend, top vendors, top items) ──
   let pDays=7, pMonth='', pGran='daily', pData=null, pLoaded=false;
-  function setPRange(d){ pDays=d; pMonth=''; const ms=document.getElementById('pMonth'); if(ms){ ms.value=''; ms.classList.remove('active'); }
+  function setPRange(d){ pDays=d; pMonth=''; syncMonthBtn('pMonthBtn','');
     document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadPurchases(true); }
   function setPMonth(ym){ if(!ym){ setPRange(pDays); return; }
-    pMonth=ym; const ms=document.getElementById('pMonth'); if(ms){ ms.value=ym; ms.classList.add('active'); }
+    pMonth=ym; syncMonthBtn('pMonthBtn',ym);
     document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.remove('active')); loadPurchases(true); }
   function pArgs(){ if(!pMonth) return {days:pDays}; const r=monthRange(pMonth); return {start:r.start,end:r.end}; }
   function setPGran(g){ pGran=g; document.querySelectorAll('#pGranToggle .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.gran===g));
@@ -948,7 +990,6 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   async function loadPurchases(force){
     if(pLoaded && !force) return; pLoaded=true;
     loadPurchaseBills();
-    fillMonths('pMonth',12);
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_purchase_report',pArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       pData=m;
       document.getElementById('purchSub').textContent=(pMonth?monthRange(pMonth).label:'Last '+m.days+' days')+' · '+(m.start||'')+' → '+(m.end||'');
