@@ -686,11 +686,10 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     const nLines=(a.lines||[]).length;
     const locked=pending&&a.type==='bill'&&a.mine;
     const lines=(a.lines||[]).map((li,ix)=>{
-      // Buying-price delta on the line-total basis (old unit price × qty), so it
-      // compares directly with the amount on the right — matches Recent bills.
-      const op=+li.old_price||0, pr=+li.price||0, q=+li.qty||0;
+      // Buying-price delta: the "was" is the previous UNIT price (last price paid).
+      const op=+li.old_price||0, pr=+li.price||0;
       const up=op>0&&pr>op, down=op>0&&pr<op;
-      const note=up?('↑ was Rs '+nfmt(q*op)):(down?('↓ was Rs '+nfmt(q*op)):'');
+      const note=up?('↑ was Rs '+nfmt(op)):(down?('↓ was Rs '+nfmt(op)):'');
       const col=up?'var(--color-danger)':'var(--color-success)';
       return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
     }).join('');
