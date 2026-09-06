@@ -218,7 +218,9 @@ input,button{font-family:inherit;}
     <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Correct a spelling. Only the name changes — the price and bills already raised stay as they are.</div>
     <input type="hidden" id="renameItem">
     <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Item name</div>
-    <input id="renameName" class="inp" placeholder="Item name" onkeydown="if(event.key==='Enter')submitRename()">
+    <input id="renameName" class="inp" placeholder="Item name" onkeydown="if(event.key==='Enter')submitRename()" style="margin-bottom:14px;">
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Unit</div>
+    <select id="renameUnit" class="inp"></select>
     <div id="renameErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="renameErrMsg"></span></div>
     <div style="display:flex;gap:10px;margin-top:20px;">
       <button onclick="closeRename()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
@@ -382,13 +384,16 @@ input,button{font-family:inherit;}
     }catch(e){ toast('Connection error'); if(btn){ btn.disabled=false; btn.innerHTML='<i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid'; icons(); } } }
 
   async function loadPriceBook(){ try{ const r=await _post('/api/method/luuvcrm.api.get_price_book',{}); if(!r) return; const d=await r.json(); const items=(d.message&&d.message.items)||[]; priceItems=items;
-    document.getElementById('priceList').innerHTML=items.length?items.map((p,ix)=>`<div onclick="openRename(${ix})" title="Tap to fix the name" style="display:flex;align-items:center;gap:12px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow-xs);cursor:pointer;-webkit-tap-highlight-color:transparent;"><span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(p.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(p.name)}</div><div style="font-size:12px;color:var(--text-muted);">per ${esc(p.unit)}</div></div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt(p.price)}</div><i data-lucide="pencil" style="width:15px;height:15px;color:var(--text-faint);flex:none;"></i></div>`).join(''):'<div style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">No purchase items yet.</div>';
+    document.getElementById('priceList').innerHTML=items.length?items.map((p,ix)=>`<div onclick="openRename(${ix})" title="Tap to fix the name" style="display:flex;align-items:center;gap:12px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow-xs);cursor:pointer;-webkit-tap-highlight-color:transparent;"><span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(p.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(p.name)}</div><div style="font-size:12px;color:var(--text-muted);">per ${esc(p.unit)}</div></div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt(p.price)}</div><button onclick="event.stopPropagation();openRename(${ix})" title="Edit name / unit" style="flex:none;width:34px;height:34px;border:1px solid var(--border-subtle);background:var(--surface-card);color:var(--text-muted);border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="pencil" style="width:15px;height:15px;"></i></button></div>`).join(''):'<div style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">No purchase items yet.</div>';
     icons();
   }catch(e){} }
-  // ── Fix a purchase item's name (typo) — display name only; price and existing bills untouched ──
+  // ── Fix a purchase item's name/unit (typo) — display only; price and existing bills untouched ──
+  const RENAME_UNITS=['Nos','Kg','g','L','ml','Pkt','Box','Dozen'];
   function openRename(ix){ const p=priceItems[ix]; if(!p) return;
     document.getElementById('renameItem').value=p.item;
     const inp=document.getElementById('renameName'); inp.value=p.name||'';
+    const units=RENAME_UNITS.includes(p.unit)?RENAME_UNITS:[p.unit,...RENAME_UNITS];
+    document.getElementById('renameUnit').innerHTML=units.map(u=>`<option${u===p.unit?' selected':''}>${esc(u)}</option>`).join('');
     document.getElementById('renameErr').style.display='none';
     document.getElementById('renameOverlay').style.display='flex';
     setTimeout(()=>{ inp.focus(); inp.select(); },50); icons(); }
@@ -396,13 +401,14 @@ input,button{font-family:inherit;}
   async function submitRename(){
     const item=document.getElementById('renameItem').value;
     const name=(document.getElementById('renameName').value||'').trim();
+    const unit=document.getElementById('renameUnit').value||'';
     const err=document.getElementById('renameErr'), errMsg=document.getElementById('renameErrMsg');
     if(!name){ errMsg.textContent='Name cannot be empty'; err.style.display='flex'; return; }
     const btn=document.getElementById('renameSaveBtn'); btn.disabled=true;
-    try{ const r=await _post('/api/method/luuvcrm.api.rename_purchase_item',{item:item,new_name:name});
+    try{ const r=await _post('/api/method/luuvcrm.api.rename_purchase_item',{item:item,new_name:name,unit:unit});
       if(!r){ btn.disabled=false; return; } const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ closeRename(); toast('Name updated ✏️'); await loadCatalog(); loadPriceBook(); }
-      else{ errMsg.textContent=(d.message&&d.message.message)||srvMsg(d,'could not rename'); err.style.display='flex'; btn.disabled=false; }
+      if(r.ok && d.message && d.message.ok){ closeRename(); toast('Item updated ✏️'); await loadCatalog(); loadPriceBook(); }
+      else{ errMsg.textContent=(d.message&&d.message.message)||srvMsg(d,'could not update'); err.style.display='flex'; btn.disabled=false; }
     }catch(e){ errMsg.textContent='Connection error'; err.style.display='flex'; btn.disabled=false; } }
 
 

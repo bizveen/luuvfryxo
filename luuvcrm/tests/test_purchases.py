@@ -62,15 +62,17 @@ class TestPurchases(FrappeTestCase):
         with self.assertRaises(frappe.PermissionError):
             api.resolve_purchase_bill()
 
-    def test_rename_fixes_display_name_only(self):
-        # display name changes; item_code (the link) and price stay put
+    def test_rename_fixes_display_name_and_unit(self):
+        # name + unit change; item_code (the link) and price stay put
         make_item("_LFT-TEST-ITEM")
         set_buying_price("_LFT-TEST-ITEM", 120)
-        frappe.db.set_value("Item", "_LFT-TEST-ITEM", "item_name", "Chiken Kottu")
-        form(item="_LFT-TEST-ITEM", new_name="Chicken Kottu")
+        frappe.db.set_value("Item", "_LFT-TEST-ITEM",
+                            {"item_name": "Chiken Kottu", "stock_uom": "Nos"})
+        form(item="_LFT-TEST-ITEM", new_name="Chicken Kottu", unit="Kg")
         r = api.rename_purchase_item()
         self.assertTrue(r["ok"])
         self.assertEqual(frappe.db.get_value("Item", "_LFT-TEST-ITEM", "item_name"), "Chicken Kottu")
+        self.assertEqual(frappe.db.get_value("Item", "_LFT-TEST-ITEM", "stock_uom"), "Kg")
         self.assertTrue(frappe.db.exists("Item", "_LFT-TEST-ITEM"))   # code unchanged
         self.assertEqual(get_buying_price("_LFT-TEST-ITEM"), 120.0)    # price unchanged
 
