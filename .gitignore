@@ -13,3 +13,6 @@ __pycache__
 luuvcrm/check_*.py
 luuvcrm/debug_*.py
 luuvcrm/fix_*.py
+
+# Generated knowledge graph output
+graphify-out/
