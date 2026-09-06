@@ -65,6 +65,11 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 .yrStep i{width:17px;height:17px;}
 .mBtn{border:1px solid var(--border-subtle);background:var(--surface-card);color:var(--text-body);font-family:var(--font-display);font-weight:700;font-size:14px;padding:13px 0;border-radius:var(--radius-lg);cursor:pointer;}
 .mBtn.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
+.dpWk{text-align:center;font-family:var(--font-display);font-weight:700;font-size:11px;color:var(--text-faint);padding:2px 0;}
+.dpD{aspect-ratio:1;border:1px solid transparent;background:transparent;color:var(--text-body);font-family:var(--font-display);font-weight:700;font-size:13.5px;border-radius:var(--radius-md);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.dpD:disabled{color:var(--text-faint);opacity:.45;cursor:not-allowed;}
+.dpD.today{border-color:var(--color-primary);color:var(--color-primary);}
+.dpD.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
 
 /* ── Desktop / tablet-landscape (≥900px): widen the shell, two-column content.
@@ -325,8 +330,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
               <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Day summary</div>
               <div style="font-size:12.5px;color:var(--text-muted);" id="pdayLabel">—</div>
             </div>
-            <button class="yrStep" onclick="stepPDay(-1)" title="Previous day"><i data-lucide="chevron-left"></i></button>
-            <button class="yrStep" id="pdayNext" onclick="stepPDay(1)" title="Next day"><i data-lucide="chevron-right"></i></button>
+            <button class="monthBtn" id="pdayBtn" onclick="openDatePicker()"><i data-lucide="calendar-days"></i><span>Today</span></button>
           </div>
           <div id="pdayBody"></div>
         </div>
@@ -404,6 +408,27 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <div id="itemErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin-bottom:12px;"></div>
     <button class="lf-btn" id="itemSave" onclick="saveItem()">Save</button>
     <div style="display:flex;align-items:center;gap:7px;color:var(--text-faint);font-size:12px;margin-top:12px;justify-content:center;"><i data-lucide="monitor" style="width:14px;height:14px;"></i> POS picks this up on its next refresh</div>
+  </div>
+</div>
+
+<!-- Date picker sheet (the Purchases day summary) -->
+<div id="dateOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideDatePicker()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);flex:1;">Pick a day</div>
+      <button onclick="hideDatePicker()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <button class="yrStep" id="dpPrev" onclick="stepDpMonth(-1)"><i data-lucide="chevron-left"></i></button>
+      <div id="dpMonth" style="flex:1;text-align:center;font-family:var(--font-display);font-weight:800;font-size:16.5px;color:var(--text-strong);">—</div>
+      <button class="yrStep" id="dpNext" onclick="stepDpMonth(1)"><i data-lucide="chevron-right"></i></button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;">
+      <div class="dpWk">M</div><div class="dpWk">T</div><div class="dpWk">W</div><div class="dpWk">T</div><div class="dpWk">F</div><div class="dpWk">S</div><div class="dpWk">S</div>
+    </div>
+    <div id="dpGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
+    <button onclick="pickDay('')" style="width:100%;margin-top:14px;border:none;background:transparent;color:var(--color-primary);font-family:var(--font-display);font-weight:700;font-size:13.5px;padding:10px 0;cursor:pointer;">Jump to today</button>
   </div>
 </div>
 
@@ -1059,19 +1084,46 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   }
 
   // ── Day summary: one day's bills — what it cost, where it stands, who did it ──
-  let pDay='', pdayBills=[];  // '' = today; the arrows walk backwards from there
-  function _shiftDay(iso,n){ const p=(iso||'').split('-'); const d=p.length===3?new Date(+p[0],+p[1]-1,+p[2]):new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate()+n); return _d2s(d); }
-  function stepPDay(n){ const base=pDay||_d2s(new Date()); const next=_shiftDay(base,n);
-    if(next>_d2s(new Date())) return;  // no walking into tomorrow
-    pDay=next; loadPurchaseDay(); }
+  let pDay='', pdayBills=[];  // '' = today, until a day is picked
+  let dpYear=new Date().getFullYear(), dpMonth=new Date().getMonth();  // the calendar's page
+
+  // ── Date picker: a calendar sheet, Monday-first, nothing past today ──
+  function openDatePicker(){ const d=_parseISO(pDay); dpYear=d.getFullYear(); dpMonth=d.getMonth();
+    renderDatePicker(); document.getElementById('dateOverlay').style.display='flex'; }
+  function hideDatePicker(){ document.getElementById('dateOverlay').style.display='none'; }
+  function _parseISO(iso){ const p=(iso||'').split('-'); const d=p.length===3?new Date(+p[0],+p[1]-1,+p[2]):new Date(); d.setHours(12,0,0,0); return d; }
+  function stepDpMonth(n){ const t=new Date(); const y=dpYear, m=dpMonth+n;
+    const nd=new Date(y,m,1); if(nd>new Date(t.getFullYear(),t.getMonth(),1)) return;  // not into the future
+    dpYear=nd.getFullYear(); dpMonth=nd.getMonth(); renderDatePicker(); }
+  function renderDatePicker(){
+    const t=new Date(); t.setHours(12,0,0,0);
+    const todayIso=_d2s(t), sel=pDay||todayIso;
+    document.getElementById('dpMonth').textContent=MON_FULL[dpMonth]+' '+dpYear;
+    document.getElementById('dpNext').disabled=(dpYear===t.getFullYear()&&dpMonth===t.getMonth());
+    const first=new Date(dpYear,dpMonth,1), lead=(first.getDay()+6)%7;  // Monday-first
+    const days=new Date(dpYear,dpMonth+1,0).getDate();
+    let html='';
+    for(let i=0;i<lead;i++) html+='<span></span>';
+    for(let d=1;d<=days;d++){ const iso=_d2s(new Date(dpYear,dpMonth,d,12));
+      const future=iso>todayIso, cls=['dpD']; if(iso===sel) cls.push('active'); else if(iso===todayIso) cls.push('today');
+      html+=`<button class="${cls.join(' ')}"${future?' disabled':''} onclick="pickDay('${iso}')">${d}</button>`; }
+    document.getElementById('dpGrid').innerHTML=html;
+    icons(); }
+  function pickDay(iso){ hideDatePicker(); pDay=iso||''; loadPurchaseDay(); }
+  function relDay(iso){ const t=new Date(); t.setHours(12,0,0,0);
+    const n=Math.round((t-_parseISO(iso))/86400000);
+    return n<=0?'Today':(n===1?'Yesterday':n+' days ago'); }
+
   async function loadPurchaseDay(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_day_summary',pDay?{date:pDay}:{}); if(!r) return;
       const d=await r.json(); const m=d.message; if(!m) return; renderPurchaseDay(m); }catch(e){}
   }
   function renderPurchaseDay(m){
     pDay=m.date; pdayBills=m.bills||[];
-    document.getElementById('pdayLabel').textContent=(m.is_today?'Today · ':'')+(m.label||m.date);
-    document.getElementById('pdayNext').disabled=!!m.is_today;
+    // the pill carries the date; the sub-line says how far back it is
+    document.getElementById('pdayLabel').textContent=relDay(m.date);
+    document.getElementById('pdayBtn').querySelector('span').textContent=m.label||m.date;
+    document.getElementById('pdayBtn').classList.toggle('active',!m.is_today);
     const body=document.getElementById('pdayBody');
     if(!m.count){ body.innerHTML='<div style="color:var(--text-faint);font-size:13px;padding:6px 0 2px;">No bills entered on this day.</div>'; icons(); return; }
     const tile=(label,v,tone)=>`<div style="flex:1;min-width:0;background:var(--surface-sunken);border-radius:var(--radius-lg);padding:11px 12px;">
