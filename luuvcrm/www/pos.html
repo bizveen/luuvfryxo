@@ -591,6 +591,13 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
 </style>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
   const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   const SC_RATE = {{ service_charge_rate or 0 }};
   const PROFILE_PAY = {{ pos_profile_payments_json | safe }};
@@ -1691,7 +1698,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
 
   // ── init ──
   setNav('sale'); setOrderType('Dine In'); setInterval(tick,1000); tick(); icons();
-  setInterval(ambientRefresh,8000);
+  lfPoll(ambientRefresh,8000);
   applyCatLayout(localStorage.getItem(CAT_LAYOUT_KEY)||'stack');
   renderCart();
   (async()=>{ await loadShift(); loadOpenOrders(); if(!shiftOpen) openShiftModal(); })();
@@ -1731,7 +1738,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     // Google-Docs print layouts: fetch now, then re-fetch every 2 minutes so a
     // saved edit reaches the counter without a reload. (LFTemplate is declared
     // further down the script, hence the typeof guard.)
-    if(typeof LFTemplate!=='undefined'){ LFTemplate.load(); setInterval(LFTemplate.load,120000); }
+    if(typeof LFTemplate!=='undefined'){ LFTemplate.load(); lfPoll(LFTemplate.load,120000); }
     // Printer / template state is one line in the console for the odd
     // diagnosis; the on-screen badge that used to show it is gone (2026-08-26).
     try{ console.info('pos', innerWidth+'x'+innerHeight, (window.LFPrint&&LFPrint.has())?'printer bridge':'no bridge'); }catch(e){}

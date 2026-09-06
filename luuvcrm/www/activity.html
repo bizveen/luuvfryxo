@@ -153,6 +153,13 @@ pre{background:var(--surface-sunken);border:1px solid var(--border-subtle);borde
 <div class="toast" id="toast"></div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 const PRESET_BILL = {{ (preset_bill or "")|tojson }};
 const PRESET_ORDER = {{ (preset_order or "")|tojson }};
@@ -327,7 +334,7 @@ function renderTrail(d){
 /* ── init ─────────────────────────────────────────────────────────────── */
 icons();
 load();
-setInterval(load, 30000);
+lfPoll(load, 30000);
 if(PRESET_BILL || PRESET_ORDER) openTrail(PRESET_ORDER, PRESET_BILL);
 </script>
 </body>

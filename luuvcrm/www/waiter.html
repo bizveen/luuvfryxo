@@ -532,6 +532,13 @@
 </div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
 // Cart is a LIST of lines (not a code→qty map) so the same item can appear more than once
 // with its own special note (e.g. one Kottu "no chili", another "extra spicy") and its own
@@ -1257,7 +1264,7 @@ function closeItemDetail() {
 }
 
 // ─── Poll for ready orders every 10s ─────────────────
-setInterval(() => {
+lfPoll(() => {
   loadMyOrders();
 }, 10000);
 

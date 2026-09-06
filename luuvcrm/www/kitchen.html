@@ -162,6 +162,13 @@
 </div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
 let knownOrders = new Set();
 let refreshTimer = 8;
@@ -463,7 +470,7 @@ function startRefresh() {
   }, 1000);
 }
 
-tick(); setInterval(tick, 10000);
+tick(); lfPoll(tick, 10000);
 loadOrders();
 startRefresh();
 

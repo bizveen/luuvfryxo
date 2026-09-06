@@ -117,6 +117,13 @@ header{display:flex;align-items:center;gap:14px;padding:22px 0 18px;}
   </div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
 const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 function nfmt(n){ return (Math.round(n||0)).toLocaleString('en-US'); }
 async function _post(url,data){ try{ const b=new URLSearchParams(); b.set('csrf_token',CSRF); for(const[k,v] of Object.entries(data||{})) b.set(k,v);
@@ -162,9 +169,9 @@ if(localStorage.getItem('luuv_hide_apk_banner')!=='1'){
   const b=document.getElementById('apkBanner');
   if(b) b.style.display='flex';
 }
-loadStrip(); setInterval(loadStrip,60000);
-loadErrors(); setInterval(loadErrors,60000);
-loadActFlags(); setInterval(loadActFlags,60000);
+loadStrip(); lfPoll(loadStrip,60000);
+loadErrors(); lfPoll(loadErrors,60000);
+loadActFlags(); lfPoll(loadActFlags,60000);
 try{ window.lucide&&window.lucide.createIcons(); }catch(e){}
 </script>
 </body>

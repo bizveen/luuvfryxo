@@ -222,6 +222,13 @@ input,button{font-family:inherit;}
 </div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='';
   let expStats={}, billStats={}, newExpReceipt='', expCats=[];
@@ -682,7 +689,7 @@ input,button{font-family:inherit;}
   icons();
   document.getElementById('subline').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · {{ current_user_full or "Staff" }}';
   loadBills(); loadCatalog(); loadExpCats(); restoreDraft();
-  setInterval(()=>{ if(sheetOpen('addOverlay')||sheetOpen('expOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
+  lfPoll(()=>{ if(sheetOpen('addOverlay')||sheetOpen('expOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
 </script>
 </body>

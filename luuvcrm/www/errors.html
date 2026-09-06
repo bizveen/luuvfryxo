@@ -92,6 +92,13 @@ pre{background:var(--surface-sunken);border:1px solid var(--border-subtle);borde
 <div id="toast" class="toast"></div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
 const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 let fStatus='open', fApp='', rows=[], apps=[], openIds={};
 function icons(){ try{ window.lucide&&window.lucide.createIcons(); }catch(e){} }
@@ -183,7 +190,7 @@ async function clearResolved(){
   else toast('Could not clear');
 }
 
-chips(); load(); setInterval(load,30000); icons();
+chips(); load(); lfPoll(load,30000); icons();
 </script>
 </body>
 </html>

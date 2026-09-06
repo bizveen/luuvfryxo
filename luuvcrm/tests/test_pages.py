@@ -344,6 +344,59 @@ class TestEveryStaffPageReportsItsErrors(PageTestCase):
         frappe.is_whitelisted(frappe.get_attr("luuvcrm.api.log_client_error"))
 
 
+class TestPollingStopsWhenNobodyIsLooking(PageTestCase):
+    """P6. Nine screens polled on a fixed timer whatever the tab was doing — a
+    phone in a pocket and a tablet on a locked screen were both still asking the
+    server every few seconds, all day, per device.
+
+    `lfPoll` skips the tick while `document.hidden` and fires once the moment the
+    tab comes back, so pausing never costs anyone a stale screen.
+    """
+
+    #: page → the shortest interval it polls on, in ms
+    POLLERS = {"admin.html": 60000, "errors.html": 30000, "activity.html": 30000,
+               "kitchen.html": 10000, "waiter.html": 10000, "purchases.html": 20000,
+               "manager.html": 8000, "pos.html": 8000, "owner.html": 60000}
+
+    def source(self, name):
+        return frappe.read_file(frappe.get_app_path("luuvcrm", "www", name))
+
+    def test_every_polling_screen_uses_the_guard(self):
+        for name in self.POLLERS:
+            with self.subTest(page=name):
+                html = self.source(name)
+                self.assertIn("function lfPoll", html, "the helper is missing")
+                self.assertIn("document.hidden", html)
+
+    def test_the_guard_catches_up_when_the_tab_comes_back(self):
+        """A guard that only skips leaves the screen stale for a whole interval —
+        on the kitchen display that is ten seconds of orders it cannot see."""
+        for name in self.POLLERS:
+            with self.subTest(page=name):
+                self.assertIn("visibilitychange", self.source(name))
+
+    def test_no_server_poll_is_left_on_a_bare_timer(self):
+        """A `setInterval` that is left is either a clock or a bounded wait for
+        one answer; a repeating fetch on a bare timer is the thing this fixes."""
+        import re
+        allowed = {
+            "pos.html": ["setInterval(tick,1000)",          # the on-screen clock
+                         "pollEdit", "pollApproval", "pollDiscount"],  # bounded, 40 tries
+            "kitchen.html": ["refreshInterval = setInterval"],         # the countdown label
+        }
+        for name in self.POLLERS:
+            with self.subTest(page=name):
+                html = self.source(name)
+                for line in html.split("\n"):
+                    if "setInterval(" not in line or "function lfPoll" in line:
+                        continue
+                    if any(a in line for a in allowed.get(name, [])):
+                        continue
+                    self.assertNotRegex(
+                        line.strip(), r"setInterval\(\s*(load|refresh|poll|tick|sync)",
+                        f"{name}: a repeating fetch on a bare timer — {line.strip()[:70]}")
+
+
 class TestApp2IsGone(PageTestCase):
     """`/app2` was a second copy of Frappe Desk.
 

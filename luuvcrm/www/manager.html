@@ -528,6 +528,13 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 <div id="toast" class="toast"></div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
   const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   let tab='today';
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
@@ -1357,7 +1364,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     }catch(e){}
   }
 
-  function startPolling(){ setInterval(()=>{ loadApprovals(); }, 8000); setInterval(loadActivityFlags, 60000); }
+  function startPolling(){ lfPoll(()=>{ loadApprovals(); }, 8000); lfPoll(loadActivityFlags, 60000); }
 
   const CAT_EMOJI={burger:'🍔',chicken:'🍗',fries:'🍟',side:'🍟',salad:'🥗',drink:'🥤',juice:'🧃',tea:'🍵',coffee:'☕',mojito:'🍹',dessert:'🍰',sweet:'🍦',ice:'🍦',biryani:'🍛',rice:'🍚',naan:'🫓',kottu:'🍜',noodle:'🍜',pizza:'🍕',shake:'🥤',cola:'🥤'};
   function emojiFor(name){ const n=(name||'').toLowerCase(); for(const k in CAT_EMOJI){ if(n.includes(k)) return CAT_EMOJI[k]; } return '🍽️'; }

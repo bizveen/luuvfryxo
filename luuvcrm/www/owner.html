@@ -165,6 +165,13 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 </div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
 let SETUP = null;
 
@@ -333,7 +340,7 @@ async function load(){
   if(setup) renderSetup(setup);
 }
 load();
-setInterval(() => { if(!document.hidden) load(); }, 60000);
+lfPoll(load, 60000);
 </script>
 </body>
 </html>
