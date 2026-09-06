@@ -3870,6 +3870,32 @@ def create_purchase_item():
             "unit": doc.stock_uom, "price": 0}
 
 
+@frappe.whitelist(methods=["POST"])
+def rename_purchase_item():
+    """Fix a purchase item's display name from the price book (e.g. a typo).
+
+    Only the display name (item_name) changes — the item_code, the price book
+    entry and every existing bill's link stay put, so nothing is re-priced or
+    orphaned. The corrected name shows in the price book, the picker and on
+    every bill raised from now on; bills already raised keep the name they were
+    saved with (their line is a snapshot of that moment)."""
+    _require_pos_role()
+    data = frappe.local.form_dict
+    item = (data.get("item") or "").strip()
+    new_name = (data.get("new_name") or "").strip()
+    if not item or not new_name:
+        frappe.throw(_("Item and a new name are required"))
+    if not frappe.db.exists("Item", item):
+        frappe.throw(_("Item not found"))
+    # Another item already carries this exact name — renaming into it would make
+    # the picker ambiguous (create_purchase_item dedupes on item_name).
+    clash = frappe.db.get_value("Item", {"item_name": new_name, "name": ["!=", item]}, "name")
+    if clash:
+        frappe.throw(_("Another item is already called '{0}'").format(new_name))
+    frappe.db.set_value("Item", item, "item_name", new_name)
+    return {"ok": True, "item": item, "name": new_name}
+
+
 def _bill_dict(name):
     doc = frappe.get_doc("Purchase Bill", name)
     lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",

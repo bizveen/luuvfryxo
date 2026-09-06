@@ -61,3 +61,29 @@ class TestPurchases(FrappeTestCase):
         form(name=bill.name, decision="approved")
         with self.assertRaises(frappe.PermissionError):
             api.resolve_purchase_bill()
+
+    def test_rename_fixes_display_name_only(self):
+        # display name changes; item_code (the link) and price stay put
+        make_item("_LFT-TEST-ITEM")
+        set_buying_price("_LFT-TEST-ITEM", 120)
+        frappe.db.set_value("Item", "_LFT-TEST-ITEM", "item_name", "Chiken Kottu")
+        form(item="_LFT-TEST-ITEM", new_name="Chicken Kottu")
+        r = api.rename_purchase_item()
+        self.assertTrue(r["ok"])
+        self.assertEqual(frappe.db.get_value("Item", "_LFT-TEST-ITEM", "item_name"), "Chicken Kottu")
+        self.assertTrue(frappe.db.exists("Item", "_LFT-TEST-ITEM"))   # code unchanged
+        self.assertEqual(get_buying_price("_LFT-TEST-ITEM"), 120.0)    # price unchanged
+
+    def test_rename_blank_rejected(self):
+        make_item("_LFT-TEST-ITEM")
+        form(item="_LFT-TEST-ITEM", new_name="   ")
+        with self.assertRaises(frappe.ValidationError):
+            api.rename_purchase_item()
+
+    def test_rename_into_existing_name_blocked(self):
+        make_item("_LFT-TEST-ITEM")
+        make_item("_LFT-TEST-ITEM-2")
+        frappe.db.set_value("Item", "_LFT-TEST-ITEM-2", "item_name", "Taken Name")
+        form(item="_LFT-TEST-ITEM", new_name="Taken Name")
+        with self.assertRaises(frappe.ValidationError):
+            api.rename_purchase_item()
