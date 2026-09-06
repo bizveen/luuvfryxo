@@ -127,6 +127,7 @@ from luuvcrm.api.kiosk import (
     setup_kiosk_tools,
 )
 from luuvcrm.api.kitchen import (
+    _kitchen_groups,
     assign_kitchen_groups,
     get_kitchen_orders,
     mark_kitchen_processing,
@@ -166,6 +167,7 @@ from luuvcrm.api.offline import (
     sync_offline_orders,
 )
 from luuvcrm.api.orders import (
+    _line_dict,
     _order_fully_paid,
     cancel_order,
     compare_orders,
@@ -174,6 +176,7 @@ from luuvcrm.api.orders import (
     get_completed_orders,
     get_kiosk_orders,
     get_my_orders,
+    lines_by_order,
     get_ongoing_orders,
     get_order_changelog,
     get_order_items,

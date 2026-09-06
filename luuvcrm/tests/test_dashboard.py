@@ -190,3 +190,92 @@ class TestItDoesNotBuildADocumentPerRow(DashboardTestCase):
         for _ in range(4):
             self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash")
         self.assertEqual(self.documents_built(), [])
+
+
+class TestThePolledScreensDoNotBuildADocumentPerOrder(DashboardTestCase):
+    """P1, the rest of the list. Each of these screens read `doc.items` by
+    building a full POS Order — twenty open orders was twenty documents, every
+    poll, per device — and the kitchen display added a full `Item` document and
+    a Kitchen Group lookup for every line on top."""
+
+    def open_order(self, qty=1):
+        result = self.call(api.send_to_kitchen,
+                           items=json.dumps([{"item": self.burger, "qty": qty},
+                                             {"item": self.cola, "qty": 2}]),
+                           order_type="Dine In")
+        name = result["name"] if isinstance(result, dict) else result
+        self._orders.append(name)
+        return name
+
+    def documents_built(self, fn, *doctypes):
+        built = []
+        real = frappe.get_doc
+
+        def counting(*args, **kwargs):
+            if args and args[0] in doctypes:
+                built.append(args[0])
+            return real(*args, **kwargs)
+
+        frappe.get_doc = counting
+        try:
+            fn()
+        finally:
+            frappe.get_doc = real
+        return built
+
+    def test_the_order_screens_read_the_lines_in_one_go(self):
+        for _ in range(3):
+            self.open_order()
+        for fn in (api.get_ongoing_orders, api.get_kiosk_orders, api.get_my_orders):
+            with self.subTest(endpoint=fn.__name__):
+                self.assertEqual(self.documents_built(fn, "POS Order"), [])
+
+    def test_the_kitchen_display_reads_neither_orders_nor_items_one_by_one(self):
+        for _ in range(3):
+            self.open_order()
+        self.assertEqual(
+            self.documents_built(api.get_kitchen_orders, "POS Order", "Item"), [])
+
+    def test_the_kitchen_still_says_which_section_each_line_is_for(self):
+        """The batch read has to answer what the per-item documents answered, or
+        the ticket comes out with no section on it."""
+        self.open_order()
+        orders = api.get_kitchen_orders()["orders"]
+        mine = [o for o in orders if o["name"] in self._orders]
+        self.assertTrue(mine, "the order just sent is not on the kitchen screen")
+        lines = json.loads(mine[0]["items_json"])
+        self.assertEqual(len(lines), 2)
+        for line in lines:
+            self.assertIn("group", line)
+            self.assertIn("kitchen_group", line)
+            self.assertTrue(line["item_name"])
+
+    def test_the_lines_keep_the_order_they_were_entered_in(self):
+        """The kitchen reads the ticket top to bottom; `idx` is that order."""
+        name = self.open_order()
+        from luuvcrm.api.orders import lines_by_order
+        rows = lines_by_order([name])[name]
+        self.assertEqual([r.item for r in rows], [self.burger, self.cola])
+
+    def test_a_customer_s_history_does_not_build_one_per_order(self):
+        """This one runs on a guest token, and a regular has hundreds."""
+        self.open_order()
+        built = self.documents_built(
+            lambda: self.call(api.customer_get_orders, token="not-a-real-token"),
+            "POS Order")
+        self.assertEqual(built, [])
+
+    def test_the_day_report_does_not_build_one_per_bill(self):
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash")
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash")
+        built = self.documents_built(
+            lambda: api.get_manager_day_report(date=frappe.utils.today()), "POS Invoice")
+        self.assertEqual(built, [])
+
+    def test_the_day_report_still_names_the_modes_on_each_bill(self):
+        fx.payment_mode_account(self, "Credit Card")
+        paid = self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash+Card",
+                         cash_amount=600, card_amount=500)
+        day = api.get_manager_day_report(date=frappe.utils.today())
+        bill = next(b for b in day["bills"] if b["name"] == paid["invoice_name"])
+        self.assertEqual(sorted(bill["modes"]), ["Cash", "Credit Card"])

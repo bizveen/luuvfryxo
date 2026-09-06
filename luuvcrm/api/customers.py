@@ -11,6 +11,7 @@ import hashlib
 from frappe.utils import now_datetime
 
 from luuvcrm import settings
+from luuvcrm.api.orders import lines_by_order
 from luuvcrm.api.wa import _wa_number
 from luuvcrm.api import wa
 
@@ -244,10 +245,11 @@ def customer_get_orders():
         limit_page_length=limit,
     )
 
+    lines = lines_by_order([o.name for o in orders])
     result = []
     for o in orders:
-        doc = frappe.get_doc("POS Order", o.name)
-        items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate} for i in (doc.get("items") or [])]
+        items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate}
+                 for i in lines.get(o.name, [])]
         awaiting = (o.get("whatsapp_status") or "") == "Awaiting Confirmation"
         result.append({
             "name": o.name,

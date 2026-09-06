@@ -9,7 +9,7 @@ from frappe import _
 import json
 from frappe.utils import now_datetime
 
-from luuvcrm.api.orders import SCREEN_ORDER_CEILING
+from luuvcrm.api.orders import SCREEN_ORDER_CEILING, lines_by_order
 from luuvcrm.api.shifts import _get_invoice_doc
 
 
@@ -29,28 +29,52 @@ def get_kitchen_orders():
         limit_page_length=SCREEN_ORDER_CEILING,
     )
     now_dt = now_datetime()
+    lines = lines_by_order([o.name for o in orders])
+    groups = _kitchen_groups({i.item for rows in lines.values() for i in rows})
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
         elapsed = (now_dt - o["creation"]).total_seconds()
         o["minutes"] = max(0, int(elapsed / 60))
         o["seconds"] = max(0, int(elapsed))
-        doc = frappe.get_doc("POS Order", o.name)
         items = []
-        for i in (doc.get("items") or []):
-            item_doc = frappe.get_doc("Item", i.item)
-            item_group = item_doc.item_group or ""
-            kitchen_group = item_doc.get("kitchen_group") or ""
-            kg_name = ""
-            if kitchen_group:
-                kg_name = frappe.db.get_value("Kitchen Group", kitchen_group, "group_name") or ""
+        for i in lines.get(o.name, []):
+            meta = groups.get(i.item) or {}
             items.append({
                 "item": i.item, "item_name": i.item_name or i.item,
                 "qty": i.qty, "rate": i.rate,
-                "group": item_group, "kitchen_group": kg_name,
+                "group": meta.get("item_group") or "",
+                "kitchen_group": meta.get("kitchen_group_name") or "",
                 "notes": i.get("notes") or ""
             })
         o["items_json"] = json.dumps(items)
     return {"orders": orders}
+
+
+def _kitchen_groups(item_codes):
+    """Which section of the kitchen each item belongs to, in two reads.
+
+    This was a full `Item` document per line plus a Kitchen Group lookup per
+    line — twenty open orders of four lines each is eighty documents, every ten
+    seconds, on the screen the kitchen never closes.
+    """
+    if not item_codes:
+        return {}
+    fields = ["name", "item_group"]
+    has_kg = frappe.db.has_column("Item", "kitchen_group")
+    if has_kg:
+        fields.append("kitchen_group")
+    rows = frappe.get_all("Item", filters={"name": ["in", list(item_codes)]},
+                          fields=fields, limit_page_length=0)
+    names = {}
+    if has_kg:
+        wanted = {r.kitchen_group for r in rows if r.get("kitchen_group")}
+        if wanted:
+            names = {g.name: g.group_name for g in frappe.get_all(
+                "Kitchen Group", filters={"name": ["in", list(wanted)]},
+                fields=["name", "group_name"], limit_page_length=0)}
+    return {r.name: {"item_group": r.item_group or "",
+                     "kitchen_group_name": names.get(r.get("kitchen_group"), "")}
+            for r in rows}
 @frappe.whitelist(methods=["POST"])
 def mark_kitchen_processing():
     order_name = frappe.local.form_dict.get("order_name")

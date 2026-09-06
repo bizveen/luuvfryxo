@@ -42,6 +42,11 @@ class BrandTestCase(FrappeTestCase):
                 d.set(k, v)
             d.flags.ignore_permissions = True
             d.save(ignore_permissions=True)
+            # The change outlives the rollback: anything that commits mid-test —
+            # the activity trail does, on every logged request — commits the
+            # brand with it, and the site is left calling itself Sea Breeze Cafe.
+            # The undo has to be committed the same way the change was.
+            frappe.db.commit()
             settings.forget()
 
         self.addCleanup(restore)

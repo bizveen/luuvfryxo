@@ -275,19 +275,30 @@ def get_manager_day_report(date=None):
     sales_count = len(invoices)
     avg = revenue / sales_count if sales_count else 0
 
-    # payment mix + hourly revenue + the day's bill list (newest first)
+    # payment mix + hourly revenue + the day's bill list (newest first).
+    # One read of the payment rows for the whole day, not a document per bill:
+    # this is the drill-down behind a bar on the manager's chart, so the busiest
+    # day of the month is the one that used to cost the most to open.
+    invoice_names = [i.name for i in invoices]
+    rows_by_invoice = {}
     pay = {}
+    if invoice_names:
+        for r in frappe.get_all("Sales Invoice Payment",
+                                filters={"parenttype": "POS Invoice",
+                                         "parent": ["in", invoice_names]},
+                                fields=["parent", "mode_of_payment", "amount"]):
+            mode = r.mode_of_payment or "Other"
+            amt = float(r.amount or 0)
+            pay[mode] = pay.get(mode, 0) + amt
+            if amt:
+                rows_by_invoice.setdefault(r.parent, [])
+                if mode not in rows_by_invoice[r.parent]:
+                    rows_by_invoice[r.parent].append(mode)
+
     hourly = {}
     bills = []
     for inv in invoices:
-        doc = frappe.get_doc("POS Invoice", inv.name)
-        modes = []
-        for p in (doc.payments or []):
-            mode = p.mode_of_payment or "Other"
-            amt = float(p.amount or 0)
-            pay[mode] = pay.get(mode, 0) + amt
-            if amt and mode not in modes:
-                modes.append(mode)
+        modes = rows_by_invoice.get(inv.name, [])
         created = get_datetime(inv.creation)
         h = created.hour
         hourly[h] = hourly.get(h, 0) + float(inv.grand_total or 0)

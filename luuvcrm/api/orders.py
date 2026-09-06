@@ -50,6 +50,44 @@ OPEN_ORDER_CEILING = 500      # open orders across every table
 SCREEN_ORDER_CEILING = 200    # one screen's worth: ongoing, kiosk, kitchen
 
 
+#: The line columns every order screen reads. `takeaway`, `sent_qty` and `notes`
+#: are custom fields (setup_doctype), so a site mid-install may not have them —
+#: asked for by name, they would turn a poll into an exception.
+_LINE_FIELDS = ["item", "item_name", "qty", "rate"]
+_LINE_OPTIONAL = ["takeaway", "sent_qty", "notes"]
+
+
+def lines_by_order(names):
+    """Every line of many orders, in one read, keyed by order name.
+
+    P1. Each of the polled screens built a full POS Order document per row to
+    reach `doc.items` — twenty open orders was twenty documents, every ten
+    seconds, per device. The lines are a child table: one query answers for all
+    of them, in `idx` order so the kitchen ticket still reads the way it was
+    entered.
+    """
+    if not names:
+        return {}
+    fields = ["parent", "idx"] + _LINE_FIELDS + [
+        c for c in _LINE_OPTIONAL if frappe.db.has_column("POS Order Item", c)]
+    out = {}
+    for r in frappe.get_all("POS Order Item", filters={"parent": ["in", list(names)]},
+                            fields=fields, order_by="parent asc, idx asc",
+                            limit_page_length=0):
+        out.setdefault(r.parent, []).append(r)
+    return out
+
+
+def _line_dict(i, extra=True):
+    """One line as the order screens send it."""
+    d = {"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate}
+    if extra:
+        d.update({"takeaway": int(i.get("takeaway") or 0),
+                  "sent_qty": int(i.get("sent_qty") or 0),
+                  "notes": i.get("notes") or ""})
+    return d
+
+
 @frappe.whitelist()
 def get_tables_with_status():
     active = frappe.get_list("POS Order",
@@ -245,11 +283,12 @@ def get_ongoing_orders():
     )
     # Exclude orders that already have an invoice (already paid)
     orders = [o for o in orders if not o.pos_invoice]
+    lines = lines_by_order([o.name for o in orders])
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
-        doc = frappe.get_doc("POS Order", o.name)
-        o["items_count"] = len(doc.get("items") or [])
-        o["items_json"] = json.dumps([{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate, "takeaway": int(i.get("takeaway") or 0), "sent_qty": int(i.get("sent_qty") or 0), "notes": i.get("notes") or ""} for i in (doc.get("items") or [])])
+        rows = lines.get(o.name, [])
+        o["items_count"] = len(rows)
+        o["items_json"] = json.dumps([_line_dict(i) for i in rows])
     return {"orders": orders}
 # ─── Kiosk Orders (Online source) ────────────────────────
 
@@ -262,11 +301,12 @@ def get_kiosk_orders():
         order_by="creation desc",
         limit_page_length=SCREEN_ORDER_CEILING,
     )
+    lines = lines_by_order([o.name for o in orders])
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
-        doc = frappe.get_doc("POS Order", o.name)
-        o["items_count"] = len(doc.get("items") or [])
-        o["items_json"] = json.dumps([{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate, "takeaway": int(i.get("takeaway") or 0), "sent_qty": int(i.get("sent_qty") or 0), "notes": i.get("notes") or ""} for i in (doc.get("items") or [])])
+        rows = lines.get(o.name, [])
+        o["items_count"] = len(rows)
+        o["items_json"] = json.dumps([_line_dict(i) for i in rows])
     return {"orders": orders}
 # ─── Completed Orders (current shift only) ──────────────
 
@@ -287,11 +327,12 @@ def get_completed_orders():
         order_by="modified desc",
         limit_page_length=100
     )
+    lines = lines_by_order([o.name for o in orders])
     for o in orders:
         o["completed_at"] = frappe.utils.pretty_date(o["modified"])
-        doc = frappe.get_doc("POS Order", o.name)
-        o["items_count"] = len(doc.get("items") or [])
-        o["items_json"] = json.dumps([{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate} for i in (doc.get("items") or [])])
+        rows = lines.get(o.name, [])
+        o["items_count"] = len(rows)
+        o["items_json"] = json.dumps([_line_dict(i, extra=False) for i in rows])
         # Check if cancelled order was re-created (fraud prevention)
         if o.kitchen_status == "Cancelled":
             versions = frappe.get_all("Version",
@@ -534,14 +575,10 @@ def get_table_orders():
     )
     # Exclude paid orders (have invoice)
     orders = [o for o in orders if not o.pos_invoice]
+    lines = lines_by_order([o.name for o in orders])
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
-        doc = frappe.get_doc("POS Order", o.name)
-        items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate,
-                  "takeaway": int(i.get("takeaway") or 0), "sent_qty": int(i.get("sent_qty") or 0),
-                  "notes": i.get("notes") or ""}
-                 for i in (doc.get("items") or [])]
-        o["items"] = items
+        o["items"] = [_line_dict(i) for i in lines.get(o.name, [])]
     return {"orders": orders}
 @frappe.whitelist()
 def get_my_orders():
@@ -555,14 +592,11 @@ def get_my_orders():
                 "order_source", "notes", "pos_invoice"],
         order_by="creation desc"
     )
+    lines = lines_by_order([o.name for o in orders])
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
         o["paid"] = 1 if o.get("pos_invoice") else 0
-        doc = frappe.get_doc("POS Order", o.name)
-        o["items"] = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty,
-                       "rate": i.rate, "takeaway": int(i.get("takeaway") or 0),
-                       "sent_qty": int(i.get("sent_qty") or 0), "notes": i.get("notes") or ""}
-                      for i in (doc.get("items") or [])]
+        o["items"] = [_line_dict(i) for i in lines.get(o.name, [])]
     return {"orders": orders}
 @frappe.whitelist(methods=["POST"])
 def waiter_append_items():
