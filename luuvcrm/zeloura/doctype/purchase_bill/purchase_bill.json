@@ -48,7 +48,8 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "pending\napproved\nrejected"
+   "options": "pending\napproved\nrejected",
+   "search_index": 1
   },
   {
    "fieldname": "items",
@@ -82,7 +83,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-05 17:53:31.350626",
+ "modified": "2026-09-06 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Zeloura",
  "name": "Purchase Bill",

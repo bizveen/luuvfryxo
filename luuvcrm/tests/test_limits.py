@@ -127,3 +127,54 @@ class TestTheStatusReadsAreCapped(FrappeTestCase):
         source = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos.py"))
         self.assertIn('frappe.db.count("POS Order"', source)
         self.assertNotIn('pluck="name"', source)
+
+
+class TestTheHotColumnsAreIndexed(FrappeTestCase):
+    """P4. Declared as `search_index: 1` in the DocType JSON, so `bench migrate`
+    builds them and a fresh install has them from the first minute.
+
+    The failure this guards is silent: an index that is declared and not built
+    costs nothing and shows nothing — the screens just get slower as the table
+    grows, on a site nobody is watching.
+    """
+
+    WANTED = {
+        "POS Order": ["mobile", "restaurant_table", "pos_invoice", "kitchen_status"],
+        "Purchase Bill": ["status"],
+        "POS Approval": ["status"],
+        "LF Activity Log": ["flag"],
+    }
+
+    def indexed(self, doctype):
+        rows = frappe.db.sql(f"SHOW INDEX FROM `tab{doctype}`", as_dict=True)
+        return {r["Column_name"] for r in rows}
+
+    def test_the_columns_the_screens_filter_on_carry_an_index(self):
+        for doctype, columns in self.WANTED.items():
+            have = self.indexed(doctype)
+            for column in columns:
+                with self.subTest(doctype=doctype, column=column):
+                    self.assertIn(column, have)
+
+    def test_the_index_is_declared_in_the_repo_not_added_by_hand(self):
+        """An index made with an ALTER on one site is an index the next site
+        does not have."""
+        import json
+        import pathlib as _p
+        root = _p.Path(frappe.get_app_path("luuvcrm", "zeloura", "doctype"))
+        for doctype, columns in self.WANTED.items():
+            folder = doctype.lower().replace(" ", "_")
+            spec = json.loads((root / folder / f"{folder}.json").read_text())
+            declared = {f["fieldname"] for f in spec["fields"] if f.get("search_index")}
+            for column in columns:
+                with self.subTest(doctype=doctype, column=column):
+                    self.assertIn(column, declared)
+
+    def test_a_customer_s_history_is_a_lookup_and_not_a_scan(self):
+        """The one this was really for: `mobile` had no index, so every customer
+        opening the PWA scanned every order the restaurant had ever taken."""
+        plan = frappe.db.sql(
+            "EXPLAIN SELECT name FROM `tabPOS Order` WHERE mobile=%s", ("0770000001",),
+            as_dict=True)[0]
+        self.assertNotEqual(plan.get("type"), "ALL", f"still a full scan: {plan}")
+        self.assertTrue(plan.get("key"), "no index chosen")
