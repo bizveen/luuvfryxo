@@ -249,7 +249,9 @@ The pivotal work. Nothing after this is possible without it.
 
 ## Phase 5 — Make it fast
 
-- [ ] **P1** Kill the N+1s. Start with `get_manager_dashboard` (`api.py:4423`), which loads every invoice of the day in full just to sum its payments, on a polling screen. Then `get_manager_day_report`, `customer_get_orders`, `get_table_orders`, `get_my_orders`, `get_ongoing_orders`.
+- [~] **P1** Kill the N+1s. **`get_manager_dashboard` is done.** It built a full `POS Invoice` for every sale of the day — items, taxes and all — to add up a handful of payment rows, and a full `POS Order` for every paid order to tally its lines. Both are one grouped read of the child table now, over the names `get_all`/`get_list` already returned, so the permission scoping is unchanged: `get_list` still decides which orders a manager may count, and the tally reads the lines of exactly those. The cashier name on each cash movement was a query per row too.
+  It had no test at all before this — the app's most-polled screen and not one number asserted. `test_dashboard.py` (12) takes real money through the real endpoints and reads the dashboard back: revenue and count, the payment mix summing to the day's revenue, only the cash leg of a split reaching the drawer, an item sold on two bills tallying as one row. The guard against the loops coming back counts the documents the endpoint builds — four sales, zero documents, where it used to be eight.
+  Still to do: `get_manager_day_report`, `customer_get_orders`, `get_table_orders`, `get_my_orders`, `get_ongoing_orders`.
 - [ ] **P2** Move activity logging off the request path — `frappe.enqueue`, or a direct parameterised INSERT instead of a full ORM document plus its own `db.commit()`.
 - [ ] **P3** Add limits to the 50 unbounded `frappe.get_all` calls.
 - [ ] **P4** Add indexes on `POS Order.mobile`, `.restaurant_table`, `.pos_invoice`, `Purchase Bill.status`, `LF Activity Log.flag`. Confirm with `EXPLAIN` first.

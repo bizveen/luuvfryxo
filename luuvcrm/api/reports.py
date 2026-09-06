@@ -27,17 +27,22 @@ def get_manager_dashboard():
     sales_count = len(invoices)
     avg = revenue / sales_count if sales_count else 0
 
-    # payment mix + cash sales
+    # payment mix + cash sales — one grouped read over the child table, not a
+    # full Document per invoice. This screen polls, and on a busy day that loop
+    # built every invoice of the day, with its items and taxes, to add up a
+    # handful of payment rows.
+    invoice_names = [i.name for i in invoices]
     pay = {}
-    cash_sales = 0
-    for inv in invoices:
-        doc = frappe.get_doc("POS Invoice", inv.name)
-        for p in (doc.payments or []):
-            mode = p.mode_of_payment or "Other"
-            amt = float(p.amount or 0)
-            pay[mode] = pay.get(mode, 0) + amt
-            if mode == "Cash":
-                cash_sales += amt
+    if invoice_names:
+        for r in frappe.get_all("Sales Invoice Payment",
+                                filters={"parenttype": "POS Invoice",
+                                         "parent": ["in", invoice_names]},
+                                fields=["mode_of_payment", "sum(amount) as amount"],
+                                group_by="mode_of_payment"):
+            # NULL and "" group separately in SQL and both read as "Other"
+            mode = r.mode_of_payment or "Other"
+            pay[mode] = pay.get(mode, 0) + float(r.amount or 0)
+    cash_sales = pay.get("Cash", 0)
     payments = [{"mode": m, "amount": a} for m, a in sorted(pay.items(), key=lambda x: -x[1])]
 
     # hourly revenue
@@ -47,17 +52,22 @@ def get_manager_dashboard():
         hourly[h] = hourly.get(h, 0) + float(inv.grand_total or 0)
     hourly_list = [{"hour": h, "amount": hourly[h]} for h in sorted(hourly.keys())]
 
-    # top items today (from paid POS Orders)
+    # top items today (from paid POS Orders). `get_list` first, so User
+    # Permissions decide which orders this manager may count; the tally then
+    # reads the child rows of exactly those, in one query instead of building
+    # every order document to add up its lines.
     paid_orders = frappe.get_list("POS Order",
         filters={"pos_invoice": ["!=", ""], "creation": [">=", today]}, pluck="name")
     tally = {}
-    for name in paid_orders:
-        od = frappe.get_doc("POS Order", name)
-        for it in (od.get("items") or []):
+    if paid_orders:
+        for it in frappe.get_all("POS Order Item",
+                                 filters={"parent": ["in", paid_orders]},
+                                 fields=["item", "item_name", "qty", "rate"]):
             key = it.item_name or it.item
             t = tally.setdefault(key, {"qty": 0, "rev": 0})
-            t["qty"] += int(it.qty or 0)
-            t["rev"] += float(it.rate or 0) * int(it.qty or 0)
+            qty = int(it.qty or 0)
+            t["qty"] += qty
+            t["rev"] += float(it.rate or 0) * qty
     top_items = sorted(
         [{"name": k, "qty": v["qty"], "revenue": v["rev"]} for k, v in tally.items()],
         key=lambda x: -x["revenue"])[:5]
@@ -87,6 +97,10 @@ def get_manager_dashboard():
                 filters={"pos_opening_entry": opening.name},
                 fields=["direction", "amount", "reason", "cashier", "movement_time"],
                 order_by="movement_time desc")
+            names = {r.cashier for r in rows if r.cashier}
+            full = {u.name: u.full_name for u in frappe.get_all(
+                "User", filters={"name": ["in", list(names)]},
+                fields=["name", "full_name"])} if names else {}
             for r in rows:
                 amt = float(r.amount or 0)
                 if r.direction == "in":
@@ -95,7 +109,7 @@ def get_manager_dashboard():
                     cash_out += amt
                 cash_moves.append({
                     "direction": r.direction, "amount": amt, "reason": r.reason or "",
-                    "cashier": frappe.get_value("User", r.cashier, "full_name") or r.cashier,
+                    "cashier": full.get(r.cashier) or r.cashier,
                     "time": frappe.utils.pretty_date(r.movement_time),
                 })
     expected_drawer = float_amt + cash_sales + cash_in - cash_out
