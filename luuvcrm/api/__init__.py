@@ -152,7 +152,16 @@ from luuvcrm.api.loyalty import (
 )
 from luuvcrm.api.menu import (
     _active_menu_doc,
+    _addon_map,
+    _append_menu_row,
+    _clean_tags,
+    _kitchen_group_labels,
+    _menu_extra_fields,
+    _menu_row,
+    _menu_row_fields,
+    _set_available,
     _set_pos_item_price,
+    _truthy,
     _winning_pos_price_row,
     active_menu_name,
     add_menu_item,
@@ -170,6 +179,23 @@ from luuvcrm.api.menu import (
     upload_menu_image,
     submit_item_review,
     update_menu_item,
+)
+from luuvcrm.api.items import (
+    create_item,
+    get_items,
+    set_item_enabled,
+    update_item,
+)
+from luuvcrm.api.staff import (
+    _describe,
+    _guard_write,
+    _refuse_admin_roles,
+    create_staff,
+    get_staff,
+    set_staff_branch,
+    set_staff_enabled,
+    set_staff_role,
+    staff_invite_link,
 )
 from luuvcrm.api.offline import (
     get_menu_data,
