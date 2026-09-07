@@ -779,7 +779,11 @@ function lfPoll(fn, ms){
     if(pending&&a.type==='bill'&&a.mine){
       actions=`<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-md);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`; }
     else if(pending){ const ticked=Object.values(st.ticks).filter(Boolean).length; const ok=!nLines||ticked>=nLines;
-      actions=`<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
+      const discBox=a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;">
+        <span style="font-size:12.5px;font-weight:700;color:var(--text-body);white-space:nowrap;">Discount Rs</span>
+        <input type="text" inputmode="decimal" value="${esc(st.discount||'')}" oninput="apprDisc('${a.name}',this.value)" placeholder="0" style="flex:1;min-width:0;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px 12px;font-size:14px;font-family:var(--font-mono);color:var(--text-strong);outline:none;">
+      </div><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Comes off this bill's total. The items keep the prices they were bought at.</div>`:'';
+      actions=`${discBox}<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
       ${nLines?`<div id="cnt_${a.name}" style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">Tick every line to enable Approve · ${ticked}/${nLines} checked</div>`:''}
       <div style="display:flex;gap:9px;margin-top:10px;"><button id="app_${a.name}" ${ok?'':'disabled'} onclick="resolve('${a.name}','approved')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check" style="width:16px;height:16px;"></i> Approve</button><button onclick="resolve('${a.name}','rejected')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject</button></div>`; }
     else if(a.status==='approved') actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-success);background:var(--color-success-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approved · sent back to POS</div>`;
@@ -798,9 +802,20 @@ function lfPoll(fn, ms){
     const btn=document.getElementById('app_'+name); if(btn) btn.disabled=ticked<total;
     const cnt=document.getElementById('cnt_'+name); if(cnt) cnt.textContent='Tick every line to enable Approve · '+ticked+'/'+total+' checked'; }
   function apprCmt(name,v){ (apprState[name]=apprState[name]||{ticks:{},comment:''}).comment=v; }
+  // What the vendor took off the whole bill. Asked for here because approving is
+  // the moment somebody is holding the paper and can read the figure off it.
+  // It reduces the bill's total and nothing else — the items keep the prices
+  // they were bought at, so one haggle does not rewrite the price book.
+  function apprDisc(name,v){ (apprState[name]=apprState[name]||{ticks:{},comment:''}).discount=v; }
   async function resolve(name,decision){
-    const comment=((apprState[name]||{}).comment||'').trim();
-    try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:comment}); if(!r) return; const d=await r.json();
+    const st=apprState[name]||{};
+    const comment=(st.comment||'').trim();
+    const payload={name:name,decision:decision,comment:comment};
+    // Only on approve, and only when something was typed: rejecting a bill with
+    // a discount in the box should not quietly write the discount.
+    const disc=parseFloat(st.discount);
+    if(decision==='approved' && disc>0) payload.discount=disc;
+    try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',payload); if(!r) return; const d=await r.json();
       if(r.ok && d.message && d.message.ok){ delete apprState[name]; _apprSig=null; pLoaded=false;  // the day summary + bills list are now stale
         toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
       else toast('Could not resolve'); }catch(e){ toast('Connection error'); } }

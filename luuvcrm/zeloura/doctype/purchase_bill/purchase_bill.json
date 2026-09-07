@@ -10,6 +10,7 @@
   "vendor",
   "note",
   "receipt_image",
+  "discount",
   "total",
   "status",
   "items",
@@ -35,6 +36,13 @@
    "fieldname": "receipt_image",
    "fieldtype": "Attach Image",
    "label": "Receipt"
+  },
+  {
+   "fieldname": "discount",
+   "fieldtype": "Currency",
+   "label": "Discount",
+   "default": "0",
+   "description": "What the vendor took off the whole bill at approval. It reduces `total` and nothing else \u2014 the items' buying prices are what they cost, and a one-off settlement is not a price change."
   },
   {
    "fieldname": "total",

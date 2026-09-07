@@ -48,6 +48,7 @@ def _install_purchase_bill():
             {"fieldname": "vendor", "label": "Vendor", "fieldtype": "Data", "in_list_view": 1, "reqd": 1},
             {"fieldname": "note", "label": "Note", "fieldtype": "Small Text"},
             {"fieldname": "receipt_image", "label": "Receipt", "fieldtype": "Attach Image"},
+            {"fieldname": "discount", "label": "Discount", "fieldtype": "Currency", "default": "0"},
             {"fieldname": "total", "label": "Total", "fieldtype": "Currency", "in_list_view": 1},
             {"fieldname": "status", "label": "Status", "fieldtype": "Select",
              "options": "pending\napproved\nrejected", "default": "pending", "in_list_view": 1},
@@ -236,7 +237,13 @@ def _bill_dict(name):
     lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",
               "qty": float(i.qty or 0), "price": float(i.price or 0),
               "old_price": float(i.old_price or 0)} for i in (doc.get("items") or [])]
-    total = sum(l["qty"] * l["price"] for l in lines)
+    subtotal = sum(l["qty"] * l["price"] for l in lines)
+    # `total` is what the restaurant actually owes, so it is the one the day
+    # summary adds up and the food-cost report sums. The lines' own arithmetic
+    # is `subtotal`, kept separate so a screen can show both and neither has to
+    # be worked out twice in JavaScript.
+    discount = float(doc.get("discount") or 0)
+    total = max(subtotal - discount, 0)
     # A bill counts as "due" (owed to the vendor) once it is approved but not yet
     # marked paid. payment_status is a custom field added by setup_purchase_payment_fields;
     # .get() keeps this safe if the column hasn't been created yet (reads as None → unpaid).
@@ -250,7 +257,7 @@ def _bill_dict(name):
         "resolved_by": (frappe.get_value("User", doc.resolved_by, "full_name")
                         or doc.resolved_by or "") if doc.get("resolved_by") else "",
         "resolved_time": frappe.utils.pretty_date(doc.resolved_at) if doc.get("resolved_at") else "",
-        "lines": lines, "total": total,
+        "lines": lines, "subtotal": subtotal, "discount": discount, "total": total,
         "payment_status": pay_status,
         "due": (doc.status == "approved" and pay_status != "paid"),
         "paid_at": str(doc.get("paid_at")) if doc.get("paid_at") else "",
@@ -482,14 +489,29 @@ def get_price_book():
     roles.require_pos()
     cat = get_purchase_catalog()
     return cat
-def _decide_purchase_bill(name, decision):
+def _decide_purchase_bill(name, decision, discount=None):
     """Apply a manager decision to a Purchase Bill (idempotent); approving updates
-    each item's buying Item Price. Returns the number of prices changed."""
+    each item's buying Item Price. Returns the number of prices changed.
+
+    `discount` is what the vendor took off the whole bill, entered by the
+    approver at the moment they approve — the point at which somebody is
+    actually looking at the paper. It reduces `total` and **nothing else**:
+
+    * the items' buying prices are left alone, because a settlement discount or
+      a round-down is not a change in what the item costs. Overwriting the price
+      book from one haggle would make the next bill's "was Rs" delta compare a
+      normal price against a discounted one and report a rise that never
+      happened.
+    * `total` is what the day summary adds up and what the food-cost report
+      sums, so the saving lands in the numbers without anything else moving.
+    """
     doc = frappe.get_doc("Purchase Bill", name)
     if doc.status != "pending":
         return 0
     updated = 0
     if decision == "approved":
+        if discount not in (None, ""):
+            _apply_bill_discount(doc, discount)
         pl = _buying_price_list()
         for line in (doc.get("items") or []):
             if not line.item or not line.price:
@@ -509,9 +531,31 @@ def _decide_purchase_bill(name, decision):
     doc.db_set("resolved_by", frappe.session.user)
     doc.db_set("resolved_at", now_datetime())
     return updated
+
+
+def _apply_bill_discount(doc, discount=None):
+    """Write the approver's discount onto the bill and reduce what is owed."""
+    if not frappe.db.has_column("Purchase Bill", "discount"):
+        frappe.throw(_("This site has not run the migrate that adds the discount field"))
+    amount = float(discount if discount is not None else 0)
+    if amount < 0:
+        frappe.throw(_("A discount cannot be negative"))
+    subtotal = sum(float(i.qty or 0) * float(i.price or 0) for i in (doc.get("items") or []))
+    if amount > subtotal:
+        # Otherwise the bill is worth less than nothing and the food cost goes
+        # negative, which no report is expecting.
+        frappe.throw(_("The discount is more than the bill (Rs {0:,.2f})").format(subtotal))
+    doc.db_set("discount", amount)
+    doc.db_set("total", max(subtotal - amount, 0))
+    return amount
 @frappe.whitelist(methods=["POST"])
 def resolve_purchase_bill():
-    """Manager approves/rejects a bill; approving updates each item's buying Item Price."""
+    """Manager approves/rejects a bill; approving updates each item's buying Item Price.
+
+    A `discount` may come with an approval — what the vendor took off the whole
+    bill. It is asked for here rather than at entry because approval is the
+    moment somebody is holding the paper and can see the figure written on it.
+    """
     roles.require_pos()
     data = frappe.local.form_dict
     name = data.get("name")
@@ -521,8 +565,10 @@ def resolve_purchase_bill():
     if frappe.db.get_value("Purchase Bill", name, "status") != "pending":
         frappe.throw(_("Already resolved"))
     roles.block_self_approval(frappe.db.get_value("Purchase Bill", name, "requested_by"))
-    updated = _decide_purchase_bill(name, decision)
-    return {"ok": True, "status": decision, "prices_updated": updated}
+    updated = _decide_purchase_bill(name, decision, discount=data.get("discount"))
+    return {"ok": True, "status": decision, "prices_updated": updated,
+            "total": frappe.db.get_value("Purchase Bill", name, "total"),
+            "discount": frappe.db.get_value("Purchase Bill", name, "discount")}
 # ─── Due bills / pending vendor payments ───────────────────────────
 # An approved bill is money owed to the vendor until someone marks it paid. These
 # two custom fields turn Purchase Bill into a lightweight payables list; there is

@@ -410,3 +410,123 @@ class TestTheDaySummary(PurchaseTestCase):
         self.as_user(self.user_with(roles.KITCHEN_STAFF, "kitchen"))
         with self.assertRaises(frappe.PermissionError):
             api.get_purchase_day_summary()
+
+
+class TestADiscountAtApproval(PurchaseTestCase):
+    """The vendor knocks something off the whole bill, and the manager is the
+    one holding the paper when it happens — so the discount is entered at the
+    moment of approval, not when the bill was typed in.
+
+    **It reduces the bill's total and nothing else.** The items keep the prices
+    they were bought at, because a settlement discount or a round-down is not a
+    change in what the item costs. Writing it into the price book would make the
+    next bill's "was Rs" delta compare a normal price against a discounted one
+    and report a rise that never happened.
+    """
+
+    def approve(self, bill, discount=None, by=None):
+        who = by or self.user_with(roles.RESTAURANT_MANAGER, "discmgr")
+        previous = frappe.session.user
+        frappe.set_user(who)
+        try:
+            return api._decide_purchase_bill(bill, "approved", discount=discount)
+        finally:
+            frappe.set_user(previous)
+
+    def test_it_comes_off_the_total(self):
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 10, "price": 100}])
+        self.approve(bill, discount=250)
+        self.assertEqual(float(frappe.db.get_value("Purchase Bill", bill, "total")), 750)
+        self.assertEqual(float(frappe.db.get_value("Purchase Bill", bill, "discount")), 250)
+
+    def test_the_items_keep_the_price_they_were_bought_at(self):
+        """The one that matters. A one-off haggle must not rewrite the price
+        book, or every later bill is measured against a number the vendor never
+        charges."""
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 10, "price": 100}])
+        self.approve(bill, discount=250)
+        priced = frappe.db.get_value("Item Price",
+                                     {"item_code": self.tomato,
+                                      "price_list": api._buying_price_list()},
+                                     "price_list_rate")
+        self.assertEqual(float(priced), 100)
+
+    def test_the_next_bill_compares_against_the_undiscounted_price(self):
+        first = self.enter(lines=[{"item": self.tomato, "qty": 10, "price": 100}])
+        self.approve(first, discount=250)
+        second = self.enter(lines=[{"item": self.tomato, "qty": 5, "price": 100}])
+        old = frappe.db.get_value("Purchase Bill Item",
+                                  {"parent": second, "item": self.tomato}, "old_price")
+        self.assertEqual(float(old), 100, "no price rise happened, so none is reported")
+
+    def test_approving_without_one_changes_nothing(self):
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 4, "price": 250}])
+        self.approve(bill)
+        self.assertEqual(float(frappe.db.get_value("Purchase Bill", bill, "total")), 1000)
+        self.assertEqual(float(frappe.db.get_value("Purchase Bill", bill, "discount") or 0), 0)
+
+    def test_a_discount_bigger_than_the_bill_is_refused(self):
+        """Otherwise the bill is worth less than nothing and the food cost goes
+        negative, which no report is expecting."""
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 1, "price": 100}])
+        with self.assertRaises(frappe.ValidationError):
+            self.approve(bill, discount=500)
+
+    def test_a_negative_discount_is_refused(self):
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 1, "price": 100}])
+        with self.assertRaises(frappe.ValidationError):
+            self.approve(bill, discount=-50)
+
+    def test_rejecting_never_writes_one(self):
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 2, "price": 300}])
+        who = self.user_with(roles.RESTAURANT_MANAGER, "discmgr")
+        previous = frappe.session.user
+        frappe.set_user(who)
+        try:
+            api._decide_purchase_bill(bill, "rejected", discount=100)
+        finally:
+            frappe.set_user(previous)
+        self.assertEqual(float(frappe.db.get_value("Purchase Bill", bill, "discount") or 0), 0)
+        self.assertEqual(float(frappe.db.get_value("Purchase Bill", bill, "total")), 600)
+
+    def test_the_screens_show_what_came_off(self):
+        """`total` is what is owed; `subtotal` is what the lines add up to. Both,
+        so neither has to be worked out twice in JavaScript — and so a bill with
+        a discount does not look like an arithmetic error."""
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 10, "price": 100}])
+        self.approve(bill, discount=250)
+        row = api._bill_dict(bill)
+        self.assertEqual(row["subtotal"], 1000)
+        self.assertEqual(row["discount"], 250)
+        self.assertEqual(row["total"], 750)
+
+    def test_the_day_summary_counts_what_was_actually_paid(self):
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 10, "price": 100}])
+        self.approve(bill, discount=250)
+        day = api.get_purchase_day_summary()
+        row = next(b for b in day["bills"] if b["name"] == bill)
+        self.assertEqual(row["total"], 750)
+
+    def test_the_trail_records_who_allowed_it(self):
+        """A discount is money leaving the arithmetic. The row is the only place
+        that says who decided it."""
+        from luuvcrm import activity
+
+        bill = self.enter(lines=[{"item": self.tomato, "qty": 10, "price": 100}])
+        approval = frappe.db.get_value("POS Approval",
+                                       {"action": "purchase_bill", "status": "pending"},
+                                       "name", order_by="creation desc")
+        if not approval:
+            self.skipTest("no approval was raised for this bill")
+        who = self.user_with(roles.RESTAURANT_MANAGER, "discmgr")
+        previous = frappe.session.user
+        frappe.set_user(who)
+        try:
+            self.call(api.resolve_approval, name=approval, decision="approved", discount="250")
+        finally:
+            frappe.set_user(previous)
+        rows = frappe.db.sql(
+            "select detail from `tab{0}` where action = 'approval.resolve' "
+            "order by creation desc limit 1".format(activity.DOCTYPE), as_dict=True)
+        self.assertTrue(rows and "250" in (rows[0].detail or ""),
+                        "the discount belongs in the row that records the decision")

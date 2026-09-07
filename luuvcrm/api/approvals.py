@@ -261,7 +261,11 @@ def resolve_approval():
             payload = json.loads(doc.action_payload or "{}")
             bill = payload.get("bill")
             if bill and frappe.db.exists("Purchase Bill", bill):
-                _decide_purchase_bill(bill, decision)
+                # A purchase approval may carry a discount — what the vendor took
+                # off the whole bill. The manager is looking at the paper when
+                # they approve, which is the only moment anybody can read that
+                # figure off it.
+                _decide_purchase_bill(bill, decision, discount=data.get("discount"))
                 executed = "purchase_" + decision
         elif action == "expense":
             # Runs on reject too — that's what pulls the drawer pay-out back out.
@@ -298,13 +302,17 @@ def resolve_approval():
     except Exception:
         frappe.log_error(frappe.get_traceback(), "resolve_approval action failed")
 
+    discount = data.get("discount")
     activity.log_activity(
         "approval.resolve",
-        label="%s %s" % (decision.capitalize(), doc.approval_type or "request"),
+        label="%s %s%s" % (decision.capitalize(), doc.approval_type or "request",
+                           (" · discount Rs %s" % discount) if discount else ""),
         ref_doctype="POS Order" if doc.pos_order else "POS Approval",
         ref_name=doc.pos_order or doc.name, item=doc.approval_type or None,
+        amount=float(discount) if discount else None,
         detail={"approval": doc.name, "decision": decision, "executed": executed,
-                "requested_by": doc.requested_by, "comment": comment or None})
+                "requested_by": doc.requested_by, "comment": comment or None,
+                "discount": discount or None})
     return {"ok": True, "status": decision, "executed": executed}
 def _apply_order_discount(order_name, payload):
     """Apply a manager-approved discount to a draft POS Order. The discount comes off the
