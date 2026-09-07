@@ -136,6 +136,77 @@ def _drop_field(dt, fieldname):
         frappe.db.commit()
 
 
+class TestEveryRuntimeFieldIsDeclared(FrappeTestCase):
+    """`setup_*` endpoints still call `create_custom_field` — they are kept for
+    the sites that already call them, and Phase 3 deletes them once every one
+    has a patch behind it. Until then the danger is not that they run, it is
+    that one of them creates a field `CUSTOM_FIELDS` has never heard of: the
+    live site would have it because somebody clicked, and a fresh install
+    would not, and the two would drift in the one direction nothing checks.
+    """
+
+    def _runtime_fields(self):
+        import pathlib
+        import re
+
+        call = re.compile(r'create_custom_field\(\s*"([^"]+)"\s*,\s*\{(.*?)\}\s*\)', re.S)
+        found = set()
+        for path in sorted(pathlib.Path(frappe.get_app_path("luuvcrm")).rglob("*.py")):
+            if "tests" in path.parts or "patches" in path.parts:
+                continue
+            for match in call.finditer(path.read_text()):
+                name = re.search(r'"fieldname":\s*"(\w+)"', match.group(2))
+                if name:
+                    found.add((match.group(1), name.group(1)))
+        return found
+
+    def test_every_field_an_endpoint_creates_is_in_the_declaration(self):
+        declared = {(f["dt"], f["fieldname"]) for f in setup.CUSTOM_FIELDS}
+        runtime = self._runtime_fields()
+        self.assertTrue(runtime, "the parser found no create_custom_field calls at all")
+        undeclared = sorted(runtime - declared)
+        self.assertEqual(undeclared, [],
+                         f"created at runtime but never declared: {undeclared}")
+
+    def test_the_only_call_the_parser_cannot_read_is_the_branch_field(self):
+        """The parser above only reads calls whose doctype is a string literal.
+        `branch.ensure_branch_field()` loops over a list of doctypes with the
+        field in a variable, so it is invisible to that check — it has a patch
+        of its own (add_branch_field) and is fine. Any *other* call built out of
+        variables would slip past the declaration check unnoticed, so name them:
+        one more here means the check above stopped covering the file."""
+        import pathlib
+        import re
+
+        dynamic = []
+        for path in sorted(pathlib.Path(frappe.get_app_path("luuvcrm")).rglob("*.py")):
+            if "tests" in path.parts or "patches" in path.parts:
+                continue
+            for line in path.read_text().splitlines():
+                call = re.search(r'create_custom_field\(\s*([^"\s)])', line)
+                if call:
+                    dynamic.append(path.name)
+        self.assertEqual(sorted(set(dynamic)), ["branch.py"],
+                         "a create_custom_field call the declaration check cannot see")
+
+    def test_the_declaration_reaches_a_site_that_already_exists(self):
+        """It did not. after_install applies CUSTOM_FIELDS, and after_install
+        runs on a new site only — so on the live restaurant the fields existed
+        because somebody had called a setup_* endpoint over HTTP, and a field
+        added to the declaration would never have arrived. bench migrate had no
+        step that looked."""
+        patches = frappe.read_file(frappe.get_app_path("luuvcrm", "..", "luuvcrm", "patches.txt"))
+        self.assertIn("luuvcrm.patches.v1_0.sync_custom_fields", patches)
+
+    def test_the_patch_adds_nothing_on_a_site_that_is_already_right(self):
+        from luuvcrm.patches.v1_0 import sync_custom_fields
+
+        before = frappe.db.count("Custom Field")
+        sync_custom_fields.execute()
+        self.assertEqual(frappe.db.count("Custom Field"), before,
+                         "the patch must be a no-op on a site that has the fields")
+
+
 class TestTheHookIsWired(FrappeTestCase):
     def test_after_install_runs_it(self):
         from luuvcrm import hooks
