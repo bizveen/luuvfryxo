@@ -1,5 +1,6 @@
+<!-- Redirect stub. The route needs a .html sibling to resolve; owner.py's
+     get_context raises frappe.Redirect → /admin#branches before this ever
+     renders. The screen itself is a section of the portal now. -->
 <!DOCTYPE html>
-<!-- /owner is a redirect to /admin#branches. See www/owner.py. -->
-<html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="refresh" content="0;url=/admin#branches"></head>
-<body><a href="/admin#branches">Continue to the admin portal</a></body></html>
+<meta http-equiv="refresh" content="0; url=/admin#branches">
+<a href="/admin#branches">Continue to {{ brand_name }} Admin →</a>
