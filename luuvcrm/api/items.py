@@ -97,7 +97,7 @@ def get_items(search=None, group=None, include_disabled=0, restaurant=None):
         # and fails silently — the whole point of branch.current(), which already
         # answers "the only one" when there is only one and None when the question
         # has no answer. test_branch refuses that pattern anywhere in the app.
-        "restaurant": restaurant or branch.current(),
+        "restaurant": restaurant or branch.viewing(),
         "restaurants": branch.all_restaurants(),
         "groups": frappe.get_all("Item Group", filters={"is_group": 0},
                                  order_by="name asc", pluck="name", limit_page_length=0),

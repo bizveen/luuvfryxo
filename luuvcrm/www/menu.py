@@ -14,7 +14,7 @@ def _whatsapp_number():
     Until there is a settings doctype (see docs/SEED_DATA.md B1) this reads the
     Restaurant record, and the button simply does not render without one.
     """
-    name = branch.current()
+    name = branch.viewing()
     if not name:
         return ""
     for field in ("whatsapp", "whatsapp_number", "phone_no", "phone"):
@@ -32,7 +32,7 @@ def get_context(context):
     context.no_footer = True
     context.whatsapp_number = _whatsapp_number()
 
-    restaurant_name = branch.current()
+    restaurant_name = branch.viewing()
     if not restaurant_name:
         context.restaurant = None
         context.menu_items = []

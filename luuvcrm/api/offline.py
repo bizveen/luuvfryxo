@@ -34,7 +34,7 @@ def get_menu_data():
     # This is the payload the till caches to keep selling when the wifi drops,
     # so it is the one read that must not be a document per row: it is fetched
     # on every POS load and again by the service worker.
-    items = menu_items(branch.current())
+    items = menu_items(branch.viewing())
     tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
     return {"items": items, "tables": tables}
 @frappe.whitelist(methods=["POST"])

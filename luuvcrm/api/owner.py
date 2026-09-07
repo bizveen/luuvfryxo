@@ -28,7 +28,7 @@ payments. Two definitions of "today's revenue" would be worse than none.
 import frappe
 from frappe.utils import today as _today
 
-from luuvcrm import branch, roles
+from luuvcrm import activity, branch, roles
 
 
 def _branch_numbers(restaurant, date):
@@ -196,6 +196,41 @@ def update_branch(restaurant=None, cost_center=None, warehouse=None):
         frappe.db.set_value("Restaurant", restaurant, updates)
         frappe.db.commit()
     return {"ok": True, "problems": branch.check()}
+
+
+@frappe.whitelist()
+def get_branch_choice():
+    """Which branch this person is looking at, and whether they may change it.
+
+    A manager is pinned by their User Permission and gets no picker — their
+    branch is not a preference. An owner has no permission by definition, so
+    with two restaurants somebody has to say which one is on screen.
+    """
+    roles.require_manager()
+    return {
+        "viewing": branch.viewing(),
+        "chosen": branch.selected(),
+        "can_choose": branch.can_choose(),
+        "restaurants": branch.all_restaurants(),
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def set_branch_choice(restaurant=None):
+    """Choose the branch to look at, or clear it with a blank.
+
+    Screens only. A row is still stamped with `branch.current()`, which refuses
+    to guess — so choosing a branch changes what you *see*, never whose books a
+    sale lands in.
+    """
+    roles.require_manager()
+    chosen = branch.select(restaurant)
+
+    activity.log_activity(
+        "branch.view", label="Now looking at %s" % (chosen or "the first branch"),
+        ref_doctype="Restaurant", ref_name=chosen or None,
+        detail={"chosen": chosen})
+    return {"ok": True, "chosen": chosen, "viewing": branch.viewing()}
 
 
 @frappe.whitelist(methods=["POST"])

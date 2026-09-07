@@ -129,7 +129,7 @@ def get_context(context):
     if not roles.has_any(roles.POS_ROLES) and not frappe.has_permission('Sales Invoice', 'create'):
         frappe.throw('You do not have permission to access POS', frappe.PermissionError)
 
-    restaurant_name = branch.current()
+    restaurant_name = branch.viewing()
     context.restaurant = None
     context.menu_groups = []
     context.items_flat = []

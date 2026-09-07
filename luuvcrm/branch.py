@@ -92,6 +92,92 @@ def current(user=None):
     return None
 
 
+#: Where an owner's explicit choice is kept. A User Default rather than a field
+#: on User: Frappe already owns this shape (`tabDefaultValue`), it needs no
+#: schema change, and clearing it is deleting a row rather than blanking a
+#: column that then looks set-but-empty.
+CHOSEN_KEY = "luuv_restaurant"
+
+
+def selected(user=None):
+    """The branch this person has explicitly chosen to look at, or None.
+
+    Only ever consulted for somebody `current()` could not answer for — which
+    means an owner or an admin, because everyone else is pinned by a User
+    Permission or by the till they are standing at. A choice that no longer
+    exists, or that the person is not permitted, is ignored rather than obeyed.
+    """
+    user = user or frappe.session.user
+    chosen = frappe.defaults.get_user_default(CHOSEN_KEY, user)
+    if not chosen or not frappe.db.exists("Restaurant", chosen):
+        return None
+    allowed = _permitted_restaurants(user)
+    if allowed and chosen not in allowed:
+        return None
+    return chosen
+
+
+def select(restaurant=None, user=None):
+    """Choose which branch to look at. Blank clears it.
+
+    Refused for anyone a User Permission already answers for: their branch is
+    not a preference, and letting them "choose" another would show them a menu
+    they cannot write an order against.
+    """
+    user = user or frappe.session.user
+    restaurant = (restaurant or "").strip()
+    if restaurant:
+        if not frappe.db.exists("Restaurant", restaurant):
+            frappe.throw(frappe._("No such restaurant"))
+        allowed = _permitted_restaurants(user)
+        if allowed and restaurant not in allowed:
+            frappe.throw(frappe._("You are not permitted that branch"))
+        frappe.defaults.set_user_default(CHOSEN_KEY, restaurant, user)
+    else:
+        frappe.defaults.clear_user_default(CHOSEN_KEY, user)
+    return restaurant or None
+
+
+def viewing(user=None):
+    """Which branch a *screen* should show. Never returns None while a
+    Restaurant exists.
+
+    This is deliberately not `current()`, and the difference is the whole
+    point of having two:
+
+    * `current()` answers **"whose branch is this row?"** — it is what stamps a
+      new order and what a permission is decided on. It returns None rather
+      than guess, because a guess there files a Kandy sale in Colombo's books
+      and nothing ever says so.
+    * `viewing()` answers **"what should this screen show?"** — a blank menu
+      helps nobody, so after `current()` and the person's own choice it falls
+      back to the first branch by name.
+
+    The fallback is a display decision the owner asked for, and it is safe only
+    because it is confined here: nothing writes a row from it.
+    """
+    here = current(user)
+    if here:
+        return here
+    chosen = selected(user)
+    if chosen:
+        return chosen
+    # Last resort, and the only place in the app allowed to take "whichever is
+    # first". Deterministic (ordered by name) rather than whatever the database
+    # hands back, so two screens agree.
+    names = all_restaurants()
+    return names[0] if names else None
+
+
+def can_choose(user=None):
+    """True when this person gets a branch picker: more than one restaurant, and
+    no User Permission pinning them to one of them."""
+    user = user or frappe.session.user
+    if len(all_restaurants()) < 2:
+        return False
+    return not _permitted_restaurants(user)
+
+
 def _permitted_restaurants(user):
     """Restaurants this user holds a User Permission for. Empty means no
     restriction — which is exactly how an Owner sees every branch: give them
@@ -132,13 +218,18 @@ def _restaurant_for_profile(profile):
     `company` is deliberately not a hop. With a single Company across every
     branch it identifies nothing, and matching on it would hand back a branch
     at random — the failure this module exists to remove.
+
+    A link to a Restaurant that no longer exists is treated as no link at all.
+    Deleting a branch does not clear the tills that pointed at it, so without
+    this every one of them resolves to a ghost: the menu comes back empty and
+    nothing anywhere says why. `check()` reports the same thing in words.
     """
     row = frappe.db.get_value("POS Profile", profile, ["restaurant", "cost_center"],
                               as_dict=True) if frappe.db.has_column("POS Profile", FIELD) \
         else frappe.db.get_value("POS Profile", profile, ["cost_center"], as_dict=True)
     if not row:
         return None
-    if row.get(FIELD):
+    if row.get(FIELD) and frappe.db.exists("Restaurant", row[FIELD]):
         return row[FIELD]
     if row.get("cost_center") and frappe.db.has_column("Restaurant", "cost_center"):
         matches = frappe.get_all("Restaurant", filters={"cost_center": row.cost_center},
@@ -464,6 +555,11 @@ def check():
             seen_wh[row.warehouse] = name
 
     for profile in frappe.get_all("POS Profile", pluck="name"):
+        pointed_at = frappe.db.get_value("POS Profile", profile, FIELD)
+        if pointed_at and not frappe.db.exists("Restaurant", pointed_at):
+            problems.append(f"Till {profile} points at {pointed_at}, which no longer "
+                            "exists — deleting a branch does not clear its tills")
+            continue
         if not frappe.db.get_value("POS Profile", profile, FIELD):
             problems.append(f"POS Profile {profile}: no Restaurant — a sale rung up here "
                             "cannot be attributed to a branch")

@@ -183,7 +183,13 @@ class TestOneRestaurantBehavesExactlyAsBefore(BranchTestCase):
 
     def test_nothing_is_left_asking_for_the_first_restaurant(self):
         """`get_value("Restaurant", {}, "name")` is *the first restaurant,
-        whichever it is*. It cannot be right with two, and it fails silently."""
+        whichever the database hands back*. It cannot be right with two, and it
+        fails silently.
+
+        `branch.viewing()` does take a first branch, deliberately and as a last
+        resort — but by `all_restaurants()[0]`, which is ordered by name, so two
+        screens agree. This grep is for the unordered form, which nothing may
+        use."""
         import subprocess
         hits = subprocess.run(
             ["grep", "-rn", "--include=*.py", "--exclude-dir=graphify-out",
@@ -433,7 +439,18 @@ class TestTheConfigurationCheck(BranchTestCase):
         self.assertTrue(any("is a group" in p for p in branch.check()))
 
     def test_a_till_with_no_branch_is_reported(self):
+        """The test makes the condition rather than hoping the site is in it.
+        It used to lean on the site's own POS Profile having no branch, which
+        is true right up until somebody sets one — and then the test passes or
+        fails on a fact about the database instead of about the code."""
         _restaurant(self, "Branch-TILL")
+        profile = frappe.db.get_value("POS Profile", {}, "name")
+        if not profile or not frappe.db.has_column("POS Profile", branch.FIELD):
+            self.skipTest("no POS Profile with a branch column on this site")
+        was = frappe.db.get_value("POS Profile", profile, branch.FIELD)
+        self.addCleanup(frappe.db.set_value, "POS Profile", profile, branch.FIELD, was)
+        frappe.db.set_value("POS Profile", profile, branch.FIELD, None)
+
         self.assertTrue(any("cannot be attributed to a branch" in p
                             for p in branch.check()))
 
@@ -636,3 +653,115 @@ class TestTheReportsAreBranchAware(BranchTestCase):
                            (api.get_manager_purchase_report, {"days": 7})):
             with self.subTest(report=fn.__name__):
                 self.assertIsInstance(fn(**kwargs), dict)
+
+
+class TestWhichBranchAScreenShows(BranchTestCase):
+    """`current()` and `viewing()` answer two different questions, and keeping
+    them apart is what makes the owner's "just show me the first one" safe.
+
+    * `current()` — **whose branch is this row?** It stamps a new order and
+      decides a permission, so it returns None rather than guess: a guess there
+      files a Kandy sale in Colombo's books and nothing ever says so.
+    * `viewing()` — **what should this screen show?** A blank menu helps
+      nobody, so it falls through to the person's own choice and then to the
+      first branch by name.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.home = frappe.get_all("Restaurant", pluck="name")[0]
+        self.other = _restaurant(self, "Branch-View")
+        self.addCleanup(branch.select, "", frappe.session.user)
+
+    def test_with_one_restaurant_both_answer_the_same(self):
+        """Today's behaviour, unchanged: the fallback cannot be observed while
+        there is one branch, which is every site right now."""
+        only = branch._the_only_restaurant()
+        if only:
+            self.assertEqual(branch.current(), branch.viewing())
+
+    def test_a_pinned_manager_is_not_asked_to_choose(self):
+        """Their branch is not a preference. Offering a picker would show them a
+        menu they cannot write an order against."""
+        user = _user(self, "pinned", roles.RESTAURANT_MANAGER)
+        branch.assign(user, self.other)
+        self.addCleanup(branch.unassign, user)
+        self.assertFalse(branch.can_choose(user))
+        self.assertEqual(branch.viewing(user), self.other)
+
+    def test_an_owner_with_two_branches_is_asked(self):
+        owner = _user(self, "chooser", roles.RESTAURANT_OWNER)
+        branch.unassign(owner)
+        self.assertTrue(branch.can_choose(owner))
+
+    def test_the_choice_is_what_the_screen_then_shows(self):
+        owner = _user(self, "chooser2", roles.RESTAURANT_OWNER)
+        branch.unassign(owner)
+        branch.select(self.other, owner)
+        self.addCleanup(branch.select, "", owner)
+        self.assertEqual(branch.viewing(owner), self.other)
+        self.assertIsNone(branch.current(owner),
+                          "choosing what to look at must not decide whose row it is")
+
+    def test_clearing_the_choice_falls_back_to_the_first_by_name(self):
+        owner = _user(self, "chooser3", roles.RESTAURANT_OWNER)
+        branch.unassign(owner)
+        branch.select(self.other, owner)
+        branch.select("", owner)
+        self.assertEqual(branch.viewing(owner), branch.all_restaurants()[0])
+
+    def test_a_choice_that_no_longer_exists_is_ignored(self):
+        owner = _user(self, "chooser4", roles.RESTAURANT_OWNER)
+        branch.unassign(owner)
+        frappe.defaults.set_user_default(branch.CHOSEN_KEY, "_LFT-gone", owner)
+        self.addCleanup(frappe.defaults.clear_user_default, branch.CHOSEN_KEY, owner)
+        self.assertIsNone(branch.selected(owner))
+        self.assertIsNotNone(branch.viewing(owner), "the screen still shows something")
+
+    def test_nobody_can_choose_a_branch_they_are_not_permitted(self):
+        user = _user(self, "pinned2", roles.RESTAURANT_MANAGER)
+        branch.assign(user, self.home)
+        self.addCleanup(branch.unassign, user)
+        with self.assertRaises(frappe.ValidationError):
+            branch.select(self.other, user)
+
+    def test_a_till_pointing_at_a_deleted_branch_is_not_believed(self):
+        """Deleting a branch does not clear the tills that pointed at it, so
+        without this every one of them resolves to a ghost: `current()` hands
+        back a Restaurant that is gone, the menu read finds no active menu, and
+        the screen comes back empty with nothing anywhere saying why.
+
+        Found the hard way — an interrupted test run left exactly this state on
+        the test site, and three unrelated tests failed with a name nobody
+        recognised."""
+        profile = frappe.db.get_value("POS Profile", {}, "name")
+        if not profile or not frappe.db.has_column("POS Profile", branch.FIELD):
+            self.skipTest("no POS Profile with a branch column on this site")
+        was = frappe.db.get_value("POS Profile", profile, branch.FIELD)
+        self.addCleanup(frappe.db.set_value, "POS Profile", profile, branch.FIELD, was)
+
+        frappe.db.set_value("POS Profile", profile, branch.FIELD, "_LFT-deleted-branch")
+        self.assertIsNone(branch._restaurant_for_profile(profile),
+                          "a link to a Restaurant that is gone is no link at all")
+
+    def test_a_dead_till_link_is_reported_in_words(self):
+        profile = frappe.db.get_value("POS Profile", {}, "name")
+        if not profile or not frappe.db.has_column("POS Profile", branch.FIELD):
+            self.skipTest("no POS Profile with a branch column on this site")
+        was = frappe.db.get_value("POS Profile", profile, branch.FIELD)
+        self.addCleanup(frappe.db.set_value, "POS Profile", profile, branch.FIELD, was)
+
+        frappe.db.set_value("POS Profile", profile, branch.FIELD, "_LFT-deleted-branch")
+        self.assertTrue(any("no longer" in p for p in branch.check()),
+                        "a blank screen should be a sentence somebody can read")
+
+    def test_a_row_is_still_stamped_from_current_not_from_the_view(self):
+        """The one line that keeps the fallback honest. An unassigned cashier on
+        a two-branch site sees a menu and their order is stamped NULL — visible
+        to everyone and reported by branch.check(), rather than filed into a
+        branch they were never in."""
+        import inspect
+
+        source = inspect.getsource(branch.stamp)
+        self.assertIn("current()", source)
+        self.assertNotIn("viewing()", source)

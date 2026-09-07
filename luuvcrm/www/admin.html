@@ -848,9 +848,14 @@ let MENU = null, EDIT = null;
    question, and two pickers that can disagree is worse than none — an owner
    would edit Kandy's price while Colombo's list is on screen. */
 let WORKING = null;
-function setWorking(restaurant){
+async function setWorking(restaurant){
   if(restaurant === WORKING) return;
   WORKING = restaurant || null;
+  // The choice sticks, and it is what every other screen resolves through
+  // afterwards — /pos, /kiosk, the public menu. Picking a branch here is
+  // "show me this one", never "file the next sale here": a row is still
+  // stamped with branch.current(), which refuses to guess.
+  if(WORKING) call('set_branch_choice', {restaurant: WORKING});
   ['mBranch', 'iBranch'].forEach(id => {
     const el = document.getElementById(id);
     if(el && WORKING) el.value = WORKING;

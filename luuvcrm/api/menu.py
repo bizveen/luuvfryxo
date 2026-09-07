@@ -43,7 +43,7 @@ def _menu_extra_fields():
 def active_menu_name(restaurant=None):
     """The menu a screen should show, or None. Never raises: a public page with
     no session has no branch, and a blank menu is a better answer than a 500."""
-    restaurant = restaurant or branch.current()
+    restaurant = restaurant or branch.viewing()
     if not restaurant:
         return None
     name = frappe.db.get_value("Restaurant", restaurant, "active_menu")
@@ -249,7 +249,7 @@ def _active_menu_doc(restaurant=None):
     """The menu to edit. `restaurant` is what makes the owner screen work: with
     two branches `branch.current()` answers "the only one" and then None, which
     is the right refusal for a public page and useless for an editor."""
-    restaurant_name = restaurant or branch.current()
+    restaurant_name = restaurant or branch.viewing()
     active = frappe.get_value("Restaurant", restaurant_name, "active_menu") if restaurant_name else None
     if not active:
         frappe.throw(_("No active menu is configured on the Restaurant"))
@@ -489,8 +489,13 @@ def get_menu_admin(restaurant=None):
     for r in frappe.get_all("Restaurant", fields=["name", "active_menu"],
                             order_by="name asc", limit_page_length=0):
         restaurants.append({"name": r.name, "menu": r.active_menu or ""})
+    # A manager sees the one branch they are pinned to; an owner sees them all
+    # and picks. `can_choose` is what the screen shows the picker for.
+    if not branch.can_choose():
+        here = branch.viewing()
+        restaurants = [r for r in restaurants if r["name"] == here] or restaurants
 
-    chosen = restaurant or branch.current() or (restaurants[0]["name"] if restaurants else None)
+    chosen = restaurant or branch.viewing()
     menu = active_menu_name(chosen)
     items = menu_items(chosen, include_unavailable=True, with_addons=True)
     on_menu = {i["code"] for i in items}

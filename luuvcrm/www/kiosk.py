@@ -15,7 +15,7 @@ def get_context(context):
     table_name = frappe.form_dict.get("table", "")
     context.selected_table = table_name
 
-    restaurant_name = branch.current()
+    restaurant_name = branch.viewing()
     context.restaurant_name = restaurant_name or settings.get("brand_name")
     context.menu_groups = []
     context.tables = []
