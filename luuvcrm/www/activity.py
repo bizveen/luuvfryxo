@@ -1,7 +1,6 @@
 import frappe
-from frappe import _
 
-from luuvcrm.activity import MANAGER_ROLES
+from luuvcrm import roles
 
 no_cache = 1
 no_sitemap = 1
@@ -18,9 +17,12 @@ def get_context(context):
         frappe.local.flags.redirect_location = "/pos-login?redirect=/activity"
         raise frappe.Redirect
 
+    # `MANAGER_ROLES` used to be imported from luuvcrm.activity, which stopped
+    # defining it when the role sets were consolidated into luuvcrm.roles — so
+    # this module raised ImportError before get_context was ever called and the
+    # page was a 500 for everyone, manager included. Gate through roles.py.
+    roles.require_manager()
     user = frappe.session.user
-    if not (set(frappe.get_roles(user)) & MANAGER_ROLES):
-        frappe.throw(_("Only managers can access the activity log"), frappe.PermissionError)
 
     context.csrf_token = frappe.sessions.get_csrf_token()
     context.current_user = user

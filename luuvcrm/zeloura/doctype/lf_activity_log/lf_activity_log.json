@@ -1,0 +1,254 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-09-03 09:51:45.014751",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "app",
+  "action",
+  "label",
+  "source",
+  "user",
+  "user_full",
+  "ref_doctype",
+  "ref_name",
+  "bill_no",
+  "table",
+  "item",
+  "item_name",
+  "qty",
+  "amount",
+  "total_before",
+  "total_after",
+  "flag",
+  "flag_reason",
+  "flag_note",
+  "reviewed",
+  "reviewed_by",
+  "reviewed_at",
+  "detail",
+  "page",
+  "ip",
+  "device",
+  "session_id",
+  "seq",
+  "client_ts",
+  "ok",
+  "err",
+  "ms"
+ ],
+ "fields": [
+  {
+   "fieldname": "app",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "App",
+   "search_index": 1
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Action",
+   "search_index": 1
+  },
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Label"
+  },
+  {
+   "default": "server",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "server\nclient\nrequest"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Data",
+   "label": "User",
+   "search_index": 1
+  },
+  {
+   "fieldname": "user_full",
+   "fieldtype": "Data",
+   "label": "User Name"
+  },
+  {
+   "fieldname": "ref_doctype",
+   "fieldtype": "Data",
+   "label": "Ref DocType"
+  },
+  {
+   "fieldname": "ref_name",
+   "fieldtype": "Data",
+   "label": "Ref Name",
+   "search_index": 1
+  },
+  {
+   "fieldname": "bill_no",
+   "fieldtype": "Data",
+   "label": "Bill",
+   "search_index": 1
+  },
+  {
+   "fieldname": "table",
+   "fieldtype": "Data",
+   "label": "Table"
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Data",
+   "label": "Item"
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name"
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "label": "Qty",
+   "precision": "2"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Amount",
+   "precision": "2"
+  },
+  {
+   "fieldname": "total_before",
+   "fieldtype": "Float",
+   "label": "Total Before",
+   "precision": "2"
+  },
+  {
+   "fieldname": "total_after",
+   "fieldtype": "Float",
+   "label": "Total After",
+   "precision": "2"
+  },
+  {
+   "default": "0",
+   "fieldname": "flag",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Flagged",
+   "search_index": 1
+  },
+  {
+   "fieldname": "flag_reason",
+   "fieldtype": "Data",
+   "label": "Flag Reason"
+  },
+  {
+   "fieldname": "flag_note",
+   "fieldtype": "Small Text",
+   "label": "Flag Note"
+  },
+  {
+   "default": "0",
+   "fieldname": "reviewed",
+   "fieldtype": "Check",
+   "label": "Reviewed"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Data",
+   "label": "Reviewed By"
+  },
+  {
+   "fieldname": "reviewed_at",
+   "fieldtype": "Datetime",
+   "label": "Reviewed At"
+  },
+  {
+   "fieldname": "detail",
+   "fieldtype": "Long Text",
+   "label": "Detail"
+  },
+  {
+   "fieldname": "page",
+   "fieldtype": "Data",
+   "label": "Page"
+  },
+  {
+   "fieldname": "ip",
+   "fieldtype": "Data",
+   "label": "IP"
+  },
+  {
+   "fieldname": "device",
+   "fieldtype": "Small Text",
+   "label": "Device"
+  },
+  {
+   "fieldname": "session_id",
+   "fieldtype": "Data",
+   "label": "Session",
+   "search_index": 1
+  },
+  {
+   "fieldname": "seq",
+   "fieldtype": "Int",
+   "label": "Seq"
+  },
+  {
+   "fieldname": "client_ts",
+   "fieldtype": "Datetime",
+   "label": "Client Time"
+  },
+  {
+   "default": "1",
+   "fieldname": "ok",
+   "fieldtype": "Check",
+   "label": "OK"
+  },
+  {
+   "fieldname": "err",
+   "fieldtype": "Small Text",
+   "label": "Error"
+  },
+  {
+   "fieldname": "ms",
+   "fieldtype": "Int",
+   "label": "Duration ms"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 17:53:32.208291",
+ "modified_by": "Administrator",
+ "module": "Zeloura",
+ "name": "LF Activity Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

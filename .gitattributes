@@ -1,0 +1,25 @@
+# Normalise line endings.
+#
+# Fifteen files were checked in with CRLF, mixed in among LF ones, because the
+# app is edited from both Linux and the Windows host that serves it over SMB.
+# The cost is not theoretical: a one-character CRLF/LF difference on a file's
+# last line is enough to leave the host's working tree dirty, and the host is a
+# non-bare checkout with receive.denyCurrentBranch=updateInstead, so a dirty
+# tree rejects the deploy push outright. It also turns a three-line edit into a
+# whole-file diff, which hides the real change in review.
+#
+# Everything text is LF in the repository from here on. Git still checks out
+# whatever the platform wants, so nothing changes for an editor on Windows.
+* text=auto eol=lf
+
+# Never touched: byte-for-byte or it is corrupt.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.apk   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary

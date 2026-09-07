@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Errors · Luuv Fryxo</title>
+<title>Errors · {{ brand_name }}</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
 <meta name="theme-color" content="#F15207">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
@@ -53,6 +53,7 @@ header{display:flex;align-items:center;gap:14px;padding:22px 0 18px;}
 pre{background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:11px;font-family:var(--font-mono);font-size:12px;line-height:1.55;overflow-x:auto;white-space:pre-wrap;word-break:break-word;color:var(--text-body);margin:10px 0 0;}
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:50;box-shadow:var(--shadow-lg);}
 </style>
+{% include "templates/includes/brand.html" %}
 </head>
 <body>
 <div class="wrap">
@@ -91,6 +92,13 @@ pre{background:var(--surface-sunken);border:1px solid var(--border-subtle);borde
 <div id="toast" class="toast"></div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
 const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 let fStatus='open', fApp='', rows=[], apps=[], openIds={};
 function icons(){ try{ window.lucide&&window.lucide.createIcons(); }catch(e){} }
@@ -182,7 +190,7 @@ async function clearResolved(){
   else toast('Could not clear');
 }
 
-chips(); load(); setInterval(load,30000); icons();
+chips(); load(); lfPoll(load,30000); icons();
 </script>
 </body>
 </html>

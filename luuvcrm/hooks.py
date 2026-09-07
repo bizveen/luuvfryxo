@@ -1,13 +1,39 @@
 app_name = "luuvcrm"
-app_title = "Zeloura"
-app_publisher = "Zeloura Collective"
-app_description = "Zeloura Collective — Network Fashion Platform"
-app_email = "hello@zeloura.com"
+# One product, one name. These are the *app's* identity and are fixed at build
+# time, so they stay generic; the restaurant's own name is `brand_name` in
+# LuuvCRM Settings and reaches every page through overrides/branding.py.
+# They used to read "Zeloura Collective — Network Fashion Platform", which is a
+# different product entirely (see the fashion-site code still in the tree).
+app_title = "LuuvCRM"
+app_publisher = "LuuvCRM"
+app_description = "Restaurant POS, kitchen, purchasing and loyalty on ERPNext"
+app_email = "admin@luuvcrm.com"
 app_license = "mit"
+
+# B4. Not a pyproject dependency — those are pip packages, and these are Frappe
+# apps that bench resolves. `frappe.installer.install_app()` reads this hook and
+# installs each one first, so `bench install-app luuvcrm` on a clean bench brings
+# erpnext and hospitality with it instead of failing at the first import.
+#
+# hospitality supplies Restaurant, Restaurant Table and Restaurant Menu, and
+# declares erpnext as its own requirement — naming both anyway, because the
+# order matters and a reader should not have to follow a chain to learn it.
+required_apps = ["erpnext", "hospitality"]
 
 app_include_css = "/assets/luuvcrm/css/luuvcrm_desk.css"
 
-extend_website_context = ["luuvcrm.overrides.branding.update_website_context"]
+# The brand — name, accent, icons — as a Jinja global, so every page can read it
+# from templates/includes/brand.html without each one having to put it in its own
+# context. A page with no .py at all still gets it.
+#
+# NOT `extend_website_context`: that hook does not exist in this Frappe, so the
+# branding module it pointed at had never once been called. `update_website_context`
+# is the one that does exist (`base_template_page.py:71`), and it is what puts
+# `brand_name` in every page's context — which is how the 21 pages that used to
+# say "Luuv Fryxo" in their markup now say whose restaurant this is. The Jinja
+# global stays for `brand.html`, which needs the colours and icons too.
+jinja = {"methods": ["luuvcrm.overrides.branding.brand"]}
+update_website_context = ["luuvcrm.overrides.branding.update_website_context"]
 boot_session = ["luuvcrm.overrides.branding.boot_session"]
 
 # /app = Frappe Desk (bare /app is untouched — login works); only customer
@@ -15,18 +41,58 @@ boot_session = ["luuvcrm.overrides.branding.boot_session"]
 # /customer. See api.route_app_requests.
 before_request = ["luuvcrm.api.route_app_requests"]
 
+# ─── The public front door ───────────────────────────────────────────────────
+# Frappe resolves a page by walking `reversed(frappe.get_installed_apps())`, so
+# the app installed *last* wins a name — and erpnext is installed after this one.
+# Two of our pages lost:
+#
+#   /order  → erpnext's templates/pages/order.py, which does
+#             `frappe.get_doc(form_dict.doctype, form_dict.name)` with nothing in
+#             the form dict and raises. A bare visit was a **500** — and /home
+#             and /track both send customers there with an "Order Online" button.
+#   /home   → erpnext's website home page. **200, and the wrong page**: the
+#             restaurant's 494-line landing page had never once been served.
+#
+# The files are named `order-online` and `restaurant-home` now, which nothing
+# else claims, and these rules keep the public URLs exactly as they were —
+# every link already printed on a sticker or sent in a message still works.
+website_route_rules = [
+    {"from_route": "/order", "to_route": "order-online"},
+    {"from_route": "/home", "to_route": "restaurant-home"},
+]
+
+# And the front door itself was a 404: Website Settings still pointed `/` at
+# `app2`, a page deleted in the September cleanup. The hook is read *before*
+# Website Settings (frappe/website/utils.py: get_home_page), so this fixes a
+# running site as well as a fresh one, without anybody editing site data.
+home_page = "home"
+
 # Staff activity trail (luuvcrm/activity.py) — deployed 2026-09-02 with the
 # activity stack. Runs in the request's finally block, after the DB has been
 # committed/rolled back, so it commits its own row.
 # NOTE: activity.py MUST be deployed before this file — the hook imports it on
-# every request. (after_migrate → setup_doctype stays repo-only for now: that
-# module is not on the server.)
+# every request.
 after_request = ["luuvcrm.activity.log_request_activity"]
+
+# The whole schema — DocTypes, custom fields, property setters, roles, DocPerms,
+# the branch column — in luuvcrm/setup_doctype.py. Wired to after_install only,
+# so `bench install-app luuvcrm` provisions a fresh site on its own and a deploy
+# never touches an existing one. On an existing site, run it by hand:
+#   bench --site <site> execute luuvcrm.setup_doctype.report_drift   # read-only
+#   bench --site <site> execute luuvcrm.setup_doctype.execute
+# Deliberately NOT after_migrate: every step there is create-only, but a live
+# deploy is the wrong place to discover we were wrong about that.
+#
+# It has to carry the patches' work too — Frappe marks every patch as completed
+# on a fresh install without running it, so after_install is all a new site gets.
+after_install = "luuvcrm.setup_doctype.after_install"
 
 scheduler_events = {
     "daily": [
-        # Plain rows kept 90 days, flagged rows a year. pos2 writes a lot.
+        # Plain rows kept 90 days, flagged rows a year. The POS writes a lot.
         "luuvcrm.activity.purge_activity_log",
+        # Resolved client errors go after a month, open ones after six.
+        "luuvcrm.api.errors.purge_client_errors",
     ],
 }
 
@@ -35,3 +101,13 @@ doc_events = {
         "after_insert": "luuvcrm.api.process_wa_reply",
     },
 }
+
+# Stamp the branch on every row this app owns, on the way in. A field somebody
+# has to remember to set is a field that ends up empty, and an empty branch is a
+# row that stays visible to every branch. See luuvcrm/branch.py.
+for _branched in (
+    "POS Order", "Purchase Bill", "Expense", "Wastage",
+    "POS Approval", "POS Cash Movement", "LF Activity Log",
+):
+    doc_events.setdefault(_branched, {})["before_insert"] = "luuvcrm.branch.stamp"
+del _branched

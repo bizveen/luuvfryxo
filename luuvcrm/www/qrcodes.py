@@ -1,9 +1,23 @@
-﻿import frappe
+import frappe
+
+from luuvcrm import roles
 
 no_cache = 1
 no_sitemap = 1
 
 def get_context(context):
+    """Printable kiosk QR labels (/qrcodes). Manager-only.
+
+    It was public, and it is a directory: every table in the restaurant and the
+    kiosk URL that orders against it. Anyone who loaded it could order to any
+    table without being in the building.
+    """
+    if frappe.session.user == "Guest":
+        frappe.local.flags.redirect_location = "/pos-login?redirect=/qrcodes"
+        raise frappe.Redirect
+
+    roles.require_manager()
+
     context.no_sidebar = True
     context.no_header = True
     context.no_footer = True

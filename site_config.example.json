@@ -1,0 +1,18 @@
+{
+  "//": "Operator keys for LuuvCRM. Copy the ones you need into",
+  "//  ": "sites/<your-site>/site_config.json — this file is documentation, not config.",
+  "// ": "Frappe already keeps the database password there; this is the same place,",
+  "//   ": "which is why it is also the right one for these. Never in git.",
+
+  "luuvcrm_public_url": "https://your-restaurant.example.com",
+
+  "// print templates": "Google Doc ids for the printed layouts. The docs are shared 'anyone with the link', so an id is a capability — treat it like a key.",
+  "luuvcrm_print_template_docs": {
+    "guest_check": "<google-doc-id>",
+    "kot": "<google-doc-id>",
+    "receipt": "<google-doc-id>",
+    "zreport": "<google-doc-id>"
+  },
+
+  "// everything else": "Brand name, WhatsApp numbers and the pickup outlet belong to the restaurant, not the deployment — they live in LuuvCRM Settings in the Desk. Run `bench --site <site> execute luuvcrm.config.describe` to see every key, where it lives, and whether it is still on its default."
+}

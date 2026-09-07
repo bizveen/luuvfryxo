@@ -32,14 +32,19 @@ def place_guest_order():
         lead.insert()
         
         # Create Quotation
-        company = frappe.db.get_value("Company", {}, "name") or "Luuv Fryxo"
+        # Both of these named one client as a fallback. They are record names on
+        # the site, not branding — and a site with no Company cannot raise a
+        # Quotation at all, so a made-up name only turns a clear ERPNext error
+        # into a confusing one. Ask the site; let it answer, or let it complain.
+        company = (frappe.db.get_value("Company", {}, "name")
+                   or frappe.defaults.get_global_default("company"))
         price_list = frappe.db.get_value("Price List", {"enabled": 1, "selling": 1}, "name")
         quotation = frappe.get_doc({
             "doctype": "Quotation",
             "party_name": lead.name,
             "quotation_to": "Lead",
             "company": company,
-            "selling_price_list": price_list or "Luuv Fryxo-Main-Menu",
+            **({"selling_price_list": price_list} if price_list else {}),
             "transaction_date": frappe.utils.nowdate(),
             "items": [{
                 "item_code": item_code or "",

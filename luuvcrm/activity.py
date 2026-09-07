@@ -14,8 +14,15 @@ Three layers write into one table, so a bill's story reads top to bottom:
                 POST to a luuvcrm API method. Zero-maintenance coverage: a new
                 endpoint is logged the day it ships, without anyone remembering.
   2. Semantic — explicit `log_activity()` calls inside the money endpoints in
-                api.py, carrying amounts, before/after totals and flags. Those
-                methods are listed in SELF_LOGGED so layer 1 stays out of the way.
+                luuvcrm/api/, carrying amounts, before/after totals and flags.
+                Those methods are listed in SELF_LOGGED so layer 1 stays out of
+                the way. **The list existed for a year before the calls did:**
+                every one of the 21 was skipped by layer 1 on the promise of a
+                richer row that nothing wrote, so the trail covered the reads
+                and stopped where the money is, and every flag rule below —
+                each of which reads amount / total_before / total_after — could
+                never once be true. `tests/test_money_trail.py` refuses a method
+                on the list whose body has no log_activity() call.
   3. Client   — www/lfact.js posts the cart taps (add / +/- / remove / discount /
                 fire / print / pay) with the bill total before and after each tap.
                 Only the browser knows a tap happened twice; the server just sees
@@ -27,12 +34,15 @@ Everything here is fire-and-forget: a logging bug must never break the POS.
 import json
 
 import frappe
+from luuvcrm import roles
 from frappe.utils import now_datetime, cint, flt
 
 DOCTYPE = "LF Activity Log"
 
 # Apps we accept in the `app` column. Anything else is stored as "other".
-KNOWN_APPS = {"app", "app2", "pos2", "pos3", "waiter", "manager", "kitchen", "purchases", "admin",
+# "pos2"/"pos3"/"app2" are gone with the pages; rows already written keep their
+# old value, since this set only normalises what is being written now.
+KNOWN_APPS = {"app", "pos", "waiter", "manager", "kitchen", "purchases", "admin",
               "cus", "kiosk", "guide", "qrpromo", "errors", "activity", "server"}
 
 # ─── Flag rules (the "human error" detector) ──────────────────────────────
@@ -58,7 +68,9 @@ FLAG_LABELS = {
 }
 
 # Endpoints that call log_activity() themselves with real amounts — the generic
-# after_request layer skips these so a payment isn't logged twice.
+# after_request layer skips these so a payment isn't logged twice. Adding a name
+# here without adding the call removes an endpoint from the trail; the test
+# above is what stops that.
 SELF_LOGGED = {
     "place_order", "update_order", "send_to_kitchen", "process_payment", "pay_split",
     "cancel_order", "delete_draft_order", "move_order_table", "record_cash_movement",
@@ -152,9 +164,20 @@ def setup_activity_log():
     return {"created": True}
 
 
+#: `frappe.db.exists("DocType", ...)` on every write is a query per logged
+#: request, for an answer that cannot change inside a process. Cached per
+#: process, and it no longer *creates*: `LF Activity Log` ships as JSON, so
+#: building it here from a Python dict would mark it `custom: 1` and take it
+#: straight back out of `bench migrate`'s path.
+_doctype_ready = False
+
+
 def _ensure_doctype():
-    if not frappe.db.exists("DocType", DOCTYPE):
-        setup_activity_log()
+    global _doctype_ready
+    if _doctype_ready:
+        return True
+    _doctype_ready = bool(frappe.db.exists("DocType", DOCTYPE))
+    return _doctype_ready
 
 
 # ─── Writer ───────────────────────────────────────────────────────────────
@@ -183,14 +206,57 @@ def _sanitize(d):
     return out
 
 
+def _insert(row, commit=True):
+    """One parameterised INSERT — no Document, no hooks, no validation pass.
+
+    P2. This runs on the request path of every POST to a luuvcrm method, so the
+    trail was costing each of them a full ORM document: naming, validate, the
+    permission machinery and a `db.commit()` of its own. The log is append-only
+    and has no controller and nothing to validate, so none of that bought
+    anything. The row is written straight to the table with `name`, `creation`
+    and the owner columns Frappe would otherwise fill in.
+
+    The commit stays. `log_request_activity` runs in the request's `finally`,
+    after Frappe has already committed or rolled back, so an uncommitted row
+    there would simply be dropped.
+    """
+    row = {k: v for k, v in row.items() if v is not None}
+    name = frappe.generate_hash(length=10)
+    now = now_datetime()
+    user = frappe.session.user or "Administrator"
+    row.update({"name": name, "creation": now, "modified": now,
+                "owner": user, "modified_by": user, "docstatus": 0, "idx": 0})
+    columns = ", ".join("`%s`" % c for c in row)
+    placeholders = ", ".join(["%s"] * len(row))
+    frappe.db.sql("INSERT INTO `tab{0}` ({1}) VALUES ({2})".format(
+        DOCTYPE, columns, placeholders), tuple(row.values()))
+    if commit:
+        frappe.db.commit()
+    return name
+
+
 def log_activity(action, app=None, label=None, source="server", user=None,
                  ref_doctype=None, ref_name=None, bill_no=None, table=None,
                  item=None, item_name=None, qty=None, amount=None,
                  total_before=None, total_after=None,
                  flag_reason=None, flag_note=None, detail=None,
                  page=None, device=None, session_id=None, seq=None,
-                 client_ts=None, ok=1, err=None, ms=None, commit=True):
-    """Record one staff action. Never raises — the caller is a live POS."""
+                 client_ts=None, ok=1, err=None, ms=None, commit=False):
+    """Record one staff action. Never raises — the caller is a live POS.
+
+    **`commit` defaults to False, and that is the safe direction.** A semantic
+    call happens *inside* the endpoint, half-way through taking money: a commit
+    there would write out whatever the payment had done so far, and a later
+    throw would leave it. Riding on the request's own transaction means the row
+    lands exactly when the thing it describes lands, and disappears with it if
+    the endpoint rolls back. It also means a logging call cannot silently break
+    a caller's transaction, which is what a True default did — it committed the
+    test suite's rollback away, and would have done the same to a POS.
+
+    Only `log_request_activity` passes True, because it runs in the request's
+    `finally`, after Frappe has already committed or rolled back; a row written
+    there without a commit of its own is simply dropped.
+    """
     try:
         _ensure_doctype()
         if user is None:
@@ -206,8 +272,7 @@ def log_activity(action, app=None, label=None, source="server", user=None,
             except Exception:
                 detail = str(detail)
 
-        doc = frappe.get_doc({
-            "doctype": DOCTYPE,
+        row = {
             "app": app,
             "action": _clip(action, 60),
             "label": _clip(label or action, 140),
@@ -237,12 +302,8 @@ def log_activity(action, app=None, label=None, source="server", user=None,
             "ok": 1 if ok else 0,
             "err": _clip(err, 300),
             "ms": cint(ms) if ms is not None else None,
-        })
-        doc.flags.ignore_permissions = True
-        doc.insert()
-        if commit:
-            frappe.db.commit()
-        return doc.name
+        }
+        return _insert(row, commit=commit)
     except Exception:
         try:
             frappe.log_error(frappe.get_traceback(), "log_activity failed")
@@ -333,6 +394,7 @@ def log_request_activity(response=None, request=None, **kwargs):
             action=method,
             label=method.replace("_", " ").strip().capitalize(),
             source="request",
+            commit=True,
             ref_name=_clip(args.get("order_name") or args.get("name") or "", 140),
             detail=args,
             page=path,
@@ -431,13 +493,9 @@ def _parse_client_ts(ts):
 
 
 # ─── Reading it back ──────────────────────────────────────────────────────
-MANAGER_ROLES = {"System Manager", "Administrator", "Restaurant Manager"}
-
-
-def _require_manager():
-    # Defined here rather than imported from api.py: api.py imports this module.
-    if not (set(frappe.get_roles(frappe.session.user)) & MANAGER_ROLES):
-        frappe.throw("Only a manager can view the activity log", frappe.PermissionError)
+# luuvcrm/roles.py imports neither this module nor api.py, which is what lets
+# both share it — api.py imports activity.py, so the copy that used to live here
+# could not have come from there.
 
 
 ACTIVITY_FIELDS = [
@@ -462,7 +520,7 @@ def _shape(rows):
 def get_activity(app=None, user=None, action=None, flagged=None, days=1,
                  bill=None, search=None, limit=200):
     """Activity feed for /activity. Newest first."""
-    _require_manager()
+    roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"rows": [], "apps": [], "users": [], "flag_count": 0}
 
@@ -525,7 +583,7 @@ def get_bill_trail(order=None, bill=None):
     cashier taps and the server writes interleaved on a single timeline.
     Accepts either the POS Order name or the printed bill number.
     """
-    _require_manager()
+    roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"rows": [], "order": order or "", "bill": bill or ""}
 
@@ -560,7 +618,7 @@ def get_bill_trail(order=None, bill=None):
 @frappe.whitelist()
 def get_activity_flags(days=1):
     """Unreviewed flag count + a per-reason breakdown — feeds the /manager badge."""
-    _require_manager()
+    roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"count": 0, "by_reason": []}
     try:
@@ -583,7 +641,7 @@ def get_activity_flags(days=1):
 @frappe.whitelist(methods=["POST"])
 def review_activity_flag(name=None, note="", reviewed=1):
     """Manager ticks off a flag once they have checked it (or un-ticks it)."""
-    _require_manager()
+    roles.require_manager()
     if not name or not frappe.db.exists(DOCTYPE, name):
         frappe.throw("Activity row not found")
     done = cint(reviewed)
@@ -606,7 +664,7 @@ KEEP_DAYS_FLAGGED = 365
 
 def purge_activity_log():
     """Daily scheduler job: plain rows older than 90 days, flagged rows older than
-    a year. pos2 writes a lot and this runs on a small VPS."""
+    a year. The POS writes a lot and this runs on a small VPS."""
     try:
         if not frappe.db.exists("DocType", DOCTYPE):
             return
@@ -627,7 +685,7 @@ def clear_activity(scope="reviewed"):
     """Manual clear from /activity — the scheduler is not always running on this
     bench (same reason shift close once said "Scheduler is inactive"), so the
     manager gets a button too."""
-    _require_manager()
+    roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"ok": True, "deleted": 0}
     if scope == "all":

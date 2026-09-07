@@ -17,9 +17,7 @@ Everything in this report is reproducible against the current tree; file and lin
 
 | Surface | Route | Audience | State |
 |---|---|---|---|
-| POS (live) | `/pos2` | Cashier | Production |
-| POS (staging copy) | `/pos3` | Cashier | **Throwaway that outgrew its parent** — 2728 lines vs pos2's 1421 |
-| POS (original) | `/pos` | — | 3331 lines, superseded, still routable |
+| POS | `/pos` | Cashier | Production — one page since the three collapsed; `/pos2` and `/pos3` are deleted |
 | Waiter PWA | `/waiter` | Floor staff | Production |
 | Kitchen display | `/kitchen` | Kitchen | Production |
 | Self-order kiosk | `/kiosk` | Customer | Production |
@@ -42,7 +40,7 @@ Backend: 156 whitelisted endpoints (144 in `api.py`), 36 of them guest-accessibl
 
 ## 2. Blockers — must fix before any third party gets this
 
-### B1 · The schema is not in the repo (critical)
+### B1 · The schema is not in the repo — *half fixed*
 
 Only `POS Order` and `POS Order Item` ship as DocType JSON. These 24 are built by HTTP calls at runtime:
 
@@ -50,7 +48,21 @@ Only `POS Order` and `POS Order Item` ship as DocType JSON. These 24 are built b
 
 Consequences: a new install is a manual ritual of calling ~27 endpoints in an undocumented order; there is no migration path when a field changes; `bench migrate` does nothing; two sites will silently drift apart; you cannot roll back.
 
-**Fix:** export every runtime doctype with `bench export-fixtures` / move them to `luuvcrm/zeloura/doctype/*/`, convert the `create_custom_field` calls into `patches.txt` entries, and add an `after_install` hook. Delete the `setup_*` endpoints once the schema is declarative. This is the single largest piece of work and everything else depends on it.
+**Done.** All of it is declared in `luuvcrm/setup_doctype.py` — 24 DocTypes, 32 custom fields, 2 property setters, the roles and DocPerms (from `roles.py`, which owns them), the branch column, and the reference rows the screens cannot work without. `after_install` runs it, so `bench install-app luuvcrm` provisions a fresh site on its own, and `report_drift()` reports read-only what a given site is missing. Verified against this site: **zero drift, and re-running changes nothing.**
+
+Three definitions were wrong and are corrected against what a working site actually has:
+
+- `Item.kitchen_group` is a Link to `Kitchen Group`, not `Data` — `get_menu()` resolves it with `frappe.db.get_value("Kitchen Group", …)`.
+- `POS Order.order_type` is a Select of `Dine In / Take Away / Delivery`, not `Data` defaulting to `Dine-In`, which `_is_takeaway()` never matched — so take-away orders were charged service charge.
+- `Sales Invoice.pos_order` was missing entirely. `_link_invoice_to_order()` writes `pos_order` to whichever invoice type the sale became, and `pos_order.json` declares a Document Link through that fieldname, so leaving it off made Frappe reject the field with `Unknown column 'tabSales Invoice.pos_order'`.
+
+**Still open.** The DocTypes are created `custom: 1`, matching the live site, so they live in the DB and `bench migrate` still ignores them — no migration path when a field changes, and no rollback. Finishing it:
+
+1. Run `report_drift()` against **production** once, to confirm. The definitions were written against the live database — read from the host, not inferred from the `setup_*` code — which is where the three corrections above came from. So this is a check before an irreversible step, not a reconstruction: the drift should be nil or close to it, and anything that does turn up is a field somebody added by hand in the Desk since.
+2. Convert `DOCTYPES` to DocType JSON under `luuvcrm/zeloura/doctype/*/` with `custom: 0`, and the custom fields into numbered `patches.txt` entries.
+3. Delete the `setup_*` endpoints from `api.py`.
+
+Step 1 must happen before step 2: a DocType JSON that disagrees with the live table is applied by the next `bench migrate`, silently.
 
 ### B2 · Duplicate, conflicting `POS Order` definition (critical)
 
@@ -202,13 +214,13 @@ Hot filters that are custom fields and therefore unindexed unless explicitly add
 
 ### P5 · No asset build (medium)
 
-Every page is one hand-written HTML file with inline `<style>` and up to 7 inline `<script>` blocks. `pos3.html` is 220 KB, `pos.html` 188 KB, `manager.html` 144 KB — uncompressed, unminified, re-downloaded whenever the page is not cached. On a restaurant's phone over 4G that is the difference between a 1-second and a 5-second cold start.
+Every page is one hand-written HTML file with inline `<style>` and up to 7 inline `<script>` blocks. `pos.html` is 220 KB, `manager.html` 144 KB — uncompressed, unminified, re-downloaded whenever the page is not cached. On a restaurant's phone over 4G that is the difference between a 1-second and a 5-second cold start.
 
-There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/kitchen` — not `/pos2`, which is the live POS, and not `/manager` or `/purchases`.
+There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/kitchen` — not `/manager` or `/purchases`. (It named the right POS route all along; what changed is that `/pos` is now the live one.)
 
 ### P6 · Polling everywhere (low, but adds up)
 
-30 `setInterval` timers across 10 pages, several at 1s and 5s. `pos.html` and `pos3.html` run 6 each. On a shared restaurant WiFi with 8 devices this is constant chatter. Long-poll or Frappe's socket.io realtime would cut it dramatically; at minimum, pause timers on `document.hidden`.
+30 `setInterval` timers across 10 pages, several at 1s and 5s. `pos.html` runs 6. On a shared restaurant WiFi with 8 devices this is constant chatter. Long-poll or Frappe's socket.io realtime would cut it dramatically; at minimum, pause timers on `document.hidden`.
 
 ### P7 · Two 70 MB APKs on disk
 
@@ -218,8 +230,36 @@ There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/
 
 ## 5. Code health
 
-- **`api.py` is 7,095 lines and 316 KB.** It holds POS, kitchen, loyalty, customers, purchases, expenses, approvals, promos, tour guides, wastage, WhatsApp and reporting. Split it into `luuvcrm/api/` — `pos.py`, `orders.py`, `purchases.py`, `manager.py`, `loyalty.py`, `guides.py`, `whatsapp.py` — keeping the public method paths stable via re-exports so no client breaks.
-- **`/pos3` was declared throwaway and is now the largest file in the project.** Its own docstring says "do not build anything that depends on this" and "these get ported back into pos2 and this file is deleted". Either finish the port or promote pos3 to be the live POS and delete `pos.html` and `pos2.html`. Three POS implementations is the single biggest source of future confusion.
+- ~~**`api.py` is 7,095 lines and 316 KB.**~~ **Resolved.** It is `luuvcrm/api/`, 22 modules, one per domain:
+
+| Module | Lines |
+|---|---|
+| `orders.py` | 807 |
+| `guides.py` | 590 |
+| `shifts.py` | 570 |
+| `reports.py` | 538 |
+| `purchases.py` | 490 |
+| `printing.py` | 444 |
+| `payments.py` | 416 |
+| `customers.py` | 403 |
+| `approvals.py` | 361 |
+| `promos.py` | 334 |
+| `loyalty.py` | 324 |
+| `__init__.py` | 320 |
+| `whatsapp.py` | 290 |
+| `schema.py` | 259 |
+| `menu.py` | 246 |
+| `kiosk.py` | 222 |
+| `expenses.py` | 220 |
+| `kitchen.py` | 178 |
+| `offline.py` | 171 |
+| `wastage.py` | 137 |
+| `pricing.py` | 128 |
+| `wa.py` | 70 |
+| `routing.py` | 41 |
+
+  `__init__.py` re-exports all 261 names, so every `luuvcrm.api.<name>` path a page, hook or WhatsApp link calls resolves unchanged.
+- ~~**`/pos3` was declared throwaway and is now the largest file in the project.**~~ **Resolved.** pos3 was promoted: all the work that mattered had landed there and was never ported back, so it is `/pos` now, and `pos2.html`/`pos2.py` plus the original `pos.html`/`pos.py` are deleted. One POS implementation.
 - **Duplicate pages:** `myorders.html` (530 lines) and `my_orders.html` (311) are both live; so are `/customer` and `/cus`. Pick one of each.
 - **Branding is split three ways:** the app is `luuvcrm`, `hooks.py` says `Zeloura` / "Zeloura Collective — Network Fashion Platform", every page says "Luuv Fryxo", and the module is `Zeloura`. For a product you intend to resell, this needs to become one configurable brand read from a settings DocType — a second customer cannot be called Luuv Fryxo.
 - **Dev debris in the app package:** 14 one-off scripts (`check_*.py`, `debug_*.py`, `fix_*.py`, `add_seed_data.py`, `populate*.py`, `assign_groups.py`, `migrate_theme_content.py`, `zeloura_setup.py`) sit next to production code. Gitignored, but present on the server. Move to `scripts/` outside the importable package.
@@ -239,7 +279,7 @@ There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/
 5. Write regression tests for exactly these paths, so the fixes cannot silently revert.
 
 ### Phase 2 — Make it installable (2–4 weeks)
-6. B1 — schema into the repo: DocType JSON, `patches.txt`, `after_install`, fixtures. **The pivotal task.**
+6. B1 — schema into the repo. **The pivotal task.** `setup_doctype.py` + `after_install` are done; what remains is reconciling against the live site, then DocType JSON and `patches.txt`.
 7. B2 — delete the duplicate `POS Order`.
 8. B4 — declare erpnext + hospitality.
 9. Prove it: `bench new-site`, `bench install-app luuvcrm`, working POS with zero manual steps. That test *is* the definition of done.
@@ -249,12 +289,12 @@ There is a service worker (`www/sw.js`) but it caches only `/pos`, `/waiter`, `/
 11. P1 — kill the N+1s, starting with the manager dashboard.
 12. P2 — move activity logging off the request path.
 13. P3, P4 — limits and indexes.
-14. P5 — extend the service worker to `/pos2`, `/manager`, `/purchases`; minify.
+14. P5 — extend the service worker to `/manager` and `/purchases`; minify.
 
 ### Phase 4 — Make it a product (3–6 weeks)
 15. One brand, read from settings. No "Luuv Fryxo" in code.
 16. Collapse three POS pages into one; collapse the duplicate pages.
-17. Split `api.py`.
+17. ~~Split `api.py`.~~ Done.
 18. Multi-tenant check: confirm every query is site-scoped and nothing assumes a single `Restaurant` record (`api.py:13` does `frappe.get_value("Restaurant", {}, "name")` — the *first* restaurant, whichever that is).
 19. Backups, monitoring, an upgrade runbook.
 

@@ -1,9 +1,9 @@
 /* Luuv Fryxo — shared front-end error reporter.
  *
- * Loaded as the FIRST script on each staff PWA (pos2, waiter, purchases, manager, admin) so it is
+ * Loaded as the FIRST script on each staff PWA (pos, waiter, purchases, manager, admin) so it is
  * already listening when the page's own code runs:
  *
- *     <script src="/lferr.js?v=1" data-app="pos2"></script>
+ *     <script src="/lferr.js?v=1" data-app="pos"></script>
  *
  * Everything here is fire-and-forget and wrapped in try/catch — a reporting bug must never take
  * down the app it is watching. Nothing is logged when there is no CSRF token (logged-out page).
@@ -28,7 +28,7 @@
   var ENDPOINT = '/api/method/luuvcrm.api.log_client_error';
   var QKEY = 'lf_err_queue';
   var MAX_PER_LOAD = 25;      // a render-loop error must not become 10k rows
-  var MAX_QUEUE = 25;         // offline backlog cap (pos2 runs on flaky wifi)
+  var MAX_QUEUE = 25;         // offline backlog cap (the POS runs on flaky wifi)
   var MAX_TEXT = 4000;
 
   var APP = 'unknown';

@@ -1,0 +1,25 @@
+{%- set b = brand() -%}
+{#-
+  The restaurant's own look, from LuuvCRM Settings.
+
+  Included in the <head> of every screen, *after* the page's own <style>, so it
+  overrides the palette the page ships with. The page keeps its defaults — open
+  it with no settings and it is still the orange it always was — and one field
+  in the Desk repaints all of them.
+
+  Only the tokens are here. Anything that needs the accent should read
+  var(--color-primary), never the hex.
+-#}
+<link rel="icon" href="{{ b.brand_icon_192 }}">
+<link rel="apple-touch-icon" href="{{ b.brand_icon_192 }}">
+<meta name="theme-color" content="{{ b.brand_color }}">
+<style id="lfBrand">
+:root{
+  --color-primary:{{ b.brand_color }};
+  --color-primary-hover:{{ b.brand_color_dark }};
+  --surface-brand:{{ b.brand_color }};
+  --orange-500:{{ b.brand_color }};
+  --orange-600:{{ b.brand_color_dark }};
+  --brand-color:{{ b.brand_color }};
+}
+</style>

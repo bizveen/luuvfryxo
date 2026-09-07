@@ -1,5 +1,6 @@
 import frappe
-from frappe import _
+
+from luuvcrm import roles
 
 no_cache = 1
 no_sitemap = 1
@@ -16,9 +17,12 @@ def get_context(context):
         frappe.local.flags.redirect_location = "/pos-login?redirect=/errors"
         raise frappe.Redirect
 
+    # This said System Manager, and System Manager is deliberately not a business
+    # role — the restaurant owner is not supposed to hold it (roles.py). So the
+    # people the screen is for could not open it, while the endpoints behind it
+    # already gate on roles.require_manager(). The page now agrees with them.
+    roles.require_manager()
     user = frappe.session.user
-    if "System Manager" not in frappe.get_roles(user):
-        frappe.throw(_("Only managers can access the error log"), frappe.PermissionError)
 
     context.csrf_token = frappe.sessions.get_csrf_token()
     context.current_user = user

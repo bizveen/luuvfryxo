@@ -2,10 +2,12 @@
 
 | Document | For | What it is |
 |---|---|---|
+| [ROADMAP.md](ROADMAP.md) | Everyone | **The working checklist.** Ordered phases, what is done, what is next. |
 | [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) | Engineering, owner | Full audit: security, performance, gaps, and a phased plan to production. **Read first.** |
 | [SEED_DATA.md](SEED_DATA.md) | Engineering | What a fresh install must contain, and what must never be seeded |
 | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | Developers | Setup, architecture, house rules, deployment |
 | [USER_GUIDE.md](USER_GUIDE.md) | Restaurant staff | Screen-by-screen manual for every role |
 | [PROPOSAL.md](PROPOSAL.md) | Sales, client | Commercial proposal — commercials are placeholders |
+| [BRANCHES.md](BRANCHES.md) | Everyone | Which work goes on `main` (live) and which on `product` (sellable) |
 
 **Headline:** the product works and is proven in daily service. It is not yet installable by anyone else — the database schema is created at runtime rather than shipped in the repo, and four endpoints are open in ways a customer's security review would fail. Both are fixable and scoped; see the readiness report.

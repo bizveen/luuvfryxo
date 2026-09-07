@@ -1,11 +1,13 @@
-import frappe
+"""/myorders — the old order-history page. Redirects to /cus, which absorbed it.
+
+Kept as an alias: the WhatsApp auto-reply pointed customers here for months, so
+the link is sitting in their chat history.
+"""
+
+from luuvcrm.www.cus import redirect_to_cus
 
 no_cache = 1
 
 
 def get_context(context):
-    # Consolidated into the unified customer app at /cus. Redirect, preserving
-    # any deep-link params (?phone= from WhatsApp, ?ref= from referral links).
-    qs = frappe.request.query_string.decode() if frappe.request and frappe.request.query_string else ""
-    frappe.local.flags.redirect_location = "/cus" + (("?" + qs) if qs else "")
-    raise frappe.Redirect
+    redirect_to_cus()

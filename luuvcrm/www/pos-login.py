@@ -1,5 +1,7 @@
 import frappe
 
+from luuvcrm import settings
+
 no_cache = 1
 
 def get_context(context):
@@ -8,4 +10,4 @@ def get_context(context):
     context.no_footer = True
     redirect = frappe.local.form_dict.get("redirect", "/pos")
     context.redirect = redirect
-    context.title = "Login - Luuv Fryxo"
+    context.title = f"Login - {settings.get('brand_name')}"

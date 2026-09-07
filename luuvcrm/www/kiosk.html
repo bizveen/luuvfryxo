@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Order | {{ restaurant_name or "Luuv Fryxo" }}</title>
+  <title>Order | {{ restaurant_name or brand_name }}</title>
+  <script>const BRAND={{ brand_name | tojson }};</script>  <!-- the name for the strings JavaScript builds: WhatsApp text, printed footers -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -154,12 +155,13 @@
       .k-items { grid-template-columns:repeat(3,1fr); }
     }
   </style>
+{% include "templates/includes/brand.html" %}
 </head>
 <body>
 
 <div class="k-container">
   <div class="k-header">
-    <h1>Luuv Fryxo</h1>
+    <h1>{{ brand_name }}</h1>
     <div class="k-table">🪑 {{ selected_table or "Select Table" }}</div>
   </div>
 
@@ -391,7 +393,7 @@ function showSuccess(msg, table, items, rateMap) {
 
   // WhatsApp link
   const total = items.reduce((s,i) => s + (rateMap[i.item]||0)*i.qty, 0);
-  const msgText = `Order *${msg.name}* - Luuv Fryxo%0a%0a` +
+  const msgText = `Order *${msg.name}* - ${BRAND}%0a%0a` +
     items.map(i => {
       const nameEl = document.querySelector(`[data-code="${i.item}"] .i-name`);
       const name = nameEl ? nameEl.textContent : i.item;

@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>{{ restaurant_name or "Luuv Fryxo" }}</title>
+<title>{{ restaurant_name or brand_name }}</title>
+<script>const BRAND={{ brand_name | tojson }};</script>  <!-- the name for the strings JavaScript builds: WhatsApp text, printed footers -->
 <meta name="csrf-token" content="{{ csrf_token }}">
-<link rel="manifest" href="/cus_manifest.json">
+<link rel="manifest" href="/api/method/luuvcrm.api.manifest?app=cus">
 <meta name="theme-color" content="#F15207">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Luuv Fryxo">
+<meta name="apple-mobile-web-app-title" content="{{ brand_name }}">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="/assets/luuvcrm/app/icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
@@ -151,6 +152,7 @@ input,button{font-family:inherit;}
 
 .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);max-width:90%;text-align:center;}
 </style>
+{% include "templates/includes/brand.html" %}
 </head>
 <body>
 {% set emoji = {'Beverages':'🥤','Biryani & Naan Combos':'🍛','Cheese Kottu':'🧀','Coffee & Tea':'☕','Desserts':'🍨','European Dishes & Salads':'🥗','Fried Rice':'🍚','Grills':'🥩','Indian Cuisine':'🍛','Kottu':'🥘','North Asian':'🥟','Pizza':'🍕','Rice & Curry':'🍛','Seafood':'🦐','Sides & Accompaniments':'🧆','Signature Kottu':'⭐','Sizzler Platters':'🔥','Soups':'🥣','Sri Lankan Fusion':'🌴','Vegetarian':'🥦'} %}
@@ -160,7 +162,7 @@ input,button{font-family:inherit;}
   <div class="topbar">
     <span class="brand-badge">🍔</span>
     <div style="flex:1;min-width:0;">
-      <div class="disp" style="font-size:16px;line-height:1.15;" id="hdTitle">{{ restaurant_name or "Luuv Fryxo" }}</div>
+      <div class="disp" style="font-size:16px;line-height:1.15;" id="hdTitle">{{ restaurant_name or brand_name }}</div>
       <div style="font-size:12px;color:var(--text-muted);" id="hdSub">Order · track · earn cashback</div>
     </div>
     <button id="hdLogout" onclick="logout()" title="Sign out" style="display:none;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);align-items:center;justify-content:center;flex:none;cursor:pointer;"><i data-lucide="log-out" style="width:17px;height:17px;"></i></button>
@@ -495,7 +497,7 @@ async function renderRewards(){
   const body=document.getElementById('rewardsBody');
   if(!isAuthed()){ body.innerHTML=gateHtml('Sign in to see your rewards','Earn cashback when friends you refer order. Redeem anytime.'); icons(); return; }
   body.innerHTML='<div class="empty"><span class="spinner dark" style="width:30px;height:30px;"></span><div>Loading…</div></div>';
-  let r=await _call('luuvcrm.api.loyalty_get_info',{mobile:_mobile});
+  let r=await _call('luuvcrm.api.loyalty_get_info',{token: _token});
   _loy=r.message;
   if(!_loy||!_loy.success){
     // no loyalty account yet — show zero state with a generate-code action
@@ -505,7 +507,7 @@ async function renderRewards(){
   }
   const d=_loy;
   if(!d.referral_code){ // auto-generate once
-    const g=await _call('luuvcrm.api.loyalty_generate_code',{mobile:_mobile});
+    const g=await _call('luuvcrm.api.loyalty_generate_code',{token: _token});
     if(g.message&&g.message.referral_code){ d.referral_code=g.message.referral_code; }
   }
   const s=d.settings||{};
@@ -527,16 +529,16 @@ async function renderRewards(){
     '<div class="tiers"><div class="tier"><div class="v">'+(s.level_1_percent||5)+'%</div><div class="l">Direct (L1)</div></div><div class="tier"><div class="v">'+(s.level_2_percent||2)+'%</div><div class="l">Level 2</div></div><div class="tier"><div class="v">'+(s.level_3_percent||1)+'%</div><div class="l">Level 3</div></div></div>';
   icons();
 }
-async function genCode(){ const g=await _call('luuvcrm.api.loyalty_generate_code',{mobile:_mobile}); if(g.message&&g.message.referral_code){ toast('Referral code ready!'); renderRewards(); } else toast('Could not create code'); }
+async function genCode(){ const g=await _call('luuvcrm.api.loyalty_generate_code',{token: _token}); if(g.message&&g.message.referral_code){ toast('Referral code ready!'); renderRewards(); } else toast('Could not create code'); }
 function copyCode(code){ navigator.clipboard.writeText(code).then(()=>toast('Code copied: '+code)).catch(()=>{}); }
-function shareRef(code){ const link=window.location.origin+'/cus?ref='+code; const txt='Order from Luuv Fryxo with my code '+code+' 🍔'; if(navigator.share){ navigator.share({title:'Luuv Fryxo',text:txt,url:link}).catch(()=>{}); } else { navigator.clipboard.writeText(link).then(()=>toast('Referral link copied')).catch(()=>prompt('Copy this link:',link)); } }
+function shareRef(code){ const link=window.location.origin+'/cus?ref='+code; const txt='Order from '+BRAND+' with my code '+code+' 🍔'; if(navigator.share){ navigator.share({title:BRAND,text:txt,url:link}).catch(()=>{}); } else { navigator.clipboard.writeText(link).then(()=>toast('Referral link copied')).catch(()=>prompt('Copy this link:',link)); } }
 async function doRedeem(){
   const amt=parseFloat(document.getElementById('redAmt').value)||0;
   const eb=document.getElementById('redErr'), ok=document.getElementById('redOk');
   eb.style.display='none'; ok.style.display='none';
   if(amt<=0){ eb.textContent='Enter an amount'; eb.style.display='block'; return; }
   const btn=document.getElementById('redBtn'); btn.disabled=true; btn.textContent='…';
-  const r=await _post('luuvcrm.api.loyalty_redeem',{mobile:_mobile,amount:amt});
+  const r=await _post('luuvcrm.api.loyalty_redeem',{token: _token,amount:amt});
   btn.disabled=false; btn.textContent='Redeem';
   if(r.message&&r.message.success){ ok.textContent='✅ Redeemed! New balance Rs '+nf(r.message.new_balance); ok.style.display='block'; toast('Redeemed Rs '+nf(amt)); setTimeout(renderRewards,1200); }
   else { eb.textContent=(r.message&&r.message.error)||'Redeem failed'; eb.style.display='block'; }
@@ -658,7 +660,7 @@ async function saveSession(token,mobile,name){
   _token=token; _mobile=mobile; _name=name||'';
   localStorage.setItem('lf_token',_token); localStorage.setItem('lf_mobile',_mobile); localStorage.setItem('lf_name',_name);
   // attach pending referral now that we know the mobile
-  if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{mobile:_mobile,ref_code:_ref}); }catch(e){} localStorage.removeItem('lf_ref'); _ref=''; }
+  if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{token:_token,ref_code:_ref}); }catch(e){} localStorage.removeItem('lf_ref'); _ref=''; }
   // attach a scanned sticker QR promo code → free meal on the first order
   if(_promo){
     try{ const pr=await _post('luuvcrm.api.promo_register',{mobile:_mobile,code:_promo}); const pm=pr&&pr.message;

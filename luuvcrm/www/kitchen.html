@@ -4,13 +4,14 @@
 <meta name="theme-color" content="#111827">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Luuv Fryxo">
-<link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon.svg">
-<link rel="icon" href="/icon.svg">
+<meta name="apple-mobile-web-app-title" content="{{ brand_name }}">
+<link rel="manifest" href="/api/method/luuvcrm.api.manifest?app=kitchen">
+<link rel="apple-touch-icon" href="/assets/luuvcrm/app/icon-192.png">
+<link rel="icon" href="/assets/luuvcrm/app/icon-192.png">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kitchen | Luuv Fryxo</title>
+  <title>Kitchen | {{ brand_name }}</title>
+  <script>const BRAND={{ brand_name | tojson }};</script>  <!-- the name for the strings JavaScript builds: WhatsApp text, printed footers -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -124,9 +125,13 @@
 
     @media (max-width:900px) { .kanban { flex-direction:column; overflow-y:auto; } .kanban-col { max-width:none; min-width:0; } .kanban-col-body { max-height:300px; } .prep-kanban { flex-direction:column; overflow-y:auto; } .prep-col { max-width:none; min-width:0; } .prep-col-body { max-height:250px; } }
   </style>
+{% include "templates/includes/brand.html" %}
 </head>
 <body>
 <meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First scripts on the page so they are listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="kitchen"></script>
+<script src="/lfact.js?v=1" data-app="kitchen"></script>
 
 <div class="k-header">
   <div class="k-brand">🍳 Kitchen <span>Display</span></div>
@@ -157,6 +162,13 @@
 </div>
 
 <script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
 let knownOrders = new Set();
 let refreshTimer = 8;
@@ -210,7 +222,7 @@ function playNewOrderSound() {
 function notifyKitchen(title, body) {
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon: '/icon.svg' });
+    new Notification(title, { body, icon: '/assets/luuvcrm/app/icon-192.png' });
   } else if (Notification.permission === 'default') {
     Notification.requestPermission();
   }
@@ -458,7 +470,7 @@ function startRefresh() {
   }, 1000);
 }
 
-tick(); setInterval(tick, 10000);
+tick(); lfPoll(tick, 10000);
 loadOrders();
 startRefresh();
 
@@ -475,13 +487,13 @@ async function printKOT(orderName) {
     let ih = d.items.map(i => { var nt = i.notes ? '<div style="font-size:12px;font-weight:normal;font-style:italic;">↳ '+escHtml(i.notes)+'</div>' : ''; return '<tr><td style="padding:4px 0;font-size:14px;font-weight:bold;vertical-align:top;">'+i.qty+' x</td><td style="padding:4px 0;font-size:14px;">'+i.item_name+nt+'</td></tr>'; }).join('');
     var w = window.open('','_blank','width=300,height=500');
     w.document.write('<!DOCTYPE html><html><head><title>KOT - '+d.order_name+'</title><style>body{font-family:Courier New,monospace;font-size:13px;margin:0;padding:12px;color:#000;}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;}.hdr h1{margin:0;font-size:18px;letter-spacing:2px;}.hdr .kl{font-size:11px;color:#333;font-weight:bold;margin:4px 0 0;}.hdr h3{margin:4px 0 0;font-size:14px;}.meta{text-align:center;margin-bottom:10px;font-size:13px;}.meta p{margin:2px 0;}table{width:100%;border-collapse:collapse;}.items{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin:8px 0;}hr{border:none;border-top:1px dashed #ccc;margin:8px 0;}.bl{text-align:center;margin:6px 0;font-size:11px;letter-spacing:1px;}.ftr{text-align:center;margin-top:10px;font-size:10px;color:#888;}</style></head><body>');
-    w.document.write('<div class="hdr"><h1>LUUV FRYXO</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');
+    w.document.write('<div class="hdr"><h1>'+BRAND.toUpperCase()+'</h1><div class="kl">--- KITCHEN ORDER TICKET ---</div><h3>#'+d.order_name+'</h3></div>');
     w.document.write('<div class="meta"><p><strong>Table:</strong> '+(d.table||'---')+'</p><p><strong>Source:</strong> '+(d.order_source||'Walk-in')+'</p>');
     if(d.waiter_name) w.document.write('<p><strong>Waiter:</strong> '+d.waiter_name+'</p>');
     w.document.write('<p><strong>'+ds+' '+ts+'</strong></p></div>');
     w.document.write('<div class="items"><table>'+ih+'</table></div>');
     w.document.write('<hr><div class="bl">* '+d.order_name+' *</div>');
-    w.document.write('<div class="ftr"><p>Thank you &middot; Luuv Fryxo</p></div>');
+    w.document.write('<div class="ftr"><p>Thank you &middot; '+BRAND+'</p></div>');
     w.document.write('<script>window.onload=function(){window.print();window.close();}<'+'/script></body></html>');
     w.document.close();
     _logPrint(orderName, 'kot');
@@ -492,5 +504,6 @@ function _logPrint(orderName, type) {
   _post('/api/method/luuvcrm.api.log_print', { order_name: orderName, print_type: type }).catch(() => {});
 }
 </script>
+<script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(e){console.error("SW reg failed:",e)})}</script>
 </body>
 </html>

@@ -1,0 +1,132 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-04 18:40:08.233604",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "guide_name",
+  "whatsapp",
+  "role",
+  "cashback_percent",
+  "status",
+  "password_hash",
+  "cashback_balance",
+  "total_earned",
+  "total_paid",
+  "created_by_user",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "guide_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Guide Name"
+  },
+  {
+   "fieldname": "whatsapp",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "WhatsApp",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Guide",
+   "fieldname": "role",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Role",
+   "options": "Guide\nDriver\nHelper"
+  },
+  {
+   "default": "5",
+   "fieldname": "cashback_percent",
+   "fieldtype": "Percent",
+   "label": "Cashback %"
+  },
+  {
+   "default": "Invited",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Invited\nActive"
+  },
+  {
+   "fieldname": "password_hash",
+   "fieldtype": "Data",
+   "label": "Password Hash"
+  },
+  {
+   "default": "0",
+   "fieldname": "cashback_balance",
+   "fieldtype": "Currency",
+   "label": "Cashback Balance"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_earned",
+   "fieldtype": "Currency",
+   "label": "Total Earned"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_paid",
+   "fieldtype": "Currency",
+   "label": "Total Paid"
+  },
+  {
+   "fieldname": "created_by_user",
+   "fieldtype": "Link",
+   "label": "Created By",
+   "options": "User"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-05 17:53:31.788046",
+ "modified_by": "Administrator",
+ "module": "Zeloura",
+ "name": "Tour Guide",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Cashier",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

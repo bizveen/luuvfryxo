@@ -1,9 +1,13 @@
 import frappe
 
+from luuvcrm import roles
+
 no_cache = 1
 
 
 def get_context(context):
+    """Purchasing (/purchases). Manager-only: it shows what the restaurant pays
+    its vendors, and it is where a bill is approved into the price book."""
     context.no_sidebar = True
     context.no_header = True
     context.no_footer = True
@@ -11,6 +15,8 @@ def get_context(context):
     if frappe.session.user == "Guest":
         frappe.local.flags.redirect_location = "/pos-login?redirect=/purchases"
         raise frappe.Redirect
+
+    roles.require_manager()
 
     context.csrf_token = frappe.sessions.get_csrf_token()
     user = frappe.session.user
