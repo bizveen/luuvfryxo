@@ -90,6 +90,43 @@ class TestCancellingAnOrder(FloorTestCase):
         with self.assertRaises(frappe.ValidationError):
             self.call(api.cancel_order)
 
+    def test_a_manager_approved_void_cancels_the_order(self):
+        """The other way a bill dies: the cashier cannot cancel it themselves, so
+        they raise a void and a manager approves it — and the approval's own
+        action is what cancels the order. Brought over from `main`'s suite, which
+        is the only place this path was covered.
+        """
+        from luuvcrm import roles
+
+        order = self.order()
+        approval = self.call(api.create_approval, approval_type="void", action="void",
+                             pos_order=order.name, title="Void table 2",
+                             action_payload="{}")
+        self.addCleanup(lambda: frappe.db.exists("POS Approval", approval["name"]) and
+                        frappe.delete_doc("POS Approval", approval["name"], force=True,
+                                          ignore_permissions=True))
+
+        # A different person has to answer it — block_self_approval() is the rule
+        # and it is tested in test_approvals; here it just has to be satisfied.
+        email = "lf-test-void-manager@example.com"
+        if not frappe.db.exists("User", email):
+            frappe.get_doc({"doctype": "User", "email": email, "first_name": "Void Test",
+                            "send_welcome_email": 0,
+                            "roles": [{"role": roles.RESTAURANT_MANAGER}]}
+                           ).insert(ignore_permissions=True)
+        previous = frappe.session.user
+        frappe.set_user(email)
+        try:
+            self.call(api.resolve_approval, name=approval["name"], decision="approved")
+        finally:
+            frappe.set_user(previous)
+
+        order.reload()
+        self.assertEqual(order.docstatus, 2)
+        self.assertEqual(order.kitchen_status, "Cancelled")
+        self.assertEqual(frappe.db.get_value("POS Approval", approval["name"], "status"),
+                         "approved")
+
     def test_the_cancellation_is_written_into_the_history(self):
         """The manager's activity trail reads this back — a bill that vanished
         with no record is the thing the trail exists to prevent."""
