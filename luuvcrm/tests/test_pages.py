@@ -465,6 +465,118 @@ class TestEveryStaffPageReportsItsErrors(PageTestCase):
         frappe.is_whitelisted(frappe.get_attr("luuvcrm.api.log_client_error"))
 
 
+class TestTheServiceWorkers(PageTestCase):
+    """`sw.js` is the offline half of the three staff screens, and every part of
+    it was broken in a way that only shows up when the wifi drops — which is the
+    only moment it exists for. Online, a service worker that does nothing looks
+    exactly like one that works.
+    """
+
+    SW = ("sw.js", "cus_sw.js", "manager_sw.js", "purchases_sw.js")
+
+    def sw(self, name):
+        """The worker's code, without its comments — the comments name the very
+        strings these tests refuse, because that is where the reason lives."""
+        body = frappe.read_file(frappe.get_app_path("luuvcrm", "www", name))
+        return "\n".join(line.split("//")[0] for line in body.splitlines())
+
+    def test_nothing_is_precached_that_would_404(self):
+        """`addAll()` is atomic. sw.js listed '/icon.svg' and '/manifest.json'
+        alongside the three screens and neither exists, so the call rejected,
+        the .catch() around it swallowed the rejection, and the till precached
+        nothing at all."""
+        body = self.sw("sw.js")
+        for dead in ("'/icon.svg'", "'/manifest.json'"):
+            self.assertNotIn(dead, body, f"{dead} is a 404 and takes the shell with it")
+
+    def test_one_bad_url_cannot_empty_the_shell(self):
+        self.assertNotIn("addAll(", self.sw("sw.js"),
+                         "precache one url at a time so a failure is one screen, not all of them")
+
+    def test_the_shell_is_the_screens_that_exist(self):
+        body = self.sw("sw.js")
+        for route in ("/pos", "/waiter", "/kitchen"):
+            self.assertIn(f"'{route}'", body)
+        self.assertNotIn("'/pos2'", body)
+        self.assertNotIn("'/pos3'", body)
+
+    def test_the_read_cache_reads_the_path_off_the_url_not_the_request(self):
+        """`isApiGet(e.request)` did `url.pathname` on a Request, which has no
+        such property. The TypeError killed the fetch listener before
+        respondWith(), so the request quietly went to the network — perfect
+        online, and offline the menu and the table map were simply gone."""
+        body = self.sw("sw.js")
+        self.assertIn("isApiGet(e.request, url)", body)
+        self.assertIn("function isApiGet(request, url)", body)
+
+    def test_no_worker_invents_a_success_for_a_write_that_failed(self):
+        """sw.js answered a failed POST with a fabricated 201 and the words
+        "Queued for sync". Nothing was a queue: the cache it wrote was never
+        read, no page registered the 'sync-orders' tag, and nothing listened for
+        the TRIGGER_SYNC message. A payment that never reached the server was
+        reported to the counter as taken."""
+        for name in self.SW:
+            with self.subTest(worker=name):
+                body = self.sw(name)
+                self.assertNotIn("Queued for sync", body)
+                self.assertNotIn("status: 201", body)
+                self.assertNotIn("sync-orders", body)
+
+    def test_every_screen_that_is_in_the_shell_actually_installs_the_worker(self):
+        """Only /waiter registered it, so /pos and /kitchen precached their own
+        shell exclusively on a device where somebody had opened the floor app
+        first."""
+        for page in ("pos", "waiter", "kitchen"):
+            with self.subTest(page=page):
+                html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", f"{page}.html"))
+                self.assertIn('navigator.serviceWorker.register("/sw.js"', html)
+
+
+class TestEveryPwaHasAManifestThatResolves(PageTestCase):
+    """A `<link rel="manifest">` pointing at a 404 is not an error anywhere — the
+    browser just declines to offer "Add to Home screen", and the tablet keeps
+    working in a tab."""
+
+    #: page -> the app key its manifest link must ask for
+    LINKS = {"pos": "pos", "waiter": "waiter", "kitchen": "kitchen",
+             "manager": "manager", "purchases": "purchases", "cus": "cus"}
+
+    def test_no_page_points_at_the_static_manifest_that_was_deleted(self):
+        """/manifest.json never came back after the three static files were
+        replaced by an endpoint; kitchen.html and waiter.html still asked for
+        it."""
+        import pathlib
+
+        pages = pathlib.Path(frappe.get_app_path("luuvcrm", "www"))
+        for page in sorted(pages.glob("*.html")):
+            with self.subTest(page=page.name):
+                self.assertNotIn('href="/manifest.json"', page.read_text())
+
+    def test_each_pwa_asks_the_endpoint_for_its_own_manifest(self):
+        for page, app in self.LINKS.items():
+            if page == "pos":
+                continue  # the till installs from /pos; asserted below with its own app key
+            with self.subTest(page=page):
+                html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", f"{page}.html"))
+                self.assertIn(f"luuvcrm.api.manifest?app={app}", html)
+
+    def test_the_endpoint_knows_every_app_a_page_asks_for(self):
+        """A page asking for an app key the endpoint has never heard of gets the
+        customer app's manifest back — the wrong name, the wrong start url, and
+        no error."""
+        import re
+
+        from luuvcrm.api import brand
+
+        pages = frappe.get_app_path("luuvcrm", "www")
+        import pathlib
+        asked = set()
+        for page in pathlib.Path(pages).glob("*.html"):
+            asked |= set(re.findall(r"luuvcrm\.api\.manifest\?app=(\w+)", page.read_text()))
+        unknown = sorted(asked - set(brand.APPS))
+        self.assertEqual(unknown, [], f"manifest asked for app keys that do not exist: {unknown}")
+
+
 class TestPollingStopsWhenNobodyIsLooking(PageTestCase):
     """P6. Nine screens polled on a fixed timer whatever the tab was doing — a
     phone in a pocket and a tablet on a locked screen were both still asking the

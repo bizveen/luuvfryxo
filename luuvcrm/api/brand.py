@@ -28,6 +28,18 @@ APPS = {
         "suffix": "Purchases", "short": "Purchases", "scope": "/purchases",
         "about": "Enter vendor bills and see what is still owed.",
     },
+    "pos": {
+        "suffix": "POS", "short": "POS", "scope": "/pos",
+        "about": "Take orders and payments at the counter.",
+    },
+    "waiter": {
+        "suffix": "Waiter", "short": "Waiter", "scope": "/waiter",
+        "about": "Take and amend orders from the floor.",
+    },
+    "kitchen": {
+        "suffix": "Kitchen", "short": "Kitchen", "scope": "/kitchen",
+        "about": "Watch the order queue and move food through the pass.",
+    },
     "cus": {
         "suffix": "", "short": "Order", "scope": "/cus",
         "about": "Order, track your orders and collect rewards.",

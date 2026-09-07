@@ -5,7 +5,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="{{ brand_name }}">
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="/api/method/luuvcrm.api.manifest?app=kitchen">
 <link rel="apple-touch-icon" href="/assets/luuvcrm/app/icon-192.png">
 <link rel="icon" href="/assets/luuvcrm/app/icon-192.png">
   <meta charset="UTF-8">
@@ -504,5 +504,6 @@ function _logPrint(orderName, type) {
   _post('/api/method/luuvcrm.api.log_print', { order_name: orderName, print_type: type }).catch(() => {});
 }
 </script>
+<script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(e){console.error("SW reg failed:",e)})}</script>
 </body>
 </html>
