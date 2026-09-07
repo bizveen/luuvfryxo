@@ -1,37 +1,21 @@
-"""/owner — every branch side by side, and the setup behind them.
+"""/owner — folded into /admin, kept as a redirect.
 
-Owner-only. Phase 2c built the multi-restaurant machinery and left it reachable
-only from a Python console; `roles.require_owner()` existed and nothing called
-it. This is the screen that gives the role something to do.
+Every branch comparison, the branch setup and the menu editor live in the
+portal at /admin now: one page, one login, a section down the side instead of a
+second screen to remember. This route stays because it is bookmarked — the same
+reason /pos2 stayed for a release after the POS pages collapsed.
 
-A manager is deliberately refused here even though they can read their own
-branch's numbers on /manager: this page is about *comparing* branches and
-changing which one a till and a person belong to, and that is the owner's call.
+The guest case is deliberately not handled here: /admin does its own gate, so a
+bookmark opened on a signed-out phone ends at /pos-login and comes back to
+/admin, not to the old address.
 """
 
 import frappe
-
-from luuvcrm import branch, roles, settings
 
 no_cache = 1
 no_sitemap = 1
 
 
 def get_context(context):
-    if frappe.session.user == "Guest":
-        frappe.local.flags.redirect_location = "/pos-login?redirect=/owner"
-        raise frappe.Redirect
-
-    roles.require_owner()
-
-    context.no_sidebar = True
-    context.no_header = True
-    context.no_footer = True
-    context.csrf_token = frappe.sessions.get_csrf_token()
-
-    user = frappe.session.user
-    context.current_user = user
-    context.current_user_full = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()
-    context.brand_name = settings.get("brand_name")
-    context.branch_count = len(branch.all_restaurants())
-    return context
+    frappe.local.flags.redirect_location = "/admin#branches"
+    raise frappe.Redirect

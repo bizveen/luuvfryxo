@@ -65,7 +65,8 @@ the table map. `test_pages.py` asserts the staff gates.
 | `/qrcodes` | Manager — printable kiosk QR labels | login + `roles.require_manager()` |
 | `/manager`, `/activity` | Manager — takings, the staff trail | login + manager roles |
 | `/errors` | Front-end error log | login + System Manager |
-| `/admin` | The index of every sub-app | login + roles |
+| `/admin` | **The back-office portal** — overview, reports, restaurants, staff, menu, items, and the index of every sub-app. Sections are hash-routed (`/admin#staff`), so one is linkable and survives a reload | login + Manager roles. Restaurants and Staff are owner-only: the page hides them and every endpoint behind them calls `require_owner()` |
+| `/owner` | 301 to `/admin#branches` — the screen is a section of the portal now. Kept because it is bookmarked | — |
 | `/guide` | Tour guides | guest page, token auth (`guide_login`) |
 | `/cus` | Customers | guest page, phone + PIN token |
 | `/customer`, `/myorders`, `/my_orders` | — | 301 → `/cus`, kept for links already sent |

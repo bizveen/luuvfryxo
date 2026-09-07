@@ -263,8 +263,10 @@ class TestTheStaffPagesAreGated(PageTestCase):
         "activity":  (roles.RESTAURANT_MANAGER, roles.CASHIER),
         "errors":    (roles.RESTAURANT_MANAGER, roles.CASHIER),
         "admin":     (roles.RESTAURANT_MANAGER, roles.CASHIER),
-        "owner":     (roles.RESTAURANT_OWNER, roles.RESTAURANT_MANAGER),
     }
+    # `/owner` is not here any more: it is a redirect into /admin#branches, and
+    # TestTheAdminPortal is what checks it. The owner-only *sections* inside the
+    # portal are gated by their endpoints, not by a page.
 
     def page(self, name):
         return importlib.import_module(f"luuvcrm.www.{name}")
@@ -302,18 +304,12 @@ class TestTheStaffPagesAreGated(PageTestCase):
                 with self.assertRaises(frappe.PermissionError):
                     self.context(self.page(name))
 
-    def test_a_manager_gets_into_everything_except_the_owners_screen(self):
+    def test_a_manager_gets_into_everything(self):
         """The role sets are cumulative on purpose — a manager covering the
-        floor must not be locked out of the floor. `/owner` is the one
-        deliberate exception: it compares branches and moves tills between
-        them, which is the owner's call, not a branch manager's."""
+        floor must not be locked out of the floor."""
         self.as_user(_as(roles.RESTAURANT_MANAGER))
         for name in self.GATES:
             with self.subTest(page=name):
-                if name == "owner":
-                    with self.assertRaises(frappe.PermissionError):
-                        self.context(self.page(name))
-                    continue
                 self.context(self.page(name))
 
     def test_qrcodes_is_the_table_map_and_is_no_longer_public(self):
@@ -513,6 +509,85 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
                       "the landing page shows the menu; erpnext's does not")
 
 
+class TestTheAdminPortal(PageTestCase):
+    """/admin was a launcher — tiles that opened seven other screens — and
+    everything an owner actually had to *change* was either on /owner or in the
+    Frappe Desk, which is a developer's tool wearing a business app's name.
+
+    It is one portal now, and /owner is folded into it. The sections are the
+    nouns a restaurant owner uses (branches, staff, menu, items, reports), not
+    the doctypes underneath them.
+    """
+
+    def page(self):
+        return frappe.read_file(frappe.get_app_path("luuvcrm", "www", "admin.html"))
+
+    def context_for(self, role):
+        self.as_user(_as(role))
+        ctx = frappe._dict()
+        importlib.import_module("luuvcrm.www.admin").get_context(ctx)
+        return ctx
+
+    def test_every_section_the_owner_needs_is_on_the_page(self):
+        html = self.page()
+        for panel in ("p-overview", "p-reports", "p-branches", "p-staff",
+                      "p-items", "p-menu", "p-apps"):
+            with self.subTest(panel=panel):
+                self.assertIn(panel, html)
+
+    def test_the_page_knows_whether_it_is_an_owner_looking(self):
+        """The two sections that change the shape of the business are the
+        owner's. Hiding them is a courtesy — the endpoints refuse them anyway —
+        but a control that will be refused should not be on the screen."""
+        self.assertTrue(self.context_for(roles.RESTAURANT_OWNER).is_owner)
+
+    def test_a_manager_is_told_they_are_not_the_owner(self):
+        self.assertFalse(self.context_for(roles.RESTAURANT_MANAGER).is_owner)
+
+    def test_the_owner_only_sections_are_marked_as_such(self):
+        """`data-owner` is what the page removes for a manager. If the marker
+        moves, a manager gets a Staff section whose every button 403s."""
+        html = self.page()
+        for section in ("branches", "staff"):
+            with self.subTest(section=section):
+                self.assertRegex(html, r'data-panel="%s"[^>]*data-owner="1"' % section)
+
+    def test_owner_is_now_a_redirect_into_the_portal(self):
+        """It stays because it is bookmarked — the same reason /pos2 stayed for
+        a release after the POS pages collapsed."""
+        self.as_user(_as(roles.RESTAURANT_OWNER))
+        with self.assertRaises(frappe.Redirect):
+            self.context(importlib.import_module("luuvcrm.www.owner"))
+        self.assertEqual(frappe.local.flags.redirect_location, "/admin#branches")
+
+    def test_the_old_owner_page_carries_no_logic_of_its_own(self):
+        """Two screens that both know how to edit a branch is how they drift."""
+        owner = importlib.import_module("luuvcrm.www.owner")
+        self.assertFalse(hasattr(owner, "roles"),
+                         "the redirect should not be gating or rendering anything")
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "owner.html"))
+        self.assertLess(len(html), 500, "owner.html should be a stub")
+        self.assertIn("/admin#branches", html)
+
+    def test_the_apk_link_points_at_the_file_that_exists(self):
+        """The old banner offered /files/app-release.apk. The APK is served from
+        the app's own assets, and a download button that 404s is worse than no
+        button — nobody reports it, they just decide the app is broken."""
+        import pathlib
+
+        html = self.page()
+        self.assertNotIn("/files/app-release.apk", html)
+        self.assertIn("/assets/luuvcrm/luuvcrm-print.apk", html)
+        apk = pathlib.Path(frappe.get_app_path("luuvcrm", "public", "luuvcrm-print.apk"))
+        self.assertTrue(apk.exists(), "the file the button offers must be in public/")
+
+    def test_the_portal_does_not_pull_a_library_from_the_internet(self):
+        """The launcher loaded lucide from unpkg on every open. A till on a
+        restaurant's wifi should not need a CDN to draw its own icons, and a
+        page that waits for one is a page that hangs when the line is bad."""
+        self.assertNotIn("unpkg.com", self.page())
+
+
 class TestEveryStaffPageReportsItsErrors(PageTestCase):
     """`lferr.js` is what turns "the app is being weird" into a row somebody can
     read. It was on six pages and missing from the two the floor and the kitchen
@@ -670,7 +745,9 @@ class TestPollingStopsWhenNobodyIsLooking(PageTestCase):
     #: page → the shortest interval it polls on, in ms
     POLLERS = {"admin.html": 60000, "errors.html": 30000, "activity.html": 30000,
                "kitchen.html": 10000, "waiter.html": 10000, "purchases.html": 20000,
-               "manager.html": 8000, "pos.html": 8000, "owner.html": 60000}
+               "manager.html": 8000, "pos.html": 8000}
+    # owner.html is off this list because it is a five-line redirect stub now:
+    # its polling went into /admin with the rest of the screen.
 
     def source(self, name):
         return frappe.read_file(frappe.get_app_path("luuvcrm", "www", name))

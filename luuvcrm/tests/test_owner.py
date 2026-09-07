@@ -97,21 +97,21 @@ class TestOnlyTheOwnerGetsIn(OwnerTestCase):
                 with self.assertRaises(frappe.PermissionError):
                     call()
 
-    def test_the_page_turns_a_manager_away(self):
+    def test_the_page_is_now_a_redirect_into_the_portal(self):
+        """The screen is a section of /admin now — one page, one login. The
+        route stays because it is bookmarked, and it carries no gate of its own:
+        /admin does that, so a bookmark opened on a signed-out phone ends at
+        /pos-login and comes back to /admin rather than to the old address.
+        The endpoints above are what actually keep a manager out."""
         import importlib
-        page = importlib.import_module("luuvcrm.www.owner")
-        self.as_user(self.manager)
-        with self.assertRaises(frappe.PermissionError):
-            page.get_context(frappe._dict())
 
-    def test_a_guest_is_sent_to_the_login(self):
-        import importlib
         page = importlib.import_module("luuvcrm.www.owner")
-        self.as_user("Guest")
-        with self.assertRaises(frappe.Redirect):
-            page.get_context(frappe._dict())
-        self.assertEqual(frappe.local.flags.redirect_location,
-                         "/pos-login?redirect=/owner")
+        for who in (self.manager, "Guest"):
+            with self.subTest(user=who):
+                self.as_user(who)
+                with self.assertRaises(frappe.Redirect):
+                    page.get_context(frappe._dict())
+                self.assertEqual(frappe.local.flags.redirect_location, "/admin#branches")
 
 
 class TestTheComparison(OwnerTestCase):

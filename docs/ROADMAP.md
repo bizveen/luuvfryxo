@@ -77,9 +77,9 @@ Every page and its current gate:
 | `/qrpromo` | login + Manager roles | ✅ correct |
 | `/guide` | guest, token auth | ✅ correct — no session gate, and a test asserts there is none |
 | `/manager`, `/activity`, `/errors` | login + Manager roles | ✅ correct — `/activity` was a 500 and `/errors` was System-Manager-only until the gate tests were written |
-| `/admin` | login + Manager roles | ✅ correct — it said System Manager, which the owner must not hold |
+| `/admin` | login + Manager roles | ✅ correct — **the portal**: overview, reports, restaurants, staff, menu, items, apps. Owner-only sections are hidden from a manager and refused by their endpoints |
 | `/qrcodes` | login + Manager roles | ✅ correct — it was public, and it lists every table's kiosk URL |
-| `/owner` | login + Owner roles | ✅ correct — branch comparison and branch setup |
+| `/owner` | — | ✅ 301 to `/admin#branches`; kept because it is bookmarked |
 | `/cus` | guest, token auth | ✅ correct |
 | `/customer`, `/myorders`, `/my_orders` | public | ✅ correct — 301 aliases to `/cus`, kept for links already sent |
 | `/kiosk`, `/track`, `/menu`, `/claim`, `/pos-login` | public | ✅ correct |
@@ -326,6 +326,17 @@ The pivotal work. Nothing after this is possible without it.
 
   The templates are `order-online.html` and `restaurant-home.html` now — names nothing else claims — and `website_route_rules` keeps the public URLs exactly as they were, so every link already printed on a sticker or sent in a message still works. The root is fixed by the `home_page` hook, which `get_home_page()` reads *before* Website Settings, so it corrects a running site as well as a fresh one without anybody editing site data.
   **A route table records what an app declares; this is decided by what the site resolves**, which is why the guide had all three marked correct. The test asks the resolver instead, with a real request environ — `website_route_rules` are matched by werkzeug against `request.environ`, so a test without one silently measures the wrong thing. 4 tests in `test_pages.py`.
+
+- [x] **`/admin` is a portal, and `/owner` is folded into it.** `/admin` was a launcher — tiles that opened seven other screens — and everything the owner actually had to *change* was either on `/owner` or in the Frappe Desk, which is a developer's tool wearing a business app's name. One page now, with sections down the side named for the nouns a restaurant owner uses rather than the doctypes underneath them:
+  - **Overview** — today's takings and the branch-by-branch comparison that `/owner` carried.
+  - **Reports** — where each number is kept; the Manager app stays the place to read them, because that is where a manager already is at closing time.
+  - **Restaurants** *(owner)* — the branch setup: cost centre, warehouse, which till belongs where, which manager sees only one branch.
+  - **Staff** *(owner)* — hire, roles, branch, switch an account off, and a one-time **invite link** so nobody's password is ever typed by somebody else. **System Manager is not offered**: it bypasses every guard in `roles.py`, so a screen that could grant it would make every other rule in this app advisory.
+  - **Menu** — the editor built above, per branch.
+  - **Items** — the item master: what the restaurant sells *or buys*, on a menu or not. Retiring, never deleting, because every invoice line links to an Item by name.
+  - **Apps** — the launcher that used to be the whole page.
+
+  `/owner` is a five-line redirect, kept because it is bookmarked (the same reason `/pos2` stayed for a release). Two things fell out of the rewrite: the APK button offered `/files/app-release.apk`, which is not where the file is — a download button that 404s is worse than none, because nobody reports it — and the page pulled the Lucide icon library from unpkg on every open, so a till on a bad restaurant line waited on a CDN to draw its own icons. 9 tests in `test_pages.py`; the endpoints behind the two new sections have 40 of their own in `test_staff.py` and `test_items.py`.
 
 ---
 

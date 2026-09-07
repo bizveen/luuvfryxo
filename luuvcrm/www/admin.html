@@ -1,178 +1,1146 @@
 <!DOCTYPE html>
+<!--
+  /admin — the whole back office, in one place.
+
+  This was a launcher: tiles that opened seven other screens. Everything an
+  owner actually had to *change* — a branch, a person, a price, an item — was
+  either on /owner or in the Frappe Desk, which is a developer's tool wearing a
+  business app's name.
+
+  So this is a portal now, and /owner is folded into it: sections down the side,
+  one pane, one login. The sections are the nouns a restaurant owner uses —
+  branches, staff, menu, items, reports — not the doctypes underneath them.
+
+  Sections that change the shape of the business (branches, staff) are the
+  owner's and are hidden from a manager; the endpoints refuse them anyway, and a
+  control that will be refused should not be on the screen.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Admin · {{ brand_name }}</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
-<!-- First script on the page so it is listening before anything below can throw. See /errors. -->
+<!-- First scripts on the page so they are listening before anything below can throw. See /errors. -->
 <script src="/lferr.js?v=1" data-app="admin"></script>
+<script src="/lfact.js?v=1" data-app="admin"></script>
 <meta name="theme-color" content="#F15207">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
-<script src="https://unpkg.com/lucide@latest"></script>
 <style>
 :root{
   --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-300:#FF9E68;
   --orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;
   --gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
-  --gray-500:#837A70;--gray-700:#423D38;--gray-900:#1A1714;--ink:#141210;
-  --green-500:#1E9E5A;--red-500:#E23D3D;--blue-500:#2D74D6;
+  --gray-500:#837A70;--gray-600:#5E564E;--gray-700:#423D38;--gray-900:#1A1714;
+  --green-500:#1E9E5A;--amber-500:#F0A323;--red-500:#E23D3D;--blue-500:#2D74D6;
   --color-primary:var(--orange-500);--text-strong:var(--gray-900);--text-body:var(--gray-700);
   --text-muted:var(--gray-500);--text-faint:var(--gray-400);
-  --surface-card:#fff;--surface-sunken:var(--gray-50);--surface-brand:var(--orange-500);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);
   --border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --color-success:var(--green-500);--color-success-subtle:#E6F5EC;
+  --color-warning:var(--amber-500);--color-warning-subtle:#FDF1DC;
   --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;
-  --font-display:'Poppins',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;--font-mono:'DM Mono',ui-monospace,monospace;
+  --font-display:'Poppins',system-ui,-apple-system,sans-serif;
+  --font-body:'DM Sans',system-ui,-apple-system,sans-serif;
+  --font-mono:'DM Mono',ui-monospace,Menlo,monospace;
   --radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-pill:999px;
   --shadow-xs:0 1px 2px rgba(20,18,16,.06);
   --shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
   --shadow-lg:0 12px 28px rgba(20,18,16,.12),0 4px 8px rgba(20,18,16,.06);
-  --shadow-brand:0 8px 22px rgba(241,82,7,.30);
+  --sidebar:236px;
 }
-*,*::before,*::after{box-sizing:border-box;}
-body{margin:0;font-family:var(--font-body);color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased;}
-.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
-.wrap{max-width:1060px;margin:0 auto;padding:0 22px 110px;}
-header{display:flex;align-items:center;gap:14px;padding:22px 0 18px;}
-.avatar{width:44px;height:44px;border-radius:50%;background:var(--orange-100);color:var(--orange-700);font-family:var(--font-display);font-weight:800;font-size:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 3px var(--orange-50);}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:26px;}
-.stat{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow-xs);}
-.stat .l{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);}
-.stat .v{font-family:var(--font-mono);font-size:26px;color:var(--text-strong);margin-top:4px;}
-.grp{font-family:var(--font-display);font-weight:800;font-size:15px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin:26px 0 12px;}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}
-.appc{display:flex;align-items:flex-start;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);text-decoration:none;color:inherit;transition:box-shadow .15s,transform .15s,border-color .15s;}
-.appc:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);border-color:var(--orange-200);}
-.appc .ic{width:46px;height:46px;border-radius:13px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:24px;flex:none;}
-.appc .nm{font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);line-height:1.2;}
-.appc .ds{font-size:12.5px;color:var(--text-muted);margin-top:3px;line-height:1.4;}
-.badge{display:none;min-width:20px;height:20px;border-radius:10px;background:var(--color-danger);color:#fff;font-size:11.5px;font-weight:800;align-items:center;justify-content:center;padding:0 6px;margin-left:auto;flex:none;}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font-family:var(--font-body);font-size:15px;line-height:1.6;
+     color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ── shell ───────────────────────────────────────────────────────────── */
+.shell{display:grid;grid-template-columns:var(--sidebar) minmax(0,1fr);min-height:100vh}
+.side{background:var(--surface-card);border-right:1px solid var(--border-subtle);
+      display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brandrow{display:flex;align-items:center;gap:11px;padding:18px 16px 14px}
+.avatar{width:38px;height:38px;border-radius:11px;background:var(--orange-100);color:var(--orange-700);
+        font-family:var(--font-display);font-weight:800;font-size:15px;display:flex;
+        align-items:center;justify-content:center;flex:none}
+.brandrow .nm{font-family:var(--font-display);font-weight:800;font-size:15px;
+              color:var(--text-strong);line-height:1.2;min-width:0;
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brandrow .who{font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono);
+               overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+nav{padding:6px 10px 10px;display:grid;gap:2px}
+nav .sec{font-family:var(--font-mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+         color:var(--text-faint);padding:14px 10px 6px}
+nav a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:var(--radius-md);
+      text-decoration:none;color:var(--text-body);font-size:14.5px;font-weight:500}
+nav a:hover{background:var(--gray-100)}
+nav a[aria-current="page"]{background:var(--orange-50);color:var(--orange-700);font-weight:700}
+nav a .ic{width:20px;text-align:center;flex:none;font-size:15px}
+nav a .cnt{margin-inline-start:auto;font-family:var(--font-mono);font-size:11px;
+           color:var(--text-faint)}
+nav a .dot{margin-inline-start:auto;min-width:19px;height:19px;border-radius:10px;
+           background:var(--color-danger);color:#fff;font-size:11px;font-weight:700;
+           display:none;align-items:center;justify-content:center;padding:0 5px}
+.side .foot{margin-top:auto;padding:12px;border-top:1px solid var(--border-subtle);
+            display:flex;gap:8px;align-items:center}
+.side .foot a{font-size:12.5px;color:var(--text-muted);text-decoration:none}
+.side .foot a:hover{color:var(--color-primary)}
+
+main{padding:22px 26px 90px;max-width:1120px}
+.phead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.phead h1{font-family:var(--font-display);font-weight:800;font-size:22px;
+          color:var(--text-strong);margin:0;line-height:1.25}
+.phead .sub{font-size:13.5px;color:var(--text-muted)}
+.phead .spacer{flex:1}
+.panel{display:none}
+.panel.on{display:block}
+
+/* ── shared bits ─────────────────────────────────────────────────────── */
+.card{background:var(--surface-card);border:1px solid var(--border-subtle);
+      border-radius:var(--radius-lg);box-shadow:var(--shadow-xs);overflow:hidden}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0 22px}
+.stat{background:var(--surface-card);border:1px solid var(--border-subtle);
+      border-radius:var(--radius-lg);padding:13px 15px;box-shadow:var(--shadow-xs);
+      text-decoration:none;color:inherit;display:block}
+.stat .l{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)}
+.stat .v{font-family:var(--font-mono);font-size:24px;color:var(--text-strong);margin-top:3px}
+h2{font-family:var(--font-display);font-size:14.5px;font-weight:700;color:var(--text-strong);
+   margin:24px 0 10px;display:flex;align-items:center;gap:9px}
+h2 .cnt{font-family:var(--font-mono);font-size:11.5px;font-weight:500;color:var(--text-faint)}
+label{display:block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--text-faint);margin-bottom:4px}
+select,input[type=text],input[type=email],textarea{width:100%;padding:9px 11px;font-family:inherit;
+       font-size:14px;color:var(--text-strong);background:#fff;border:1.5px solid var(--border-default);
+       border-radius:var(--radius-md);outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--orange-500);box-shadow:0 0 0 3px var(--orange-50)}
+textarea{resize:vertical;min-height:62px}
+button{font-family:var(--font-display);font-weight:700;font-size:13.5px;cursor:pointer;
+       border-radius:var(--radius-pill);padding:9px 17px;border:1.5px solid transparent;
+       background:var(--color-primary);color:#fff}
+button:hover{background:var(--orange-600)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.ghost{background:#fff;color:var(--text-body);border-color:var(--border-default)}
+button.ghost:hover{background:var(--gray-100)}
+button.danger{background:#fff;color:var(--red-500);border-color:var(--color-danger-subtle)}
+button.danger:hover{background:var(--color-danger-subtle)}
+button.sm{padding:5px 12px;font-size:12.5px}
+button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{
+  outline:2px solid var(--orange-500);outline-offset:2px}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.row > div{flex:1;min-width:160px}
+.bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+.bar > div{flex:0 1 auto;min-width:150px}
+.bar .grow{flex:1 1 220px}
+.empty{padding:26px 18px;text-align:center;color:var(--text-faint);font-size:14px}
+.hint{font-size:12.5px;color:var(--text-muted);margin:6px 0 0;max-width:70ch}
+.err{font-size:13px;color:var(--red-500);display:none;margin:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{padding:11px 15px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--gray-100)}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+thead th{font-family:var(--font-display);font-size:12.5px;font-weight:700;color:var(--text-strong);
+         background:var(--surface-sunken);border-bottom:1.5px solid var(--border-subtle)}
+tbody tr:last-child td{border-bottom:none}
+td.n{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--text-strong)}
+td.na{color:var(--text-faint);font-size:13px}
+tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-strong)}
+.chip{font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);background:var(--gray-100);
+      border-radius:var(--radius-pill);padding:1px 8px;white-space:nowrap;display:inline-block}
+.chip.kg{background:var(--orange-50);color:var(--orange-700)}
+.chip.sold,.chip.off{background:var(--color-danger-subtle);color:var(--red-500)}
+.chip.ok{background:var(--color-success-subtle);color:#10603A}
+.probs{background:var(--color-warning-subtle);border:1px solid #F2DCB0;border-radius:var(--radius-lg);
+       padding:14px 18px;margin-top:14px}
+.probs .hd{font-family:var(--font-display);font-weight:700;font-size:13.5px;color:var(--gray-900);margin-bottom:7px}
+.probs ul{margin:0;padding-inline-start:18px;display:grid;gap:5px}
+.probs li{font-size:13.5px;color:var(--gray-700)}
+.okbox{background:var(--color-success-subtle);border:1px solid #BFE3CD;border-radius:var(--radius-lg);
+       padding:12px 18px;margin-top:14px;font-size:13.5px;color:#10603A}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--gray-900);
+       color:#fff;font-size:14px;padding:11px 20px;border-radius:var(--radius-pill);
+       box-shadow:0 8px 22px rgba(0,0,0,.25);z-index:200;max-width:90vw}
+
+/* ── list rows (menu, items, staff) ──────────────────────────────────── */
+.li{display:grid;grid-template-columns:42px minmax(0,1fr) auto auto;gap:12px;align-items:center;
+    padding:11px 15px;border-bottom:1px solid var(--gray-100)}
+.li:last-child{border-bottom:none}
+.li.click{cursor:pointer}
+.li.click:hover{background:var(--surface-sunken)}
+.li.dim{opacity:.55}
+.li .ph{width:42px;height:42px;border-radius:var(--radius-md);object-fit:cover;background:var(--gray-100);
+        display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);
+        font-size:14px;color:var(--text-faint)}
+.li .nm{font-weight:600;font-size:14.5px;color:var(--text-strong);
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+.li .pr{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:14.5px;
+        color:var(--text-strong);white-space:nowrap}
+.sw{width:44px;height:25px;border-radius:var(--radius-pill);border:none;padding:0;flex:none;
+    background:var(--gray-300);position:relative;transition:background .15s;cursor:pointer}
+.sw[aria-checked="true"]{background:var(--green-500)}
+.sw i{position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;
+      background:#fff;transition:transform .15s;display:block}
+.sw[aria-checked="true"] i{transform:translateX(19px)}
+.sw:hover{filter:brightness(.95)}
+
+/* ── sheet ───────────────────────────────────────────────────────────── */
+.sheet{position:fixed;inset:0;background:rgba(20,18,16,.5);display:none;align-items:center;
+       justify-content:center;z-index:150;padding:16px}
+.sheet.open{display:flex}
+.sheet .panelbox{background:#fff;border-radius:var(--radius-lg);width:min(580px,100%);
+                 max-height:92vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.sheet .hd{display:flex;align-items:center;gap:10px;padding:15px 18px;
+           border-bottom:1px solid var(--border-subtle);position:sticky;top:0;background:#fff;z-index:1}
+.sheet .hd h3{font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--text-strong);
+              margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet .bd{padding:16px 18px;display:grid;gap:13px}
+.sheet .ft{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;padding:13px 18px;
+           border-top:1px solid var(--border-subtle);position:sticky;bottom:0;background:#fff}
+.sheet .ft .left{margin-inline-end:auto}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.pick{display:flex;flex-wrap:wrap;gap:7px;max-height:150px;overflow-y:auto;
+      border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px}
+.pick button{font-family:var(--font-body);font-weight:500;font-size:13px;padding:4px 11px;
+             background:#fff;color:var(--text-body);border:1.5px solid var(--border-default)}
+.pick button[aria-pressed="true"]{background:var(--orange-50);color:var(--orange-700);
+                                  border-color:var(--orange-500)}
+.photo{display:flex;gap:12px;align-items:center}
+.photo img{width:62px;height:62px;border-radius:var(--radius-md);object-fit:cover;
+           border:1px solid var(--border-subtle)}
+.photo .none{width:62px;height:62px;border-radius:var(--radius-md);background:var(--gray-100);
+             display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:11px}
+.linkbox{display:flex;gap:8px;align-items:center;background:var(--surface-sunken);
+         border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:9px 11px}
+.linkbox code{font-family:var(--font-mono);font-size:11.5px;color:var(--text-body);
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+
+/* ── apps grid ───────────────────────────────────────────────────────── */
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px}
+.appc{display:flex;align-items:flex-start;gap:12px;background:var(--surface-card);
+      border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:15px;
+      box-shadow:var(--shadow-sm);text-decoration:none;color:inherit;
+      transition:box-shadow .15s,transform .15s,border-color .15s}
+.appc:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);border-color:var(--orange-200)}
+.appc .ic{width:42px;height:42px;border-radius:12px;background:var(--orange-50);display:flex;
+          align-items:center;justify-content:center;font-size:21px;flex:none}
+.appc .nm{font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);line-height:1.2}
+.appc .ds{font-size:12.5px;color:var(--text-muted);margin-top:3px;line-height:1.4;display:block}
+.badge{display:none;min-width:20px;height:20px;border-radius:10px;background:var(--color-danger);
+       color:#fff;font-size:11.5px;font-weight:800;align-items:center;justify-content:center;
+       padding:0 6px;margin-left:auto;flex:none}
+
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr}
+  .side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--border-subtle)}
+  nav{display:flex;overflow-x:auto;gap:4px;padding:4px 10px 10px}
+  nav .sec{display:none}
+  nav a{white-space:nowrap}
+  nav a .cnt,nav a .dot{display:none}
+  .side .foot{border-top:none;padding:0 12px 10px}
+  main{padding:18px 16px 90px}
+  .li{grid-template-columns:38px minmax(0,1fr) auto;row-gap:8px}
+  .li .pr{grid-column:2}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 {% include "templates/includes/brand.html" %}
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <span class="avatar">{{ (current_user_full[0]|upper) if current_user_full else "A" }}</span>
-    <div style="flex:1;min-width:0;">
-      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);line-height:1.15;">{{ brand_name }} · Admin</div>
-      <div style="font-size:12.5px;color:var(--text-muted);" id="subline">{{ current_user_full }}</div>
+<div class="shell">
+
+  <aside class="side">
+    <div class="brandrow">
+      <span class="avatar">{{ (current_user_full[0]|upper) if current_user_full else "A" }}</span>
+      <div style="min-width:0">
+        <div class="nm">{{ brand_name }}</div>
+        <div class="who">{{ current_user_full }}</div>
+      </div>
     </div>
-    <a href="/api/method/logout" title="Sign out" onclick="return confirm('Sign out?')" style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
-  </header>
 
-  <!-- live strip (full dashboards live in the Manager app) -->
-  <div class="stats">
-    <div class="stat"><div class="l">Revenue today</div><div class="v">Rs <span id="stRev">—</span></div></div>
-    <div class="stat"><div class="l">Sales</div><div class="v" id="stSales">—</div></div>
-    <div class="stat"><div class="l">Voids</div><div class="v" id="stVoids">—</div></div>
-    <a class="stat" href="/manager" target="_blank" style="text-decoration:none;color:inherit;"><div class="l" style="display:flex;align-items:center;gap:7px;">Approvals <span class="badge" id="stApprBadge"></span></div><div class="v" id="stAppr">—</div></a>
-  </div>
-  <div style="font-size:12.5px;color:var(--text-faint);margin:-14px 0 4px;">Full dashboard, reports & cash drawer → <a href="/manager" target="_blank" style="color:var(--color-primary);font-weight:700;">Manager app</a></div>
+    <nav id="nav">
+      <span class="sec">Today</span>
+      <a href="#overview" data-panel="overview"><span class="ic">📈</span>Overview</a>
+      <a href="#reports"  data-panel="reports"><span class="ic">📊</span>Reports</a>
 
-  <!-- FUTURE: a fuller dashboard section (outlet-wise, charts) slots in here -->
+      <span class="sec">The business</span>
+      <a href="#branches" data-panel="branches" data-owner="1"><span class="ic">🏪</span>Restaurants<span class="cnt" id="navBranches"></span></a>
+      <a href="#staff"    data-panel="staff"    data-owner="1"><span class="ic">👥</span>Staff<span class="cnt" id="navStaff"></span></a>
 
-  <div class="grp">Operations</div>
-  <div class="grid">
-    <a class="appc" href="/owner" target="_blank"><span class="ic">🏪</span><span><span class="nm">Owner</span><span class="ds" style="display:block;">Every branch side by side, and the setup behind them</span></span></a>
-    <a class="appc" href="/pos" target="_blank"><span class="ic">🍔</span><span><span class="nm">POS</span><span class="ds" style="display:block;">Billing counter — tables, KOT, payments, shifts</span></span></a>
-    <a class="appc" href="/kitchen" target="_blank"><span class="ic">👨‍🍳</span><span><span class="nm">Kitchen Display</span><span class="ds" style="display:block;">Live ticket queue by kitchen station</span></span></a>
-    <a class="appc" href="/waiter" target="_blank"><span class="ic">🤵</span><span><span class="nm">Waiter</span><span class="ds" style="display:block;">Take table orders from the floor</span></span></a>
-    <a class="appc" href="/kiosk" target="_blank"><span class="ic">🖥️</span><span><span class="nm">Kiosk</span><span class="ds" style="display:block;">Self-service ordering screen</span></span></a>
-  </div>
+      <span class="sec">What you sell</span>
+      <a href="#menu"  data-panel="menu"><span class="ic">🍽️</span>Menu<span class="cnt" id="navMenu"></span></a>
+      <a href="#items" data-panel="items"><span class="ic">📦</span>Items<span class="cnt" id="navItems"></span></a>
 
-  <div class="grp">Management</div>
-  <div class="grid">
-    <a class="appc" href="/manager" target="_blank"><span class="ic">📊</span><span><span class="nm">Manager</span><span class="ds" style="display:block;">Today's sales, reports, cash drawer, approvals</span></span></a>
-    <a class="appc" href="/purchases" target="_blank"><span class="ic">🧾</span><span><span class="nm">Purchases</span><span class="ds" style="display:block;">Record supplier purchase bills</span></span></a>
-    <a class="appc" href="/qrpromo" target="_blank"><span class="ic">🎁</span><span><span class="nm">QR Promo Stickers</span><span class="ds" style="display:block;">Free-meal campaign — batches, printing, stats</span></span></a>
-    <a class="appc" href="/qrcodes" target="_blank"><span class="ic">🪑</span><span><span class="nm">Table QR Codes</span><span class="ds" style="display:block;">Per-table QR codes for kiosk ordering</span></span></a>
-    <a class="appc" href="/app/pos-item-addon" target="_blank"><span class="ic">➕</span><span><span class="nm">Item Add-ons</span><span class="ds" style="display:block;">Map add-ons (sauce, salad…) to menu items — Desk</span></span></a>
-    <a class="appc" href="/activity" target="_blank"><span class="ic">👀</span><span style="flex:1;min-width:0;"><span class="nm" style="display:flex;align-items:center;gap:8px;">Staff activity <span class="badge" id="actBadge"></span></span><span class="ds" style="display:block;">Who did what on every bill — taps, voids, discounts, drawer, shift variance</span></span></a>
-    <a class="appc" href="/errors" target="_blank"><span class="ic">🐞</span><span style="flex:1;min-width:0;"><span class="nm" style="display:flex;align-items:center;gap:8px;">Error log <span class="badge" id="errBadge"></span></span><span class="ds" style="display:block;">Crashes on the staff's phones — POS, waiter, purchases, manager</span></span></a>
-  </div>
+      <span class="sec">Everything else</span>
+      <a href="#apps" data-panel="apps"><span class="ic">🧩</span>Apps<span class="dot" id="navDot"></span></a>
+    </nav>
 
-  <div class="grp">Customer</div>
-  <div class="grid">
-    <a class="appc" href="/cus" target="_blank"><span class="ic">📱</span><span><span class="nm">Customer App</span><span class="ds" style="display:block;">Order, track, rewards — installable PWA</span></span></a>
-    <a class="appc" href="/order" target="_blank"><span class="ic">🛵</span><span><span class="nm">Online Order</span><span class="ds" style="display:block;">Web ordering page</span></span></a>
-    <a class="appc" href="/track" target="_blank"><span class="ic">📍</span><span><span class="nm">Track Order</span><span class="ds" style="display:block;">Customer order tracking</span></span></a>
-    <a class="appc" href="/home" target="_blank"><span class="ic">🏠</span><span><span class="nm">Home Site</span><span class="ds" style="display:block;">Public restaurant site & menu</span></span></a>
+    <div class="foot">
+      <a href="/manager">Manager app ↗</a>
+      <span style="flex:1"></span>
+      <a href="/api/method/logout" onclick="return confirm('Sign out?')">Sign out</a>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ── Overview ─────────────────────────────────────────────────── -->
+    <section class="panel" id="p-overview">
+      <div class="phead"><h1>Overview</h1><span class="sub" id="ovDate"></span></div>
+      <div class="stats">
+        <div class="stat"><div class="l">Revenue today</div><div class="v">Rs <span id="stRev">—</span></div></div>
+        <div class="stat"><div class="l">Sales</div><div class="v" id="stSales">—</div></div>
+        <div class="stat"><div class="l">Voids</div><div class="v" id="stVoids">—</div></div>
+        <a class="stat" href="/manager" target="_blank"><div class="l">Approvals waiting</div><div class="v" id="stAppr">—</div></a>
+      </div>
+      <h2>Branch by branch <span class="cnt">today</span></h2>
+      <div class="card scroll"><table id="cmp"><tbody><tr><td class="empty">Loading…</td></tr></tbody></table></div>
+      <div id="probs"></div>
+    </section>
+
+    <!-- ── Reports ──────────────────────────────────────────────────── -->
+    <section class="panel" id="p-reports">
+      <div class="phead"><h1>Reports</h1><span class="sub">The numbers, and where each one is kept</span></div>
+      <div class="apps" style="margin-top:16px">
+        <a class="appc" href="/manager" target="_blank"><span class="ic">📊</span><span><span class="nm">Sales &amp; cash</span><span class="ds">Today's takings, payment split, cash drawer, shift close — the Manager app</span></span></a>
+        <a class="appc" href="/manager#reports" target="_blank"><span class="ic">🧮</span><span><span class="nm">Food cost &amp; profit</span><span class="ds">Purchases and wastage against revenue for a range</span></span></a>
+        <a class="appc" href="/purchases" target="_blank"><span class="ic">🧾</span><span><span class="nm">Purchases &amp; dues</span><span class="ds">Supplier bills, what is approved, what is still owed</span></span></a>
+        <a class="appc" href="/activity" target="_blank"><span class="ic">👀</span><span><span class="nm">Staff activity</span><span class="ds">Who did what on every bill — voids, discounts, drawer, shift variance</span></span></a>
+      </div>
+      <p class="hint">Reports live in the Manager app because that is where a manager already is at closing time. This page is for the things that change the business rather than measure it.</p>
+    </section>
+
+    <!-- ── Restaurants ──────────────────────────────────────────────── -->
+    <section class="panel" id="p-branches">
+      <div class="phead"><h1>Restaurants</h1><span class="sub">A branch keeps its money apart by its Cost Center and its stock by its Warehouse</span></div>
+      <div class="card" id="setup" style="margin-top:14px"><div class="empty">Loading…</div></div>
+
+      <h2>Add a branch</h2>
+      <div class="card" style="padding:15px">
+        <div class="row">
+          <div><label for="newName">Name</label><input type="text" id="newName" placeholder="Colombo"></div>
+          <div><label for="newCc">Cost Center</label><select id="newCc"></select></div>
+          <div><label for="newWh">Warehouse</label><select id="newWh"></select></div>
+          <button onclick="addBranch()">Add branch</button>
+        </div>
+        <p class="hint">Both can be set later, but until the Cost Center is there this branch's takings cannot be told from anyone else's.</p>
+      </div>
+    </section>
+
+    <!-- ── Staff ────────────────────────────────────────────────────── -->
+    <section class="panel" id="p-staff">
+      <div class="phead"><h1>Staff</h1><span class="sub">Who works here, what they can open, and which branch they belong to</span>
+        <span class="spacer"></span><button id="hireBtn" onclick="openHire()">Add someone</button></div>
+      <div class="card" id="staffList" style="margin-top:14px"><div class="empty">Loading…</div></div>
+      <p class="hint"><strong>Nobody's password is set here.</strong> Add the person, then send them the invite link — they choose their own password and the link expires on its own. System Manager is not on this screen on purpose: it can change how the software works and bypasses every rule in this app.</p>
+    </section>
+
+    <!-- ── Menu ─────────────────────────────────────────────────────── -->
+    <section class="panel" id="p-menu">
+      <div class="phead"><h1>Menu</h1><span class="sub" id="menuSub"></span>
+        <span class="spacer"></span><button onclick="openItem(null)">Add item</button></div>
+      <div class="bar" style="margin-top:14px">
+        <div id="mBranchWrap" style="display:none"><label for="mBranch">Branch</label>
+          <select id="mBranch" onchange="loadMenu(this.value)"></select></div>
+        <div class="grow"><label for="mSearch">Search</label>
+          <input type="text" id="mSearch" placeholder="Item name…" oninput="renderMenu()"></div>
+        <div><label for="mGroup">Category</label><select id="mGroup" onchange="renderMenu()"></select></div>
+      </div>
+      <div class="card" id="menuList"><div class="empty">Loading…</div></div>
+      <details style="margin-top:12px" id="offWrap">
+        <summary style="cursor:pointer;font-family:var(--font-mono);font-size:12px;color:var(--text-muted);padding:6px 0"
+                 id="offSummary">Not on the menu</summary>
+        <div class="card" id="offList" style="margin-top:8px"></div>
+      </details>
+    </section>
+
+    <!-- ── Items ────────────────────────────────────────────────────── -->
+    <section class="panel" id="p-items">
+      <div class="phead"><h1>Items</h1><span class="sub">Everything you sell or buy — on a menu or not</span>
+        <span class="spacer"></span><button onclick="openStock(null)">New item</button></div>
+      <div class="bar" style="margin-top:14px">
+        <div class="grow"><label for="iSearch">Search</label>
+          <input type="text" id="iSearch" placeholder="Item name…" oninput="renderItems()"></div>
+        <div><label for="iGroup">Category</label><select id="iGroup" onchange="renderItems()"></select></div>
+        <div><label for="iShow">Show</label><select id="iShow" onchange="loadItems()">
+          <option value="0">In use</option><option value="1">Including retired</option></select></div>
+      </div>
+      <div class="card" id="itemList"><div class="empty">Loading…</div></div>
+      <p class="hint">Retiring an item is how you stop using it: every past bill links to it by name, so nothing here deletes.</p>
+    </section>
+
+    <!-- ── Apps ─────────────────────────────────────────────────────── -->
+    <section class="panel" id="p-apps">
+      <div class="phead"><h1>Apps</h1><span class="sub">The screens the floor, the counter and the kitchen hold</span></div>
+      <h2>Operations</h2>
+      <div class="apps">
+        <a class="appc" href="/pos" target="_blank"><span class="ic">🍔</span><span><span class="nm">POS</span><span class="ds">Billing counter — tables, KOT, payments, shifts</span></span></a>
+        <a class="appc" href="/kitchen" target="_blank"><span class="ic">👨‍🍳</span><span><span class="nm">Kitchen Display</span><span class="ds">Live ticket queue by kitchen station</span></span></a>
+        <a class="appc" href="/waiter" target="_blank"><span class="ic">🤵</span><span><span class="nm">Waiter</span><span class="ds">Take table orders from the floor</span></span></a>
+        <a class="appc" href="/kiosk" target="_blank"><span class="ic">🖥️</span><span><span class="nm">Kiosk</span><span class="ds">Self-service ordering screen</span></span></a>
+      </div>
+      <h2>Management</h2>
+      <div class="apps">
+        <a class="appc" href="/manager" target="_blank"><span class="ic">📊</span><span><span class="nm">Manager</span><span class="ds">Today's sales, reports, cash drawer, approvals</span></span></a>
+        <a class="appc" href="/purchases" target="_blank"><span class="ic">🧾</span><span><span class="nm">Purchases</span><span class="ds">Record supplier purchase bills</span></span></a>
+        <a class="appc" href="/qrpromo" target="_blank"><span class="ic">🎁</span><span><span class="nm">QR Promo Stickers</span><span class="ds">Free-meal campaign — batches, printing, stats</span></span></a>
+        <a class="appc" href="/qrcodes" target="_blank"><span class="ic">🪑</span><span><span class="nm">Table QR Codes</span><span class="ds">Per-table QR codes for kiosk ordering</span></span></a>
+        <a class="appc" href="/activity" target="_blank"><span class="ic">👀</span><span style="flex:1;min-width:0"><span class="nm" style="display:flex;align-items:center;gap:8px">Staff activity <span class="badge" id="actBadge"></span></span><span class="ds">Who did what on every bill</span></span></a>
+        <a class="appc" href="/errors" target="_blank"><span class="ic">🐞</span><span style="flex:1;min-width:0"><span class="nm" style="display:flex;align-items:center;gap:8px">Error log <span class="badge" id="errBadge"></span></span><span class="ds">Crashes on the staff's phones</span></span></a>
+      </div>
+      <h2>Customer</h2>
+      <div class="apps">
+        <a class="appc" href="/cus" target="_blank"><span class="ic">📱</span><span><span class="nm">Customer App</span><span class="ds">Order, track, rewards — installable PWA</span></span></a>
+        <a class="appc" href="/order" target="_blank"><span class="ic">🛵</span><span><span class="nm">Online Order</span><span class="ds">Web ordering page</span></span></a>
+        <a class="appc" href="/track" target="_blank"><span class="ic">📍</span><span><span class="nm">Track Order</span><span class="ds">Customer order tracking</span></span></a>
+        <a class="appc" href="/home" target="_blank"><span class="ic">🏠</span><span><span class="nm">Home Site</span><span class="ds">Public restaurant site &amp; menu</span></span></a>
+      </div>
+      <h2>The printer bridge</h2>
+      <div class="apps">
+        <a class="appc" href="/assets/luuvcrm/luuvcrm-print.apk" download><span class="ic">🤖</span><span><span class="nm">iMin print APK</span><span class="ds">Android bridge from the browser to the thermal printer</span></span></a>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ── menu item editor ─────────────────────────────────────────────── -->
+<div class="sheet" id="itemSheet" onclick="if(event.target===this) closeItem()">
+  <div class="panelbox" role="dialog" aria-modal="true" aria-labelledby="itemTitle">
+    <div class="hd"><h3 id="itemTitle">Edit item</h3><button class="ghost sm" onclick="closeItem()">Close</button></div>
+    <div class="bd">
+      <p class="err" id="itemErr"></p>
+      <div class="photo">
+        <span id="itemPhoto" class="none">no photo</span>
+        <div>
+          <input type="file" id="itemFile" accept="image/jpeg,image/png,image/webp"
+                 style="font-size:13px;border:none;padding:0" onchange="uploadPhoto()">
+          <p class="hint">JPG, PNG or WebP under 5 MB. Shown on /menu, /kiosk and the customer app.</p>
+        </div>
+      </div>
+      <div><label for="fName">Name</label><input type="text" id="fName"></div>
+      <div class="two">
+        <div><label for="fRate">Price (Rs)</label><input type="text" id="fRate" inputmode="decimal"></div>
+        <div><label for="fGroup">Category</label><select id="fGroup"></select></div>
+      </div>
+      <div class="two">
+        <div><label for="fKitchen">Kitchen section</label><select id="fKitchen"></select></div>
+        <div><label for="fPrep">Prep time (min)</label><input type="text" id="fPrep" inputmode="numeric"></div>
+      </div>
+      <div class="two">
+        <div><label for="fGuide">Guide commission %</label><input type="text" id="fGuide" inputmode="decimal"></div>
+        <div><label for="fYoutube">YouTube link</label><input type="text" id="fYoutube" placeholder="https://…"></div>
+      </div>
+      <div><label for="fTags">Speciality tags</label>
+        <input type="text" id="fTags" placeholder="Chef&#39;s Special, Spicy, Vegan">
+        <p class="hint">Comma separated — these are the chips a customer sees.</p></div>
+      <div><label for="fDesc">Description</label><textarea id="fDesc"></textarea></div>
+      <div id="addonWrap">
+        <label>Add-ons offered with this item</label>
+        <div class="pick" id="fAddons"></div>
+        <p class="hint">The till offers these as extra lines the moment this item is added.</p>
+      </div>
+    </div>
+    <div class="ft">
+      <button class="danger left" id="itemDel" onclick="removeItem()">Remove from menu</button>
+      <button class="ghost" onclick="closeItem()">Cancel</button>
+      <button id="itemSave" onclick="saveItem()">Save</button>
+    </div>
   </div>
 </div>
 
-  <!-- Android App Download Banner -->
-  <div id="apkBanner" style="display:none; position:fixed; bottom:0; left:0; right:0; background:var(--surface-card); border-top:1px solid var(--border-default); box-shadow:0 -4px 20px rgba(20,18,16,.1); padding:14px 22px; z-index:100; align-items:center; justify-content:space-between; gap:16px;">
-    <div style="display:flex; align-items:center; gap:14px; min-width:0;">
-      <div style="width:42px; height:42px; border-radius:12px; background:var(--orange-50); color:var(--orange-700); display:flex; align-items:center; justify-content:center; font-size:22px; flex:none;">🤖</div>
-      <div style="min-width:0;">
-        <div style="font-family:var(--font-display); font-weight:800; font-size:14.5px; color:var(--text-strong);">Download iMin POS App</div>
-        <div style="font-size:12px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">Install the {{ brand_name }} iMin POS APK directly</div>
+<!-- ── item master editor ───────────────────────────────────────────── -->
+<div class="sheet" id="stockSheet" onclick="if(event.target===this) closeStock()">
+  <div class="panelbox" role="dialog" aria-modal="true" aria-labelledby="stockTitle">
+    <div class="hd"><h3 id="stockTitle">Item</h3><button class="ghost sm" onclick="closeStock()">Close</button></div>
+    <div class="bd">
+      <p class="err" id="stockErr"></p>
+      <div><label for="sName">Name</label><input type="text" id="sName"></div>
+      <div class="two">
+        <div><label for="sRate">Selling price (Rs)</label><input type="text" id="sRate" inputmode="decimal"></div>
+        <div><label for="sGroup">Category</label><select id="sGroup"></select></div>
       </div>
+      <div class="two">
+        <div><label for="sKitchen">Kitchen section</label><select id="sKitchen"></select></div>
+        <div><label for="sGuide">Guide commission %</label><input type="text" id="sGuide" inputmode="decimal"></div>
+      </div>
+      <div class="two" id="stockNewOnly">
+        <div><label for="sStock">Kind</label><select id="sStock">
+          <option value="0">Made to order — no stock kept</option>
+          <option value="1">Stock item — counted</option></select></div>
+        <div><label for="sUom">Unit</label><select id="sUom"></select></div>
+      </div>
+      <div><label for="sTags">Speciality tags</label><input type="text" id="sTags"></div>
+      <p class="hint" id="stockOnMenu" style="display:none"></p>
     </div>
-    <div style="display:flex; align-items:center; gap:10px; flex:none;">
-      <button onclick="cpDownloadApk(event)" style="background:var(--color-primary); color:#fff; border:none; padding:9px 16px; border-radius:var(--radius-pill); font-family:var(--font-display); font-weight:700; font-size:13px; cursor:pointer; box-shadow:var(--shadow-xs);">Download APK</button>
-      <button onclick="dismissApkBanner(event)" title="Close" style="background:transparent; border:none; color:var(--text-muted); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px;">×</button>
+    <div class="ft">
+      <button class="danger left" id="stockRetire" onclick="retireItem()">Retire</button>
+      <button class="ghost" onclick="closeStock()">Cancel</button>
+      <button id="stockSave" onclick="saveStock()">Save</button>
     </div>
   </div>
+</div>
+
+<!-- ── hire ─────────────────────────────────────────────────────────── -->
+<div class="sheet" id="hireSheet" onclick="if(event.target===this) closeHire()">
+  <div class="panelbox" role="dialog" aria-modal="true" aria-labelledby="hireTitle">
+    <div class="hd"><h3 id="hireTitle">Add someone</h3><button class="ghost sm" onclick="closeHire()">Close</button></div>
+    <div class="bd">
+      <p class="err" id="hireErr"></p>
+      <div><label for="hName">Full name</label><input type="text" id="hName" placeholder="Nimal Perera"></div>
+      <div><label for="hEmail">Email</label><input type="email" id="hEmail" placeholder="nimal@example.com"></div>
+      <div class="two">
+        <div><label for="hRole">Role</label><select id="hRole"></select></div>
+        <div><label for="hBranch">Branch</label><select id="hBranch"></select></div>
+      </div>
+      <p class="hint">No password is set here. Add them, then send the invite link — they choose their own, and it expires by itself.</p>
+    </div>
+    <div class="ft">
+      <button class="ghost" onclick="closeHire()">Cancel</button>
+      <button id="hireSave" onclick="saveHire()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── one person ───────────────────────────────────────────────────── -->
+<div class="sheet" id="personSheet" onclick="if(event.target===this) closePerson()">
+  <div class="panelbox" role="dialog" aria-modal="true" aria-labelledby="personTitle">
+    <div class="hd"><h3 id="personTitle">Person</h3><button class="ghost sm" onclick="closePerson()">Close</button></div>
+    <div class="bd">
+      <p class="err" id="personErr"></p>
+      <div><label>Roles</label><div class="pick" id="pRoles"></div>
+        <p class="hint">A cashier can do everything a waiter can; a manager everything a cashier can. Give the lowest one that covers the job.</p></div>
+      <div><label for="pBranch">Branch</label><select id="pBranch" onchange="savePersonBranch()"></select>
+        <p class="hint">A branch manager sees only their own branch. Leave it blank only for someone who should see all of them.</p></div>
+      <div><label>Way in</label>
+        <div class="row"><button class="ghost" onclick="makeInvite()">Make an invite link</button></div>
+        <div class="linkbox" id="inviteBox" style="display:none;margin-top:9px">
+          <code id="inviteLink"></code>
+          <button class="ghost sm" onclick="copyInvite()">Copy</button>
+        </div>
+        <p class="hint">Send it on WhatsApp. It sets their password once and then stops working.</p></div>
+    </div>
+    <div class="ft">
+      <button class="danger left" id="personOff" onclick="togglePerson()">Switch off</button>
+      <button class="ghost" onclick="closePerson()">Close</button>
+    </div>
+  </div>
+</div>
 
 <script>
-// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
-// a locked screen were both still asking the server every few seconds — and
-// catches up the moment it comes back, so nobody reads a stale screen.
+/* Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+   a locked screen were both still asking the server every few seconds — and
+   catches up the moment it comes back, so nobody reads a stale screen. */
 function lfPoll(fn, ms){
   setInterval(function(){ if(!document.hidden) fn(); }, ms);
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
 }
-const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-function nfmt(n){ return (Math.round(n||0)).toLocaleString('en-US'); }
-async function _post(url,data){ try{ const b=new URLSearchParams(); b.set('csrf_token',CSRF); for(const[k,v] of Object.entries(data||{})) b.set(k,v);
-  const r=await fetch(url,{method:'POST',credentials:'include',headers:{'X-Frappe-CSRF-Token':CSRF,'Content-Type':'application/x-www-form-urlencoded'},body:b.toString()});
-  if(r.status===401||r.status===403){ location.href='/pos-login?redirect=/admin'; return null; } return r.json(); }catch(e){ return null; } }
-async function loadErrors(){
-  // limit=1 — we only want open_count for the badge, not the rows.
-  const d=await _post('/api/method/luuvcrm.api.get_client_errors',{status:'open',limit:1});
-  const n=(d&&d.message&&d.message.open_count)||0; const b=document.getElementById('errBadge');
-  if(n>0){ b.style.display='inline-flex'; b.textContent=n; } else b.style.display='none';
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const IS_OWNER = {{ 'true' if is_owner else 'false' }};
+
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function money(v){ return v === null || v === undefined ? null
+  : 'Rs ' + Math.round(v).toLocaleString('en-LK'); }
+function nfmt(n){ return Math.round(n || 0).toLocaleString('en-LK'); }
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2800);
 }
-async function loadStrip(){
-  const d=await _post('/api/method/luuvcrm.api.get_manager_dashboard'); if(!d||!d.message) return; const m=d.message;
-  document.getElementById('stRev').textContent=nfmt(m.revenue);
-  document.getElementById('stSales').textContent=m.sales_count;
-  document.getElementById('stVoids').textContent=m.void_count;
-  const pend=(m.approvals||[]).filter(a=>a.status==='pending').length;
-  document.getElementById('stAppr').textContent=pend;
-  const b=document.getElementById('stApprBadge'); if(pend>0){ b.style.display='inline-flex'; b.textContent=pend; } else b.style.display='none';
+function srvErr(json){
+  try{
+    if(json && json._server_messages){
+      const first = JSON.parse(JSON.parse(json._server_messages)[0]);
+      return String(first.message || '').replace(/<[^>]*>/g, '');
+    }
+    if(json && json.exception) return String(json.exception).split(':').pop().trim();
+  }catch(e){}
+  return null;
 }
-async function loadActFlags(){
-  // Unreviewed "human error" flags from today — see /activity.
-  const d=await _post('/api/method/luuvcrm.activity.get_activity_flags',{days:1});
-  const n=(d&&d.message&&d.message.count)||0; const b=document.getElementById('actBadge');
-  if(n>0){ b.style.display='inline-flex'; b.textContent=n; } else b.style.display='none';
+async function call(method, data){
+  try{
+    const res = await fetch('/api/method/luuvcrm.api.' + method, {
+      method: data ? 'POST' : 'GET',
+      credentials: 'include',
+      headers: {'X-Frappe-CSRF-Token': CSRF,
+                'Content-Type': 'application/x-www-form-urlencoded'},
+      body: data ? new URLSearchParams(data).toString() : undefined
+    });
+    if(res.status === 401 || res.status === 403){
+      // 403 also comes back for "you are not the owner", which is not a login
+      // problem — only bounce to the login screen when the session is gone.
+      const json = await res.json().catch(() => null);
+      const msg = srvErr(json);
+      if(res.status === 401 || !msg){ location.href = '/pos-login?redirect=/admin'; return null; }
+      toast(msg); return null;
+    }
+    const json = await res.json();
+    if(!res.ok){ toast(srvErr(json) || 'Could not save'); return null; }
+    return json.message;
+  }catch(e){ toast('Network problem'); return null; }
 }
-function cpDownloadApk(e){
-  if(e) e.preventDefault();
-  const a=document.createElement('a');
-  a.href='/files/app-release.apk';
-  a.download='app-release.apk';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+
+/* ── sections ───────────────────────────────────────────────────────────
+   One pane, one login, and a hash so a section can be linked to and survives
+   a reload. /owner used to be a second page for two of these. */
+const LOADED = {};
+const LOADERS = {
+  overview: loadOverview, branches: loadBranches, staff: loadStaff,
+  menu: () => loadMenu(), items: loadItems, reports: () => {}, apps: () => {}
+};
+function show(name){
+  if(!LOADERS[name]) name = 'overview';
+  if(!IS_OWNER && (name === 'branches' || name === 'staff')) name = 'overview';
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  document.getElementById('p-' + name)?.classList.add('on');
+  document.querySelectorAll('#nav a').forEach(a =>
+    a.toggleAttribute('aria-current', a.dataset.panel === name));
+  document.querySelectorAll('#nav a[aria-current]').forEach(a => a.setAttribute('aria-current', 'page'));
+  if(!LOADED[name]){ LOADED[name] = true; LOADERS[name](); }
+  document.title = name[0].toUpperCase() + name.slice(1) + ' · {{ brand_name }}';
 }
-function dismissApkBanner(e){
-  if(e) e.stopPropagation();
-  const b=document.getElementById('apkBanner');
-  if(b) b.style.display='none';
-  localStorage.setItem('luuv_hide_apk_banner', '1');
+addEventListener('hashchange', () => show(location.hash.replace('#', '')));
+
+/* ── overview ─────────────────────────────────────────────────────────── */
+const ROWS = [
+  ['Revenue',  'revenue',     money, true],
+  ['Sales',    'sales_count', v => v === null ? null : String(v), false],
+  ['Avg bill', 'avg_ticket',  money, false],
+  ['Cash',     'cash',        money, false],
+];
+function renderCompare(d){
+  document.getElementById('ovDate').textContent = d.date || '';
+  const bs = d.branches || [];
+  const head = '<thead><tr><th></th>' + bs.map(b => `<th>${esc(b.restaurant)}</th>`).join('') +
+               (bs.length > 1 ? '<th>All</th>' : '') + '</tr></thead>';
+  const body = ROWS.map(([label, key, fmt, big]) => {
+    const cells = bs.map(b => {
+      const v = fmt(b[key]);
+      return v === null ? '<td class="na">—</td>'
+                        : `<td class="n${big ? ' big' : ''}">${esc(v)}</td>`;
+    }).join('');
+    const total = bs.length > 1
+      ? `<td class="n">${esc(fmt(bs.reduce((a, b) => a + (b[key] || 0), 0)) || '—')}</td>` : '';
+    return `<tr${big ? ' class="tot"' : ''}><td>${label}</td>${cells}${total}</tr>`;
+  }).join('');
+  document.getElementById('cmp').innerHTML = head + '<tbody>' + body + '</tbody>';
+
+  const probs = d.problems || [];
+  document.getElementById('probs').innerHTML = probs.length
+    ? '<div class="probs"><div class="hd">Set up, and worth fixing</div><ul>' +
+      probs.map(p => `<li>${esc(p)}</li>`).join('') + '</ul></div>'
+    : (bs.length > 1 ? '<div class="okbox">Every branch is wired up — cost centre, warehouse, tills and managers.</div>' : '');
+  document.getElementById('navBranches').textContent = bs.length || '';
 }
-if(localStorage.getItem('luuv_hide_apk_banner')!=='1'){
-  const b=document.getElementById('apkBanner');
-  if(b) b.style.display='flex';
+async function loadOverview(){
+  const [strip, overview] = await Promise.all([
+    call('get_manager_dashboard', {}), IS_OWNER ? call('get_owner_overview') : null
+  ]);
+  if(strip){
+    document.getElementById('stRev').textContent = nfmt(strip.revenue);
+    document.getElementById('stSales').textContent = strip.sales_count;
+    document.getElementById('stVoids').textContent = strip.void_count;
+    document.getElementById('stAppr').textContent =
+      (strip.approvals || []).filter(a => a.status === 'pending').length;
+  }
+  if(overview) renderCompare(overview);
+  else if(!IS_OWNER) document.getElementById('cmp').innerHTML =
+    '<tbody><tr><td class="empty">Branch comparison is the owner\'s view.</td></tr></tbody>';
 }
-loadStrip(); lfPoll(loadStrip,60000);
-loadErrors(); lfPoll(loadErrors,60000);
-loadActFlags(); lfPoll(loadActFlags,60000);
-try{ window.lucide&&window.lucide.createIcons(); }catch(e){}
+
+/* ── badges (they belong to Apps, but the count should show before you open it) */
+async function loadBadges(){
+  const errs = await call('get_client_errors', {status: 'open', limit: 1});
+  const n = (errs && errs.open_count) || 0;
+  const b = document.getElementById('errBadge');
+  if(b){ b.style.display = n ? 'inline-flex' : 'none'; b.textContent = n; }
+  const dot = document.getElementById('navDot');
+  if(dot){ dot.style.display = n ? 'flex' : 'none'; dot.textContent = n > 99 ? '99+' : n; }
+}
+
+/* ── restaurants ──────────────────────────────────────────────────────── */
+let SETUP = null;
+function opts(list, chosen, blank){
+  return (blank ? `<option value="">${esc(blank)}</option>` : '') +
+    (list || []).map(v => `<option value="${esc(v)}"${v === chosen ? ' selected' : ''}>${esc(v)}</option>`).join('');
+}
+async function loadBranches(){
+  const d = await call('get_branch_setup');
+  if(!d) return;
+  SETUP = d;
+  document.getElementById('newCc').innerHTML = opts(d.cost_centers, null, 'Choose later');
+  document.getElementById('newWh').innerHTML = opts(d.warehouses, null, 'Choose later');
+  document.getElementById('navBranches').textContent = d.branches.length || '';
+  document.getElementById('setup').innerHTML = d.branches.map(b => `
+    <div style="border-bottom:1px solid var(--gray-100);padding:15px">
+      <div style="font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--text-strong)">${esc(b.restaurant)}</div>
+      <div class="mono" style="font-size:11.5px;color:var(--text-faint);margin-top:2px">
+        ${esc(b.company || 'no company')} · ${b.rows} order${b.rows === 1 ? '' : 's'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:11px;margin-top:11px">
+        <div><label>Cost Center</label>
+          <select onchange="saveBranch('${esc(b.restaurant)}', this.value, null)"
+                  style="${b.cost_center ? '' : 'border-color:var(--red-500)'}">
+            ${opts(d.cost_centers, b.cost_center, '— none —')}</select></div>
+        <div><label>Warehouse</label>
+          <select onchange="saveBranch('${esc(b.restaurant)}', null, this.value)"
+                  style="${b.warehouse ? '' : 'border-color:var(--red-500)'}">
+            ${opts(d.warehouses, b.warehouse, '— none —')}</select></div>
+        <div><label>Tills here</label>
+          <select onchange="setTill(this.value, '${esc(b.restaurant)}')">
+            ${opts(d.tills.filter(t => !b.tills.includes(t)), null,
+                   b.tills.length ? b.tills.join(', ') : '— none —')}</select></div>
+        <div><label>Manager sees only this</label>
+          <select onchange="setManager(this.value, '${esc(b.restaurant)}')">
+            ${opts(d.managers.filter(m => !b.managers.includes(m)), null,
+                   b.managers.length ? b.managers.join(', ') : '— nobody —')}</select></div>
+      </div>
+    </div>`).join('') || '<div class="empty">No restaurants yet.</div>';
+}
+async function saveBranch(restaurant, cost_center, warehouse){
+  const p = {restaurant};
+  if(cost_center !== null) p.cost_center = cost_center;
+  if(warehouse !== null) p.warehouse = warehouse;
+  if(await call('update_branch', p)){ toast('Saved'); loadBranches(); }
+}
+async function setTill(pos_profile, restaurant){
+  if(!pos_profile) return;
+  if(await call('assign_till', {pos_profile, restaurant})){ toast(pos_profile + ' → ' + restaurant); loadBranches(); }
+}
+async function setManager(user, restaurant){
+  if(!user) return;
+  if(await call('assign_manager', {user, restaurant})){ toast(user + ' sees only ' + restaurant); loadBranches(); }
+}
+async function addBranch(){
+  const restaurant_name = document.getElementById('newName').value.trim();
+  if(!restaurant_name){ toast('Give the branch a name'); return; }
+  const r = await call('create_branch', {
+    restaurant_name,
+    cost_center: document.getElementById('newCc').value,
+    warehouse: document.getElementById('newWh').value
+  });
+  if(r){ document.getElementById('newName').value = ''; toast(restaurant_name + ' added'); loadBranches(); }
+}
+
+/* ── staff ────────────────────────────────────────────────────────────── */
+let STAFF = null, PERSON = null;
+async function loadStaff(){
+  const d = await call('get_staff');
+  if(!d) return;
+  STAFF = d;
+  document.getElementById('navStaff').textContent = d.staff.length || '';
+  document.getElementById('hireBtn').style.display = d.can_edit ? '' : 'none';
+  document.getElementById('staffList').innerHTML = d.staff.map(p => {
+    const chips = p.roles.map(r => `<span class="chip">${esc(r)}</span>`).join('') ||
+                  '<span class="chip off">no role</span>';
+    const where = p.branches.length ? `<span class="chip kg">${p.branches.map(esc).join(', ')}</span>`
+                                    : '<span class="chip">every branch</span>';
+    const admin = p.is_admin ? '<span class="chip off">System Manager</span>' : '';
+    return `<div class="li${p.enabled ? '' : ' dim'}${d.can_edit ? ' click' : ''}"
+                 ${d.can_edit ? `onclick="openPerson('${esc(p.user)}')"` : ''}>
+      <span class="ph">${esc((p.full_name || '?').slice(0,1).toUpperCase())}</span>
+      <div><div class="nm">${esc(p.full_name)}${p.enabled ? '' : ' · off'}</div>
+        <div class="mono" style="font-size:11.5px;color:var(--text-faint)">${esc(p.user)}</div>
+        <div class="tags">${chips}${where}${admin}</div></div>
+      <span></span><span></span>
+    </div>`;
+  }).join('') || '<div class="empty">Nobody holds one of this app\'s roles yet.</div>';
+}
+
+function openHire(){
+  if(!STAFF) return;
+  document.getElementById('hireErr').style.display = 'none';
+  document.getElementById('hName').value = '';
+  document.getElementById('hEmail').value = '';
+  document.getElementById('hRole').innerHTML = opts(STAFF.roles, 'Waiter', null);
+  document.getElementById('hBranch').innerHTML = opts(STAFF.restaurants, null, '— every branch —');
+  document.getElementById('hireSheet').classList.add('open');
+}
+function closeHire(){ document.getElementById('hireSheet').classList.remove('open'); }
+async function saveHire(){
+  const err = document.getElementById('hireErr');
+  const full_name = document.getElementById('hName').value.trim();
+  const email = document.getElementById('hEmail').value.trim();
+  if(!full_name || !email){ err.textContent = 'A name and an email, please'; err.style.display = 'block'; return; }
+  const btn = document.getElementById('hireSave'); btn.disabled = true;
+  const r = await call('create_staff', {
+    email, full_name,
+    role: document.getElementById('hRole').value,
+    restaurant: document.getElementById('hBranch').value
+  });
+  btn.disabled = false;
+  if(!r) return;
+  closeHire(); toast(full_name + ' added — send them the invite link');
+  await loadStaff();
+  openPerson(r.user);
+}
+
+function openPerson(user){
+  PERSON = STAFF.staff.find(p => p.user === user);
+  if(!PERSON) return;
+  document.getElementById('personTitle').textContent = PERSON.full_name;
+  document.getElementById('personErr').style.display = 'none';
+  document.getElementById('inviteBox').style.display = 'none';
+  document.getElementById('pRoles').innerHTML = STAFF.roles.map(r =>
+    `<button type="button" aria-pressed="${PERSON.roles.includes(r)}"
+             onclick="toggleRole('${esc(r)}')">${esc(r)}</button>`).join('');
+  document.getElementById('pBranch').innerHTML =
+    opts(STAFF.restaurants, PERSON.branches[0] || '', '— every branch —');
+  const off = document.getElementById('personOff');
+  off.textContent = PERSON.enabled ? 'Switch off' : 'Switch back on';
+  off.classList.toggle('danger', PERSON.enabled);
+  off.classList.toggle('ghost', !PERSON.enabled);
+  document.getElementById('personSheet').classList.add('open');
+}
+function closePerson(){ document.getElementById('personSheet').classList.remove('open'); PERSON = null; }
+function personFail(msg){
+  const e = document.getElementById('personErr'); e.textContent = msg; e.style.display = 'block';
+}
+async function toggleRole(role){
+  if(!PERSON) return;
+  const on = PERSON.roles.includes(role) ? 0 : 1;
+  const r = await call('set_staff_role', {user: PERSON.user, role, on});
+  if(!r) return;
+  PERSON = r.staff;
+  Object.assign(STAFF.staff.find(p => p.user === PERSON.user) || {}, PERSON);
+  openPerson(PERSON.user); loadStaff();
+}
+async function savePersonBranch(){
+  if(!PERSON) return;
+  const restaurant = document.getElementById('pBranch').value;
+  const r = await call('set_staff_branch', {user: PERSON.user, restaurant});
+  if(!r) return;
+  PERSON = r.staff; toast(restaurant ? PERSON.full_name + ' → ' + restaurant
+                                     : PERSON.full_name + ' sees every branch');
+  loadStaff();
+}
+async function togglePerson(){
+  if(!PERSON) return;
+  const r = await call('set_staff_enabled', {user: PERSON.user, enabled: PERSON.enabled ? 0 : 1});
+  if(!r) return;
+  PERSON = r.staff; openPerson(PERSON.user); loadStaff();
+  toast(PERSON.enabled ? 'Account is on' : 'Account switched off');
+}
+async function makeInvite(){
+  if(!PERSON) return;
+  const r = await call('staff_invite_link', {user: PERSON.user});
+  if(!r) return;
+  document.getElementById('inviteLink').textContent = r.link;
+  document.getElementById('inviteBox').style.display = 'flex';
+}
+function copyInvite(){
+  const text = document.getElementById('inviteLink').textContent;
+  navigator.clipboard?.writeText(text).then(() => toast('Link copied'), () => toast('Copy it by hand'));
+}
+
+/* ── menu ───────────────────────────────────────────────────────────────
+   MENU carries the items that are switched off as well: the editor is the one
+   screen that has to show what it is about to bring back. Everything else —
+   /pos, /waiter, /kiosk, /menu, /cus and the offline payload — reads the same
+   list through menu_items() with those dropped, so "sold out" means one thing
+   everywhere instead of eight. */
+let MENU = null, EDIT = null;
+
+async function loadMenu(restaurant){
+  const d = await call('get_menu_admin' + (restaurant ? '?restaurant=' + encodeURIComponent(restaurant) : ''));
+  if(!d) return;
+  MENU = d;
+  document.getElementById('menuSub').textContent =
+    d.menu ? d.restaurant + ' · ' + d.menu : 'No active menu on this branch';
+  document.getElementById('navMenu').textContent = d.items.length || '';
+  const wrap = document.getElementById('mBranchWrap');
+  if(d.restaurants.length > 1){
+    wrap.style.display = '';
+    document.getElementById('mBranch').innerHTML = d.restaurants.map(r =>
+      `<option value="${esc(r.name)}"${r.name === d.restaurant ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+  }
+  const sel = document.getElementById('mGroup'), keep = sel.value;
+  sel.innerHTML = '<option value="">All</option>' + opts(d.groups, null, null);
+  if(keep && d.groups.includes(keep)) sel.value = keep;
+  renderMenu(); renderOffMenu();
+}
+
+function renderMenu(){
+  if(!MENU) return;
+  const q = document.getElementById('mSearch').value.trim().toLowerCase();
+  const g = document.getElementById('mGroup').value;
+  const rows = MENU.items.filter(i =>
+    (!g || i.group === g) && (!q || i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)));
+  const box = document.getElementById('menuList');
+  if(!MENU.menu){
+    box.innerHTML = '<div class="empty">This branch has no active menu yet. Set one on the Restaurant, then come back.</div>';
+    return;
+  }
+  if(!rows.length){ box.innerHTML = '<div class="empty">Nothing matches.</div>'; return; }
+  box.innerHTML = rows.map(i => {
+    const photo = i.image ? `<img class="ph" src="${esc(i.image)}" alt="">`
+                          : `<span class="ph">${esc((i.name || '?').slice(0,1).toUpperCase())}</span>`;
+    const chips = [`<span class="chip">${esc(i.group)}</span>`];
+    if(i.kitchen_group_label) chips.push(`<span class="chip kg">${esc(i.kitchen_group_label)}</span>`);
+    if(!i.available) chips.push('<span class="chip sold">sold out</span>');
+    if(i.addons && i.addons.length) chips.push(`<span class="chip">+${i.addons.length} add-on</span>`);
+    return `<div class="li click${i.available ? '' : ' dim'}" onclick="openItem('${esc(i.code)}')">
+      ${photo}
+      <div><div class="nm">${esc(i.name)}</div><div class="tags">${chips.join('')}</div></div>
+      <div class="pr">${money(i.rate)}</div>
+      <button class="sw" role="switch" aria-checked="${i.available ? 'true' : 'false'}"
+              title="${i.available ? 'On the menu' : 'Sold out'}"
+              onclick="event.stopPropagation();toggleAvailable('${esc(i.code)}',${i.available ? 0 : 1})"><i></i></button>
+    </div>`;
+  }).join('');
+}
+
+function renderOffMenu(){
+  const wrap = document.getElementById('offWrap');
+  if(!MENU || !MENU.off_menu.length){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  document.getElementById('offSummary').textContent =
+    'Not on this menu — ' + MENU.off_menu.length + ' item(s) that already exist';
+  document.getElementById('offList').innerHTML = MENU.off_menu.map(i =>
+    `<div class="li"><span></span><div class="nm">${esc(i.name)}</div>
+       <span class="chip">${esc(i.group)}</span>
+       <button class="ghost sm" onclick="restoreItem('${esc(i.code)}')">Put back</button></div>`).join('');
+}
+
+async function toggleAvailable(code, available){
+  if(!MENU.can_toggle){ toast('Run bench migrate first — this site has no availability field yet'); return; }
+  const r = await call('set_menu_item_available', {item_code: code, available, restaurant: MENU.restaurant});
+  if(!r) return;
+  const it = MENU.items.find(i => i.code === code);
+  if(it) it.available = r.available;
+  toast(r.available ? code + ' is back on' : code + ' is sold out');
+  renderMenu();
+}
+async function restoreItem(code){
+  const r = await call('restore_menu_item', {item_code: code, restaurant: MENU.restaurant});
+  if(r){ toast(code + ' is on the menu'); loadMenu(MENU.restaurant); }
+}
+
+function openItem(code){
+  if(!MENU){ toast('Menu still loading…'); return; }
+  if(!MENU.menu){ toast('This branch has no active menu yet'); return; }
+  EDIT = code ? MENU.items.find(i => i.code === code) : null;
+  const isNew = !EDIT;
+  document.getElementById('itemTitle').textContent = isNew ? 'Add menu item' : EDIT.name;
+  document.getElementById('itemErr').style.display = 'none';
+  document.getElementById('itemDel').style.display = isNew ? 'none' : '';
+  document.getElementById('itemFile').value = '';
+  document.getElementById('itemFile').disabled = isNew;
+  document.getElementById('fName').value = isNew ? '' : EDIT.name;
+  document.getElementById('fRate').value = isNew ? '' : EDIT.rate;
+  document.getElementById('fGroup').innerHTML = opts(MENU.all_groups, isNew ? '' : EDIT.group, isNew ? 'Pick one' : null);
+  document.getElementById('fKitchen').innerHTML = kitchenOpts(isNew ? '' : EDIT.kitchen_group);
+  document.getElementById('fPrep').value = isNew ? '' : (EDIT.prep_time || '');
+  document.getElementById('fGuide').value = isNew ? '' : (EDIT.gd_pct || '');
+  document.getElementById('fYoutube').value = isNew ? '' : (EDIT.youtube || '');
+  document.getElementById('fTags').value = isNew ? '' : (EDIT.tags || '');
+  document.getElementById('fDesc').value = isNew ? '' : (EDIT.description || '');
+  setPhoto('itemPhoto', isNew ? '' : EDIT.image, isNew ? 'save first' : 'no photo');
+  renderAddonPicker(isNew ? [] : (EDIT.addons || []), code);
+  document.getElementById('itemSave').textContent = isNew ? 'Add to menu' : 'Save';
+  document.getElementById('itemSheet').classList.add('open');
+}
+function closeItem(){ document.getElementById('itemSheet').classList.remove('open'); EDIT = null; }
+function kitchenOpts(chosen){
+  return '<option value="">— none —</option>' + (MENU?.kitchen_groups || []).map(g =>
+    `<option value="${esc(g.name)}"${g.name === chosen ? ' selected' : ''}>${esc(g.label)}</option>`).join('');
+}
+function setPhoto(id, src, blank){
+  const el = document.getElementById(id);
+  el.outerHTML = src
+    ? `<img id="${id}" src="${esc(src)}" alt="" style="width:62px;height:62px;border-radius:10px;object-fit:cover;border:1px solid var(--border-subtle)">`
+    : `<span id="${id}" class="none">${esc(blank)}</span>`;
+}
+function renderAddonPicker(chosen, code){
+  const wrap = document.getElementById('addonWrap');
+  if(!code){ wrap.style.display = 'none'; return; }  // an item has to exist before it can carry add-ons
+  wrap.style.display = '';
+  const picked = new Set(chosen);
+  document.getElementById('fAddons').innerHTML = MENU.items.filter(i => i.code !== code)
+    .map(i => `<button type="button" aria-pressed="${picked.has(i.code)}" data-code="${esc(i.code)}"
+                 onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')==='true'?'false':'true')"
+               >${esc(i.name)}</button>`).join('') || '<span class="hint">Add another item first.</span>';
+}
+function itemFail(msg){
+  const e = document.getElementById('itemErr'); e.textContent = msg; e.style.display = 'block';
+}
+async function saveItem(){
+  const name = document.getElementById('fName').value.trim();
+  const rate = parseFloat(document.getElementById('fRate').value) || 0;
+  if(!name) return itemFail('Enter an item name');
+  if(rate <= 0) return itemFail('Enter a price above zero');
+  const group = document.getElementById('fGroup').value;
+  if(!group) return itemFail('Pick a category');
+
+  const btn = document.getElementById('itemSave'); btn.disabled = true;
+  const fields = {
+    item_name: name, rate, group,
+    kitchen_group: document.getElementById('fKitchen').value,
+    prep_time: document.getElementById('fPrep').value || 0,
+    guide_pct: document.getElementById('fGuide').value || 0,
+    youtube: document.getElementById('fYoutube').value.trim(),
+    tags: document.getElementById('fTags').value.trim(),
+    description: document.getElementById('fDesc').value.trim(),
+    restaurant: MENU.restaurant
+  };
+  const r = EDIT ? await call('update_menu_item', Object.assign({item_code: EDIT.code}, fields))
+                 : await call('add_menu_item', fields);
+  btn.disabled = false;
+  if(!r) return itemFail('Could not save');
+
+  if(EDIT){
+    const picked = [...document.querySelectorAll('#fAddons button[aria-pressed="true"]')].map(b => b.dataset.code);
+    if(picked.slice().sort().join(',') !== (EDIT.addons || []).slice().sort().join(',')){
+      await call('set_item_addons', {item_code: EDIT.code, addons: JSON.stringify(picked)});
+    }
+  }
+  toast(EDIT ? 'Saved · the till picks it up on its next load' : name + ' added');
+  closeItem(); loadMenu(MENU.restaurant); LOADED.items = false;
+}
+async function removeItem(){
+  if(!EDIT) return;
+  const code = EDIT.code;
+  // Deliberately not a confirm(): a browser dialog on a tablet mid-service is
+  // worse than an undo, and the item comes back from "Not on the menu" below.
+  const r = await call('remove_menu_item', {item_code: code, restaurant: MENU.restaurant});
+  if(!r) return;
+  toast(code + ' taken off the menu — put it back from "Not on the menu"');
+  closeItem(); loadMenu(MENU.restaurant);
+}
+async function uploadPhoto(){
+  const file = document.getElementById('itemFile').files?.[0];
+  if(!file || !EDIT) return;
+  const form = new FormData();
+  form.append('file', file); form.append('item_code', EDIT.code);
+  try{
+    const res = await fetch('/api/method/luuvcrm.api.upload_menu_image', {
+      method: 'POST', credentials: 'include',
+      headers: {'X-Frappe-CSRF-Token': CSRF},  // no Content-Type: the browser sets the boundary
+      body: form
+    });
+    const json = await res.json();
+    if(!res.ok) return itemFail(srvErr(json) || 'Upload failed');
+    EDIT.image = json.message.image;
+    setPhoto('itemPhoto', EDIT.image, 'no photo');
+    toast('Photo saved'); renderMenu();
+  }catch(e){ itemFail('Upload failed'); }
+}
+
+/* ── items ────────────────────────────────────────────────────────────────
+   The menu is a selection; this is the list it selects from. Most of what a
+   restaurant buys is never on a menu, an add-on exists only to be attached to
+   something else, and an item pulled for the season still has to be findable. */
+let ITEMS = null, STOCK = null;
+
+async function loadItems(){
+  const showAll = document.getElementById('iShow').value;
+  const d = await call('get_items?include_disabled=' + encodeURIComponent(showAll));
+  if(!d) return;
+  ITEMS = d;
+  document.getElementById('navItems').textContent = d.items.length || '';
+  const sel = document.getElementById('iGroup'), keep = sel.value;
+  sel.innerHTML = '<option value="">All</option>' + opts(d.groups, null, null);
+  if(keep && d.groups.includes(keep)) sel.value = keep;
+  renderItems();
+}
+
+function renderItems(){
+  if(!ITEMS) return;
+  const q = document.getElementById('iSearch').value.trim().toLowerCase();
+  const g = document.getElementById('iGroup').value;
+  const rows = ITEMS.items.filter(i =>
+    (!g || i.group === g) && (!q || i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)));
+  const box = document.getElementById('itemList');
+  if(!rows.length){ box.innerHTML = '<div class="empty">Nothing matches.</div>'; return; }
+  box.innerHTML = rows.map(i => {
+    const photo = i.image ? `<img class="ph" src="${esc(i.image)}" alt="">`
+                          : `<span class="ph">${esc((i.name || '?').slice(0,1).toUpperCase())}</span>`;
+    const chips = [`<span class="chip">${esc(i.group)}</span>`];
+    if(i.on_menu) chips.push('<span class="chip ok">on the menu</span>');
+    if(i.is_stock_item) chips.push('<span class="chip">stock</span>');
+    if(i.disabled) chips.push('<span class="chip off">retired</span>');
+    if(i.kitchen_group_label) chips.push(`<span class="chip kg">${esc(i.kitchen_group_label)}</span>`);
+    return `<div class="li click${i.disabled ? ' dim' : ''}" onclick="openStock('${esc(i.code)}')">
+      ${photo}
+      <div><div class="nm">${esc(i.name)}</div><div class="tags">${chips.join('')}</div></div>
+      <div class="pr">${i.rate ? money(i.rate) : '<span style="color:var(--text-faint)">no price</span>'}</div>
+      <span></span>
+    </div>`;
+  }).join('') + (ITEMS.truncated
+    ? `<div class="empty">Showing the first ${ITEMS.ceiling}. Search to narrow it.</div>` : '');
+}
+
+function openStock(code){
+  if(!ITEMS){ toast('Items still loading…'); return; }
+  STOCK = code ? ITEMS.items.find(i => i.code === code) : null;
+  const isNew = !STOCK;
+  document.getElementById('stockTitle').textContent = isNew ? 'New item' : STOCK.name;
+  document.getElementById('stockErr').style.display = 'none';
+  document.getElementById('sName').value = isNew ? '' : STOCK.name;
+  document.getElementById('sRate').value = isNew ? '' : (STOCK.rate || '');
+  document.getElementById('sGroup').innerHTML = opts(ITEMS.groups, isNew ? '' : STOCK.group, isNew ? 'Pick one' : null);
+  document.getElementById('sKitchen').innerHTML = stockKitchenOpts(isNew ? '' : STOCK.kitchen_group);
+  document.getElementById('sGuide').value = isNew ? '' : (STOCK.gd_pct || '');
+  document.getElementById('sTags').value = isNew ? '' : (STOCK.tags || '');
+  document.getElementById('sUom').innerHTML = opts(ITEMS.uoms, 'Nos', null);
+  document.getElementById('stockNewOnly').style.display = isNew ? '' : 'none';
+  const onMenu = document.getElementById('stockOnMenu');
+  onMenu.style.display = (!isNew && STOCK.on_menu) ? '' : 'none';
+  onMenu.textContent = 'This item is on the menu. Its price and category are the same thing you edit under Menu; take it off the menu there before retiring it.';
+  const retire = document.getElementById('stockRetire');
+  retire.style.display = isNew ? 'none' : '';
+  retire.textContent = (!isNew && STOCK.disabled) ? 'Bring back' : 'Retire';
+  document.getElementById('stockSave').textContent = isNew ? 'Create' : 'Save';
+  document.getElementById('stockSheet').classList.add('open');
+}
+function closeStock(){ document.getElementById('stockSheet').classList.remove('open'); STOCK = null; }
+function stockKitchenOpts(chosen){
+  const groups = (MENU && MENU.kitchen_groups) || [];
+  if(!groups.length) return '<option value="">— none —</option>';
+  return '<option value="">— none —</option>' + groups.map(g =>
+    `<option value="${esc(g.name)}"${g.name === chosen ? ' selected' : ''}>${esc(g.label)}</option>`).join('');
+}
+function stockFail(msg){
+  const e = document.getElementById('stockErr'); e.textContent = msg; e.style.display = 'block';
+}
+async function saveStock(){
+  const name = document.getElementById('sName').value.trim();
+  if(!name) return stockFail('Enter an item name');
+  const group = document.getElementById('sGroup').value;
+  if(!group) return stockFail('Pick a category');
+  const rate = document.getElementById('sRate').value;
+  const btn = document.getElementById('stockSave'); btn.disabled = true;
+  let r;
+  if(STOCK){
+    r = await call('update_item', {
+      item_code: STOCK.code, item_name: name, group, rate: rate || '',
+      kitchen_group: document.getElementById('sKitchen').value,
+      guide_pct: document.getElementById('sGuide').value || 0,
+      tags: document.getElementById('sTags').value.trim()
+    });
+  } else {
+    r = await call('create_item', {
+      item_name: name, group, rate: rate || 0,
+      is_stock_item: document.getElementById('sStock').value,
+      uom: document.getElementById('sUom').value
+    });
+  }
+  btn.disabled = false;
+  if(!r) return stockFail('Could not save');
+  toast(STOCK ? 'Saved' : name + ' created');
+  closeStock(); loadItems(); LOADED.menu = false;
+}
+async function retireItem(){
+  if(!STOCK) return;
+  const r = await call('set_item_enabled', {item_code: STOCK.code, enabled: STOCK.disabled ? 1 : 0});
+  if(!r) return;
+  toast(r.enabled ? STOCK.code + ' is back in use' : STOCK.code + ' retired');
+  closeStock(); loadItems();
+}
+
+/* ── boot ─────────────────────────────────────────────────────────────── */
+if(!IS_OWNER) document.querySelectorAll('#nav a[data-owner]').forEach(a => a.remove());
+show(location.hash.replace('#', '') || 'overview');
+loadBadges();
+lfPoll(() => { LOADED.overview && loadOverview(); loadBadges(); }, 60000);
 </script>
 </body>
 </html>
