@@ -145,24 +145,46 @@ def get_manager_dashboard():
         },
         "approvals": _format_approvals(_pending_and_recent_approvals()),
     }
-@frappe.whitelist()
-def get_manager_sales_report(days=7):
-    """Daily sales trend + item-wise sales over the last N days (all cashiers).
+def _report_range(days=7, start=None, end=None, cap=92):
+    """Resolve a report window.
 
-    Powers the Manager app 'Reports' tab: a day-by-day revenue chart plus a
-    full item-wise breakdown for the same window.
+    An explicit start+end — a chosen calendar month, say — wins and is capped to
+    `cap` days; otherwise it is the last `days` ending today. Reversed dates are
+    swapped rather than refused, because a date picker is how they get reversed
+    and an empty report is a worse answer than the obvious one.
+
+    Returns `(start_date, end_date, n_days)`.
     """
-    roles.require_manager()
-    from frappe.utils import getdate, add_days, today as _today, formatdate
+    from frappe.utils import add_days, date_diff, getdate, today as _today
 
+    if start and end:
+        s, e = getdate(start), getdate(end)
+        if s > e:
+            s, e = e, s
+        if date_diff(e, s) + 1 > cap:
+            s = add_days(e, -(cap - 1))
+        return s, e, date_diff(e, s) + 1
     try:
         days = int(days)
     except Exception:
         days = 7
-    days = max(1, min(days, 92))  # cap the window
+    days = max(1, min(days, cap))
+    e = getdate(_today())
+    return add_days(e, -(days - 1)), e, days
 
-    end = getdate(_today())
-    start = add_days(end, -(days - 1))
+
+@frappe.whitelist()
+def get_manager_sales_report(days=7, start=None, end=None):
+    """Daily sales trend + item-wise sales over a window (all cashiers).
+
+    Powers the Manager app 'Reports' tab: a day-by-day revenue chart plus a
+    full item-wise breakdown. The window is the last N days by default, or an
+    explicit start/end — a whole calendar month picked in the UI.
+    """
+    roles.require_manager()
+    from frappe.utils import getdate, add_days, today as _today, formatdate
+
+    start, end, days = _report_range(days, start, end)
     # Raw SQL sees no permission layer, so the branch has to be said out loud.
     # Empty for an Owner, and on a site with one branch or no cost centres set.
     _inv_cond, _inv_params = branch.sql_cost_center()
@@ -448,26 +470,21 @@ def get_manager_bill_detail(name=None):
         "is_return": bool(doc.is_return),
     }
 @frappe.whitelist()
-def get_manager_purchase_report(days=7):
-    """Daily + weekly purchasing spend over the last N days (approved bills only).
+def get_manager_purchase_report(days=7, start=None, end=None):
+    """Daily + weekly purchasing spend over a window (approved bills only).
 
     Powers the Manager app 'Purchases' tab: a day-by-day and week-by-week spend
-    chart plus top-vendor and top-item breakdowns. Spend is summed from the bill
-    line items (qty * price) to match how the /purchases app recomputes totals.
-    Purchase Bill is non-submittable, so we filter on status='approved' (committed
-    spend), not docstatus; the effective purchase date is `requested_at`.
+    chart plus top-vendor and top-item breakdowns. The window is the last N days
+    by default, or an explicit start/end — a whole calendar month picked in the
+    UI. Spend is summed from the bill line items (qty * price) to match how the
+    /purchases app recomputes totals. Purchase Bill is non-submittable, so we
+    filter on status='approved' (committed spend), not docstatus; the effective
+    purchase date is `requested_at`.
     """
     roles.require_manager()
     from frappe.utils import getdate, add_days, formatdate, today as _today
 
-    try:
-        days = int(days)
-    except Exception:
-        days = 7
-    days = max(1, min(days, 92))  # cap the window
-
-    end = getdate(_today())
-    start = add_days(end, -(days - 1))
+    start, end, days = _report_range(days, start, end)
     # requested_at is a Datetime; upper bound is exclusive start-of-next-day.
     range_start = str(start)
     range_end = str(add_days(end, 1))

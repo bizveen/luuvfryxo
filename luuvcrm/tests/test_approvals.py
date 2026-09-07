@@ -326,3 +326,148 @@ class TestTheGuardsCannotBeWalkedAround(ApprovalTestCase):
             frappe.delete_doc("POS Approval", name)
         frappe.set_user("Administrator")
         self.assertTrue(frappe.db.exists("POS Approval", name))
+
+
+class TestRepeatedTapsCollapse(ApprovalTestCase):
+    """Brought over from `main`, where it was found on the floor. The POS leaves
+    a removed or edited item on screen until the manager approves, so nothing
+    visibly changes after a tap and the cashier taps again — one order once
+    carried ten identical "remove" cards, and a manager had to clear all ten.
+
+    The key is the *whole* action, so only true repeats collapse: a different
+    item or quantity makes a different payload and still gets its own card.
+    """
+
+    def test_an_identical_pending_request_is_returned_not_remade(self):
+        first = self.request(action="void", action_payload='{"item":"TAP1"}')
+        again = self.call(api.create_approval, approval_type="discount",
+                          title="Discount on table 4",
+                          action="void", action_payload='{"item":"TAP1"}')
+        self.assertEqual(again["name"], first)
+        self.assertTrue(again["duplicate"])
+        self.assertEqual(frappe.db.count("POS Approval",
+                                         {"action_payload": '{"item":"TAP1"}',
+                                          "status": "pending"}), 1)
+
+    def test_a_different_payload_still_raises_its_own_card(self):
+        first = self.request(action="void", action_payload='{"item":"TAP2-A"}')
+        second = self.request(action="void", action_payload='{"item":"TAP2-B"}')
+        self.assertNotEqual(first, second)
+
+    def test_a_resolved_request_does_not_swallow_the_next_one(self):
+        """Only a *pending* twin collapses. The same change asked for again
+        after a manager has answered is a new question."""
+        first = self.request(action="void", action_payload='{"item":"TAP3"}')
+        frappe.db.set_value("POS Approval", first, "status", "approved")
+        second = self.request(action="void", action_payload='{"item":"TAP3"}')
+        self.assertNotEqual(second, first)
+
+    def test_two_people_asking_the_same_thing_are_two_requests(self):
+        """`requested_by` is in the dedupe key, which is a deliberate difference
+        from where this came from. Without it the second cashier is handed the
+        first one's card and can then resolve it, because the record says
+        somebody else raised it — the exact hole block_self_approval() closes."""
+        first = self.request(action="void", action_payload='{"item":"TAP5"}')
+        self.as_user(self.user_with(roles.CASHIER, "twin"))
+        second = self.request(action="void", action_payload='{"item":"TAP5"}')
+        self.assertNotEqual(first, second)
+
+    def test_the_trail_gets_one_row_for_one_request(self):
+        """The collapsed tap writes nothing: it is the same request, and the row
+        for it was written when it was first raised."""
+        from luuvcrm import activity
+
+        name = self.request(action="void", action_payload='{"item":"TAP4"}')
+        self.call(api.create_approval, approval_type="discount", title="x",
+                  action="void", action_payload='{"item":"TAP4"}')
+        rows = frappe.db.sql(
+            "select count(*) from `tab{0}` where action = 'approval.create' "
+            "and ref_name = %s".format(activity.DOCTYPE), (name,))[0][0]
+        self.assertEqual(rows, 1)
+
+
+class TestThePurchaseCardShowsThePriceMove(FrappeTestCase):
+    """"Was Rs 300" on a purchase approval card is the one number that says a
+    supplier put their prices up, and the manager is looking at the card at the
+    moment they can still refuse it.
+
+    The stored card lines carry only qty/name/total, so the per-line price is
+    overlaid from the linked bill — matched by row order, because both are built
+    in the same loop in create_purchase_bill. This was lost once already in a
+    revert (`851f74a`), which is why it has a test now.
+    """
+
+    def setUp(self):
+        super().setUp()
+        api._install_purchase_bill()
+        api._install_pos_approval()
+        self.item = fx.item(self, "APPR-DELTA-ITEM")
+        self._bills = []
+        self.addCleanup(self._drop)
+
+    def _drop(self):
+        user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            for name in self._bills:
+                if frappe.db.exists("Purchase Bill", name):
+                    frappe.delete_doc("Purchase Bill", name, force=True, ignore_permissions=True)
+            for price in frappe.get_all("Item Price", pluck="name",
+                                        filters={"item_code": self.item}):
+                frappe.delete_doc("Item Price", price, force=True, ignore_permissions=True)
+        finally:
+            frappe.set_user(user)
+
+    def enter(self, price):
+        previous = frappe.local.form_dict
+        frappe.local.form_dict = frappe._dict(
+            vendor="_LFT-Vendor", lines=json.dumps([{"item": self.item, "qty": 2, "price": price}]))
+        try:
+            name = api.create_purchase_bill()["name"]
+        finally:
+            frappe.local.form_dict = previous
+        self._bills.append(name)
+        return name
+
+    def card_for(self, bill):
+        rows = api._pending_and_recent_approvals(action="purchase_bill")
+        for card in rows:
+            payload = json.loads(card.get("action_payload") or "{}") \
+                if isinstance(card, dict) and card.get("action_payload") else {}
+            if payload.get("bill") == bill:
+                return card
+        return None
+
+    def test_the_card_line_carries_the_price_and_the_previous_one(self):
+        first = self.enter(300)
+        api._decide_purchase_bill(first, "approved")
+        second = self.enter(360)
+        cards = api._format_approvals(api._pending_and_recent_approvals(action="purchase_bill"))
+        card = next((c for c in cards
+                     if json.loads(frappe.db.get_value("POS Approval", c["name"],
+                                                       "action_payload") or "{}").get("bill") == second),
+                    None)
+        self.assertIsNotNone(card, "the second bill should have a pending card")
+        line = card["lines"][0]
+        self.assertEqual(float(line["price"]), 360)
+        self.assertEqual(float(line["old_price"]), 300,
+                         "the delta is the previous *unit* price, not the line total")
+
+    def test_a_first_purchase_shows_no_previous_price(self):
+        bill = self.enter(300)
+        cards = api._format_approvals(api._pending_and_recent_approvals(action="purchase_bill"))
+        card = next((c for c in cards
+                     if json.loads(frappe.db.get_value("POS Approval", c["name"],
+                                                       "action_payload") or "{}").get("bill") == bill),
+                    None)
+        self.assertIsNotNone(card)
+        self.assertIn(float(card["lines"][0].get("old_price") or 0), (0.0,))
+
+    def test_the_unit_comes_across_too(self):
+        bill = self.enter(300)
+        cards = api._format_approvals(api._pending_and_recent_approvals(action="purchase_bill"))
+        card = next((c for c in cards
+                     if json.loads(frappe.db.get_value("POS Approval", c["name"],
+                                                       "action_payload") or "{}").get("bill") == bill),
+                    None)
+        self.assertTrue(card["lines"][0].get("unit"))

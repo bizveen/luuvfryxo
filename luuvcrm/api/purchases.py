@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import roles
+from luuvcrm import activity, roles
 
 from luuvcrm.api.schema import _install_pos_approval
 
@@ -192,6 +192,45 @@ def create_purchase_item():
         return {"ok": False, "message": frappe.utils.strip_html(str(e))[:200] or "Could not create item"}
     return {"ok": True, "item": doc.name, "name": doc.item_name,
             "unit": doc.stock_uom, "price": 0}
+@frappe.whitelist(methods=["POST"])
+def rename_purchase_item():
+    """Fix a purchase item's display name (and unit) from the price book.
+
+    Only the display name (`item_name`) and the unit (`stock_uom`) change — the
+    item_code, the price book entry and every existing bill's link stay put, so
+    nothing is re-priced or orphaned. The correction shows in the price book, the
+    picker and on every bill raised from now on; bills already raised keep the
+    name and unit they were saved with, because their line is a snapshot.
+    """
+    roles.require_pos()
+    data = frappe.local.form_dict
+    item = (data.get("item") or "").strip()
+    new_name = (data.get("new_name") or "").strip()
+    unit = (data.get("unit") or "").strip()
+    if not item or not new_name:
+        frappe.throw(_("Item and a new name are required"))
+    if not frappe.db.exists("Item", item):
+        frappe.throw(_("Item not found"))
+    # Another item already carries this exact name — renaming into it would make
+    # the picker ambiguous, since create_purchase_item dedupes on item_name.
+    clash = frappe.db.get_value("Item", {"item_name": new_name, "name": ["!=", item]}, "name")
+    if clash:
+        frappe.throw(_("Another item is already called '{0}'").format(new_name))
+    was = frappe.db.get_value("Item", item, "item_name")
+    frappe.db.set_value("Item", item, "item_name", new_name)
+    if unit:
+        if not frappe.db.exists("UOM", unit):
+            frappe.get_doc({"doctype": "UOM", "uom_name": unit}).insert(ignore_permissions=True)
+        frappe.db.set_value("Item", item, "stock_uom", unit)
+
+    activity.log_activity(
+        "item.rename", label="%s → %s" % (was or item, new_name),
+        ref_doctype="Item", ref_name=item, item=item, item_name=new_name,
+        detail={"was": was, "now": new_name, "unit": unit or None})
+    return {"ok": True, "item": item, "name": new_name,
+            "unit": unit or frappe.db.get_value("Item", item, "stock_uom")}
+
+
 def _bill_dict(name):
     doc = frappe.get_doc("Purchase Bill", name)
     lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",
@@ -207,6 +246,10 @@ def _bill_dict(name):
         "receipt_image": doc.receipt_image or "", "status": doc.status or "pending",
         "by": frappe.get_value("User", doc.requested_by, "full_name") or doc.requested_by or "",
         "time": frappe.utils.pretty_date(doc.requested_at) if doc.requested_at else "",
+        # who settled it, for the grouped Bills list and the drill-down sheet
+        "resolved_by": (frappe.get_value("User", doc.resolved_by, "full_name")
+                        or doc.resolved_by or "") if doc.get("resolved_by") else "",
+        "resolved_time": frappe.utils.pretty_date(doc.resolved_at) if doc.get("resolved_at") else "",
         "lines": lines, "total": total,
         "payment_status": pay_status,
         "due": (doc.status == "approved" and pay_status != "paid"),
@@ -301,6 +344,78 @@ def get_purchase_bills():
     return {"bills": bills, "approved_today": approved_today, "pending_amt": pending_amt,
             "week": week, "due_amt": due_amt, "due_count": due_count,
             "appr_count": appr_count}
+@frappe.whitelist()
+def get_purchase_day_summary(date=None):
+    """One day's purchasing at a glance: what was entered, what it cost, where it
+    stands, who was involved — and the day's bills themselves.
+
+    Powers the day card above the Bills list in the Manager app, which lists the
+    bills grouped by status. The day owns a bill by `requested_at` (when it was
+    entered), so the numbers always add up to that day's entries no matter when a
+    manager got round to approving them; `approved_by` therefore names whoever
+    resolved *those* bills, which may have happened later. Each bill carries its
+    full line items, so tapping one opens the same breakdown sheet as the Bills
+    list without a second call.
+    """
+    from frappe.utils import add_days, formatdate, getdate, today as _today
+
+    roles.require_pos()
+    day = getdate(date or _today())
+    empty = {"date": str(day), "label": formatdate(day, "EEE, d MMM"),
+             "is_today": str(day) == str(getdate(_today())), "bills": [], "count": 0,
+             "total": 0, "approved": {"count": 0, "total": 0},
+             "pending": {"count": 0, "total": 0}, "rejected": {"count": 0, "total": 0},
+             "entered_by": [], "approved_by": []}
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        return empty
+
+    # Half-open on a Datetime column, so midnight belongs to the next day only.
+    names = frappe.get_all("Purchase Bill",
+                           filters=[["requested_at", ">=", str(day)],
+                                    ["requested_at", "<", str(add_days(day, 1))]],
+                           fields=["name", "requested_by", "resolved_by"],
+                           order_by="requested_at desc", limit_page_length=0)
+    if not names:
+        return empty
+    bills = [_bill_dict(r.name) for r in names]
+
+    buckets = {k: {"count": 0, "total": 0.0} for k in ("approved", "pending", "rejected")}
+    entered, approved_by = {}, {}
+    for r, b in zip(names, bills):
+        amount = b["total"]
+        bucket = buckets.setdefault(b["status"] or "pending", {"count": 0, "total": 0.0})
+        bucket["count"] += 1
+        bucket["total"] += amount
+        row = entered.setdefault(r.requested_by or "", {"count": 0, "total": 0.0})
+        row["count"] += 1
+        row["total"] += amount
+        if b["status"] == "approved" and r.resolved_by:
+            row = approved_by.setdefault(r.resolved_by, {"count": 0, "total": 0.0})
+            row["count"] += 1
+            row["total"] += amount
+
+    def people(d):
+        out = [{"user": u, "name": (frappe.get_value("User", u, "full_name") or u or "—"),
+                "count": v["count"], "total": round(v["total"], 2)}
+               for u, v in d.items()]
+        return sorted(out, key=lambda x: -x["total"])
+
+    empty.update({
+        "bills": bills,
+        "count": len(bills),
+        "total": round(sum(b["total"] for b in bills), 2),
+        "approved": {"count": buckets["approved"]["count"],
+                     "total": round(buckets["approved"]["total"], 2)},
+        "pending": {"count": buckets["pending"]["count"],
+                    "total": round(buckets["pending"]["total"], 2)},
+        "rejected": {"count": buckets["rejected"]["count"],
+                     "total": round(buckets["rejected"]["total"], 2)},
+        "entered_by": people(entered),
+        "approved_by": people(approved_by),
+    })
+    return empty
+
+
 @frappe.whitelist()
 def search_purchase_bills(q=None, status=None, limit=30, offset=0):
     """Reach past the 60 newest bills the Bills list holds.

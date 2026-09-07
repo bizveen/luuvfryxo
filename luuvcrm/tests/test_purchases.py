@@ -296,3 +296,117 @@ class TestFindingABill(PurchaseTestCase):
         self.enter(vendor="_LFT-Vendor-L")
         found = api.search_purchase_bills(q="_LFT-Vendor-L")["bills"]
         self.assertNotIn("items", found[0])
+
+
+class TestFixingAnItemsName(PurchaseTestCase):
+    """A typo in the price book follows every bill raised from then on, and the
+    only way to fix one was the Frappe Desk. Brought over from `main`, where it
+    was written against the live restaurant's own misspelled items."""
+
+    def test_the_name_changes_and_the_item_does_not(self):
+        """The item_code, the price book entry and every existing bill's link
+        stay put, so nothing is re-priced or orphaned."""
+        self.enter()
+        result = self.call(api.rename_purchase_item, item=self.tomato,
+                           new_name="Tomatoes (large)")
+        self.assertTrue(result["ok"])
+        self.assertEqual(frappe.db.get_value("Item", self.tomato, "item_name"),
+                         "Tomatoes (large)")
+        self.assertTrue(frappe.db.exists("Item", self.tomato))
+
+    def test_a_bill_already_raised_keeps_the_name_it_was_saved_with(self):
+        """The line is a snapshot. Rewriting old bills would change what a
+        manager approved after they approved it."""
+        bill = self.enter()
+        was = frappe.db.get_value("Purchase Bill Item",
+                                  {"parent": bill, "item": self.tomato}, "item_name")
+        self.call(api.rename_purchase_item, item=self.tomato, new_name="Tomatoes (large)")
+        self.assertEqual(frappe.db.get_value("Purchase Bill Item",
+                                             {"parent": bill, "item": self.tomato},
+                                             "item_name"), was)
+
+    def test_the_unit_can_be_corrected_too(self):
+        self.call(api.rename_purchase_item, item=self.tomato,
+                  new_name="Tomato", unit="Kg")
+        self.assertEqual(frappe.db.get_value("Item", self.tomato, "stock_uom"), "Kg")
+
+    def test_a_unit_that_does_not_exist_yet_is_created(self):
+        self.call(api.rename_purchase_item, item=self.tomato,
+                  new_name="Tomato", unit="_LFT-Bushel")
+        self.assertTrue(frappe.db.exists("UOM", "_LFT-Bushel"))
+        self.addCleanup(frappe.delete_doc, "UOM", "_LFT-Bushel", force=True,
+                        ignore_permissions=True)
+
+    def test_renaming_into_another_item_s_name_is_refused(self):
+        """create_purchase_item dedupes on item_name, so two items with one name
+        make the picker ambiguous — and the wrong one gets bought."""
+        other = frappe.db.get_value("Item", self.onion, "item_name")
+        with self.assertRaises(frappe.ValidationError):
+            self.call(api.rename_purchase_item, item=self.tomato, new_name=other)
+
+    def test_an_empty_name_is_refused(self):
+        with self.assertRaises(frappe.ValidationError):
+            self.call(api.rename_purchase_item, item=self.tomato, new_name="   ")
+
+    def test_kitchen_staff_cannot_rename_a_purchase_item(self):
+        self.as_user(self.user_with(roles.KITCHEN_STAFF, "kitchen"))
+        with self.assertRaises(frappe.PermissionError):
+            self.call(api.rename_purchase_item, item=self.tomato, new_name="Anything")
+
+
+class TestTheDaySummary(PurchaseTestCase):
+    """The day card above the Bills list. A day owns a bill by when it was
+    *entered*, so the numbers add up to that day's entries however long a
+    manager took to approve them — which is why `approved_by` can name work that
+    happened later."""
+
+    def test_today_counts_what_was_entered_today(self):
+        self.enter(lines=[{"item": self.tomato, "qty": 2, "price": 100}])
+        day = api.get_purchase_day_summary()
+        self.assertTrue(day["is_today"])
+        self.assertGreaterEqual(day["count"], 1)
+        self.assertGreaterEqual(day["total"], 200)
+
+    def test_the_buckets_add_up_to_the_day(self):
+        self.enter(lines=[{"item": self.tomato, "qty": 1, "price": 500}])
+        day = api.get_purchase_day_summary()
+        counted = sum(day[k]["count"] for k in ("approved", "pending", "rejected"))
+        self.assertEqual(counted, day["count"])
+
+    def test_it_names_who_entered_the_bills(self):
+        self.enter()
+        day = api.get_purchase_day_summary()
+        self.assertIn(frappe.session.user, [p["user"] for p in day["entered_by"]])
+
+    def test_an_approved_bill_names_who_settled_it(self):
+        bill = self.enter()
+        manager = self.user_with(roles.RESTAURANT_MANAGER, "mgr2")
+        here = frappe.session.user
+        frappe.set_user(manager)
+        try:
+            api._decide_purchase_bill(bill, "approved")
+            frappe.db.set_value("Purchase Bill", bill, "resolved_by", manager)
+        finally:
+            frappe.set_user(here)
+        day = api.get_purchase_day_summary()
+        row = next((b for b in day["bills"] if b["name"] == bill), None)
+        self.assertIsNotNone(row)
+        self.assertIn(manager, [p["user"] for p in day["approved_by"]])
+
+    def test_a_day_with_nothing_in_it_answers_zero_rather_than_failing(self):
+        day = api.get_purchase_day_summary(date="2019-01-01")
+        self.assertEqual(day["count"], 0)
+        self.assertEqual(day["bills"], [])
+        self.assertFalse(day["is_today"])
+
+    def test_each_bill_carries_its_lines_so_the_sheet_needs_no_second_call(self):
+        self.enter(lines=[{"item": self.tomato, "qty": 3, "price": 120},
+                          {"item": self.onion, "qty": 1, "price": 90}])
+        day = api.get_purchase_day_summary()
+        self.assertTrue(day["bills"])
+        self.assertEqual(len(day["bills"][0]["lines"]), 2)
+
+    def test_a_cashier_may_read_the_day_but_kitchen_staff_may_not(self):
+        self.as_user(self.user_with(roles.KITCHEN_STAFF, "kitchen"))
+        with self.assertRaises(frappe.PermissionError):
+            api.get_purchase_day_summary()

@@ -32,16 +32,49 @@ def create_approval():
     if not frappe.db.exists("DocType", "POS Approval"):
         _install_pos_approval()
     data = frappe.local.form_dict
+    approval_type = data.get("approval_type", "void")
+    pos_order = data.get("pos_order", "")
+    action = data.get("action", "")
+    action_payload = data.get("action_payload", "") or ""
+
+    # Dedupe. The POS leaves a removed or edited item on screen until the manager
+    # approves, so nothing visibly changes after a tap and the cashier taps again
+    # — each tap used to raise a fresh approval, and one order once carried ten
+    # identical "remove" cards. An identical request that is still pending is
+    # returned instead of a second one being made. The key is the *whole* action:
+    # same order, same type, same action, same payload. A different item or qty
+    # produces a different payload and still raises its own approval, so only
+    # true repeats collapse.
+    existing = frappe.db.get_value("POS Approval", {
+        "status": "pending",
+        "approval_type": approval_type,
+        "pos_order": pos_order,
+        "action": action,
+        "action_payload": action_payload,
+        # `requested_by` is in the key, which `main`'s version does not have.
+        # Without it, a second cashier asking for the identical thing is handed
+        # the first one's card — and can then resolve it, because the record
+        # says somebody else raised it. That is the exact hole
+        # roles.block_self_approval() exists to close, and the self-approval
+        # test caught it the moment the dedupe went in. Two people asking is two
+        # requests; one person tapping twice is one.
+        "requested_by": frappe.session.user,
+    }, "name")
+    if existing:
+        # Deliberately no activity row: this is the same request, not a second
+        # one, and the row for it was written when it was first raised.
+        return {"ok": True, "name": existing, "duplicate": True}
+
     doc = frappe.get_doc({
         "doctype": "POS Approval",
-        "approval_type": data.get("approval_type", "void"),
-        "pos_order": data.get("pos_order", ""),
+        "approval_type": approval_type,
+        "pos_order": pos_order,
         "title": data.get("title", "") or "Approval request",
         "subhead": data.get("subhead", ""),
         "details_json": data.get("details_json", "") or "",
         "flag_text": data.get("flag_text", ""),
-        "action": data.get("action", ""),
-        "action_payload": data.get("action_payload", "") or "",
+        "action": action,
+        "action_payload": action_payload,
         "status": "pending",
         "requested_by": frappe.session.user,
         "requested_at": now_datetime(),
@@ -52,8 +85,7 @@ def create_approval():
     # The action name matters: activity.duplicate_approval_flag() counts earlier
     # rows with exactly this action and this order to spot the cashier asking
     # twice, or asking a second manager.
-    approval_type = data.get("approval_type", "void")
-    order = data.get("pos_order", "")
+    order = pos_order
     flag, note = activity.duplicate_approval_flag(order, approval_type)
     # One row, hung off the *order* rather than the approval, so a bill's story
     # reads top to bottom — and so the duplicate counter, which looks up rows by
@@ -105,6 +137,30 @@ def _format_approvals(rows):
         if u and u not in names:
             names[u] = frappe.get_value("User", u, "full_name") or u
     me = frappe.session.user
+
+    # Purchase-bill cards show each line's price with a "was Rs X" delta when the
+    # buying price moved — the one number that says whether a supplier put their
+    # prices up. The stored card lines carry only qty/name/total, so price,
+    # old_price, qty and unit are overlaid from the linked bill: one query for
+    # every bill on screen at once, matched to the card lines by row order,
+    # because both are built in the same loop order in create_purchase_bill.
+    bill_of = {}
+    for r in rows:
+        if (r.get("action") or "") == "purchase_bill":
+            try:
+                bill = json.loads(r.get("action_payload") or "{}").get("bill")
+            except Exception:
+                bill = None
+            if bill:
+                bill_of[r.get("name")] = bill
+    bill_items = {}
+    if bill_of:
+        for it in frappe.get_all("Purchase Bill Item",
+                                 filters={"parent": ["in", list(set(bill_of.values()))]},
+                                 fields=["parent", "idx", "qty", "price", "old_price", "uom"],
+                                 order_by="parent asc, idx asc", limit_page_length=0):
+            bill_items.setdefault(it.parent, []).append(it)
+
     for r in rows:
         try:
             details = json.loads(r.get("details_json") or "{}")
@@ -122,13 +178,27 @@ def _format_approvals(rows):
                 image = frappe.db.get_value("Expense", payload["expense"], "receipt_image") or ""
         except Exception:
             image = ""
+
+        # Overlay the bill's per-line price detail onto this card's lines.
+        lines = details.get("lines") or []
+        bill = bill_of.get(r.get("name"))
+        if bill and bill_items.get(bill):
+            items = bill_items[bill]
+            for i, line in enumerate(lines):
+                if i < len(items) and isinstance(line, dict):
+                    it = items[i]
+                    line["qty"] = it.qty
+                    line["price"] = it.price
+                    line["old_price"] = it.old_price
+                    line["unit"] = it.uom
+
         out.append({
             "name": r.get("name"),
             "type": r.get("approval_type") or "item",
             "pos_order": r.get("pos_order") or "",
             "title": r.get("title") or "",
             "subhead": r.get("subhead") or "",
-            "lines": details.get("lines") or [],
+            "lines": lines,
             "footer_label": details.get("footer_label") or "",
             "footer_value": details.get("footer_value") or "",
             "flag_text": r.get("flag_text") or "",

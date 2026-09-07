@@ -59,6 +59,18 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 .navb i{width:23px;height:23px;}
 .rangeBtn{border:none;background:transparent;color:var(--text-muted);font-family:var(--font-display);font-weight:700;font-size:13px;padding:7px 15px;border-radius:var(--radius-pill);cursor:pointer;}
 .rangeBtn.active{background:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
+.monthBtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-subtle);background:var(--surface-sunken);color:var(--text-muted);font-family:var(--font-display);font-weight:700;font-size:13px;padding:8px 14px;border-radius:var(--radius-pill);cursor:pointer;}
+.monthBtn i{width:14px;height:14px;}
+.monthBtn.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
+.yrStep{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none;}
+.yrStep i{width:17px;height:17px;}
+.mBtn{border:1px solid var(--border-subtle);background:var(--surface-card);color:var(--text-body);font-family:var(--font-display);font-weight:700;font-size:14px;padding:13px 0;border-radius:var(--radius-lg);cursor:pointer;}
+.mBtn.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
+.dpWk{text-align:center;font-family:var(--font-display);font-weight:700;font-size:11px;color:var(--text-faint);padding:2px 0;}
+.dpD{aspect-ratio:1;border:1px solid transparent;background:transparent;color:var(--text-body);font-family:var(--font-display);font-weight:700;font-size:13.5px;border-radius:var(--radius-md);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.dpD:disabled{color:var(--text-faint);opacity:.45;cursor:not-allowed;}
+.dpD.today{border-color:var(--color-primary);color:var(--color-primary);}
+.dpD.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
 
 /* ── Desktop / tablet-landscape (≥900px): widen the shell, two-column content.
@@ -190,11 +202,14 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <div style="font-size:13.5px;color:var(--text-muted);" id="reportSub">—</div>
           </div>
         </div>
-        <!-- range toggle -->
-        <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;margin-bottom:16px;" id="rangeToggle">
-          <button class="rangeBtn active" data-days="7" onclick="setRange(7)">7 days</button>
-          <button class="rangeBtn" data-days="30" onclick="setRange(30)">30 days</button>
-          <button class="rangeBtn" data-days="90" onclick="setRange(90)">90 days</button>
+        <!-- range toggle + month picker -->
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;">
+          <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="rangeToggle">
+            <button class="rangeBtn active" data-days="7" onclick="setRange(7)">7 days</button>
+            <button class="rangeBtn" data-days="30" onclick="setRange(30)">30 days</button>
+            <button class="rangeBtn" data-days="90" onclick="setRange(90)">90 days</button>
+          </div>
+          <button class="monthBtn" id="repMonthBtn" onclick="openMonthPicker('rep')"><i data-lucide="calendar"></i><span>Month</span></button>
         </div>
         <!-- summary -->
         <div style="background:var(--surface-brand);color:#fff;border-radius:var(--radius-xl);padding:20px 22px;box-shadow:var(--shadow-brand);margin-bottom:14px;">
@@ -259,11 +274,14 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <div style="font-size:13.5px;color:var(--text-muted);" id="purchSub">—</div>
           </div>
         </div>
-        <!-- range toggle -->
-        <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;margin-bottom:12px;" id="pRangeToggle">
-          <button class="rangeBtn active" data-days="7" onclick="setPRange(7)">7 days</button>
-          <button class="rangeBtn" data-days="30" onclick="setPRange(30)">30 days</button>
-          <button class="rangeBtn" data-days="90" onclick="setPRange(90)">90 days</button>
+        <!-- range toggle + month picker -->
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;">
+          <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="pRangeToggle">
+            <button class="rangeBtn active" data-days="7" onclick="setPRange(7)">7 days</button>
+            <button class="rangeBtn" data-days="30" onclick="setPRange(30)">30 days</button>
+            <button class="rangeBtn" data-days="90" onclick="setPRange(90)">90 days</button>
+          </div>
+          <button class="monthBtn" id="pMonthBtn" onclick="openMonthPicker('p')"><i data-lucide="calendar"></i><span>Month</span></button>
         </div>
         <!-- granularity toggle -->
         <div style="display:flex;margin-bottom:16px;">
@@ -307,6 +325,18 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           </div>
           <div id="purchItems" style="display:flex;flex-direction:column;"></div>
         </div>
+        <!-- day summary: what was entered today, where it stands, who did it -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-top:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Day summary</div>
+              <div style="font-size:12.5px;color:var(--text-muted);" id="pdayLabel">—</div>
+            </div>
+            <button class="monthBtn" id="pdayBtn" onclick="openDatePicker()"><i data-lucide="calendar-days"></i><span>Today</span></button>
+          </div>
+          <div id="pdayBody"></div>
+        </div>
+
         <!-- recent bills (tap one → full breakdown sheet) -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-top:14px;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;">
@@ -380,6 +410,45 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <div id="itemErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin-bottom:12px;"></div>
     <button class="lf-btn" id="itemSave" onclick="saveItem()">Save</button>
     <div style="display:flex;align-items:center;gap:7px;color:var(--text-faint);font-size:12px;margin-top:12px;justify-content:center;"><i data-lucide="monitor" style="width:14px;height:14px;"></i> POS picks this up on its next refresh</div>
+  </div>
+</div>
+
+<!-- Date picker sheet (the Purchases day summary) -->
+<div id="dateOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideDatePicker()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <div style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);flex:1;">Pick a day</div>
+      <button onclick="hideDatePicker()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <button class="yrStep" id="dpPrev" onclick="stepDpMonth(-1)"><i data-lucide="chevron-left"></i></button>
+      <div id="dpMonth" style="flex:1;text-align:center;font-family:var(--font-display);font-weight:800;font-size:16.5px;color:var(--text-strong);">—</div>
+      <button class="yrStep" id="dpNext" onclick="stepDpMonth(1)"><i data-lucide="chevron-right"></i></button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;">
+      <div class="dpWk">M</div><div class="dpWk">T</div><div class="dpWk">W</div><div class="dpWk">T</div><div class="dpWk">F</div><div class="dpWk">S</div><div class="dpWk">S</div>
+    </div>
+    <div id="dpGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
+    <button onclick="pickDay('')" style="width:100%;margin-top:14px;border:none;background:transparent;color:var(--color-primary);font-family:var(--font-display);font-weight:700;font-size:13.5px;padding:10px 0;cursor:pointer;">Jump to today</button>
+  </div>
+</div>
+
+<!-- Month picker sheet (the Reports + Purchases range) -->
+<div id="monthOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideMonthPicker()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <div id="mpTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);flex:1;">Pick a month</div>
+      <button onclick="hideMonthPicker()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:16px;">
+      <button class="yrStep" id="mpPrev" onclick="stepYear(-1)"><i data-lucide="minus"></i></button>
+      <div class="mono" id="mpYear" style="font-family:var(--font-display);font-weight:800;font-size:24px;color:var(--text-strong);min-width:82px;text-align:center;letter-spacing:-.01em;">—</div>
+      <button class="yrStep" id="mpNext" onclick="stepYear(1)"><i data-lucide="plus"></i></button>
+    </div>
+    <div id="mpGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;"></div>
+    <button id="mpClear" onclick="clearMonth()" style="display:none;width:100%;margin-top:14px;border:none;background:transparent;color:var(--color-primary);font-family:var(--font-display);font-weight:700;font-size:13.5px;padding:10px 0;cursor:pointer;">Back to the day range</button>
   </div>
 </div>
 
@@ -693,7 +762,14 @@ function lfPoll(fn, ms){
     const st=pending?(apprState[a.name]=apprState[a.name]||{ticks:{},comment:''}):{ticks:{},comment:''};
     const nLines=(a.lines||[]).length;
     const locked=pending&&a.type==='bill'&&a.mine;
-    const lines=(a.lines||[]).map((li,ix)=>`<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`).join('');
+    const lines=(a.lines||[]).map((li,ix)=>{
+      // Buying-price delta: the "was" is the previous UNIT price (last price paid).
+      const op=+li.old_price||0, pr=+li.price||0;
+      const up=op>0&&pr>op, down=op>0&&pr<op;
+      const note=up?('↑ was Rs '+nfmt(op)):(down?('↓ was Rs '+nfmt(op)):'');
+      const col=up?'var(--color-danger)':'var(--color-success)';
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
+    }).join('');
     const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
     const flag=a.flag_text?`<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-pill);padding:6px 12px;">${a.flag_text}</div>`:'';
     const img=a.image?`<img src="${esc(a.image)}" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:11px;"><div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;text-align:center;">Tap the photo to inspect it full screen</div>`:'';
@@ -725,17 +801,59 @@ function lfPoll(fn, ms){
   async function resolve(name,decision){
     const comment=((apprState[name]||{}).comment||'').trim();
     try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',{name:name,decision:decision,comment:comment}); if(!r) return; const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ delete apprState[name]; _apprSig=null; toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
+      if(r.ok && d.message && d.message.ok){ delete apprState[name]; _apprSig=null; pLoaded=false;  // the day summary + bills list are now stale
+        toast(decision==='approved'?'Approved':'Rejected'); loadApprovals(); loadDashboard(); }
       else toast('Could not resolve'); }catch(e){ toast('Connection error'); } }
 
+  // ── Month picker (shared by the Reports and Purchases range toggles) ──
+  const MON_FULL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const _d2s=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  // A month is 'YYYY-MM'. The current month stops at today — no empty tail.
+  function monthRange(ym){ const p=ym.split('-'), y=+p[0], m=+p[1];
+    const first=new Date(y,m-1,1), last=new Date(y,m,0), t=new Date(); t.setHours(0,0,0,0);
+    return {start:_d2s(first), end:_d2s(last>t?t:last), label:MON_FULL[m-1]+' '+y}; }
+  // A bottom sheet rather than a dropdown: ± steps the year, so the reach back
+  // is not capped at a list of recent months.
+  const MP_MIN_YEAR=2015;
+  let mpTarget='rep', mpYear=new Date().getFullYear();
+  function mpCurrent(){ return mpTarget==='rep'?repMonth:pMonth; }
+  function openMonthPicker(t){ mpTarget=t||'rep'; const cur=mpCurrent();
+    mpYear=cur?+cur.split('-')[0]:new Date().getFullYear();
+    document.getElementById('mpTitle').textContent=mpTarget==='rep'?'Sales in a month':'Purchases in a month';
+    renderMonthPicker(); document.getElementById('monthOverlay').style.display='flex'; }
+  function hideMonthPicker(){ document.getElementById('monthOverlay').style.display='none'; }
+  function stepYear(d){ mpYear=Math.max(MP_MIN_YEAR,Math.min(new Date().getFullYear(),mpYear+d)); renderMonthPicker(); }
+  function renderMonthPicker(){
+    const now=new Date(), cy=now.getFullYear(), cm=now.getMonth()+1, cur=mpCurrent();
+    document.getElementById('mpYear').textContent=mpYear;
+    document.getElementById('mpPrev').disabled=mpYear<=MP_MIN_YEAR;
+    document.getElementById('mpNext').disabled=mpYear>=cy;
+    document.getElementById('mpGrid').innerHTML=MON_FULL.map((n,i)=>{ const m=i+1, ym=mpYear+'-'+String(m).padStart(2,'0');
+      const future=(mpYear===cy&&m>cm), on=(ym===cur);
+      return `<button class="mBtn${on?' active':''}"${future?' disabled':''} onclick="pickMonth('${ym}')">${n.slice(0,3)}</button>`; }).join('');
+    document.getElementById('mpClear').style.display=cur?'block':'none';
+    icons(); }
+  function pickMonth(ym){ hideMonthPicker(); if(mpTarget==='rep') setRepMonth(ym); else setPMonth(ym); }
+  function clearMonth(){ hideMonthPicker(); if(mpTarget==='rep') setRange(repDays); else setPRange(pDays); }
+  // the trigger pill carries the chosen month, so the range is readable while scrolling
+  function syncMonthBtn(id,ym){ const b=document.getElementById(id); if(!b) return;
+    b.classList.toggle('active',!!ym);
+    b.querySelector('span').textContent=ym?(MON_FULL[+ym.split('-')[1]-1].slice(0,3)+' '+ym.split('-')[0]):'Month'; }
+
   // ── Reports (daily sales trend + item-wise sales) ──
-  let repDays=7, repLoaded=false;
-  function setRange(d){ repDays=d; document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadReports(true); }
+  let repDays=7, repMonth='', repLoaded=false;
+  function setRange(d){ repDays=d; repMonth=''; syncMonthBtn('repMonthBtn','');
+    document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadReports(true); }
+  function setRepMonth(ym){ if(!ym){ setRange(repDays); return; }
+    repMonth=ym; syncMonthBtn('repMonthBtn',ym);
+    document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.remove('active')); loadReports(true); }
+  // the range args every report call in this tab shares
+  function repArgs(){ if(!repMonth) return {days:repDays}; const r=monthRange(repMonth); return {start:r.start,end:r.end}; }
   async function loadReports(force){
     if(repLoaded && !force) return; repLoaded=true;
     loadFoodCost();
-    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_sales_report',{days:repDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
-      document.getElementById('reportSub').textContent='Last '+m.days+' days · '+(m.start||'')+' → '+(m.end||'');
+    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_sales_report',repArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      document.getElementById('reportSub').textContent=(repMonth?monthRange(repMonth).label:'Last '+m.days+' days')+' · '+(m.start||'')+' → '+(m.end||'');
       document.getElementById('repRevenue').textContent=nfmt(m.total_revenue);
       document.getElementById('repSales').textContent=m.total_sales;
       document.getElementById('repAvg').textContent=nfmt(m.avg_ticket);
@@ -755,7 +873,7 @@ function lfPoll(fn, ms){
 
   // ── Sales vs costs (food cost + overheads + profit over the range) ──
   async function loadFoodCost(){
-    try{ const r=await _post('/api/method/luuvcrm.api.get_food_cost_report',{days:repDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+    try{ const r=await _post('/api/method/luuvcrm.api.get_food_cost_report',repArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       const fcTone=m.food_cost_pct>40?'var(--color-danger)':(m.food_cost_pct>32?'var(--color-warning)':'var(--color-success)');
       const pTone=(m.profit||0)>=0?'var(--color-success)':'var(--color-danger)';
       const bar=(label,amt,pct,color,sub)=>`<div><div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;"><span style="font-size:14px;font-weight:700;color:var(--text-strong);flex:1;">${label}</span><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(amt)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:46px;text-align:right;">${pct}%</span></div><div style="height:10px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${Math.max(0,Math.min(100,pct))}%;background:${color};border-radius:var(--radius-pill);"></div></div>${sub?`<div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;">${sub}</div>`:''}</div>`;
@@ -876,7 +994,8 @@ function lfPoll(fn, ms){
   // ── Monthly sales: last 12 calendar months (loads once; range toggle doesn't affect it) ──
   let monData=null, monLoaded=false;
   async function loadMonthly(){
-    if(monLoaded) return; monLoaded=true;
+    if(monLoaded){ renderMonthlyChart(); return; }  // re-render: the picked month is highlighted here
+    monLoaded=true;
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_monthly_sales',{months:12}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       monData=m;
       document.getElementById('monSub').textContent='Rs '+nfmt(m.total_revenue)+' · '+m.total_sales+' sales'+(m.best&&m.best.revenue>0?(' · best: '+m.best.label+' ’'+m.best.yy):'');
@@ -891,10 +1010,11 @@ function lfPoll(fn, ms){
     const ymax=niceCeil(dmax);
     const VAL_H=13,GAP=4,BAR_H=chartH(100),LAB_H=14,H=VAL_H+GAP+BAR_H+GAP+LAB_H;
     const cols=series.map((x,i)=>{
-      const pk=x.revenue===dmax&&x.revenue>0;
+      const pk=x.ym===repMonth||(x.revenue===dmax&&x.revenue>0);
       const lab=x.label+((i===0||x.label==='Jan')?' ’'+x.yy:'');
       const val=x.revenue>0?kfmt(x.revenue):'';
-      return `<div title="${x.label} ${x.year}: Rs ${nfmt(x.revenue)} (${x.count} sales · avg Rs ${nfmt(x.avg_ticket)})" style="width:34px;flex:none;display:flex;flex-direction:column;align-items:center;gap:${GAP}px;">
+      const on=x.ym===repMonth;
+      return `<div onclick="setRepMonth('${on?'':x.ym}')" title="${x.label} ${x.year}: Rs ${nfmt(x.revenue)} (${x.count} sales · avg Rs ${nfmt(x.avg_ticket)}) — tap to see this month" style="width:34px;flex:none;display:flex;flex-direction:column;align-items:center;gap:${GAP}px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
         <span class="mono" style="font-size:9.5px;font-weight:500;color:${pk?'var(--color-primary)':'var(--text-muted)'};white-space:nowrap;height:${VAL_H}px;line-height:${VAL_H}px;">${val}</span>
         <div style="height:${BAR_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;"><div style="width:100%;max-width:30px;height:${Math.max(3,Math.round(x.revenue/ymax*BAR_H))}px;background:${pk?'var(--color-primary)':'var(--orange-200)'};border-radius:5px 5px 3px 3px;"></div></div>
         <span class="mono" style="font-size:9.5px;color:var(--text-faint);white-space:nowrap;height:${LAB_H}px;line-height:${LAB_H}px;">${lab}</span>
@@ -903,18 +1023,23 @@ function lfPoll(fn, ms){
   }
 
   // ── Purchases (daily + weekly approved-bill spend, top vendors, top items) ──
-  let pDays=7, pGran='daily', pData=null, pLoaded=false;
-  function setPRange(d){ pDays=d; document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadPurchases(true); }
+  let pDays=7, pMonth='', pGran='daily', pData=null, pLoaded=false;
+  function setPRange(d){ pDays=d; pMonth=''; syncMonthBtn('pMonthBtn','');
+    document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadPurchases(true); }
+  function setPMonth(ym){ if(!ym){ setPRange(pDays); return; }
+    pMonth=ym; syncMonthBtn('pMonthBtn',ym);
+    document.querySelectorAll('#pRangeToggle .rangeBtn').forEach(b=>b.classList.remove('active')); loadPurchases(true); }
+  function pArgs(){ if(!pMonth) return {days:pDays}; const r=monthRange(pMonth); return {start:r.start,end:r.end}; }
   function setPGran(g){ pGran=g; document.querySelectorAll('#pGranToggle .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.gran===g));
     document.getElementById('purchChartTitle').textContent=g==='weekly'?'Weekly spend':'Daily spend';
     document.getElementById('purchAvgLegend').style.display=g==='weekly'?'none':'inline-flex';
     renderPurchaseChart(); }
   async function loadPurchases(force){
     if(pLoaded && !force) return; pLoaded=true;
-    loadPurchaseBills();
-    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_purchase_report',{days:pDays}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+    loadPurchaseBills(); loadPurchaseDay();
+    try{ const r=await _post('/api/method/luuvcrm.api.get_manager_purchase_report',pArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       pData=m;
-      document.getElementById('purchSub').textContent='Last '+m.days+' days · '+(m.start||'')+' → '+(m.end||'');
+      document.getElementById('purchSub').textContent=(pMonth?monthRange(pMonth).label:'Last '+m.days+' days')+' · '+(m.start||'')+' → '+(m.end||'');
       document.getElementById('purchSpend').textContent=nfmt(m.total_spend);
       document.getElementById('purchBills').textContent=m.bill_count;
       document.getElementById('purchAvg').textContent=nfmt(m.avg_bill);
@@ -966,6 +1091,102 @@ function lfPoll(fn, ms){
       svg.innerHTML=`<polyline points="${pts}" fill="none" stroke="var(--gray-700)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>`; });
   }
 
+  // ── Day summary: one day's bills — what it cost, where it stands, who did it ──
+  let pDay='', pdayBills=[];  // '' = today, until a day is picked
+  let dpYear=new Date().getFullYear(), dpMonth=new Date().getMonth();  // the calendar's page
+
+  // ── Date picker: a calendar sheet, Monday-first, nothing past today ──
+  function openDatePicker(){ const d=_parseISO(pDay); dpYear=d.getFullYear(); dpMonth=d.getMonth();
+    renderDatePicker(); document.getElementById('dateOverlay').style.display='flex'; }
+  function hideDatePicker(){ document.getElementById('dateOverlay').style.display='none'; }
+  function _parseISO(iso){ const p=(iso||'').split('-'); const d=p.length===3?new Date(+p[0],+p[1]-1,+p[2]):new Date(); d.setHours(12,0,0,0); return d; }
+  function stepDpMonth(n){ const t=new Date(); const y=dpYear, m=dpMonth+n;
+    const nd=new Date(y,m,1); if(nd>new Date(t.getFullYear(),t.getMonth(),1)) return;  // not into the future
+    dpYear=nd.getFullYear(); dpMonth=nd.getMonth(); renderDatePicker(); }
+  function renderDatePicker(){
+    const t=new Date(); t.setHours(12,0,0,0);
+    const todayIso=_d2s(t), sel=pDay||todayIso;
+    document.getElementById('dpMonth').textContent=MON_FULL[dpMonth]+' '+dpYear;
+    document.getElementById('dpNext').disabled=(dpYear===t.getFullYear()&&dpMonth===t.getMonth());
+    const first=new Date(dpYear,dpMonth,1), lead=(first.getDay()+6)%7;  // Monday-first
+    const days=new Date(dpYear,dpMonth+1,0).getDate();
+    let html='';
+    for(let i=0;i<lead;i++) html+='<span></span>';
+    for(let d=1;d<=days;d++){ const iso=_d2s(new Date(dpYear,dpMonth,d,12));
+      const future=iso>todayIso, cls=['dpD']; if(iso===sel) cls.push('active'); else if(iso===todayIso) cls.push('today');
+      html+=`<button class="${cls.join(' ')}"${future?' disabled':''} onclick="pickDay('${iso}')">${d}</button>`; }
+    document.getElementById('dpGrid').innerHTML=html;
+    icons(); }
+  function pickDay(iso){ hideDatePicker(); pDay=iso||''; loadPurchaseDay(); }
+  function relDay(iso){ const t=new Date(); t.setHours(12,0,0,0);
+    const n=Math.round((t-_parseISO(iso))/86400000);
+    return n<=0?'Today':(n===1?'Yesterday':n+' days ago'); }
+
+  async function loadPurchaseDay(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_day_summary',pDay?{date:pDay}:{}); if(!r) return;
+      const d=await r.json(); const m=d.message; if(!m) return; renderPurchaseDay(m); }catch(e){}
+  }
+  function renderPurchaseDay(m){
+    pDay=m.date; pdayBills=m.bills||[];
+    // the pill carries the date; the sub-line says how far back it is
+    document.getElementById('pdayLabel').textContent=relDay(m.date);
+    document.getElementById('pdayBtn').querySelector('span').textContent=m.label||m.date;
+    document.getElementById('pdayBtn').classList.toggle('active',!m.is_today);
+    const body=document.getElementById('pdayBody');
+    if(!m.count){ body.innerHTML='<div style="color:var(--text-faint);font-size:13px;padding:6px 0 2px;">No bills entered on this day.</div>'; icons(); return; }
+    const tile=(label,v,tone)=>`<div style="flex:1;min-width:0;background:var(--surface-sunken);border-radius:var(--radius-lg);padding:11px 12px;">
+        <div style="font-size:12px;font-weight:700;color:${tone};">${label}</div>
+        <div class="mono" style="font-size:17px;font-weight:500;color:var(--text-strong);margin-top:2px;">Rs ${nfmt(v.total)}</div>
+        <div style="font-size:11.5px;color:var(--text-muted);">${v.count} bill${v.count===1?'':'s'}</div>
+      </div>`;
+    body.innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+        <span class="mono" style="font-size:26px;font-weight:500;color:var(--text-strong);letter-spacing:-.02em;">Rs ${nfmt(m.total)}</span>
+        <span style="font-size:12.5px;color:var(--text-muted);">${m.count} bill${m.count===1?'':'s'} entered</span>
+      </div>
+      <div style="display:flex;gap:9px;">
+        ${tile('Approved',m.approved,'var(--color-success)')}
+        ${tile('Pending',m.pending,'var(--color-warning)')}
+        ${m.rejected.count?tile('Rejected',m.rejected,'var(--color-danger)'):''}
+      </div>
+      ${pdayGroups()}
+      <div style="font-size:11.5px;color:var(--text-faint);margin-top:8px;">Tap a bill to see its items, prices and receipt</div>`;
+    icons();
+  }
+  // pending first — those still want a decision — then approved, then rejected
+  const PDAY_GROUPS=[['pending','Pending','⏳'],['approved','Approved','✅'],['rejected','Rejected','✕']];
+  function pdayGroups(){
+    return PDAY_GROUPS.map(([st,label,icon])=>{
+      const rows=pdayBills.map((b,i)=>[b,i]).filter(([b])=>(b.status||'pending')===st);
+      if(!rows.length) return '';
+      const t=BILL_TONE[st]; const total=rows.reduce((a,[b])=>a+(b.total||0),0);
+      return `<div style="margin-top:14px;">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 11px;background:${t[1]};border-radius:var(--radius-md);">
+          <span style="font-size:12.5px;">${icon}</span>
+          <span style="font-family:var(--font-display);font-weight:800;font-size:13px;color:${t[0]};flex:1;">${label} · ${rows.length}</span>
+          <span class="mono" style="font-size:13px;font-weight:500;color:${t[0]};">Rs ${nfmt(total)}</span>
+        </div>
+        ${rows.map(([b,i])=>pdayRow(b,i)).join('')}
+      </div>`; }).join('');
+  }
+  function pdayRow(b,i){
+    const t=BILL_TONE[b.status]||BILL_TONE.pending;
+    const n=(b.lines||[]).length;
+    // a settled bill names its approver; a pending one only has whoever entered it
+    const settled=b.status!=='pending'&&b.resolved_by;
+    return `<div onclick="openPDayBill(${i})" style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+      <span style="width:36px;height:36px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:'🏪'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</div>
+        <div style="font-size:11.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n} item${n===1?'':'s'} · ✍️ ${esc(b.by)}</div>
+      </div>
+      <div style="flex:none;text-align:right;">
+        <div class="mono" style="font-size:13.5px;color:var(--text-strong);">Rs ${nfmt(b.total)}</div>
+        ${settled?`<div style="font-size:11px;font-weight:700;color:${t[0]};margin-top:2px;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.status==='approved'?'✅':'✕'} ${esc(b.resolved_by)}</div>`:''}
+      </div>
+    </div>`;
+  }
+  function openPDayBill(i){ showBill(pdayBills[i]); }
+
   // ── Recent purchase bills: list + per-bill drill-down sheet ──
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   let purchBills=[];
@@ -989,8 +1210,9 @@ function lfPoll(fn, ms){
       icons();
     }catch(e){}
   }
-  function openBill(i){
-    const b=purchBills[i]; if(!b) return; const t=BILL_TONE[b.status]||BILL_TONE.pending;
+  function openBill(i){ showBill(purchBills[i]); }
+  function showBill(b){
+    if(!b) return; const t=BILL_TONE[b.status]||BILL_TONE.pending;
     document.getElementById('billTitle').textContent=b.vendor||'Purchase bill';
     document.getElementById('billMeta').textContent=[b.by,b.time].filter(Boolean).join(' · ');
     const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const changed=l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;

@@ -210,15 +210,38 @@ class TestTheFlagsCanFireAtAll(TrailTestCase):
         self.assertEqual(self.rows("print", order.name)[0].flag, 1,
                          "the reprint is the one worth a manager's eye")
 
-    def test_asking_twice_for_the_same_approval_is_flagged(self):
+    def test_asking_twice_for_the_same_kind_of_approval_is_flagged(self):
+        """Two *different* discounts on one bill inside ten minutes: the cashier
+        asked, was refused or ignored, and asked for something else. That is what
+        the flag is for.
+
+        An **identical** repeat no longer reaches here at all — `create_approval`
+        collapses a cashier's repeated taps into the pending card they already
+        raised, so the trail gets one row and the manager gets one card. The
+        test below is the other half of that pair."""
         order = self.order()
-        for _ in range(2):
+        for amount in ("100", "250"):
             self.call(api.create_approval, approval_type="discount",
-                      pos_order=order.name, title="Discount")
+                      pos_order=order.name, title="Discount",
+                      action="discount", action_payload='{"value":%s}' % amount)
         rows = self.rows("approval.create", order.name)
-        self.assertEqual(len(rows), 2)
+        # Newest first. The count is not asserted: the duplicate window is ten
+        # minutes wide and this suite makes several approvals a second, so what
+        # matters is that the later ask is flagged and the first one is not.
+        self.assertGreaterEqual(len(rows), 2)
         self.assertEqual(rows[0].flag_reason, activity.FLAG_DUP_APPROVAL)
-        self.assertEqual(rows[1].flag, 0, "the first request is not a duplicate")
+        self.assertEqual(rows[-1].flag, 0, "the first request is not a duplicate")
+
+    def test_an_identical_repeat_writes_nothing_new(self):
+        """The POS leaves the change on screen until a manager answers, so a
+        cashier taps again — that is one request, not two, and the row for it was
+        written when it was first raised."""
+        order = self.order()
+        for _ in range(3):
+            self.call(api.create_approval, approval_type="void",
+                      pos_order=order.name, title="Remove item",
+                      action="void", action_payload='{"item":"BURGER"}')
+        self.assertEqual(len(self.rows("approval.create", order.name)), 1)
 
 
 class TestTheTrailRidesOnTheCallersTransaction(FrappeTestCase):
