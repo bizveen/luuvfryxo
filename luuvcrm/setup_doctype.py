@@ -220,6 +220,15 @@ CUSTOM_FIELDS = [
     {"dt": "Purchase Bill", "fieldname": "paid_by", "label": "Paid By", "fieldtype": "Link", "options": "User",
      "insert_after": "paid_at"},
 
+    # "Sold out today" — a menu-row flag rather than Item.disabled, because it is
+    # reversible with one tap and must not stop an open bill that already has the
+    # item from being priced or paid. Every screen reads it through
+    # luuvcrm.api.menu.menu_items(), so it means the same thing on all of them.
+    {"dt": "Restaurant Menu Item", "fieldname": "available", "label": "Available",
+     "fieldtype": "Check", "default": "1", "insert_after": "rate", "in_list_view": 1,
+     "description": "Off = hidden from every ordering screen. The item, its price "
+                    "and its history are untouched."},
+
     # (The three z_* storefront attributes went with zeloura_api.py. Nothing
     # declares them now; a site that already has the columns keeps them, empty
     # and unread, until somebody drops them by hand.)

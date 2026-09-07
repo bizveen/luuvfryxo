@@ -16,7 +16,7 @@ import frappe
 from frappe import _
 
 from luuvcrm import branch, roles
-from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
+from luuvcrm.api import _get_pos_price_list, _resolve_item_rate, menu_items
 
 no_cache = 1
 
@@ -140,43 +140,17 @@ def get_context(context):
         restaurant = frappe.get_doc("Restaurant", restaurant_name)
         context.restaurant = restaurant
         context.service_charge_rate = float(restaurant.get("service_charge") or 0)
-        active_menu = restaurant.active_menu
-        price_list = _get_pos_price_list()
+        # The till is the one screen that wants the add-on mappings; the template
+        # reads them as a comma-joined data attribute.
+        items = menu_items(restaurant_name, with_addons=True)
+        for entry in items:
+            entry["addons"] = ",".join(entry.get("addons") or [])
+        items.sort(key=lambda x: (x.get("group", ""), x.get("rate", 0)))
+        context.items_flat = items
 
-        if active_menu and frappe.db.exists("Restaurant Menu", active_menu):
-            menu = frappe.get_doc("Restaurant Menu", active_menu)
-            if menu.enabled:
-                # add-on mappings (POS Item Addon rows; manage from Desk: /app/pos-item-addon)
-                addon_map = {}
-                if frappe.db.exists("DocType", "POS Item Addon"):
-                    for r in frappe.get_all("POS Item Addon", filters={"enabled": 1},
-                                            fields=["item", "addon_item"]):
-                        addon_map.setdefault(r.item, []).append(r.addon_item)
-                items = []
-                for item_row in menu.items:
-                    item_code = item_row.item
-                    if not item_code:
-                        continue
-                    item_doc = frappe.get_doc("Item", item_code)
-                    entry = {
-                        "code": item_code,
-                        "name": item_doc.item_name or item_code,
-                        "description": item_doc.description or "",
-                        "image": item_doc.image or "",
-                        "rate": _resolve_item_rate(item_code, item_row.rate, price_list),
-                        "group": item_doc.item_group or "General",
-                        "addons": ",".join(addon_map.get(item_code, [])),
-                    }
-                    items.append(entry)
-
-                items.sort(key=lambda x: (x.get("group", ""), x.get("rate", 0)))
-                context.items_flat = items
-
-                from itertools import groupby
-                groups = []
-                for key, group in groupby(items, key=lambda x: x["group"]):
-                    groups.append({"name": key, "items": list(group)})
-                context.menu_groups = groups
+        from itertools import groupby
+        context.menu_groups = [{"name": key, "items": list(group)}
+                               for key, group in groupby(items, key=lambda x: x["group"])]
 
     if not context.items_flat:
         # Fallback: load active items directly from Item master when no restaurant menu exists

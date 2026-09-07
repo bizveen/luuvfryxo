@@ -8,6 +8,7 @@ import frappe
 from frappe.utils import now_datetime
 
 from luuvcrm import activity, branch
+from luuvcrm.api.menu import menu_items
 
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
@@ -30,25 +31,10 @@ from luuvcrm.api.shifts import (
 
 @frappe.whitelist(allow_guest=True)
 def get_menu_data():
-    restaurant_name = branch.current()
-    items = []
-    tables = []
-    restaurant = frappe.get_doc("Restaurant", restaurant_name) if restaurant_name else None
-    if restaurant and restaurant.active_menu:
-        menu = frappe.get_doc("Restaurant Menu", restaurant.active_menu)
-        if menu.enabled:
-            for row in menu.items:
-                if not row.item:
-                    continue
-                doc = frappe.get_doc("Item", row.item)
-                items.append({
-                    "code": row.item,
-                    "name": doc.item_name or row.item,
-                    "description": doc.description or "",
-                    "image": doc.image or "",
-                    "rate": _resolve_item_rate(row.item, row.rate, _get_pos_price_list()),
-                    "group": doc.item_group or "General",
-                })
+    # This is the payload the till caches to keep selling when the wifi drops,
+    # so it is the one read that must not be a document per row: it is fetched
+    # on every POS load and again by the service worker.
+    items = menu_items(branch.current())
     tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
     return {"items": items, "tables": tables}
 @frappe.whitelist(methods=["POST"])

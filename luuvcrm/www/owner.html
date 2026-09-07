@@ -123,6 +123,80 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
        box-shadow:0 8px 22px rgba(0,0,0,.25);z-index:99}
 .empty{padding:26px 18px;text-align:center;color:var(--text-faint);font-size:14px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ── the menu editor ──────────────────────────────────────────────────────
+   /manager has had a two-field dialog since the beginning. Everything else a
+   menu item is — its category, which kitchen section prints it, whether it is
+   on tonight, what the customer sees — lived in the Desk until this. */
+.mbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+.mbar > div{flex:0 1 auto;min-width:150px}
+.mbar .grow{flex:1 1 220px}
+.mi{display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:12px;align-items:center;
+    padding:12px 16px;border-bottom:1px solid var(--gray-100);cursor:pointer}
+.mi:last-child{border-bottom:none}
+.mi:hover{background:var(--surface-sunken)}
+.mi.off{opacity:.55}
+.mi .ph{width:44px;height:44px;border-radius:var(--radius-md);object-fit:cover;
+        background:var(--gray-100);display:grid;place-items:center;
+        font-family:var(--font-mono);font-size:15px;color:var(--text-faint)}
+.mi .nm{font-weight:600;font-size:14.5px;color:var(--text-strong);
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mi .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+.chip{font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);
+      background:var(--gray-100);border-radius:var(--radius-pill);padding:1px 8px;white-space:nowrap}
+.chip.kg{background:var(--orange-50);color:var(--orange-700)}
+.chip.sold{background:var(--color-danger-subtle);color:var(--red-500)}
+.mi .pr{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:14.5px;
+        color:var(--text-strong);white-space:nowrap}
+/* the switch is the one control that acts on a tap, so it stops the row opening */
+.sw{width:44px;height:25px;border-radius:var(--radius-pill);border:none;padding:0;
+    background:var(--gray-300);position:relative;transition:background .15s;cursor:pointer}
+.sw[aria-checked="true"]{background:var(--green-500)}
+.sw i{position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;
+      background:#fff;transition:transform .15s;display:block}
+.sw[aria-checked="true"] i{transform:translateX(19px)}
+.sw:hover{filter:brightness(.95)}
+
+.sheet{position:fixed;inset:0;background:rgba(20,18,16,.5);display:none;
+       align-items:center;justify-content:center;z-index:100;padding:16px}
+.sheet.open{display:flex}
+.sheet .panel{background:#fff;border-radius:var(--radius-lg);width:min(560px,100%);
+              max-height:92vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.sheet .hd{display:flex;align-items:center;gap:10px;padding:16px 18px;
+           border-bottom:1px solid var(--border-subtle);position:sticky;top:0;background:#fff;z-index:1}
+.sheet .hd h3{font-family:var(--font-display);font-size:16px;font-weight:800;
+              color:var(--text-strong);margin:0;flex:1;min-width:0}
+.sheet .bd{padding:16px 18px;display:grid;gap:14px}
+.sheet .ft{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;
+           padding:14px 18px;border-top:1px solid var(--border-subtle);
+           position:sticky;bottom:0;background:#fff}
+.sheet .ft .del{margin-inline-end:auto;background:#fff;color:var(--red-500);
+                border-color:var(--color-danger-subtle)}
+.sheet .ft .del:hover{background:var(--color-danger-subtle)}
+textarea{width:100%;padding:9px 11px;font-family:inherit;font-size:14px;color:var(--text-strong);
+         background:#fff;border:1.5px solid var(--border-default);border-radius:var(--radius-md);
+         outline:none;resize:vertical;min-height:64px}
+textarea:focus{border-color:var(--orange-500);box-shadow:0 0 0 3px var(--orange-50)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.hint{font-size:12.5px;color:var(--text-muted);margin:4px 0 0}
+.err{font-size:13px;color:var(--red-500);display:none}
+.pick{display:flex;flex-wrap:wrap;gap:7px;max-height:150px;overflow-y:auto;
+      border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px}
+.pick button{font-family:var(--font-body);font-weight:500;font-size:13px;padding:4px 11px;
+             background:#fff;color:var(--text-body);border:1.5px solid var(--border-default)}
+.pick button[aria-pressed="true"]{background:var(--orange-50);color:var(--orange-700);
+                                  border-color:var(--orange-500)}
+.photo{display:flex;gap:12px;align-items:center}
+.photo img{width:64px;height:64px;border-radius:var(--radius-md);object-fit:cover;
+           border:1px solid var(--border-subtle)}
+.photo .none{width:64px;height:64px;border-radius:var(--radius-md);background:var(--gray-100);
+             display:grid;place-items:center;color:var(--text-faint);font-size:11px}
+.offlist{display:grid;gap:1px;background:var(--gray-100)}
+.offlist .o{background:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px}
+.offlist .o .nm{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.more{margin-top:12px}
+details.more summary{cursor:pointer;font-family:var(--font-mono);font-size:12px;
+                     color:var(--text-muted);padding:6px 0}
 </style>
 {% include "templates/includes/brand.html" %}
 </head>
@@ -144,6 +218,23 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div class="card cmp"><table id="cmp"><tbody><tr><td class="empty">Loading…</td></tr></tbody></table></div>
   <div id="probs"></div>
 
+  <h2>Menu <span class="cnt" id="menuCount"></span></h2>
+  <div class="mbar">
+    <div id="mBranchWrap" style="display:none">
+      <label for="mBranch">Branch</label>
+      <select id="mBranch" onchange="loadMenu(this.value)"></select>
+    </div>
+    <div class="grow"><label for="mSearch">Search</label>
+      <input type="text" id="mSearch" placeholder="Item name…" oninput="renderMenu()"></div>
+    <div><label for="mGroup">Category</label><select id="mGroup" onchange="renderMenu()"></select></div>
+    <button onclick="openItem(null)">Add item</button>
+  </div>
+  <div class="card" id="menuList"><div class="empty">Loading…</div></div>
+  <details class="more" id="offWrap" style="display:none">
+    <summary id="offSummary">Not on the menu</summary>
+    <div class="card offlist" id="offList" style="margin-top:8px"></div>
+  </details>
+
   <h2>Branches <span class="cnt" id="brCount"></span></h2>
   <div class="card" id="setup"><div class="empty">Loading…</div></div>
 
@@ -162,6 +253,54 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
     </p>
   </div>
 
+</div>
+
+<!-- the item editor -->
+<div class="sheet" id="itemSheet" onclick="if(event.target===this) closeItem()">
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="itemTitle">
+    <div class="hd">
+      <h3 id="itemTitle">Edit item</h3>
+      <button class="ghost" onclick="closeItem()">Close</button>
+    </div>
+    <div class="bd">
+      <p class="err" id="itemErr"></p>
+      <div class="photo">
+        <span id="itemPhoto" class="none">no photo</span>
+        <div>
+          <input type="file" id="itemFile" accept="image/jpeg,image/png,image/webp"
+                 style="font-size:13px" onchange="uploadPhoto()">
+          <p class="hint">JPG, PNG or WebP, under 5 MB. Shown on /menu, /kiosk and the customer app.</p>
+        </div>
+      </div>
+      <div><label for="fName">Name</label><input type="text" id="fName"></div>
+      <div class="two">
+        <div><label for="fRate">Price (Rs)</label><input type="text" id="fRate" inputmode="decimal"></div>
+        <div><label for="fGroup">Category</label><select id="fGroup"></select></div>
+      </div>
+      <div class="two">
+        <div><label for="fKitchen">Kitchen section</label><select id="fKitchen"></select></div>
+        <div><label for="fPrep">Prep time (min)</label><input type="text" id="fPrep" inputmode="numeric"></div>
+      </div>
+      <div class="two">
+        <div><label for="fGuide">Guide commission %</label><input type="text" id="fGuide" inputmode="decimal"></div>
+        <div><label for="fYoutube">YouTube link</label><input type="text" id="fYoutube" placeholder="https://…"></div>
+      </div>
+      <div><label for="fTags">Speciality tags</label>
+        <input type="text" id="fTags" placeholder="Chef&#39;s Special, Spicy, Vegan">
+        <p class="hint">Comma separated. These are the chips a customer sees on the menu.</p></div>
+      <div><label for="fDesc">Description</label><textarea id="fDesc"></textarea></div>
+      <div id="addonWrap">
+        <label>Add-ons offered with this item</label>
+        <div class="pick" id="fAddons"></div>
+        <p class="hint">The till offers these as extra lines the moment this item is added.</p>
+      </div>
+    </div>
+    <div class="ft">
+      <button class="del" id="itemDel" onclick="removeItem()">Remove from menu</button>
+      <button class="ghost" onclick="closeItem()">Cancel</button>
+      <button id="itemSave" onclick="saveItem()">Save</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -332,6 +471,220 @@ async function addBranch(){
   if(r){ document.getElementById('newName').value = ''; toast(restaurant_name + ' added'); load(); }
 }
 
+/* ── the menu ───────────────────────────────────────────────────────────────
+   MENU is the last payload from get_menu_admin: it carries the items switched
+   off as well, because the editor is the one screen that has to show what it is
+   about to bring back. Everything else — /pos, /waiter, /kiosk, /menu, /cus —
+   reads the same list through menu_items() with the unavailable ones dropped,
+   so "sold out" means one thing everywhere instead of eight. */
+let MENU = null, EDIT = null;
+
+async function loadMenu(restaurant){
+  const d = await call('get_menu_admin' + (restaurant ? '?restaurant=' + encodeURIComponent(restaurant) : ''));
+  if(!d) return;
+  MENU = d;
+  const wrap = document.getElementById('mBranchWrap');
+  if(d.restaurants.length > 1){
+    wrap.style.display = '';
+    document.getElementById('mBranch').innerHTML = d.restaurants.map(r =>
+      `<option value="${esc(r.name)}"${r.name === d.restaurant ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+  }
+  const sel = document.getElementById('mGroup'), keep = sel.value;
+  sel.innerHTML = '<option value="">All</option>' +
+    d.groups.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  if(keep && d.groups.includes(keep)) sel.value = keep;
+  renderMenu();
+  renderOffMenu();
+}
+
+function renderMenu(){
+  if(!MENU) return;
+  const q = document.getElementById('mSearch').value.trim().toLowerCase();
+  const g = document.getElementById('mGroup').value;
+  const rows = MENU.items.filter(i =>
+    (!g || i.group === g) && (!q || i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)));
+  const off = MENU.items.filter(i => !i.available).length;
+  document.getElementById('menuCount').textContent =
+    MENU.items.length + ' items' + (off ? ' · ' + off + ' sold out' : '');
+  const box = document.getElementById('menuList');
+  if(!MENU.menu){
+    box.innerHTML = '<div class="empty">This branch has no active menu yet. Set one on the Restaurant in the Desk, then come back.</div>';
+    return;
+  }
+  if(!rows.length){ box.innerHTML = '<div class="empty">Nothing matches.</div>'; return; }
+  box.innerHTML = rows.map(i => {
+    const photo = i.image
+      ? `<img class="ph" src="${esc(i.image)}" alt="">`
+      : `<span class="ph">${esc((i.name || '?').slice(0,1).toUpperCase())}</span>`;
+    const chips = [`<span class="chip">${esc(i.group)}</span>`];
+    if(i.kitchen_group_label) chips.push(`<span class="chip kg">${esc(i.kitchen_group_label)}</span>`);
+    if(!i.available) chips.push('<span class="chip sold">sold out</span>');
+    if(i.addons && i.addons.length) chips.push(`<span class="chip">+${i.addons.length} add-on</span>`);
+    return `<div class="mi${i.available ? '' : ' off'}" onclick="openItem('${esc(i.code)}')">
+      ${photo}
+      <div><div class="nm">${esc(i.name)}</div><div class="tags">${chips.join('')}</div></div>
+      <div class="pr">${money(i.rate)}</div>
+      <button class="sw" role="switch" aria-checked="${i.available ? 'true' : 'false'}"
+              title="${i.available ? 'On the menu' : 'Sold out'}"
+              onclick="event.stopPropagation();toggleItem('${esc(i.code)}',${i.available ? 0 : 1})"><i></i></button>
+    </div>`;
+  }).join('');
+}
+
+function renderOffMenu(){
+  const wrap = document.getElementById('offWrap');
+  if(!MENU || !MENU.off_menu.length){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  document.getElementById('offSummary').textContent =
+    'Not on this menu — ' + MENU.off_menu.length + ' item(s) that already exist';
+  document.getElementById('offList').innerHTML = MENU.off_menu.map(i =>
+    `<div class="o"><div class="nm">${esc(i.name)}</div>
+       <span class="chip">${esc(i.group)}</span>
+       <button class="ghost" onclick="restoreItem('${esc(i.code)}')">Put back</button></div>`).join('');
+}
+
+async function toggleItem(code, available){
+  if(!MENU.can_toggle){ toast('Run bench migrate first — this site has no availability field yet'); return; }
+  const r = await call('set_menu_item_available', {item_code: code, available, restaurant: MENU.restaurant});
+  if(!r) return;
+  const it = MENU.items.find(i => i.code === code);
+  if(it) it.available = r.available;
+  toast(r.available ? code + ' is back on' : code + ' is sold out');
+  renderMenu();
+}
+
+async function restoreItem(code){
+  const r = await call('restore_menu_item', {item_code: code, restaurant: MENU.restaurant});
+  if(r){ toast(code + ' is on the menu'); loadMenu(MENU.restaurant); }
+}
+
+/* ── the editor ─────────────────────────────────────────────────────────── */
+function opt(list, chosen, blank){
+  const rows = list.map(o => typeof o === 'string' ? {name:o, label:o} : o);
+  return (blank ? `<option value="">${esc(blank)}</option>` : '') + rows.map(o =>
+    `<option value="${esc(o.name)}"${o.name === chosen ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
+}
+
+function openItem(code){
+  if(!MENU){ toast('Menu still loading…'); return; }
+  if(code && !MENU.menu){ return; }
+  EDIT = code ? MENU.items.find(i => i.code === code) : null;
+  const isNew = !EDIT;
+  document.getElementById('itemTitle').textContent = isNew ? 'Add menu item' : EDIT.name;
+  document.getElementById('itemErr').style.display = 'none';
+  document.getElementById('itemDel').style.display = isNew ? 'none' : '';
+  document.getElementById('itemFile').value = '';
+  document.getElementById('itemFile').disabled = isNew;
+  document.getElementById('fName').value = isNew ? '' : EDIT.name;
+  document.getElementById('fRate').value = isNew ? '' : EDIT.rate;
+  document.getElementById('fGroup').innerHTML = opt(MENU.all_groups, isNew ? '' : EDIT.group, isNew ? 'Pick one' : null);
+  document.getElementById('fKitchen').innerHTML = opt(MENU.kitchen_groups, isNew ? '' : EDIT.kitchen_group, '— none —');
+  document.getElementById('fPrep').value = isNew ? '' : (EDIT.prep_time || '');
+  document.getElementById('fGuide').value = isNew ? '' : (EDIT.gd_pct || '');
+  document.getElementById('fYoutube').value = isNew ? '' : (EDIT.youtube || '');
+  document.getElementById('fTags').value = isNew ? '' : (EDIT.tags || '');
+  document.getElementById('fDesc').value = isNew ? '' : (EDIT.description || '');
+  const ph = document.getElementById('itemPhoto');
+  if(!isNew && EDIT.image){ ph.outerHTML = `<img id="itemPhoto" class="" src="${esc(EDIT.image)}" alt=""
+    style="width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid var(--border-subtle)">`; }
+  else { ph.outerHTML = '<span id="itemPhoto" class="none">' + (isNew ? 'save first' : 'no photo') + '</span>'; }
+  renderAddonPicker(isNew ? [] : (EDIT.addons || []), code);
+  document.getElementById('itemSave').textContent = isNew ? 'Add to menu' : 'Save';
+  document.getElementById('itemSheet').classList.add('open');
+}
+function closeItem(){ document.getElementById('itemSheet').classList.remove('open'); EDIT = null; }
+
+function renderAddonPicker(chosen, code){
+  const wrap = document.getElementById('addonWrap');
+  if(!code){ wrap.style.display = 'none'; return; }   // an item has to exist before it can carry add-ons
+  wrap.style.display = '';
+  const picked = new Set(chosen);
+  document.getElementById('fAddons').innerHTML = MENU.items
+    .filter(i => i.code !== code)
+    .map(i => `<button type="button" aria-pressed="${picked.has(i.code)}"
+                 onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')==='true'?'false':'true')"
+                 data-code="${esc(i.code)}">${esc(i.name)}</button>`).join('')
+    || '<span class="hint">Add another item first.</span>';
+}
+
+function failItem(msg){
+  const e = document.getElementById('itemErr');
+  e.textContent = msg; e.style.display = 'block';
+}
+
+async function saveItem(){
+  const name = document.getElementById('fName').value.trim();
+  const rate = parseFloat(document.getElementById('fRate').value) || 0;
+  if(!name) return failItem('Enter an item name');
+  if(rate <= 0) return failItem('Enter a price above zero');
+  const group = document.getElementById('fGroup').value;
+  if(!group) return failItem('Pick a category');
+
+  const btn = document.getElementById('itemSave'); btn.disabled = true;
+  const fields = {
+    item_name: name, rate, group,
+    kitchen_group: document.getElementById('fKitchen').value,
+    prep_time: document.getElementById('fPrep').value || 0,
+    guide_pct: document.getElementById('fGuide').value || 0,
+    youtube: document.getElementById('fYoutube').value.trim(),
+    tags: document.getElementById('fTags').value.trim(),
+    description: document.getElementById('fDesc').value.trim(),
+    restaurant: MENU.restaurant
+  };
+  let r;
+  if(EDIT){ r = await call('update_menu_item', Object.assign({item_code: EDIT.code}, fields)); }
+  else { r = await call('add_menu_item', fields); }
+  btn.disabled = false;
+  if(!r) return failItem('Could not save');
+
+  if(EDIT){
+    const picked = [...document.querySelectorAll('#fAddons button[aria-pressed="true"]')]
+      .map(b => b.dataset.code);
+    const before = (EDIT.addons || []).slice().sort().join(',');
+    if(picked.slice().sort().join(',') !== before){
+      await call('set_item_addons', {item_code: EDIT.code, addons: JSON.stringify(picked)});
+    }
+  }
+  toast(EDIT ? 'Saved · the till picks it up on its next load' : name + ' added');
+  closeItem();
+  loadMenu(MENU.restaurant);
+}
+
+async function removeItem(){
+  if(!EDIT) return;
+  const code = EDIT.code;
+  // Deliberately not a confirm(): a browser dialog on a tablet mid-service is
+  // worse than an undo, and the item can be put back from the list below.
+  const r = await call('remove_menu_item', {item_code: code, restaurant: MENU.restaurant});
+  if(!r) return;
+  toast(code + ' taken off the menu — put it back from "Not on the menu"');
+  closeItem();
+  loadMenu(MENU.restaurant);
+}
+
+async function uploadPhoto(){
+  const input = document.getElementById('itemFile');
+  const file = input.files && input.files[0];
+  if(!file || !EDIT) return;
+  const form = new FormData();
+  form.append('file', file);
+  form.append('item_code', EDIT.code);
+  try{
+    const res = await fetch('/api/method/luuvcrm.api.upload_menu_image', {
+      method: 'POST', credentials: 'include',
+      headers: {'X-Frappe-CSRF-Token': CSRF},   // no Content-Type: the browser sets the boundary
+      body: form
+    });
+    const json = await res.json();
+    if(!res.ok){ failItem(json._server_messages ? JSON.parse(JSON.parse(json._server_messages)[0]).message.replace(/<[^>]*>/g,'') : 'Upload failed'); return; }
+    EDIT.image = json.message.image;
+    document.getElementById('itemPhoto').outerHTML =
+      `<img id="itemPhoto" src="${esc(EDIT.image)}" alt="" style="width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid var(--border-subtle)">`;
+    toast('Photo saved');
+    renderMenu();
+  }catch(e){ failItem('Upload failed'); }
+}
+
 async function load(){
   const [overview, setup] = await Promise.all([
     call('get_owner_overview'), call('get_branch_setup')
@@ -340,6 +693,7 @@ async function load(){
   if(setup) renderSetup(setup);
 }
 load();
+loadMenu();
 lfPoll(load, 60000);
 </script>
 </body>
