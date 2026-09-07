@@ -16,7 +16,7 @@ everywhere, and the past keeps its names.
 import frappe
 from frappe import _
 
-from luuvcrm import activity, roles
+from luuvcrm import activity, branch, roles
 from luuvcrm.api.menu import (
     _clean_tags,
     _kitchen_group_labels,
@@ -32,8 +32,14 @@ ITEM_CEILING = 500
 
 
 @frappe.whitelist()
-def get_items(search=None, group=None, include_disabled=0):
-    """The item master, with each item's POS price and whether it is on the menu."""
+def get_items(search=None, group=None, include_disabled=0, restaurant=None):
+    """The item master, with each item's POS price and whether it is on the menu.
+
+    `restaurant` is not decoration: "on the menu" is a question about *a*
+    restaurant's menu, and with two branches `branch.current()` answers "the only
+    one" and then None. Without it this screen tells an owner that a Colombo item
+    is off the menu because it read Kandy's.
+    """
     roles.require_manager()
     filters = {}
     if str(include_disabled).strip().lower() in ("", "0", "false", "no"):
@@ -54,7 +60,7 @@ def get_items(search=None, group=None, include_disabled=0):
                 "is_stock_item", "stock_uom"] + has_extras,
         order_by="item_name asc", limit_page_length=ITEM_CEILING)
 
-    menu = active_menu_name()
+    menu = active_menu_name(restaurant)
     on_menu = set()
     if menu:
         on_menu = set(frappe.get_all("Restaurant Menu Item", filters={"parent": menu},
@@ -82,6 +88,12 @@ def get_items(search=None, group=None, include_disabled=0):
     return {
         "items": items,
         "menu": menu or "",
+        # The screen shows one restaurant's answer to "is this on the menu", so
+        # it needs the list to offer and the one it just used — otherwise
+        # opening Items first leaves the picker empty and the flag unexplained.
+        "restaurant": restaurant or branch.current() or (
+            frappe.db.get_value("Restaurant", {}, "name") if not restaurant else None),
+        "restaurants": branch.all_restaurants(),
         "groups": frappe.get_all("Item Group", filters={"is_group": 0},
                                  order_by="name asc", pluck="name", limit_page_length=0),
         "uoms": frappe.get_all("UOM", order_by="name asc", pluck="name", limit_page_length=60),
@@ -132,7 +144,8 @@ def create_item(item_name=None, rate=None, group=None, is_stock_item=0, uom=None
 
 @frappe.whitelist(methods=["POST"])
 def update_item(item_code=None, item_name=None, rate=None, group=None,
-                kitchen_group=None, tags=None, guide_pct=None, description=None):
+                kitchen_group=None, tags=None, guide_pct=None, description=None,
+                restaurant=None):
     """Edit the item itself. Works whether or not it is on a menu.
 
     `luuvcrm.api.menu.update_menu_item` is the menu-scoped editor and refuses an
@@ -159,8 +172,9 @@ def update_item(item_code=None, item_name=None, rate=None, group=None,
             frappe.throw(_("Price must be above zero"))
         _set_pos_item_price(item_code, rate, price_list)
         # Keep the menu row's fallback rate in step when it is on a menu, so the
-        # two cannot disagree the day the price list is missing.
-        menu = active_menu_name()
+        # two cannot disagree the day the price list is missing. Which menu is a
+        # question about which restaurant.
+        menu = active_menu_name(restaurant)
         if menu:
             row = frappe.db.get_value("Restaurant Menu Item",
                                       {"parent": menu, "item": item_code}, "name")
@@ -192,7 +206,7 @@ def update_item(item_code=None, item_name=None, rate=None, group=None,
 
 
 @frappe.whitelist(methods=["POST"])
-def set_item_enabled(item_code=None, enabled=1):
+def set_item_enabled(item_code=None, enabled=1, restaurant=None):
     """Retire an item, or bring it back. This is the closest thing to a delete
     that keeps the history: a disabled Item cannot be sold or bought anywhere in
     ERPNext, and every past bill still knows what it was called."""
@@ -203,7 +217,7 @@ def set_item_enabled(item_code=None, enabled=1):
     on = str(enabled).strip().lower() not in ("", "0", "false", "no")
 
     if not on:
-        menu = active_menu_name()
+        menu = active_menu_name(restaurant)
         if menu and frappe.db.exists("Restaurant Menu Item",
                                      {"parent": menu, "item": item_code}):
             frappe.throw(_("{0} is on the menu — take it off the menu first, "

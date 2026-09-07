@@ -339,8 +339,10 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
       <div class="phead"><h1>Menu</h1><span class="sub" id="menuSub"></span>
         <span class="spacer"></span><button onclick="openItem(null)">Add item</button></div>
       <div class="bar" style="margin-top:14px">
-        <div id="mBranchWrap" style="display:none"><label for="mBranch">Branch</label>
-          <select id="mBranch" onchange="loadMenu(this.value)"></select></div>
+        <div><label for="mBranch">Restaurant</label>
+          <select id="mBranch" onchange="setWorking(this.value)"></select></div>
+        <div id="mCardWrap" style="display:none"><label for="mCard">Menu card</label>
+          <select id="mCard" onchange="switchCard(this.value)"></select></div>
         <div class="grow"><label for="mSearch">Search</label>
           <input type="text" id="mSearch" placeholder="Item name…" oninput="renderMenu()"></div>
         <div><label for="mGroup">Category</label><select id="mGroup" onchange="renderMenu()"></select></div>
@@ -358,6 +360,8 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
       <div class="phead"><h1>Items</h1><span class="sub">Everything you sell or buy — on a menu or not</span>
         <span class="spacer"></span><button onclick="openStock(null)">New item</button></div>
       <div class="bar" style="margin-top:14px">
+        <div><label for="iBranch">Restaurant</label>
+          <select id="iBranch" onchange="setWorking(this.value)"></select></div>
         <div class="grow"><label for="iSearch">Search</label>
           <input type="text" id="iSearch" placeholder="Item name…" oninput="renderItems()"></div>
         <div><label for="iGroup">Category</label><select id="iGroup" onchange="renderItems()"></select></div>
@@ -839,19 +843,58 @@ function copyInvite(){
    everywhere instead of eight. */
 let MENU = null, EDIT = null;
 
+/* A menu belongs to a restaurant, so both screens that touch one say which.
+   WORKING is that answer, shared: Menu and Items are two views of the same
+   question, and two pickers that can disagree is worse than none — an owner
+   would edit Kandy's price while Colombo's list is on screen. */
+let WORKING = null;
+function setWorking(restaurant){
+  if(restaurant === WORKING) return;
+  WORKING = restaurant || null;
+  ['mBranch', 'iBranch'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el && WORKING) el.value = WORKING;
+  });
+  // Reload whichever section is open; the other reloads when it is next opened.
+  LOADED.menu = false; LOADED.items = false;
+  const open = document.querySelector('.panel.on')?.id.replace('p-', '');
+  if(open === 'menu'){ LOADED.menu = true; loadMenu(WORKING); }
+  if(open === 'items'){ LOADED.items = true; loadItems(); }
+}
+function fillBranchPickers(list, chosen){
+  const html = (list || []).map(r => {
+    const name = typeof r === 'string' ? r : r.name;
+    return `<option value="${esc(name)}"${name === chosen ? ' selected' : ''}>${esc(name)}</option>`;
+  }).join('');
+  ['mBranch', 'iBranch'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el && el.innerHTML !== html) el.innerHTML = html;
+    if(el && chosen) el.value = chosen;
+  });
+}
+
 async function loadMenu(restaurant){
+  restaurant = restaurant || WORKING;
   const d = await call('get_menu_admin' + (restaurant ? '?restaurant=' + encodeURIComponent(restaurant) : ''));
   if(!d) return;
   MENU = d;
+  WORKING = d.restaurant;
   document.getElementById('menuSub').textContent =
-    d.menu ? d.restaurant + ' · ' + d.menu : 'No active menu on this branch';
+    d.menu ? d.items.length + ' items on ' + d.menu : 'No live menu on this restaurant yet';
   document.getElementById('navMenu').textContent = d.items.length || '';
-  const wrap = document.getElementById('mBranchWrap');
-  if(d.restaurants.length > 1){
-    wrap.style.display = '';
-    document.getElementById('mBranch').innerHTML = d.restaurants.map(r =>
-      `<option value="${esc(r.name)}"${r.name === d.restaurant ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+  fillBranchPickers(d.restaurants, d.restaurant);
+
+  // Which card is live. Hidden when there is only one, because a picker with
+  // one option is furniture.
+  const cardWrap = document.getElementById('mCardWrap');
+  if((d.menus || []).length > 1){
+    cardWrap.style.display = '';
+    document.getElementById('mCard').innerHTML = d.menus.map(m =>
+      `<option value="${esc(m.name)}"${m.name === d.menu ? ' selected' : ''}>${esc(m.name)} · ${m.items} item${m.items === 1 ? '' : 's'}${m.enabled ? '' : ' (off)'}</option>`).join('');
+  } else {
+    cardWrap.style.display = 'none';
   }
+
   const sel = document.getElementById('mGroup'), keep = sel.value;
   sel.innerHTML = '<option value="">All</option>' + opts(d.groups, null, null);
   if(keep && d.groups.includes(keep)) sel.value = keep;
@@ -908,6 +951,14 @@ async function toggleAvailable(code, available){
   if(it) it.available = r.available;
   toast(r.available ? code + ' is back on' : code + ' is sold out');
   renderMenu();
+}
+async function switchCard(menu){
+  if(!MENU || menu === MENU.menu) return;
+  const r = await call('set_active_menu', {restaurant: MENU.restaurant, menu});
+  if(!r){ loadMenu(MENU.restaurant); return; }
+  toast(MENU.restaurant + ' now serves ' + menu);
+  LOADED.items = false;
+  loadMenu(MENU.restaurant);
 }
 async function restoreItem(code){
   const r = await call('restore_menu_item', {item_code: code, restaurant: MENU.restaurant});
@@ -1032,9 +1083,14 @@ let ITEMS = null, STOCK = null;
 
 async function loadItems(){
   const showAll = document.getElementById('iShow').value;
-  const d = await call('get_items?include_disabled=' + encodeURIComponent(showAll));
+  const q = 'get_items?include_disabled=' + encodeURIComponent(showAll) +
+            (WORKING ? '&restaurant=' + encodeURIComponent(WORKING) : '');
+  const d = await call(q);
   if(!d) return;
   ITEMS = d;
+  // "On the menu" is a question about one restaurant's menu — the answer
+  // depends on which one is picked above.
+  fillBranchPickers(d.restaurants, d.restaurant || WORKING);
   document.getElementById('navItems').textContent = d.items.length || '';
   const sel = document.getElementById('iGroup'), keep = sel.value;
   sel.innerHTML = '<option value="">All</option>' + opts(d.groups, null, null);
@@ -1114,7 +1170,8 @@ async function saveStock(){
       item_code: STOCK.code, item_name: name, group, rate: rate || '',
       kitchen_group: document.getElementById('sKitchen').value,
       guide_pct: document.getElementById('sGuide').value || 0,
-      tags: document.getElementById('sTags').value.trim()
+      tags: document.getElementById('sTags').value.trim(),
+      restaurant: WORKING || ''
     });
   } else {
     r = await call('create_item', {
@@ -1130,7 +1187,9 @@ async function saveStock(){
 }
 async function retireItem(){
   if(!STOCK) return;
-  const r = await call('set_item_enabled', {item_code: STOCK.code, enabled: STOCK.disabled ? 1 : 0});
+  const r = await call('set_item_enabled', {item_code: STOCK.code,
+                                           enabled: STOCK.disabled ? 1 : 0,
+                                           restaurant: WORKING || ''});
   if(!r) return;
   toast(r.enabled ? STOCK.code + ' is back in use' : STOCK.code + ' retired');
   closeStock(); loadItems();

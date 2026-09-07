@@ -507,6 +507,18 @@ def get_menu_admin(restaurant=None):
     # A Kitchen Group's name is a hash, and its `group_name` is what the kitchen
     # calls it. The picker sends the name and shows the label; sending the label
     # would set a link to a record that does not exist.
+    # A Restaurant can have several menus — a lunch card, a season, last year's —
+    # and `Restaurant.active_menu` is the one every screen reads. Listing them is
+    # what makes that switch visible instead of a field in the Desk.
+    menus = []
+    if chosen:
+        menus = [{"name": m.name, "enabled": int(m.enabled or 0),
+                  "items": frappe.db.count("Restaurant Menu Item", {"parent": m.name})}
+                 for m in frappe.get_all("Restaurant Menu",
+                                         filters={"restaurant": chosen},
+                                         fields=["name", "enabled"],
+                                         order_by="name asc", limit_page_length=0)]
+
     kitchen_groups = []
     if frappe.db.exists("DocType", "Kitchen Group"):
         kitchen_groups = [
@@ -520,6 +532,7 @@ def get_menu_admin(restaurant=None):
         "restaurants": restaurants,
         "restaurant": chosen,
         "menu": menu or "",
+        "menus": menus,
         "price_list": _get_pos_price_list() or "",
         "items": items,
         "off_menu": off_menu,
@@ -530,6 +543,40 @@ def get_menu_admin(restaurant=None):
         "kitchen_groups": kitchen_groups,
         "can_toggle": bool(frappe.db.has_column("Restaurant Menu Item", "available")),
     }
+
+
+@frappe.whitelist(methods=["POST"])
+def set_active_menu(restaurant=None, menu=None):
+    """Choose which of a restaurant's menus is the live one.
+
+    `Restaurant.active_menu` is what every screen resolves through — the till,
+    the kiosk, the public page and the offline payload all ask for it by way of
+    `active_menu_name()`. Switching it swaps the whole card at once, which is the
+    point: a lunch menu and a dinner menu are two Restaurant Menu records, not
+    two hundred items being switched off one at a time.
+    """
+    roles.require_manager()
+    restaurant = (restaurant or branch.current() or "").strip()
+    if not restaurant or not frappe.db.exists("Restaurant", restaurant):
+        frappe.throw(_("Pick a restaurant"))
+    menu = (menu or "").strip()
+    if not menu or not frappe.db.exists("Restaurant Menu", menu):
+        frappe.throw(_("Pick a menu"))
+    if frappe.db.get_value("Restaurant Menu", menu, "restaurant") != restaurant:
+        # Otherwise a branch quietly starts selling another branch's card.
+        frappe.throw(_("{0} belongs to another restaurant").format(menu))
+    if not frappe.db.get_value("Restaurant Menu", menu, "enabled"):
+        frappe.throw(_("{0} is disabled — enable it before making it the live menu").format(menu))
+
+    was = frappe.db.get_value("Restaurant", restaurant, "active_menu")
+    frappe.db.set_value("Restaurant", restaurant, "active_menu", menu)
+    frappe.clear_cache(doctype="Restaurant")
+
+    activity.log_activity(
+        "menu.switch", label="%s now serves %s" % (restaurant, menu),
+        ref_doctype="Restaurant", ref_name=restaurant,
+        detail={"was": was, "now": menu})
+    return {"ok": True, "restaurant": restaurant, "menu": menu, "was": was}
 
 
 @frappe.whitelist(methods=["POST"])

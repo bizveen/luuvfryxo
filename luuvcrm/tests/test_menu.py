@@ -76,6 +76,21 @@ class MenuTestCase(FrappeTestCase):
         finally:
             frappe.local.form_dict = previous
 
+    def _restaurant_fields(self):
+        """hospitality's Restaurant wants a company, a default customer and an
+        invoice series before it will save. Copied from the site's existing one
+        so the fixture does not invent a chart of accounts."""
+        like = frappe.db.get_value("Restaurant", self.restaurant,
+                                   ["company", "default_customer", "invoice_series_prefix"],
+                                   as_dict=True) or frappe._dict()
+        return {
+            "doctype": "Restaurant",
+            "company": like.get("company") or frappe.db.get_value("Company", {}, "name"),
+            "default_customer": like.get("default_customer")
+                                or frappe.db.get_value("Customer", {}, "name"),
+            "invoice_series_prefix": "LFT-",
+        }
+
     def codes(self, **kwargs):
         return [i["code"] for i in M.menu_items(self.restaurant, **kwargs)]
 
@@ -135,6 +150,168 @@ class TestOneReader(MenuTestCase):
         day there are two restaurants — a blank menu, never a 500."""
         self.assertEqual(M.menu_items("no-such-restaurant"), [])
         self.assertIsNone(M.active_menu_name("no-such-restaurant"))
+
+
+class TestAMenuBelongsToARestaurant(MenuTestCase):
+    """A `Restaurant Menu` names its restaurant, and `Restaurant.active_menu`
+    picks which of them is live. Every screen resolves through that pair, so
+    every editing call has to say *which restaurant* — with two branches
+    `branch.current()` answers "the only one" and then None, which is the right
+    refusal for a public page and useless for an editor.
+
+    The failure this prevents is not an error: it is an owner repricing Kandy's
+    burger while Colombo's list is on the screen.
+    """
+
+    def second_restaurant(self, name="_LFT-MENU-SECOND"):
+        """Restaurant is prompt-named, so the name is set rather than derived."""
+        if not frappe.db.exists("Restaurant", name):
+            doc = frappe.get_doc(self._restaurant_fields())
+            doc.name = name
+            doc.insert(ignore_permissions=True)
+        self.addCleanup(self._drop_restaurant, name)
+        return name
+
+    def _drop_restaurant(self, name):
+        for menu in frappe.get_all("Restaurant Menu", filters={"restaurant": name}, pluck="name"):
+            frappe.delete_doc("Restaurant Menu", menu, force=True, ignore_permissions=True)
+        if frappe.db.exists("Restaurant", name):
+            frappe.delete_doc("Restaurant", name, force=True, ignore_permissions=True)
+
+    def card(self, restaurant, name):
+        """A second Restaurant Menu. `items` is mandatory on the doctype, so it
+        gets one — and saving the parent is what fires hospitality's price-list
+        rebuild, which is why the app never saves one to add a row."""
+        if not frappe.db.exists("Restaurant Menu", name):
+            doc = frappe.get_doc({"doctype": "Restaurant Menu", "restaurant": restaurant,
+                                  "enabled": 1,
+                                  "items": [{"item": self.burger, "rate": 900}]})
+            doc.name = name
+            doc.insert(ignore_permissions=True)
+        self.addCleanup(lambda: frappe.db.exists("Restaurant Menu", name) and
+                        frappe.delete_doc("Restaurant Menu", name, force=True,
+                                          ignore_permissions=True))
+        return name
+
+    def test_the_editor_answers_for_the_restaurant_it_was_asked_about(self):
+        other = self.second_restaurant()
+        admin = api.get_menu_admin(restaurant=other)
+        self.assertEqual(admin["restaurant"], other)
+        self.assertIn(self.restaurant, [r["name"] for r in admin["restaurants"]])
+
+    def test_editing_names_the_restaurant_it_edits(self):
+        """`_active_menu_doc(restaurant)` is what makes this work; without the
+        argument the same call edits whichever menu branch.current() lands on."""
+        other = self.second_restaurant()
+        with self.assertRaises(frappe.ValidationError):
+            # The fixture item is on *this* restaurant's menu, not the other's.
+            api.update_menu_item(item_code=self.burger, rate=999, restaurant=other)
+        api.update_menu_item(item_code=self.burger, rate=999, restaurant=self.restaurant)
+        item = next(i for i in M.menu_items(self.restaurant) if i["code"] == self.burger)
+        self.assertEqual(item["rate"], 999)
+
+    def test_the_item_master_asks_about_one_restaurant_s_menu(self):
+        """"On the menu" is a question about a restaurant. Reading the wrong one
+        tells an owner an item is off the menu because it looked at the other
+        branch."""
+        other = self.second_restaurant()
+        here = api.get_items(search=self.burger, restaurant=self.restaurant)
+        there = api.get_items(search=self.burger, restaurant=other)
+        self.assertTrue(next(i for i in here["items"] if i["code"] == self.burger)["on_menu"])
+        self.assertFalse(next(i for i in there["items"] if i["code"] == self.burger)["on_menu"])
+
+    def test_the_item_master_offers_the_restaurants_to_pick_from(self):
+        listing = api.get_items()
+        self.assertIn("restaurants", listing)
+        self.assertIn(self.restaurant, listing["restaurants"])
+
+
+class TestWhichCardIsLive(MenuTestCase):
+    """A restaurant can have several menus — a lunch card, a season, last
+    year's. `Restaurant.active_menu` is the one the till, the kiosk, the public
+    page and the offline payload all read, and until now it could only be
+    changed in the Desk."""
+
+    def second_menu(self, name=None, restaurant=None):
+        """A second card for this restaurant. `items` is mandatory on the
+        doctype, so it gets one — a different item from the fixture's, which is
+        what makes "the old card's items are not on the new one" mean
+        something."""
+        restaurant = restaurant or self.restaurant
+        # A fresh name per test. Creating a Restaurant Menu creates a Price List
+        # named after it (hospitality's on_update), that insert outlives the
+        # suite's rollback, and deleting the menu does not take the Price List
+        # with it — so a fixed name collides with the previous test's leftover.
+        name = name or "_LFT-CARD-%s" % frappe.generate_hash(length=6).upper()
+        self.addCleanup(self._restore_card,
+                        frappe.db.get_value("Restaurant", self.restaurant, "active_menu"))
+        # Only the Price List is cleaned up by hand. **The menu is deliberately
+        # left to the rollback**: deleting a Restaurant Menu fires hospitality's
+        # on_trash → clear_item_price → get_price_list, and that helper *creates
+        # the Price List again* when its lookup misses — which it always does,
+        # because the `restaurant_menu` field it looks up by is not persisted on
+        # the Price List it just made. Deleting the menu therefore leaves a new
+        # Price List behind for the next test to collide with.
+        self.addCleanup(self._drop_price_list, name)
+        if not frappe.db.exists("Restaurant Menu", name):
+            other = fx.item(self, "MENU-EVENING-ONLY")
+            doc = frappe.get_doc({"doctype": "Restaurant Menu", "restaurant": restaurant,
+                                  "enabled": 1, "items": [{"item": other, "rate": 600}]})
+            doc.name = name
+            doc.insert(ignore_permissions=True)
+        return name
+
+    def _drop_price_list(self, name):
+        if frappe.db.exists("Price List", name):
+            frappe.db.delete("Item Price", {"price_list": name})
+            frappe.delete_doc("Price List", name, force=True, ignore_permissions=True)
+
+    def _restore_card(self, was):
+        if was:
+            frappe.db.set_value("Restaurant", self.restaurant, "active_menu", was)
+
+    def test_switching_the_card_changes_what_every_screen_reads(self):
+        other = self.second_menu()
+        api.set_active_menu(restaurant=self.restaurant, menu=other)
+        self.assertEqual(M.active_menu_name(self.restaurant), other)
+        self.assertNotIn(self.burger, self.codes(),
+                         "the old card's items are not on the new one")
+
+    def test_the_editor_lists_the_cards_it_could_switch_to(self):
+        other = self.second_menu()
+        names = [m["name"] for m in api.get_menu_admin(restaurant=self.restaurant)["menus"]]
+        self.assertIn(other, names)
+        self.assertIn(self.menu, names)
+
+    def test_a_card_belonging_to_another_restaurant_is_refused(self):
+        """Otherwise a branch quietly starts selling another branch's card."""
+        other_restaurant = "_LFT-MENU-OTHER"
+        if not frappe.db.exists("Restaurant", other_restaurant):
+            doc = frappe.get_doc(self._restaurant_fields())
+            doc.name = other_restaurant
+            doc.insert(ignore_permissions=True)
+        self.addCleanup(lambda: frappe.db.exists("Restaurant", other_restaurant) and
+                        frappe.delete_doc("Restaurant", other_restaurant, force=True,
+                                          ignore_permissions=True))
+        name = self.second_menu(restaurant=other_restaurant)
+        with self.assertRaises(frappe.ValidationError):
+            api.set_active_menu(restaurant=self.restaurant, menu=name)
+
+    def test_a_menu_that_does_not_exist_is_refused(self):
+        with self.assertRaises(frappe.ValidationError):
+            api.set_active_menu(restaurant=self.restaurant, menu="no-such-card")
+
+    def test_a_cashier_cannot_swap_the_card(self):
+        email = "lf-test-card-cashier@example.com"
+        if not frappe.db.exists("User", email):
+            frappe.get_doc({"doctype": "User", "email": email, "first_name": "Card Test",
+                            "send_welcome_email": 0, "roles": [{"role": roles.CASHIER}]}
+                           ).insert(ignore_permissions=True)
+        previous = frappe.session.user
+        frappe.set_user(email)
+        self.addCleanup(frappe.set_user, previous)
+        with self.assertRaises(frappe.PermissionError):
+            api.set_active_menu(restaurant=self.restaurant, menu=self.menu)
 
 
 class TestSoldOut(MenuTestCase):

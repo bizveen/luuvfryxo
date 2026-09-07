@@ -173,6 +173,7 @@ from luuvcrm.api.menu import (
     menu_items,
     remove_menu_item,
     restore_menu_item,
+    set_active_menu,
     set_item_addons,
     set_menu_item_available,
     setup_item_addons,
