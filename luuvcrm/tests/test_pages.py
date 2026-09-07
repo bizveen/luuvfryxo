@@ -11,6 +11,7 @@ before the decision just gets rewritten.
 """
 
 import importlib
+import pathlib
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -50,19 +51,16 @@ class TestThereIsOnePos(PageTestCase):
     and print-template work, so it is what `/pos` now serves; the other two
     files are deleted. This is the test that stops a fourth appearing."""
 
-    def test_pos3_is_gone(self):
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("luuvcrm.www.pos3")
-
-    def test_pos2_is_a_redirect_and_not_a_second_till(self):
-        """It survives only as four lines pointing at /pos. A page there again
-        means two counter screens drifting apart, which is what this whole
-        collapse was for."""
-        pos2 = importlib.import_module("luuvcrm.www.pos2")
-        self.assertFalse(hasattr(pos2, "get_print_templates"))
-        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos2.html"))
-        self.assertLess(len(html), 400, "pos2.html should be a stub")
-        self.assertIn("/pos", html)
+    def test_the_staging_copy_is_not_a_page_any_more(self):
+        """`/pos3` was the UI staging copy, and it is the file that became
+        `/pos` — it carried the tablet layer, the printer bridge and the print
+        layouts. Deleting the route outright left every bookmark and every
+        history entry pointing at it answering 404 on a till, so it is a
+        redirect now. What must not come back is a *screen* there."""
+        pos3 = importlib.import_module("luuvcrm.www.pos3")
+        self.assertFalse(hasattr(pos3, "get_print_templates"))
+        self.assertFalse(pathlib.Path(
+            frappe.get_app_path("luuvcrm", "www", "pos3.html")).read_text().count("<script"))
 
     def test_the_one_that_is_left_is_the_complete_one(self):
         """pos3's work, not pos2's: the Google-Docs print templates and the
@@ -147,24 +145,46 @@ class TestTheGateOnPos(PageTestCase):
 
 
 class TestTheOldPosBookmarkStillLands(PageTestCase):
-    """Every counter tablet is bookmarked to `/pos2`, the address the till had
-    before the three POS pages became one. The route is kept for one release so
-    a bookmark does not 404 on the counter mid-service."""
+    """The till has had three addresses: `/pos2` was the live one and `/pos3`
+    was the staging copy that became `/pos`. Both are bookmarked on counter
+    tablets and both are in somebody's history, so both are kept for one release
+    — a 404 mid-service costs a queue at the counter, and a redirect costs four
+    lines."""
 
-    def redirect(self, query=b""):
+    OLD = ("pos2", "pos3")
+
+    def redirect(self, page="pos2", query=b""):
         previous = getattr(frappe.local, "request", None)
         frappe.local.request = frappe._dict(query_string=query)
         self.addCleanup(setattr, frappe.local, "request", previous)
-        pos2 = importlib.import_module("luuvcrm.www.pos2")
+        module = importlib.import_module(f"luuvcrm.www.{page}")
         with self.assertRaises(frappe.Redirect):
-            self.context(pos2)
+            self.context(module)
         return frappe.local.flags.redirect_location
 
-    def test_the_bookmark_lands_on_the_till(self):
-        self.assertEqual(self.redirect(), "/pos")
+    def test_every_old_address_lands_on_the_till(self):
+        for page in self.OLD:
+            with self.subTest(page=page):
+                self.assertEqual(self.redirect(page), "/pos")
 
     def test_the_query_string_survives(self):
-        self.assertEqual(self.redirect(b"table=T4"), "/pos?table=T4")
+        """`/pos2?table=T4` is how a bookmark opens on a table. Dropping the
+        query string sends the cashier to a till with no table selected, which
+        looks like the bookmark working."""
+        for page in self.OLD:
+            with self.subTest(page=page):
+                self.assertEqual(self.redirect(page, b"table=T4"), "/pos?table=T4")
+
+    def test_neither_is_a_second_till(self):
+        """A page there again means two counter screens drifting apart, which is
+        what the collapse was for."""
+        for page in self.OLD:
+            with self.subTest(page=page):
+                module = importlib.import_module(f"luuvcrm.www.{page}")
+                self.assertFalse(hasattr(module, "get_print_templates"))
+                html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", f"{page}.html"))
+                self.assertLess(len(html), 400, f"{page}.html should be a stub")
+                self.assertIn("/pos", html)
 
     def test_it_goes_through_the_one_redirect_in_pos(self):
         """A second copy of the same lines is how one of them ends up dropping
