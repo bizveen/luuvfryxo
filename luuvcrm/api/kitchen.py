@@ -12,20 +12,54 @@ from frappe.utils import now_datetime
 from luuvcrm.api.orders import SCREEN_ORDER_CEILING, lines_by_order
 from luuvcrm.api.shifts import _get_invoice_doc
 
+#: How far back the kitchen queue reaches.
+#:
+#: The filter used to be status alone, with no date — and the comment beside it
+#: said so: "an order that never reaches Served is on this screen for ever".
+#: What that missed is the *ceiling*. The list is ordered oldest-first and cut
+#: at SCREEN_ORDER_CEILING, so once more tickets than that have piled up
+#: unserved, the screen fills with ancient ones and **every new order becomes
+#: invisible to the kitchen** — with nothing on the screen saying so. Found on
+#: the test site at 275 pending against a ceiling of 200.
+#:
+#: Nothing closes a ticket automatically. `process_payment` sets the invoice and
+#: leaves `kitchen_status` alone, on purpose: a walk-in pays before the food is
+#: cooked, so "paid" is not "served". Somebody has to press Served, and over
+#: months the ones nobody pressed accumulate.
+#:
+#: Two days rather than "today": a shift that starts at 6pm and ends at 2am
+#: would otherwise lose half its tickets at midnight. Anything older than this
+#: is not work the kitchen is about to do — but it is still *counted* and said
+#: out loud below, because the whole failure here was silence.
+KITCHEN_WINDOW_HOURS = 48
+
 
 # ─── Kitchen Display ─────────────────────────────────────
 @frappe.whitelist()
 def get_kitchen_orders():
+    from frappe.utils import add_to_date
+
     _fields = ["name", "customer_name", "waiter_name", "mobile", "restaurant_table",
                "grand_total", "creation", "order_source", "notes", "kitchen_status"]
     if frappe.db.has_column("POS Order", "scheduled_time"):
         _fields.append("scheduled_time")
+
+    waiting = {"kitchen_status": ["not in", ["Served", "Draft", "Cancelled"]]}
+    cutoff = add_to_date(now_datetime(), hours=-KITCHEN_WINDOW_HOURS)
+
+    # Counted through get_list, not db.count: the kitchen on a two-branch site
+    # is pinned by a User Permission, and a count that ignores it would report
+    # tickets this screen is not allowed to show.
+    in_window = {**waiting, "creation": [">=", cutoff]}
+    waiting_now = len(frappe.get_list("POS Order", filters=in_window, fields=["name"],
+                                      limit_page_length=0))
+    total_open = len(frappe.get_list("POS Order", filters=waiting, fields=["name"],
+                                     limit_page_length=0))
+
     orders = frappe.get_list("POS Order",
-        filters={"kitchen_status": ["not in", ["Served", "Draft", "Cancelled"]]},
+        filters=in_window,
         fields=_fields,
         order_by="creation asc",
-        # A status filter with no date: an order that never reaches Served is on
-        # this screen for ever, and the kitchen polls it. See orders.py.
         limit_page_length=SCREEN_ORDER_CEILING,
     )
     now_dt = now_datetime()
@@ -47,7 +81,18 @@ def get_kitchen_orders():
                 "notes": i.get("notes") or ""
             })
         o["items_json"] = json.dumps(items)
-    return {"orders": orders}
+
+    return {
+        "orders": orders,
+        # Everything the screen is not showing, and why. A kitchen display that
+        # quietly drops the ticket somebody just fired is the failure this
+        # replaces; a line saying "200 of 275" is not.
+        "shown": len(orders),
+        "waiting": waiting_now,
+        "truncated": max(waiting_now - len(orders), 0),
+        "stale": max(total_open - waiting_now, 0),
+        "window_hours": KITCHEN_WINDOW_HOURS,
+    }
 
 
 def _kitchen_groups(item_codes):

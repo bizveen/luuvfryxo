@@ -385,3 +385,75 @@ class TestTheCashDrawer(FrappeTestCase):
             self.call(api.record_cash_movement, direction="out", amount=100)
         with self.assertRaises(frappe.PermissionError):
             self.call(api.get_cash_movements)
+
+
+class TestTheKitchenQueueCannotSwallowANewTicket(FloorTestCase):
+    """The failure this class exists for was found by two tests that had been
+    failing for days and being explained away as "test-site noise".
+
+    The kitchen list filtered on status alone, ordered oldest-first, and cut at
+    `SCREEN_ORDER_CEILING`. Once more tickets than that had piled up unserved —
+    275 against a ceiling of 200 on the test site — the screen filled with
+    ancient ones and **the order that had just been fired never appeared**.
+    Nothing anywhere said so. Nothing closes a ticket automatically either:
+    `process_payment` deliberately leaves `kitchen_status` alone, because a
+    walk-in pays before the food is cooked, so somebody has to press Served and
+    over months the ones nobody pressed accumulate.
+    """
+
+    def stale_pile(self, n=3):
+        """Tickets from before the window: old, unserved, and never coming back."""
+        from frappe.utils import add_to_date
+
+        made = []
+        for _ in range(n):
+            order = self.order()
+            frappe.db.set_value("POS Order", order.name, "creation",
+                                add_to_date(frappe.utils.now_datetime(), days=-9),
+                                update_modified=False)
+            made.append(order.name)
+        return made
+
+    def test_a_ticket_fired_now_is_on_the_screen_behind_a_backlog(self):
+        self.stale_pile()
+        fresh = self.order()
+        names = [o["name"] for o in self.call(api.get_kitchen_orders)["orders"]]
+        self.assertIn(fresh.name, names)
+
+    def test_a_ticket_older_than_the_window_is_not_shown(self):
+        """It is not work the kitchen is about to do. It is counted, not
+        rendered."""
+        old = self.stale_pile(1)[0]
+        result = self.call(api.get_kitchen_orders)
+        self.assertNotIn(old, [o["name"] for o in result["orders"]])
+
+    def test_what_is_hidden_is_counted_and_said(self):
+        """The whole failure was silence, so the count is part of the payload
+        and the screen prints it."""
+        self.stale_pile(2)
+        result = self.call(api.get_kitchen_orders)
+        for key in ("shown", "waiting", "truncated", "stale", "window_hours"):
+            self.assertIn(key, result)
+        self.assertGreaterEqual(result["stale"], 2)
+
+    def test_the_screen_prints_that_line(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "kitchen.html"))
+        self.assertIn("queueNotice", html)
+        self.assertIn("showQueueNotice", html)
+
+    def test_the_window_is_wide_enough_for_a_late_shift(self):
+        """A shift that starts at 6pm and ends at 2am must not lose half its
+        tickets at midnight, which is what "today" would have done."""
+        from luuvcrm.api.kitchen import KITCHEN_WINDOW_HOURS
+
+        self.assertGreaterEqual(KITCHEN_WINDOW_HOURS, 24)
+
+    def test_paying_still_does_not_close_the_ticket(self):
+        """Deliberate, and the reason the pile forms: a walk-in pays before the
+        food is cooked, so "paid" is not "served". The fix is the window, not
+        auto-closing work the kitchen has not done."""
+        order = self.order()
+        self.call(api.process_payment, order_name=order.name)
+        fx.drop_invoice(self, frappe.db.get_value("POS Order", order.name, "pos_invoice"))
+        self.assertNotEqual(
+            frappe.db.get_value("POS Order", order.name, "kitchen_status"), "Served")

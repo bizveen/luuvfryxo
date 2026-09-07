@@ -354,6 +354,11 @@ The pivotal work. Nothing after this is possible without it.
   - `manager.html` took `main`'s patch cleanly; `purchases.html` was re-applied by hand, because this branch had normalised its line endings and a whole-file diff would have buried 55 real lines in 1,400 fake ones.
   30 tests: `test_reports.py` is new, and the rest went into `test_purchases.py` and `test_approvals.py` beside the ones already there.
 
+- [x] **The kitchen screen could swallow the ticket that had just been fired.** Two tests had been failing for days and being explained away as test-site noise — including by me, in writing, more than once. They were not noise.
+  `get_kitchen_orders` filtered on status alone, ordered **oldest-first**, and cut at `SCREEN_ORDER_CEILING` (200). The comment beside the filter even said "an order that never reaches Served is on this screen for ever" — what it missed is the ceiling. Once more unserved tickets have piled up than the screen holds — 275 against 200 on the test site — the oldest fill it and **every new order becomes invisible to the kitchen**, with nothing anywhere saying so. On a real restaurant that is food nobody cooks.
+  Nothing closes a ticket automatically, and that is deliberate: `process_payment` leaves `kitchen_status` alone because a walk-in pays *before* the food is cooked, so "paid" is not "served". Somebody has to press Served, and over months the ones nobody pressed accumulate. Auto-closing on payment would hide real work, so the fix is not that.
+  The queue is a **rolling 48-hour window** now — two days rather than "today", so a shift that starts at 6pm and ends at 2am does not lose half its tickets at midnight — and everything outside it is **counted and said out loud**: the payload carries `shown`, `waiting`, `truncated` and `stale`, and the screen prints "showing 200 of 275" and "101 older than 2 days not shown — mark them served". The whole failure was silence. 6 tests in `test_service.py`, and the two that had been failing now pass **without touching a single row of data**, which is what says the fix is the fix.
+
 ---
 
 ## Rules that apply throughout

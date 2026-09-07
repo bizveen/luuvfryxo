@@ -150,6 +150,13 @@
   <button class="k-tab" id="tabPrep" onclick="switchKTab('prep')">🍳 Prep View <span class="kt-count" id="prepTabCount">0</span></button>
 </div>
 
+<!-- What the screen is not showing, and why. Never silent: the queue is capped
+     and time-windowed, and a kitchen that cannot see the ticket just fired has
+     to be told rather than left to wonder. -->
+<div id="queueNotice" style="display:none;margin:0 14px 10px;padding:9px 14px;
+     background:#3A2A0C;color:#F5C86B;border:1px solid #6B4E12;border-radius:10px;
+     font-size:13px;font-weight:600;letter-spacing:.01em;"></div>
+
 <!-- Orders Kanban View -->
 <div class="k-view active" id="ordersView">
   <div class="kanban" id="kanbanContainer"></div>
@@ -446,7 +453,22 @@ async function loadOrders() {
     knownOrders = new Set(orders.map(o=>o.name));
     renderKanban(orders);
     buildPrepView(orders);
+    showQueueNotice(data.message || {});
   } catch(e) {}
+}
+
+// The screen is capped and time-windowed, so it has to say when it is not
+// showing everything. The bug this replaces was silent: with more unserved
+// tickets than the ceiling, the oldest filled the screen and the order that
+// had just been fired never appeared — and nothing anywhere said so.
+function showQueueNotice(m) {
+  const bar = document.getElementById('queueNotice');
+  if (!bar) return;
+  const parts = [];
+  if (m.truncated > 0) parts.push(`showing ${m.shown} of ${m.waiting} waiting`);
+  if (m.stale > 0) parts.push(`${m.stale} older than ${Math.round((m.window_hours||48)/24)} days not shown — mark them served`);
+  bar.textContent = parts.join(' · ');
+  bar.style.display = parts.length ? 'block' : 'none';
 }
 
 // ─── Tab switch ────────────────────────────────
