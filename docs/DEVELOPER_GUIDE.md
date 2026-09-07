@@ -69,7 +69,8 @@ the table map. `test_pages.py` asserts the staff gates.
 | `/guide` | Tour guides | guest page, token auth (`guide_login`) |
 | `/cus` | Customers | guest page, phone + PIN token |
 | `/customer`, `/myorders`, `/my_orders` | — | 301 → `/cus`, kept for links already sent |
-| `/kiosk`, `/order`, `/menu`, `/home`, `/track`, `/claim` | Customers, walk-up | public by design |
+| `/kiosk`, `/menu`, `/track`, `/claim` | Customers, walk-up | public by design |
+| `/order`, `/home`, `/` | Customers, walk-up | public by design. **The templates are `order-online.html` and `restaurant-home.html`**: erpnext ships pages called `order` and `home`, and Frappe resolves by `reversed(get_installed_apps())`, so the later app wins the name — `/order` was a 500 and `/home` served erpnext's page. `website_route_rules` in `hooks.py` keeps the public URLs. `/` comes from the `home_page` hook, which beats Website Settings. **Adding a page: check the name is not one erpnext, hospitality or hrms already uses** — `test_pages.TestNoPageIsShadowedByAnotherApp` is the standing check. |
 | `/pos-login` | Staff sign-in | public by design |
 | `/app` | Frappe Desk | Frappe's own. `before_request` sends only `?promo=` / `?ref=` / `?phone=` deep links to `/cus` |
 

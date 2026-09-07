@@ -403,7 +403,8 @@ class TestThePublicPagesStayPublic(PageTestCase):
 
     #: route -> page module. /pos-login is here too: a login page that requires
     #: a login is a door locked from the inside.
-    PUBLIC = ("menu", "home", "kiosk", "order", "claim", "track", "cus", "pos-login")
+    PUBLIC = ("menu", "restaurant_home", "kiosk", "order_online", "claim", "track",
+              "cus", "pos-login")
 
     def module(self, name):
         # "pos-login" is a legal page file and an illegal identifier; import_module
@@ -430,6 +431,86 @@ class TestThePublicPagesStayPublic(PageTestCase):
                 module = self.module(name)
                 self.assertIsNot(getattr(module, "login_required", False), True,
                                  f"/{name} is reached without a session")
+
+
+class TestNoPageIsShadowedByAnotherApp(PageTestCase):
+    """Frappe resolves a page by walking `reversed(get_installed_apps())`, so the
+    app installed *last* wins a name — and erpnext is installed after this one.
+    Two of our pages had already lost, and both failures were the quiet kind:
+
+    - **`/order` was a 500.** erpnext's `templates/pages/order.py` calls
+      `frappe.get_doc(form_dict.doctype, form_dict.name)` with nothing in the
+      form dict and raises `ValueError`. `/home` and `/track` both put an
+      "Order Online" button in front of customers, and it went to a stack trace.
+    - **`/home` was erpnext's website home.** 200, the wrong page, and the
+      restaurant's own 494-line landing page had never once been served.
+
+    The route table in the guide had both of them marked ✅, because a route
+    table records what an app *declares*, and this is decided by what the site
+    *resolves*. So the check has to ask the resolver.
+    """
+
+    def resolved_app(self, route):
+        """Which app answers this URL, asked of the real resolver.
+
+        `website_route_rules` are matched by werkzeug against
+        `frappe.local.request.environ`, and a test has no request — so without
+        this the rules are skipped and the check quietly measures the wrong
+        thing. Building an environ is what makes the assertion mean what it
+        says."""
+        from werkzeug.test import EnvironBuilder
+
+        from frappe.website.path_resolver import PathResolver
+
+        previous = getattr(frappe.local, "request", None)
+        frappe.local.request = EnvironBuilder(path="/" + route).get_request()
+        try:
+            _endpoint, renderer = PathResolver(route).resolve()
+            return getattr(renderer, "app", None), getattr(renderer, "template_path", "")
+        finally:
+            frappe.local.request = previous
+
+    def test_every_luuvcrm_page_is_served_by_luuvcrm(self):
+        import pathlib
+
+        www = pathlib.Path(frappe.get_app_path("luuvcrm", "www"))
+        shadowed = []
+        for template in sorted(www.glob("*.html")):
+            route = template.stem
+            app, path = self.resolved_app(route)
+            if app != "luuvcrm":
+                shadowed.append(f"/{route} → {app}:{path}")
+        self.assertEqual(shadowed, [], f"another app answers these: {shadowed}")
+
+    def test_the_two_public_urls_still_point_at_our_pages(self):
+        """The files are named `order-online` and `restaurant-home` now, which
+        nothing else claims, and `website_route_rules` keeps the public URLs
+        exactly as they were — every link already on a sticker or in a WhatsApp
+        message still works."""
+        for route, expected in (("order", "order-online"), ("home", "restaurant-home")):
+            with self.subTest(route=route):
+                app, path = self.resolved_app(route)
+                self.assertEqual(app, "luuvcrm")
+                self.assertIn(expected, path)
+
+    def test_the_site_root_is_not_the_page_that_was_deleted(self):
+        """Website Settings still pointed `/` at `app2`, deleted in the
+        September cleanup, so the restaurant's front door was a 404. The
+        `home_page` hook is read before Website Settings, which is what makes
+        this a code fix rather than something somebody has to remember to click.
+        """
+        from frappe.website.utils import get_home_page
+
+        self.assertEqual(frappe.get_hooks("home_page"), ["home"])
+        self.assertNotEqual(get_home_page(), "app2")
+
+    def test_the_landing_page_is_the_restaurant_one(self):
+        page = importlib.import_module("luuvcrm.www.restaurant_home")
+        ctx = frappe._dict()
+        self.as_user("Guest")
+        page.get_context(ctx)
+        self.assertIn("menu_groups", ctx,
+                      "the landing page shows the menu; erpnext's does not")
 
 
 class TestEveryStaffPageReportsItsErrors(PageTestCase):
@@ -651,9 +732,16 @@ class TestApp2IsGone(PageTestCase):
 
     def test_the_hooks_it_needed_were_never_wired(self):
         """The evidence it was vestigial rather than merely unused — recorded so
-        that "why was this deleted" has an answer in six months."""
+        that "why was this deleted" has an answer in six months.
+
+        `website_route_rules` is no longer empty: it carries the two rules that
+        keep /order and /home on our own pages. What matters is that neither one
+        leads back to app2, and that nothing re-wires the session hook that
+        would have made /app2 a second Desk."""
         from luuvcrm import hooks
-        self.assertFalse(getattr(hooks, "website_route_rules", None))
+
+        rules = getattr(hooks, "website_route_rules", []) or []
+        self.assertNotIn("app2", str(rules))
         self.assertFalse(getattr(hooks, "on_session_creation", None))
 
     def test_nothing_shadows_frappes_desk_any_more(self):

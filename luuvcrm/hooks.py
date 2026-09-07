@@ -41,6 +41,32 @@ boot_session = ["luuvcrm.overrides.branding.boot_session"]
 # /customer. See api.route_app_requests.
 before_request = ["luuvcrm.api.route_app_requests"]
 
+# ─── The public front door ───────────────────────────────────────────────────
+# Frappe resolves a page by walking `reversed(frappe.get_installed_apps())`, so
+# the app installed *last* wins a name — and erpnext is installed after this one.
+# Two of our pages lost:
+#
+#   /order  → erpnext's templates/pages/order.py, which does
+#             `frappe.get_doc(form_dict.doctype, form_dict.name)` with nothing in
+#             the form dict and raises. A bare visit was a **500** — and /home
+#             and /track both send customers there with an "Order Online" button.
+#   /home   → erpnext's website home page. **200, and the wrong page**: the
+#             restaurant's 494-line landing page had never once been served.
+#
+# The files are named `order-online` and `restaurant-home` now, which nothing
+# else claims, and these rules keep the public URLs exactly as they were —
+# every link already printed on a sticker or sent in a message still works.
+website_route_rules = [
+    {"from_route": "/order", "to_route": "order-online"},
+    {"from_route": "/home", "to_route": "restaurant-home"},
+]
+
+# And the front door itself was a 404: Website Settings still pointed `/` at
+# `app2`, a page deleted in the September cleanup. The hook is read *before*
+# Website Settings (frappe/website/utils.py: get_home_page), so this fixes a
+# running site as well as a fresh one, without anybody editing site data.
+home_page = "home"
+
 # Staff activity trail (luuvcrm/activity.py) — deployed 2026-09-02 with the
 # activity stack. Runs in the request's finally block, after the DB has been
 # committed/rolled back, so it commits its own row.

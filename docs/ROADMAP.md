@@ -82,7 +82,9 @@ Every page and its current gate:
 | `/owner` | login + Owner roles | ✅ correct — branch comparison and branch setup |
 | `/cus` | guest, token auth | ✅ correct |
 | `/customer`, `/myorders`, `/my_orders` | public | ✅ correct — 301 aliases to `/cus`, kept for links already sent |
-| `/kiosk`, `/order`, `/track`, `/menu`, `/home`, `/claim`, `/pos-login` | public | ✅ correct |
+| `/kiosk`, `/track`, `/menu`, `/claim`, `/pos-login` | public | ✅ correct |
+| `/order`, `/home` | public | ✅ correct **now** — erpnext was answering both. See below. |
+| `/` (site root) | public | ✅ correct now — it was a 404 pointing at the deleted `/app2` |
 | `/app2` | — | ✅ deleted |
 
 - [x] **Added the four missing role gates and fixed `/qrcodes`.** `/waiter` → `require_waiter()`, `/kitchen` → `require_kitchen()`, `/purchases` and `/qrpromo` → `require_manager()`, `/qrcodes` → a login redirect it never had plus `require_manager()`. Two were worse than "missing a role check":
@@ -316,6 +318,14 @@ The pivotal work. Nothing after this is possible without it.
   **Availability went in behind one reader, not into eight screens.** `/pos`, `/waiter`, `/kiosk`, `/order`, `/menu`, `/home`, `/cus` and the POS's offline payload each had their own copy of the same loop — five byte-identical — and each did a full `frappe.get_doc("Item")` per row. A rule written eight times holds in seven places and fails quietly in the eighth, which is the shape of every bug found on 2026-09-07, so all eight read `menu_items()` now and a test refuses a page that builds the menu itself again. Eight N+1s went with the copies.
   `available` is a menu-row flag rather than `Item.disabled` on purpose: reversible with one tap, and a bill that already carries the item still prices and pays — the kitchen runs out at 8pm and the table that ordered at 7:55 still has to be settled.
   **And `add_menu_item` was broken.** `Restaurant Menu.on_update` is hospitality's, and it rebuilds the menu's Price List from scratch on every save — it deletes every `Item Price` in that list and re-inserts one per row. On a site whose Price List it did not create (`restaurant_menu` unset, which is how this one is) it tries to make a second Price List with the same name and throws `DuplicateEntryError`, so the manager's "Add item" button has been failing with "Could not save". One item is appended as a child row now, without saving the parent, which also stops an add from rewriting every price in that list. 33 tests in `test_menu.py`.
+
+- [x] **Two public pages were being served by erpnext, and the front door was a 404.** Found while checking the menu work against the running site. Frappe resolves a page by walking `reversed(get_installed_apps())`, so the app installed *last* wins a name — and erpnext is installed after this one:
+  - **`/order` was a 500.** erpnext's `templates/pages/order.py` calls `frappe.get_doc(form_dict.doctype, form_dict.name)` with nothing in the form dict and raises `ValueError`. `/home` and `/track` both put an "Order Online" button in front of customers and it went to a stack trace.
+  - **`/home` was erpnext's website home page.** 200, the wrong page, and the restaurant's own 494-line landing page had never once been served.
+  - **`/` was a 404.** Website Settings still pointed the site root at `app2`, deleted in the September cleanup, so somebody typing the restaurant's domain got "Not Found".
+
+  The templates are `order-online.html` and `restaurant-home.html` now — names nothing else claims — and `website_route_rules` keeps the public URLs exactly as they were, so every link already printed on a sticker or sent in a message still works. The root is fixed by the `home_page` hook, which `get_home_page()` reads *before* Website Settings, so it corrects a running site as well as a fresh one without anybody editing site data.
+  **A route table records what an app declares; this is decided by what the site resolves**, which is why the guide had all three marked correct. The test asks the resolver instead, with a real request environ — `website_route_rules` are matched by werkzeug against `request.environ`, so a test without one silently measures the wrong thing. 4 tests in `test_pages.py`.
 
 ---
 
