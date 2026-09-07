@@ -12,7 +12,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import roles
+from luuvcrm import activity, roles
 
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
@@ -257,6 +257,17 @@ def send_to_kitchen():
         ver2.flags.ignore_permissions = True
         ver2.insert()
 
+    activity.log_activity(
+        "order.draft" if is_draft else "order.fire",
+        label=("Ticket started Rs %.0f" if is_draft else "Sent to kitchen Rs %.0f") % (
+            float(pos_order.grand_total or 0)),
+        ref_doctype="POS Order", ref_name=pos_order.name, table=table or None,
+        amount=float(pos_order.grand_total or 0),
+        total_after=float(pos_order.grand_total or 0),
+        detail={"items": len(items), "subtotal": subtotal,
+                "service_charge": sc_amount, "order_type": order_type,
+                "source": order_source, "amended_from": amended_from or None})
+
     return {
         "name": pos_order.name,
         "grand_total": pos_order.grand_total,
@@ -382,6 +393,20 @@ def cancel_order():
     })
     version.flags.ignore_permissions = True
     version.insert()
+
+    # A cancel after the kitchen has fired is the one worth a manager's eye: the
+    # food was cooked and the bill went away.
+    fired = sum(int(i.get("sent_qty") or 0) for i in (pos_order.get("items") or []))
+    flag, note = activity.kot_pull_flag(fired, "the whole ticket")
+    activity.log_activity(
+        "order.cancel", label="Cancelled Rs %.0f" % float(pos_order.grand_total or 0),
+        ref_doctype="POS Order", ref_name=order_name,
+        table=pos_order.restaurant_table,
+        amount=float(pos_order.grand_total or 0),
+        total_before=float(pos_order.grand_total or 0), total_after=0,
+        flag_reason=flag, flag_note=note,
+        detail={"was": old_kitchen_status, "items": len(pos_order.get("items") or []),
+                "fired_qty": fired})
     return {"status": "cancelled", "name": order_name}
 # ─── All Changelogs (recent changes across orders) ──────
 
@@ -442,6 +467,12 @@ def mark_order_served():
     pos_order.db_set("docstatus", 1)
     pos_order.db_set("kitchen_status", "Served")
 
+    activity.log_activity(
+        "order.served", label="Served Rs %.0f" % float(pos_order.grand_total or 0),
+        ref_doctype="POS Order", ref_name=order_name, bill_no=pos_order.pos_invoice or None,
+        table=pos_order.restaurant_table, amount=float(pos_order.grand_total or 0),
+        detail={"invoice": pos_order.pos_invoice or None})
+
     return {"name": order_name, "status": "Served", "invoice_name": pos_order.pos_invoice}
 @frappe.whitelist(methods=["POST"])
 def mark_kot_printed():
@@ -487,7 +518,15 @@ def delete_draft_order():
     fired = sum(int(i.get("sent_qty") or 0) for i in (doc.get("items") or []))
     if doc.pos_invoice or fired > 0:
         return {"ok": True, "deleted": False}
+    total = float(doc.grand_total or 0)
     frappe.delete_doc("POS Order", order_name, ignore_permissions=True, force=True)
+    # The row outlives the order it describes, which is the point: after the
+    # delete there is nothing else anywhere that says this ticket existed.
+    activity.log_activity(
+        "order.delete", label="Deleted draft Rs %.0f" % total,
+        ref_doctype="POS Order", ref_name=order_name, table=doc.restaurant_table,
+        amount=total, total_before=total, total_after=0,
+        detail={"items": len(doc.get("items") or [])})
     return {"ok": True, "deleted": True}
 def _order_fully_paid(pos_order):
     """True when every order line has been fully billed (via splits or a full pay)."""
@@ -620,6 +659,7 @@ def waiter_append_items():
     if pos_order.pos_invoice:
         frappe.throw(_("Cannot add items — payment already processed"))
 
+    before_total = float(pos_order.grand_total or 0)
     _ensure_item_notes_field()
     if not frappe.db.has_column("POS Order Item", "sent_qty"):
         _install_sent_qty_field()
@@ -654,6 +694,14 @@ def waiter_append_items():
     pos_order.flags.ignore_permissions = True
     pos_order.save()
     _apply_takeaway_service_charge(pos_order)
+
+    activity.log_activity(
+        "order.append", label="Added %d line(s) to the bill" % len(items),
+        ref_doctype="POS Order", ref_name=pos_order.name,
+        table=pos_order.restaurant_table, qty=len(items),
+        amount=float(pos_order.grand_total or 0) - before_total,
+        total_before=before_total, total_after=float(pos_order.grand_total or 0),
+        detail={"added": [it.get("item") for it in items]})
     return {"name": pos_order.name, "grand_total": pos_order.grand_total}
 @frappe.whitelist()
 def compare_orders():
@@ -735,6 +783,7 @@ def update_order():
 
     # Track whether a receipt was already printed (invoice exists)
     was_printed = bool(pos_order.pos_invoice)
+    before_total = float(pos_order.grand_total or 0)
 
     order_type = pos_order.order_type or ""
     # Preserve per-line "already fired to kitchen" qty across the full items rebuild,
@@ -775,6 +824,13 @@ def update_order():
         if not item_ta:
             sc_base += rate * qty
 
+    # What the kitchen had already fired and this rebuild took back off the
+    # ticket. sent_map is the fired qty per line before the rebuild; each new
+    # line keeps min(fired, qty), so the difference is food that was cooked and
+    # is no longer on the bill. This is the whole point of the after-kot flag.
+    fired_pulled = max(sum(sent_map.values())
+                       - sum(int(i.get("sent_qty") or 0) for i in pos_order.get("items")), 0)
+
     sc_rate, sc_amount = _service_charge_on(sc_base)
     pos_order.grand_total = subtotal + sc_amount
     pos_order.service_charge_rate = sc_rate
@@ -813,6 +869,26 @@ def update_order():
 
             invoice.flags.ignore_permissions = True
             invoice.save()
+
+    after_total = float(pos_order.grand_total or 0)
+    # Two rules can fire on one edit; the more serious one wins the row, and the
+    # note carries both so the manager reads why.
+    flag, note = activity.late_edit_flag(was_printed, "edited")
+    kot_flag, kot_note = activity.kot_pull_flag(fired_pulled, "fired items")
+    if kot_flag and not flag:
+        flag, note = kot_flag, kot_note
+    elif kot_flag:
+        note = "%s; %s" % (note, kot_note)
+    activity.log_activity(
+        "order.update",
+        label="Bill edited Rs %.0f → Rs %.0f" % (before_total, after_total),
+        ref_doctype="POS Order", ref_name=pos_order.name,
+        bill_no=pos_order.pos_invoice or None, table=pos_order.restaurant_table,
+        amount=after_total - before_total,
+        total_before=before_total, total_after=after_total,
+        flag_reason=flag, flag_note=note,
+        detail={"items": len(items), "fired_pulled": fired_pulled,
+                "was_printed": was_printed})
 
     return {
         "name": pos_order.name,
@@ -888,4 +964,10 @@ def move_order_table():
 
     old_table = pos_order.restaurant_table
     pos_order.db_set("restaurant_table", table)
+
+    activity.log_activity(
+        "order.move", label="Moved %s → %s" % (old_table or "no table", table or "no table"),
+        ref_doctype="POS Order", ref_name=order_name, table=table or old_table,
+        amount=float(pos_order.grand_total or 0),
+        detail={"from": old_table or None, "to": table or None})
     return {"ok": True, "name": order_name, "old_table": old_table or "", "table": table}

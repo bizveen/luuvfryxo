@@ -562,6 +562,17 @@ def record_guide_payout(guide=None, amount=None, note=""):
         "paid_by": frappe.session.user,
     }).insert(ignore_permissions=True)
     frappe.db.commit()
+
+    # Cash to a guide against a balance the same screen can edit. This row and
+    # the Guide Cashback Txn are the only records that it happened.
+    activity.log_activity(
+        "guide.payout",
+        label="Paid guide %s Rs %.0f" % (g.guide_name or g.name, amt),
+        ref_doctype="Tour Guide", ref_name=g.name, amount=amt,
+        total_before=balance, total_after=float(g.cashback_balance or 0),
+        detail={"note": (note or "").strip() or None,
+                "total_paid": float(g.total_paid or 0)})
+
     return {"ok": True, "cashback_balance": float(g.cashback_balance or 0),
             "total_paid": float(g.total_paid or 0)}
 @frappe.whitelist(methods=["POST"])

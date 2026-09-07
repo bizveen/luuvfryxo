@@ -14,8 +14,15 @@ Three layers write into one table, so a bill's story reads top to bottom:
                 POST to a luuvcrm API method. Zero-maintenance coverage: a new
                 endpoint is logged the day it ships, without anyone remembering.
   2. Semantic — explicit `log_activity()` calls inside the money endpoints in
-                api.py, carrying amounts, before/after totals and flags. Those
-                methods are listed in SELF_LOGGED so layer 1 stays out of the way.
+                luuvcrm/api/, carrying amounts, before/after totals and flags.
+                Those methods are listed in SELF_LOGGED so layer 1 stays out of
+                the way. **The list existed for a year before the calls did:**
+                every one of the 21 was skipped by layer 1 on the promise of a
+                richer row that nothing wrote, so the trail covered the reads
+                and stopped where the money is, and every flag rule below —
+                each of which reads amount / total_before / total_after — could
+                never once be true. `tests/test_money_trail.py` refuses a method
+                on the list whose body has no log_activity() call.
   3. Client   — www/lfact.js posts the cart taps (add / +/- / remove / discount /
                 fire / print / pay) with the bill total before and after each tap.
                 Only the browser knows a tap happened twice; the server just sees
@@ -61,7 +68,9 @@ FLAG_LABELS = {
 }
 
 # Endpoints that call log_activity() themselves with real amounts — the generic
-# after_request layer skips these so a payment isn't logged twice.
+# after_request layer skips these so a payment isn't logged twice. Adding a name
+# here without adding the call removes an endpoint from the trail; the test
+# above is what stops that.
 SELF_LOGGED = {
     "place_order", "update_order", "send_to_kitchen", "process_payment", "pay_split",
     "cancel_order", "delete_draft_order", "move_order_table", "record_cash_movement",
@@ -232,8 +241,22 @@ def log_activity(action, app=None, label=None, source="server", user=None,
                  total_before=None, total_after=None,
                  flag_reason=None, flag_note=None, detail=None,
                  page=None, device=None, session_id=None, seq=None,
-                 client_ts=None, ok=1, err=None, ms=None, commit=True):
-    """Record one staff action. Never raises — the caller is a live POS."""
+                 client_ts=None, ok=1, err=None, ms=None, commit=False):
+    """Record one staff action. Never raises — the caller is a live POS.
+
+    **`commit` defaults to False, and that is the safe direction.** A semantic
+    call happens *inside* the endpoint, half-way through taking money: a commit
+    there would write out whatever the payment had done so far, and a later
+    throw would leave it. Riding on the request's own transaction means the row
+    lands exactly when the thing it describes lands, and disappears with it if
+    the endpoint rolls back. It also means a logging call cannot silently break
+    a caller's transaction, which is what a True default did — it committed the
+    test suite's rollback away, and would have done the same to a POS.
+
+    Only `log_request_activity` passes True, because it runs in the request's
+    `finally`, after Frappe has already committed or rolled back; a row written
+    there without a commit of its own is simply dropped.
+    """
     try:
         _ensure_doctype()
         if user is None:
@@ -371,6 +394,7 @@ def log_request_activity(response=None, request=None, **kwargs):
             action=method,
             label=method.replace("_", " ").strip().capitalize(),
             source="request",
+            commit=True,
             ref_name=_clip(args.get("order_name") or args.get("name") or "", 140),
             detail=args,
             page=path,

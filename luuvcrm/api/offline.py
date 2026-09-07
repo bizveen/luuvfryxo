@@ -7,7 +7,7 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 import frappe
 from frappe.utils import now_datetime
 
-from luuvcrm import branch
+from luuvcrm import activity, branch
 
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
@@ -157,6 +157,14 @@ def sync_offline_orders():
 
             _link_invoice_to_order(invoice.name, pos_order.name)
 
+            activity.log_activity(
+                "order.sync",
+                label="Offline sale replayed Rs %.0f (%s)" % (grand_total, payment_mode),
+                ref_doctype="POS Order", ref_name=pos_order.name, bill_no=invoice.name,
+                table=table or None, amount=grand_total, total_after=grand_total,
+                detail={"local_id": local_id, "payment_mode": payment_mode,
+                        "items": len(rate_map), "order_type": order_type})
+
             results.append({
                 "local_id": local_id,
                 "status": "synced",
@@ -168,6 +176,12 @@ def sync_offline_orders():
             })
         except Exception as e:
             frappe.log_error(f"Offline sync error for {local_id}: {str(e)}", "OfflineSync")
+            # A sale the till believes it took and the server refused. Nothing
+            # else keeps it: the loop swallows the exception and moves on.
+            activity.log_activity(
+                "order.sync", label="Offline sale failed to replay",
+                table=table or None, ok=0, err=str(e),
+                detail={"local_id": local_id, "items": len(items or [])})
             results.append({"local_id": local_id, "status": "failed", "error": str(e)})
 
     return {"results": results}

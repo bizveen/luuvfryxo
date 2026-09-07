@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import roles
+from luuvcrm import activity, roles
 
 from luuvcrm.api.expenses import _decide_expense
 from luuvcrm.api.pricing import (
@@ -48,6 +48,22 @@ def create_approval():
     })
     doc.flags.ignore_permissions = True
     doc.insert()
+
+    # The action name matters: activity.duplicate_approval_flag() counts earlier
+    # rows with exactly this action and this order to spot the cashier asking
+    # twice, or asking a second manager.
+    approval_type = data.get("approval_type", "void")
+    order = data.get("pos_order", "")
+    flag, note = activity.duplicate_approval_flag(order, approval_type)
+    # One row, hung off the *order* rather than the approval, so a bill's story
+    # reads top to bottom — and so the duplicate counter, which looks up rows by
+    # order name, finds exactly one per request.
+    activity.log_activity(
+        "approval.create", label="Asked for %s approval" % approval_type,
+        ref_doctype="POS Order" if order else "POS Approval",
+        ref_name=order or doc.name, item=approval_type,
+        detail={"approval": doc.name, "title": doc.title, "action": doc.action or None},
+        flag_reason=flag, flag_note=note)
     return {"ok": True, "name": doc.name}
 def _pending_and_recent_approvals(action=None, include_recent=True):
     """Everything still pending, plus whatever was resolved today. `action` narrows
@@ -211,6 +227,14 @@ def resolve_approval():
                 executed = "discounted"
     except Exception:
         frappe.log_error(frappe.get_traceback(), "resolve_approval action failed")
+
+    activity.log_activity(
+        "approval.resolve",
+        label="%s %s" % (decision.capitalize(), doc.approval_type or "request"),
+        ref_doctype="POS Order" if doc.pos_order else "POS Approval",
+        ref_name=doc.pos_order or doc.name, item=doc.approval_type or None,
+        detail={"approval": doc.name, "decision": decision, "executed": executed,
+                "requested_by": doc.requested_by, "comment": comment or None})
     return {"ok": True, "status": decision, "executed": executed}
 def _apply_order_discount(order_name, payload):
     """Apply a manager-approved discount to a draft POS Order. The discount comes off the

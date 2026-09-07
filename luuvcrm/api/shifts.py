@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import roles
+from luuvcrm import activity, roles
 
 
 # The role model lives in luuvcrm/roles.py. Guards are called as
@@ -161,6 +161,13 @@ def pos_open_shift():
     opening.submit()
 
     opening_amt = sum(float(d["opening_amount"]) for d in balance_details)
+
+    activity.log_activity(
+        "shift.open", label="Shift opened, float Rs %.0f" % opening_amt,
+        ref_doctype="POS Opening Entry", ref_name=opening.name,
+        amount=opening_amt, total_after=opening_amt,
+        detail={"pos_profile": pos_profile_name, "opening": balance_details})
+
     return {
         "shift": {
             "status": "open",
@@ -278,6 +285,30 @@ def pos_close_shift():
     opening_amt = sum(float(d.opening_amount or 0) for d in opening.balance_details)
     total_sales = float(closing.grand_total or 0)
     order_count = len(closing.pos_transactions or [])
+
+    # The drawer count is the one number in this app nobody else can check: the
+    # cashier types it, and expected comes from the invoices. The difference is
+    # what the flag exists for, and the largest one across modes wins the row.
+    worst = max(closing.payment_reconciliation,
+                key=lambda r: abs(float(r.difference or 0)), default=None)
+    flag, note = activity.variance_flag(
+        float(worst.difference or 0) if worst else 0,
+        worst.mode_of_payment if worst else "Cash")
+    activity.log_activity(
+        "shift.close",
+        label="Shift closed, %d bills, Rs %.0f" % (order_count, total_sales),
+        ref_doctype="POS Closing Entry", ref_name=closing.name,
+        amount=total_sales, total_before=opening_amt,
+        total_after=opening_amt + total_sales,
+        flag_reason=flag, flag_note=note,
+        detail={"opening_entry": opening_name, "orders": order_count,
+                "consolidated": consolidated,
+                "counted": {r.mode_of_payment: float(r.closing_amount or 0)
+                            for r in closing.payment_reconciliation},
+                "expected": {r.mode_of_payment: float(r.expected_amount or 0)
+                             for r in closing.payment_reconciliation},
+                "difference": {r.mode_of_payment: float(r.difference or 0)
+                               for r in closing.payment_reconciliation}})
 
     return {
         "shift": {
@@ -545,6 +576,17 @@ def record_cash_movement():
     })
     doc.flags.ignore_permissions = True
     doc.insert()
+
+    # Cash out of the drawer with no bill behind it. There is no other record of
+    # it than this row and the movement itself, and the reason is free text.
+    activity.log_activity(
+        "cash.move",
+        label="Drawer %s Rs %.0f%s" % ("in" if direction == "in" else "out", amount,
+                                       (" — " + reason) if reason else ""),
+        ref_doctype="POS Cash Movement", ref_name=doc.name,
+        amount=amount if direction == "in" else -amount,
+        detail={"direction": direction, "reason": reason, "opening_entry": opening})
+
     return {"ok": True, "name": doc.name, "direction": direction, "amount": amount}
 @frappe.whitelist()
 def get_cash_movements():

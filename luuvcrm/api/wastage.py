@@ -6,7 +6,7 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 from frappe import _
-from luuvcrm import roles
+from luuvcrm import activity, roles
 
 from luuvcrm.api.purchases import _buying_price_list
 
@@ -73,6 +73,16 @@ def create_wastage(item=None, qty=None, reason=""):
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
+
+    # Stock that leaves without a sale. The cost is what it was bought for, so
+    # the row is comparable with a purchase and with a discount.
+    activity.log_activity(
+        "wastage.create",
+        label="Wastage %g x %s, Rs %.0f" % (q, d.get("item_name") or item, float(doc.cost or 0)),
+        ref_doctype="Wastage", ref_name=doc.name, item=item,
+        item_name=d.get("item_name") or item, qty=q, amount=float(doc.cost or 0),
+        detail={"reason": (reason or "").strip() or None, "priced": price > 0})
+
     return {"ok": True, "name": doc.name, "cost": float(doc.cost or 0),
             "priced": price > 0}
 @frappe.whitelist()

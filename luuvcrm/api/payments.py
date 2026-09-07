@@ -8,6 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from luuvcrm import activity
 from luuvcrm.api.guides import (
     GUIDE_CASHBACK_INCLUDES_SERVICE_CHARGE,
     _credit_guide_cashback,
@@ -187,6 +188,17 @@ def place_order():
         grand_total if GUIDE_CASHBACK_INCLUDES_SERVICE_CHARGE else subtotal,
         pos_order.name, invoice.name, items=pos_items)
 
+    flag, note = activity.discount_flag(redeem_amt, grand_total)
+    activity.log_activity(
+        "order.place", label="Walk-in sale Rs %.0f (%s)" % (net_due, payment_mode),
+        ref_doctype="POS Order", ref_name=pos_order.name, bill_no=invoice.name,
+        table=table or None, amount=net_due, total_before=grand_total, total_after=net_due,
+        flag_reason=flag, flag_note=note,
+        detail={"payment_mode": payment_mode, "cash": cash_amount, "card": card_amount,
+                "subtotal": subtotal, "service_charge": sc_amount,
+                "guide_redeem": redeem_amt, "items": len(pos_items),
+                "order_type": order_type, "source": order_source})
+
     return {
         "name": pos_order.name,
         "invoice_name": invoice.name,
@@ -280,6 +292,17 @@ def process_payment():
         else order_total - float(pos_order.service_charge_amount or 0),
         order_name, invoice.name,
         items=[{"item": i.item, "qty": i.qty, "rate": i.rate} for i in pos_order.items])
+
+    flag, note = activity.discount_flag(total_disc, order_total)
+    activity.log_activity(
+        "payment.process", label="Paid Rs %.0f (%s)" % (net_due, payment_mode),
+        ref_doctype="POS Order", ref_name=order_name, bill_no=invoice.name,
+        table=pos_order.get("restaurant_table"),
+        amount=net_due, total_before=order_total, total_after=net_due,
+        flag_reason=flag, flag_note=note,
+        detail={"payment_mode": payment_mode, "cash": cash_amount, "card": card_amount,
+                "discount": float(pos_order.get("discount_amount") or 0),
+                "guide_redeem": redeem_amt, "items": len(pos_order.items)})
 
     return {
         "name": order_name,
@@ -403,6 +426,16 @@ def pay_split():
         order_name, invoice.name,
         items=[{"item": ii["item_code"], "qty": ii["qty"], "rate": ii["rate"]}
                for ii in invoice_items])
+
+    flag, note = activity.discount_flag(redeem_amt, grand_total)
+    activity.log_activity(
+        "payment.split", label="Split payment Rs %.0f (%s)" % (net_due, payment_mode),
+        ref_doctype="POS Order", ref_name=order_name, bill_no=invoice.name,
+        table=pos_order.get("restaurant_table"),
+        amount=net_due, total_before=grand_total, total_after=net_due,
+        flag_reason=flag, flag_note=note,
+        detail={"payment_mode": payment_mode, "lines": len(invoice_items),
+                "guide_redeem": redeem_amt, "fully_paid": bool(fully_paid)})
 
     return {
         "name": order_name,

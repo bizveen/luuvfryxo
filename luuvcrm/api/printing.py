@@ -7,6 +7,7 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 import frappe
 from frappe import _
 
+from luuvcrm import activity
 from luuvcrm.api.shifts import _get_invoice_doc
 
 
@@ -35,6 +36,18 @@ def log_print():
         f"PRINT: {print_type.upper()} | Order: {order_name} | By: {user_full} ({user})",
         "POS Print Log"
     )
+
+    # The action is exactly "print" because activity.reprint_flag() counts rows
+    # with that action for this order and this print type. A reprint is normal
+    # once; a habit of reprinting the guest check is how a bill gets swapped.
+    flag, note = activity.reprint_flag(order_name, print_type)
+    total = frappe.db.get_value("POS Order", order_name, "grand_total") if order_name else None
+    activity.log_activity(
+        "print", label="Printed %s" % (print_type or "document"),
+        ref_doctype="POS Order", ref_name=order_name or None,
+        item=print_type or None, amount=float(total) if total is not None else None,
+        flag_reason=flag, flag_note=note,
+        detail={"print_type": print_type})
 
     return {"status": "logged", "print_type": print_type, "user": user_full}
 # ─── Print Data ─────────────────────────────────────────

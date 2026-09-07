@@ -183,6 +183,7 @@ def update_menu_item(item_code=None, item_name=None, rate=None, guide_pct=None):
         frappe.db.set_value("Item", item_code, "item_name", item_name)
 
     price_list = _get_pos_price_list()
+    before_rate = float(_resolve_item_rate(item_code, 0, price_list) or 0)
     if rate not in (None, ""):
         rate = float(rate)
         if rate <= 0:
@@ -198,9 +199,21 @@ def update_menu_item(item_code=None, item_name=None, rate=None, guide_pct=None):
             frappe.throw(_("Guide commission must be between 0 and 50"))
         frappe.db.set_value("Item", item_code, "guide_commission_percent", gp)
 
+    new_rate = _resolve_item_rate(item_code, 0, price_list)
+    # A price change is the quietest money change in the app: nothing on a bill
+    # records that the item used to cost something else.
+    activity.log_activity(
+        "menu.update", label="Menu item edited: %s" % item_code,
+        ref_doctype="Item", ref_name=item_code, item=item_code,
+        item_name=frappe.db.get_value("Item", item_code, "item_name") or item_code,
+        amount=float(new_rate or 0) - before_rate,
+        total_before=before_rate, total_after=float(new_rate or 0),
+        detail={"renamed_to": item_name or None,
+                "guide_commission": guide_pct if guide_pct is not None else None})
+
     return {"ok": True, "code": item_code,
             "name": frappe.db.get_value("Item", item_code, "item_name") or item_code,
-            "rate": _resolve_item_rate(item_code, 0, price_list)}
+            "rate": new_rate}
 @frappe.whitelist(methods=["POST"])
 def add_menu_item(item_name=None, rate=None, group=None, guide_pct=None):
     """Create an Item (non-stock), price it, and append it to the active menu."""
@@ -241,6 +254,12 @@ def add_menu_item(item_name=None, rate=None, group=None, guide_pct=None):
 
     menu.append("items", {"item": item_code, "rate": rate})
     menu.save(ignore_permissions=True)
+
+    activity.log_activity(
+        "menu.add", label="Menu item added: %s at Rs %.0f" % (item_name, rate),
+        ref_doctype="Item", ref_name=item_code, item=item_code, item_name=item_name,
+        amount=rate, total_after=rate,
+        detail={"group": group, "guide_commission": guide_pct or None})
 
     return {"ok": True, "code": item_code, "name": item_name,
             "rate": _resolve_item_rate(item_code, rate, price_list), "group": group}
