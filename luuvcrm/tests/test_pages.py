@@ -249,12 +249,21 @@ class TestTheStaffPagesAreGated(PageTestCase):
     """
 
     #: page module -> (the lowest role that should get in, a role that should not)
+    #:
+    #: Every staff route in the table in docs/ROADMAP.md §2b is here now. The
+    #: three that were added last were all broken, in three different ways —
+    #: see TestTheManagerScreensWereUnreachable below.
     GATES = {
         "waiter":    (roles.WAITER, roles.KITCHEN_STAFF),
         "kitchen":   (roles.KITCHEN_STAFF, None),
         "purchases": (roles.RESTAURANT_MANAGER, roles.CASHIER),
         "qrpromo":   (roles.RESTAURANT_MANAGER, roles.CASHIER),
         "qrcodes":   (roles.RESTAURANT_MANAGER, roles.CASHIER),
+        "manager":   (roles.RESTAURANT_MANAGER, roles.CASHIER),
+        "activity":  (roles.RESTAURANT_MANAGER, roles.CASHIER),
+        "errors":    (roles.RESTAURANT_MANAGER, roles.CASHIER),
+        "admin":     (roles.RESTAURANT_MANAGER, roles.CASHIER),
+        "owner":     (roles.RESTAURANT_OWNER, roles.RESTAURANT_MANAGER),
     }
 
     def page(self, name):
@@ -293,12 +302,18 @@ class TestTheStaffPagesAreGated(PageTestCase):
                 with self.assertRaises(frappe.PermissionError):
                     self.context(self.page(name))
 
-    def test_a_manager_gets_into_everything(self):
+    def test_a_manager_gets_into_everything_except_the_owners_screen(self):
         """The role sets are cumulative on purpose — a manager covering the
-        floor must not be locked out of the floor."""
+        floor must not be locked out of the floor. `/owner` is the one
+        deliberate exception: it compares branches and moves tills between
+        them, which is the owner's call, not a branch manager's."""
         self.as_user(_as(roles.RESTAURANT_MANAGER))
         for name in self.GATES:
             with self.subTest(page=name):
+                if name == "owner":
+                    with self.assertRaises(frappe.PermissionError):
+                        self.context(self.page(name))
+                    continue
                 self.context(self.page(name))
 
     def test_qrcodes_is_the_table_map_and_is_no_longer_public(self):
@@ -309,6 +324,112 @@ class TestTheStaffPagesAreGated(PageTestCase):
         self.assertIsInstance(ctx.qr_list, list)
         for row in ctx.qr_list:
             self.assertIn("/kiosk?table=", row["url"])
+
+
+class TestTheManagerScreensWereUnreachable(PageTestCase):
+    """The three routes the gate table had marked ✅ and never had a test.
+
+    All three were broken, and none of them by the gate being missing — which
+    is why reading the code had not found them. A gate can also be wrong by
+    naming the wrong role, or by not surviving a refactor somewhere else.
+    """
+
+    def test_the_activity_page_imports(self):
+        """It did not. `www/activity.py` did `from luuvcrm.activity import
+        MANAGER_ROLES`, and luuvcrm.activity stopped defining it when the four
+        role sets were consolidated into luuvcrm.roles — so the module raised
+        ImportError before get_context was ever called and /activity was a 500
+        for everybody, manager included. Nothing imports a page module except
+        the renderer, so nothing else failed."""
+        importlib.import_module("luuvcrm.www.activity")
+
+    def test_the_owner_can_open_the_admin_hub_and_the_error_log(self):
+        """Both gated on `System Manager`, which by this app's own rule the
+        restaurant owner must not hold: it means "can change how the system
+        works" and bypasses every guard in roles.py. So the launcher for every
+        screen, and the log that says what is breaking on the floor phones,
+        were closed to the person who owns the restaurant."""
+        self.as_user(_as(roles.RESTAURANT_OWNER))
+        for name in ("admin", "errors"):
+            with self.subTest(page=name):
+                self.context(importlib.import_module(f"luuvcrm.www.{name}"))
+
+    def test_no_page_names_a_role_of_its_own(self):
+        """`www/pos.py` did: a set literal naming System Manager, POS User,
+        Sales User, Cashier and Administrator, with Restaurant Manager and
+        Restaurant Owner missing — the drift the one-module rule exists to
+        stop, in the one file test_roles.TestNoDuplicateRoleSets did not walk.
+        A page gates through luuvcrm.roles or it does not gate."""
+        import pathlib
+
+        names = (roles.CASHIER, roles.WAITER, roles.KITCHEN_STAFF,
+                 roles.RESTAURANT_MANAGER, roles.RESTAURANT_OWNER,
+                 roles.SYSTEM_MANAGER, roles.POS_USER, roles.SALES_USER)
+        offenders = []
+        for path in sorted(pathlib.Path(frappe.get_app_path("luuvcrm", "www")).glob("*.py")):
+            body = path.read_text()
+            # A role name in a comment is documentation; one in code is a rule
+            # written down twice.
+            code = "\n".join(line.split("#")[0] for line in body.splitlines())
+            for role in names:
+                if f"'{role}'" in code or f'"{role}"' in code:
+                    offenders.append(f"{path.name}: {role}")
+        self.assertEqual(offenders, [],
+                         f"page modules naming roles directly: {offenders}")
+
+
+class TestTheGuideIsNotGatedOnASession(PageTestCase):
+    """Guides are external partners with no Frappe User at all — they are
+    invited from the POS payment dialog by a wa.me message carrying a password.
+    Auth is that token, checked by the guide_* endpoints. A session gate here
+    would lock out every single guide, which is the whole audience."""
+
+    def test_a_guest_gets_the_page(self):
+        self.as_user("Guest")
+        ctx = self.context(importlib.import_module("luuvcrm.www.guide"))
+        self.assertTrue(ctx.csrf_token)
+
+    def test_it_does_not_ask_for_a_login(self):
+        guide = importlib.import_module("luuvcrm.www.guide")
+        self.assertIs(guide.login_required, False)
+
+
+class TestThePublicPagesStayPublic(PageTestCase):
+    """The other half of a gate test, and the half that fails quietly: a page a
+    customer reaches from a QR sticker or a WhatsApp link has no session and
+    never will. A staff-login redirect added to one of these does not throw
+    anywhere a developer is looking — it just sends every customer to a login
+    screen for an account they do not have."""
+
+    #: route -> page module. /pos-login is here too: a login page that requires
+    #: a login is a door locked from the inside.
+    PUBLIC = ("menu", "home", "kiosk", "order", "claim", "track", "cus", "pos-login")
+
+    def module(self, name):
+        # "pos-login" is a legal page file and an illegal identifier; import_module
+        # takes the name as written.
+        return importlib.import_module(f"luuvcrm.www.{name}")
+
+    def test_a_guest_is_never_sent_to_a_staff_login(self):
+        self.as_user("Guest")
+        for name in self.PUBLIC:
+            with self.subTest(page=name):
+                module = self.module(name)
+                try:
+                    self.context(module)
+                except frappe.Redirect:
+                    self.assertNotIn("/pos-login",
+                                     frappe.local.flags.redirect_location or "",
+                                     f"/{name} sends customers to the staff login")
+                except frappe.PermissionError:
+                    self.fail(f"/{name} refuses a guest, and it is a public page")
+
+    def test_none_of_them_requires_a_login(self):
+        for name in self.PUBLIC:
+            with self.subTest(page=name):
+                module = self.module(name)
+                self.assertIsNot(getattr(module, "login_required", False), True,
+                                 f"/{name} is reached without a session")
 
 
 class TestEveryStaffPageReportsItsErrors(PageTestCase):

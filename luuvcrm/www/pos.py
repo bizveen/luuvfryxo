@@ -15,7 +15,7 @@ kiosk and the waiter screen get the same answer as the till.
 import frappe
 from frappe import _
 
-from luuvcrm import branch
+from luuvcrm import branch, roles
 from luuvcrm.api import _resolve_item_rate, _get_pos_price_list
 
 no_cache = 1
@@ -116,9 +116,17 @@ def get_context(context):
     context.current_user = user
     context.current_user_full = full_name
 
-    allowed_roles = {'System Manager', 'POS User', 'Sales User', 'Cashier', 'Administrator'}
-    user_roles = set(frappe.get_roles(user))
-    if not (user_roles & allowed_roles) and not frappe.has_permission('Sales Invoice', 'create'):
+    # The set used to be written out here, and it had drifted: it named System
+    # Manager, POS User, Sales User, Cashier and Administrator, and left out
+    # Restaurant Manager and Restaurant Owner — the two roles above a cashier —
+    # so a manager reached the till only through the Sales Invoice fallback
+    # below. roles.POS_ROLES is the same list with those two in it.
+    #
+    # The fallback stays on purpose. Being locked out of the till mid-service is
+    # a worse failure than an over-broad gate, and every endpoint the screen
+    # then calls runs roles.require_pos() of its own, so what gets through here
+    # can still do nothing it is not allowed to do.
+    if not roles.has_any(roles.POS_ROLES) and not frappe.has_permission('Sales Invoice', 'create'):
         frappe.throw('You do not have permission to access POS', frappe.PermissionError)
 
     restaurant_name = branch.current()

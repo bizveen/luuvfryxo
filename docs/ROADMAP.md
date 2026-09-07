@@ -75,9 +75,9 @@ Every page and its current gate:
 | `/kitchen` | login + Kitchen roles | ✅ correct — it used to render for a guest |
 | `/purchases` | login + Manager roles | ✅ correct |
 | `/qrpromo` | login + Manager roles | ✅ correct |
-| `/guide` | login only | token auth is correct; drop the session redirect |
-| `/manager`, `/activity`, `/errors` | login + Manager roles | ✅ correct |
-| `/admin` | login + roles | ✅ correct |
+| `/guide` | guest, token auth | ✅ correct — no session gate, and a test asserts there is none |
+| `/manager`, `/activity`, `/errors` | login + Manager roles | ✅ correct — `/activity` was a 500 and `/errors` was System-Manager-only until the gate tests were written |
+| `/admin` | login + Manager roles | ✅ correct — it said System Manager, which the owner must not hold |
 | `/qrcodes` | login + Manager roles | ✅ correct — it was public, and it lists every table's kiosk URL |
 | `/owner` | login + Owner roles | ✅ correct — branch comparison and branch setup |
 | `/cus` | guest, token auth | ✅ correct |
@@ -96,7 +96,12 @@ Every page and its current gate:
 - [x] **Collapse the three POS pages.** pos3 was the complete one — the tablet layer, the iMin printer bridge and the Google-Docs print layouts all landed there and were never ported back — so it is what `/pos` now serves. `pos.html`/`pos.py` (superseded) and `pos2.html`/`pos2.py` (previously live) are deleted, `KNOWN_APPS` carries one `"pos"`, and `/admin`'s POS tile, the `get_print_templates` dotted path and the 401/403 redirect all point at `/pos`. Two things fell out of it: the staging **print-only guard is gone** (a switch that silently stops the till taking money has no place on the till), and with it a redeclared `guestCheckClick` that shadowed the real one — the counter had been getting "Send to kitchen first" where pos2 autosaved the ticket. 11 tests in `test_pages.py`.
   - [x] **The `/pos2` bookmarks land.** Every counter tablet had it bookmarked and would have 404'd mid-service. `/pos2` is four lines over `pos.redirect_to_pos()`, carrying the query string, and the guest case is deliberately not handled there — `/pos` does its own gate, so a bookmark opened on a signed-out tablet ends at `/pos-login` and comes back to `/pos`, not to the old address. **It is for one release:** re-point the bookmarks during a close, then delete `www/pos2.*`. 5 tests in `test_pages.py`.
 - [x] **Route table in `DEVELOPER_GUIDE.md` §1** — every page, who it is for, and what stops everyone else, with a note to add a row when adding a page. Also corrected the guide's claim that `/myorders`/`/my_orders` and `/customer`/`/cus` are live duplicates: they are 301 aliases.
-- [~] Test: one test asserting every page module's context builder enforces its expected gate. `test_pages.py` covers `/pos`, `/waiter`, `/kitchen`, `/purchases`, `/qrpromo` and `/qrcodes` — for each, a guest turned away, the role the page is for let in, and a role it is not for refused. Still to add once the rows above are decided: `/guide`, `/manager`, `/activity`, `/errors`, `/admin`, and the public pages.
+- [x] **Every page's gate has a test now** — `/manager`, `/activity`, `/errors`, `/admin` and `/owner` joined the table, plus `/guide` and the eight public routes. **All three rows this table had marked ✅ were wrong**, and none of them by a missing gate, which is why reading the code had not found them:
+  - **`/activity` was a 500 for everybody.** `www/activity.py` did `from luuvcrm.activity import MANAGER_ROLES`, and `luuvcrm.activity` stopped defining it when the four role sets were consolidated into `roles.py` in Phase 2a. The module raised `ImportError` before `get_context` ran. Nothing imports a page module except the renderer, so nothing else failed and no test looked.
+  - **`/admin` and `/errors` gated on `System Manager`** — the one role this app's own rule says the restaurant owner must not hold. The launcher for every screen, and the log that says what is breaking on the floor phones, were closed to the person who owns the restaurant, while the endpoints behind them already gated on `require_manager()`. The page agrees with them now.
+  - **`www/pos.py` kept its own role set** — `{System Manager, POS User, Sales User, Cashier, Administrator}`, with Restaurant Manager and Restaurant Owner missing, so a manager reached the till only through the `Sales Invoice` fallback beside it. `test_roles.TestNoDuplicateRoleSets` walks `api/` and `www/manager.py` and had never walked the rest of `www/`; a new test now refuses a role name written in any page module. The fallback stays: being locked out of the till mid-service is worse than an over-broad gate, and every endpoint the screen calls runs `require_pos()` of its own.
+
+  The public half is tested too, and it is the half that fails quietly: a customer arriving from a QR sticker or a WhatsApp link has no session and never will, so a staff-login redirect added to `/menu`, `/kiosk` or `/cus` throws nowhere a developer is looking — it just sends every customer to a login for an account they do not have. `/guide` is asserted *open*: guides are external partners with no Frappe User at all. 12 tests, 42 in `test_pages.py`.
 
 ---
 
