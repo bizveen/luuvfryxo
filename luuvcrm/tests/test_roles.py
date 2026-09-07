@@ -37,7 +37,8 @@ class TestRolesExist(FrappeTestCase):
         self.assertEqual(missing, [], f"roles not created by the patch: {missing}")
 
     def test_ensure_roles_is_idempotent(self):
-        self.assertEqual(roles.ensure_roles(), {"created": [], "enabled": []},
+        self.assertEqual(roles.ensure_roles(),
+                         {"created": [], "enabled": [], "narrowed": []},
                          "ensure_roles must change nothing on a site that is already correct")
 
     def test_no_required_role_is_disabled(self):
@@ -54,6 +55,43 @@ class TestRolesExist(FrappeTestCase):
         self.addCleanup(frappe.db.set_value, "Role", role, "disabled", 0)
         self.assertEqual(roles.ensure_roles()["enabled"], [role])
         self.assertFalse(frappe.db.get_value("Role", role, "disabled"))
+
+    def test_floor_roles_have_no_desk_access(self):
+        """A waiter and the kitchen work entirely in the web apps. Desk access on
+        a shared floor phone is the whole ERPNext back office one tap away."""
+        wide = [r for r in roles.LUUVCRM_ROLES
+                if r not in roles.DESK_ROLES
+                and frappe.db.get_value("Role", r, "desk_access")]
+        self.assertEqual(wide, [], f"floor roles that can open the Desk: {wide}")
+
+    def test_ensure_roles_takes_desk_access_off_a_floor_role(self):
+        role = roles.WAITER
+        frappe.db.set_value("Role", role, "desk_access", 1)
+        self.addCleanup(frappe.db.set_value, "Role", role, "desk_access", 0)
+        self.assertEqual(roles.ensure_roles()["narrowed"], [role])
+        self.assertFalse(frappe.db.get_value("Role", role, "desk_access"))
+
+    def test_ensure_roles_never_hands_desk_access_back(self):
+        """Widening is somebody's decision, not an installer's: a cashier whose
+        desk access was deliberately removed keeps it removed."""
+        role = roles.CASHIER
+        self.assertIn(role, roles.DESK_ROLES)
+        frappe.db.set_value("Role", role, "desk_access", 0)
+        self.addCleanup(frappe.db.set_value, "Role", role, "desk_access", 1)
+        roles.ensure_roles()
+        self.assertFalse(frappe.db.get_value("Role", role, "desk_access"),
+                         "ensure_roles must not widen an existing role")
+
+    def test_drift_names_both_directions_without_fixing_either(self):
+        frappe.db.set_value("Role", roles.KITCHEN_STAFF, "desk_access", 1)
+        frappe.db.set_value("Role", roles.RESTAURANT_MANAGER, "desk_access", 0)
+        self.addCleanup(frappe.db.set_value, "Role", roles.KITCHEN_STAFF, "desk_access", 0)
+        self.addCleanup(frappe.db.set_value, "Role", roles.RESTAURANT_MANAGER, "desk_access", 1)
+        drift = roles.desk_access_drift()
+        self.assertIn(roles.KITCHEN_STAFF, drift["too_wide"])
+        self.assertIn(roles.RESTAURANT_MANAGER, drift["too_narrow"])
+        self.assertTrue(frappe.db.get_value("Role", roles.KITCHEN_STAFF, "desk_access"),
+                        "the report must not change anything")
 
     def test_owner_is_a_manager_but_a_manager_is_not_an_owner(self):
         self.assertIn(roles.RESTAURANT_OWNER, roles.MANAGER_ROLES)

@@ -144,10 +144,17 @@ def ensure_roles():
 
     Desk access is deliberate: floor and kitchen staff work entirely in the web
     apps, so a Frappe Desk login would only widen what a shared phone can reach.
-    It is set only on roles this function creates — changing it on a role a site
-    already has could take away access somebody is using.
+
+    On an existing role it is corrected in one direction only. Taking desk
+    access *off* Waiter or Kitchen Staff is a narrowing, and this app is the
+    only reason those roles exist — a site that never uses the Desk cannot be
+    depending on it, and leaving it on hands a shared floor phone the whole
+    ERPNext back office. Turning it *on* is a widening and is never done here:
+    a Cashier or a Manager whose desk access somebody deliberately removed keeps
+    it removed, because an installer is the wrong place to hand out reach.
+    Roles outside LUUVCRM_ROLES are not touched at all; they are not ours.
     """
-    created, enabled = [], []
+    created, enabled, narrowed = [], [], []
     for role in LUUVCRM_ROLES:
         if not frappe.db.exists("Role", role):
             frappe.get_doc({
@@ -156,10 +163,35 @@ def ensure_roles():
                 "desk_access": 1 if role in DESK_ROLES else 0,
             }).insert(ignore_permissions=True)
             created.append(role)
-        elif frappe.db.get_value("Role", role, "disabled"):
+            continue
+        if frappe.db.get_value("Role", role, "disabled"):
             frappe.db.set_value("Role", role, "disabled", 0)
             enabled.append(role)
-    return {"created": created, "enabled": enabled}
+        if role not in DESK_ROLES and frappe.db.get_value("Role", role, "desk_access"):
+            frappe.db.set_value("Role", role, "desk_access", 0)
+            narrowed.append(role)
+    return {"created": created, "enabled": enabled, "narrowed": narrowed}
+
+
+def desk_access_drift():
+    """The app's roles whose desk access disagrees with DESK_ROLES.
+
+    Reported as two lists because they are not the same problem. `too_wide` is
+    a floor role that can open the Desk — what ensure_roles() fixes. `too_narrow`
+    is a Cashier or Manager who cannot, which may well be deliberate; it is
+    named rather than corrected, so a site that locked the Desk down on purpose
+    is not quietly reopened by an install.
+    """
+    wide, narrow = [], []
+    for role in LUUVCRM_ROLES:
+        if not frappe.db.exists("Role", role):
+            continue
+        has = bool(frappe.db.get_value("Role", role, "desk_access"))
+        if has and role not in DESK_ROLES:
+            wide.append(role)
+        elif not has and role in DESK_ROLES:
+            narrow.append(role)
+    return {"too_wide": wide, "too_narrow": narrow}
 
 
 #: DocPerms the till needs on ERPNext's own doctypes. POS Order's perms ship
