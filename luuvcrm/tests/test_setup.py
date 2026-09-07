@@ -136,6 +136,37 @@ def _drop_field(dt, fieldname):
         frappe.db.commit()
 
 
+class TestTheRunbookCanBeFollowed(FrappeTestCase):
+    """docs/DEVELOPER_GUIDE.md §4.2 and §4.5 tell an operator to run things by
+    dotted path, at the one moment nobody wants a surprise — the site is in
+    maintenance mode and the restaurant is waiting. A path that has been
+    renamed since the guide was written fails as `AttributeError` on a box with
+    no developer on it, so the guide is worth checking like code."""
+
+    def _guide(self):
+        # get_app_path lowercases the parts it joins, so the filename is built
+        # here rather than passed to it.
+        docs = pathlib.Path(frappe.get_app_path("luuvcrm")).parent / "docs"
+        return (docs / "DEVELOPER_GUIDE.md").read_text()
+
+    def test_every_bench_execute_in_the_guide_resolves(self):
+        import re
+
+        paths = sorted(set(re.findall(r"execute\s+(luuvcrm[\w.]+)", self._guide())))
+        self.assertTrue(paths, "the guide should tell the operator what to run")
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertTrue(callable(frappe.get_attr(path)), f"{path} is not callable")
+
+    def test_the_runbook_says_a_new_field_needs_a_patch(self):
+        """The one rule an upgrade can silently break: after_install runs on a
+        new site only, so a field or setting added without a numbered patch
+        works on every developer's site and never reaches production."""
+        guide = self._guide()
+        self.assertIn("patches.txt", guide)
+        self.assertIn("CUSTOM_FIELDS", guide)
+
+
 class TestEveryRuntimeFieldIsDeclared(FrappeTestCase):
     """`setup_*` endpoints still call `create_custom_field` — they are kept for
     the sites that already call them, and Phase 3 deletes them once every one

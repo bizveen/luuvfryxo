@@ -328,19 +328,78 @@ Before any site serves real money:
 
 - [ ] `developer_mode = 0`
 - [ ] HTTPS with a real certificate — `bench setup lets-encrypt <site>`
-- [ ] `encryption_key` set and backed up **separately from the database** (WhatsApp tokens are encrypted with it; lose it and they are gone)
-- [ ] Automated daily backups, restored to a scratch site at least once to prove they work
+- [ ] `encryption_key` set and backed up **separately from the database** (WhatsApp tokens are encrypted with it, and so is the HMAC on every `/track` link; lose it and both are gone)
+- [ ] Automated daily backups, restored to a scratch site at least once to prove they work — see 4.4
 - [ ] Off-site backup copies
 - [ ] Supervisor + nginx via `bench setup production <user>`
+- [ ] **gzip on in nginx.** Measured on this app: `pos.html` is 206 KB and 57 KB compressed, all 24 pages 766 KB → 184 KB. It is one config line and it is worth more than any minifier — check it with `curl -sI -H "Accept-Encoding: gzip" https://<site>/pos | grep -i content-encoding` and treat a missing header as a fault.
 - [ ] Log rotation
-- [ ] A scheduler that actually runs — `bench doctor` (the activity purge depends on it)
+- [ ] A scheduler that actually runs — `bench doctor`. The activity purge, the client-error purge and every reminder depend on it, and a dead scheduler is silent.
 - [ ] Firewall: 80/443 only; MariaDB and Redis not exposed
-- [ ] Uptime and disk monitoring
-- [ ] The security fixes in `PRODUCTION_READINESS.md` §3 — **`update_order`, client-supplied prices, and `customer_get_orders` are internet-reachable today**
+- [ ] Uptime and disk monitoring — see 4.5
+- [ ] `apply_strict_user_permissions` **off** until `cost_center` is backfilled on the existing `POS Invoice` rows (ROADMAP Phase 2c). Turning it on before that hides every un-backfilled row from every non-Owner at once.
 
-### 4.4 The print companion
+Phase 1 of the roadmap closed the internet-reachable security holes that used to be listed here; `PRODUCTION_READINESS.md` §3 is the record of what they were.
 
-`luuvcrm-print.apk` (70 MB) is an Android app that bridges the browser to an iMin thermal printer. Two byte-identical copies exist, in `public/` and `www/` — serve the `public/` one and delete the other. `pos.html` reads `localStorage['lf_paper_cols']` for the paper width (32 for 58 mm, 48 for 80 mm).
+### 4.4 Backups
+
+`bench --site <site> backup --with-files` writes to `sites/<site>/private/backups/`. Three things make the difference between having backups and having files:
+
+1. **Schedule it.** A cron entry per site, daily, plus one immediately before every upgrade (the runbook in 4.5 starts with one).
+2. **Copy it off the box.** A backup on the same disk as the database survives exactly the failures that do not matter.
+3. **Restore it somewhere, once.** `bench --site scratch.localhost restore <path>` on a throwaway site is the only thing that turns a backup into a recovery. Do it before the first real service, not after the first real loss.
+
+Back up `encryption_key` from `site_config.json` **separately**. It is not in the database dump, and without it the restored site cannot read a single WhatsApp token or verify a `/track` link.
+
+The database is the money. `--with-files` also carries item images and the print companion APK, which are replaceable; do not let their size become a reason to skip a run.
+
+### 4.5 The upgrade runbook
+
+The order matters, and three of these steps exist because of something this app has already done wrong once.
+
+```bash
+SITE=prod.localhost
+
+# 1. Back up first, and prove the file exists before touching anything.
+bench --site $SITE backup --with-files
+
+# 2. Rehearse the migrate somewhere else. bench migrate DELETES a DocType whose
+#    controller raises ImportError (remove_orphan_doctypes) — a bad class name
+#    once took out seven of them. Restore the backup to a scratch site, migrate
+#    there, and only then do it on the live one.
+bench --site scratch.localhost restore <the backup you just made>
+bench --site scratch.localhost migrate
+
+# 3. Drain, then take the code.
+bench --site $SITE set-maintenance-mode on
+cd apps/luuvcrm && git fetch && git checkout <tag> && cd -
+
+# 4. Schema, assets, cache.
+bench --site $SITE migrate
+bench build --app luuvcrm
+bench --site $SITE clear-cache
+
+# 5. Check the schema agrees with the repo before letting anyone in.
+bench --site $SITE execute luuvcrm.setup_doctype.report_drift
+
+# 6. Back into service.
+bench --site $SITE set-maintenance-mode off
+bench restart
+
+# 7. Smoke test, in this order: a read, a page, a till.
+bench --site $SITE execute luuvcrm.api.get_menu_data
+curl -sf https://$SITE/pos -o /dev/null && echo "pos ok"
+```
+
+**Rollback** is the same script with the previous tag. If the migrate changed the schema, the code alone is not enough — restore the backup as well.
+
+**A new field or setting needs a patch.** `after_install` runs on a new site only, so a field added to `CUSTOM_FIELDS` or a key added to `settings.KEYS` reaches the live site through a numbered `patches.txt` entry and no other way. Adding one without its patch is a change that works everywhere except production.
+
+**After the upgrade, check the scheduler is still alive** (`bench doctor`) and look at `/errors` — the front-end error log is where a broken deploy shows up first, and it stays quiet whether the app is healthy or the reporting is.
+
+### 4.6 The print companion
+
+`luuvcrm-print.apk` (70 MB) is an Android app that bridges the browser to an iMin thermal printer. There used to be two byte-identical copies; the `www/` one is deleted and `public/luuvcrm-print.apk` is served at `/assets/luuvcrm/luuvcrm-print.apk`. `pos.html` reads `localStorage['lf_paper_cols']` for the paper width (32 for 58 mm, 48 for 80 mm).
 
 ---
 
