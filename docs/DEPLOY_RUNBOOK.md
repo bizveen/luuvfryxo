@@ -26,6 +26,7 @@ Break any of these and stop; ask a human.
 
 | Never | Why |
 |---|---|
+| **Touch anything in §4 before the §3 backup exists and is off the box** | Everything after §4 is irreversible in practice. A backup taken afterwards is a backup of the damage. This is the first write of the deploy and it is not optional, not even for "a small migrate". |
 | Deploy without running §2 (drift report) and §3 (rehearsal) | The DocType sync is the irreversible step. §2 turns an assumption into a fact; §3 is the only thing that catches `remove_orphan_doctypes` deleting a DocType. |
 | Run `branch.backfill()` | It writes a `restaurant` value onto every historical row across seven doctypes. It is a data migration, not a deploy. See §7. |
 | Turn on `apply_strict_user_permissions` | Every row whose `restaurant` is still empty disappears from every non-Owner at once — which today is every row. See §7. |
@@ -130,7 +131,7 @@ offering.
 
 ---
 
-## 3. Backup, and rehearse the migrate somewhere else
+## 3. Back up first, then rehearse the migrate somewhere else
 
 Never skip. `bench migrate` runs `remove_orphan_doctypes()`, which **deletes** a
 DocType whose controller raises `ImportError`. That has already happened once on
@@ -138,12 +139,35 @@ this app: a title-case class name broke seven controllers and the next migrate
 deleted all seven. The tables and rows survived; every field definition and
 permission did not.
 
+### 3a. Take the backup — the first thing you do
+
+Before the recon if you like, but **never after anything in §4**.
+
 ```bash
 bench --site <live> backup --with-files
 # note the path it prints — you need it twice more
 ```
 
-Copy the backup off the box. Then rehearse:
+Then look at what it actually wrote, because a backup nobody checked is not a
+backup:
+
+```bash
+ls -lh sites/<live>/private/backups/ | tail -5
+```
+
+A database dump of a few kilobytes is a failed backup that exited 0. Expect it
+to be in the same order of magnitude as the last one.
+
+**Copy it off the box.** A backup on the machine you are about to change is not
+a backup of that machine.
+
+If the deploy does not happen in this sitting, take a fresh one when you come
+back. Restoring to yesterday means the restaurant re-rings yesterday's trade.
+
+### 3b. Rehearse the migrate somewhere else
+
+This also proves the backup restores — which is the only proof that matters,
+and the reason it comes before the rehearsal rather than beside it:
 
 ```bash
 bench new-site rehearse.localhost --db-name rehearse --admin-password <pw>
@@ -169,6 +193,10 @@ grep encryption_key sites/<live>/site_config.json
 ---
 
 ## 4. The deploy
+
+**Stop if §3a did not happen.** Everything below writes to the live site. Say
+out loud which backup file you are covered by and where the copy off the box
+is; if you cannot name both, go back to §3a.
 
 The live host is a non-bare checkout reached over an SMB share. Mount it first —
 if the share is not mounted, git reports "does not appear to be a git
@@ -374,12 +402,15 @@ bench --site <live> clear-cache && bench restart
 ```
 
 **Anything worse — roll back.** The code alone is not enough if the schema
-changed, so restore the backup as well:
+changed, so restore the backup as well. This is the moment §3a was for: a
+restore takes the site back to the minute the backup was taken, and every sale
+rung up since is gone with it, so decide quickly rather than deploying on top of
+a symptom to save the last hour of trade.
 
 ```bash
 bench --site <live> set-maintenance-mode on
 cd apps/luuvcrm && git checkout <the commit main was on before the merge> && cd -
-bench --site <live> restore <the §3 backup>
+bench --site <live> restore <the §3a backup>
 bench --site <live> migrate
 bench --site <live> set-maintenance-mode off && bench restart
 ```
