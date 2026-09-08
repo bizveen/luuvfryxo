@@ -267,7 +267,10 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
             <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Item performance</div>
-            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="repItemCount"></span>
+            <div style="display:flex;align-items:baseline;gap:10px;flex:none;">
+              <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="repItemCount"></span>
+              <span id="repItemsAll" onclick="showAllItems()" style="display:none;font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">View all</span>
+            </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
             <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="itemTabs">
@@ -283,7 +286,6 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           </div>
           <div style="font-size:12px;color:var(--text-faint);margin-bottom:10px;" id="repItemSub"></div>
           <div id="repItems" style="display:flex;flex-direction:column;"></div>
-          <button id="repItemsAllBtn" onclick="showAllItems()" style="display:none;width:100%;margin-top:12px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:13.5px;">See the full list</button>
         </div>
       </div>
 
@@ -996,11 +998,10 @@ function lfPoll(fn, ms){
     const all=itemRowsFor(), rows=all.slice(0,ITEM_CAP);
     document.getElementById('repItemSub').textContent=ITEM_SUB[itemView];
     document.getElementById('repItemCount').textContent=itemCountLine();
-    const btn=document.getElementById('repItemsAllBtn');
-    // Only offered when the card is actually hiding something; a button that
-    // opens the same list again is a button that teaches nobody to trust it.
-    btn.style.display=(all.length>ITEM_CAP)?'block':'none';
-    btn.textContent='See all '+all.length+' items';
+    // Offered whenever there is a list to open, capped or not — it sits in the
+    // header as a link, so it costs nothing when the card already shows all of
+    // them, and it is in the same place every time somebody looks for it.
+    document.getElementById('repItemsAll').style.display=all.length?'inline':'none';
     if(!rows.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">Nothing in this period.</div>'; return; }
     wrap.innerHTML=rows.map(itemRowHtml).join('');
     icons();
