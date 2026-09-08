@@ -17,6 +17,7 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, getdate, today
 
 from luuvcrm import api, roles
+from luuvcrm.tests import fixtures as fx
 
 
 class ReportWindowTestCase(FrappeTestCase):
@@ -132,6 +133,84 @@ class TestTheFoodCostWindowIsClosedAtBothEnds(ReportWindowTestCase):
         self.assertEqual(report["purchases"], 0)
         self.assertEqual(report["revenue"], 0)
         self.assertEqual(report["profit"], 0)
+
+
+class TestADiscountReachesThePurchaseReport(FrappeTestCase):
+    """A discount is entered at approval and written to the bill's `total`, not
+    to any line. A report that sums the lines reports what was asked for rather
+    than what was paid — and disagrees with Sales vs costs, which reads
+    `total`."""
+
+    AMOUNT, DISCOUNT = 10000.0, 1500.0
+
+    def setUp(self):
+        super().setUp()
+        if not frappe.db.exists("DocType", "Purchase Bill"):
+            self.skipTest("no Purchase Bill on this site")
+        self.item = fx.item(self, "PURCH-DISC-RICE")
+        self.bill = self._bill()
+
+    def _bill(self):
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill",
+            "vendor": "LF Test Vendor",
+            "status": "approved",
+            "requested_at": frappe.utils.now_datetime(),
+            "total": self.AMOUNT,
+            "items": [{"item": self.item, "item_name": "Rice", "uom": "Kg",
+                       "qty": 100, "price": 100}],
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        frappe.db.commit()
+        self.addCleanup(self._drop, doc.name)
+        return doc
+
+    def _drop(self, name):
+        if frappe.db.exists("Purchase Bill", name):
+            frappe.delete_doc("Purchase Bill", name, force=True, ignore_permissions=True)
+        frappe.db.commit()
+
+    def discount(self, amount):
+        self.bill.db_set("discount", amount)
+        self.bill.db_set("total", self.AMOUNT - amount)
+        frappe.db.commit()
+
+    def report(self):
+        return api.get_manager_purchase_report(days=1)
+
+    def spend_for(self, rows, key, name):
+        return next((r["spend"] for r in rows if r[key] == name), 0)
+
+    def test_the_day_s_spend_is_what_was_paid(self):
+        before = self.report()["total_spend"]
+        self.discount(self.DISCOUNT)
+        self.assertAlmostEqual(before - self.report()["total_spend"], self.DISCOUNT, 2)
+
+    def test_the_vendor_is_credited_with_the_discount_too(self):
+        before = self.spend_for(self.report()["vendors"], "name", "LF Test Vendor")
+        self.discount(self.DISCOUNT)
+        after = self.spend_for(self.report()["vendors"], "name", "LF Test Vendor")
+        self.assertAlmostEqual(before - after, self.DISCOUNT, 2)
+
+    def test_the_item_list_carries_its_share(self):
+        """The discount is the bill's, not the line's — pro-rated by value, or
+        the item list stops adding up to the same money as every other card."""
+        self.discount(self.DISCOUNT)
+        self.assertAlmostEqual(self.spend_for(self.report()["items"], "name", "Rice"),
+                               self.AMOUNT - self.DISCOUNT, 2)
+
+    def test_every_breakdown_agrees_with_the_total(self):
+        self.discount(self.DISCOUNT)
+        report = self.report()
+        for key in ("vendors", "items"):
+            self.assertAlmostEqual(sum(r["spend"] for r in report[key]),
+                                   report["total_spend"], 2, key)
+
+    def test_a_bill_with_no_discount_is_unchanged(self):
+        report = self.report()
+        self.assertAlmostEqual(self.spend_for(report["items"], "name", "Rice"),
+                               self.AMOUNT, 2)
 
 
 class TestWhoMayReadThem(FrappeTestCase):

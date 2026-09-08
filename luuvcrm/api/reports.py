@@ -601,10 +601,20 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     Powers the Manager app 'Purchases' tab: a day-by-day and week-by-week spend
     chart plus top-vendor and top-item breakdowns. The window is the last N days
     by default, or an explicit start/end — a whole calendar month picked in the
-    UI. Spend is summed from the bill line items (qty * price) to match how the
-    /purchases app recomputes totals. Purchase Bill is non-submittable, so we
-    filter on status='approved' (committed spend), not docstatus; the effective
-    purchase date is `requested_at`.
+    UI. Purchase Bill is non-submittable, so we filter on status='approved'
+    (committed spend), not docstatus; the effective purchase date is
+    `requested_at`.
+
+    **Spend is the bill's `total`, not the sum of its lines.** A discount
+    entered at approval is written to `total` and not to any line, so summing
+    `qty * price` reports what was asked for rather than what was paid — and
+    disagrees with Sales vs costs, which has always read `total`. Two screens,
+    two answers, the difference being exactly the discounts.
+
+    The item breakdown is the one place that cannot just read `total`: the
+    discount belongs to the bill, not to any line on it. It is pro-rated down
+    the lines by value, which is the only split that leaves the item list adding
+    up to the same money as every other card here.
     """
     roles.require_manager()
     from frappe.utils import getdate, add_days, formatdate, today as _today
@@ -621,10 +631,9 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     rows = frappe.db.sql(
         """
         SELECT DATE(pb.requested_at) AS d,
-               COALESCE(SUM(pbi.qty * pbi.price), 0) AS spend,
-               COUNT(DISTINCT pb.name) AS cnt
-        FROM `tabPurchase Bill Item` pbi
-        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+               COALESCE(SUM(pb.total), 0) AS spend,
+               COUNT(*) AS cnt
+        FROM `tabPurchase Bill` pb
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
         """ + _pb_cond + """
@@ -652,10 +661,9 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         """
         SELECT YEARWEEK(pb.requested_at, 3) AS yw,
                DATE(DATE_SUB(pb.requested_at, INTERVAL WEEKDAY(pb.requested_at) DAY)) AS wk_start,
-               COALESCE(SUM(pbi.qty * pbi.price), 0) AS spend,
-               COUNT(DISTINCT pb.name) AS cnt
-        FROM `tabPurchase Bill Item` pbi
-        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+               COALESCE(SUM(pb.total), 0) AS spend,
+               COUNT(*) AS cnt
+        FROM `tabPurchase Bill` pb
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
         """ + _pb_cond + """
@@ -675,10 +683,9 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     vrows = frappe.db.sql(
         """
         SELECT pb.vendor AS name,
-               COALESCE(SUM(pbi.qty * pbi.price), 0) AS spend,
-               COUNT(DISTINCT pb.name) AS cnt
-        FROM `tabPurchase Bill Item` pbi
-        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+               COALESCE(SUM(pb.total), 0) AS spend,
+               COUNT(*) AS cnt
+        FROM `tabPurchase Bill` pb
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
         """ + _pb_cond + """
@@ -694,9 +701,15 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         """
         SELECT COALESCE(pbi.item_name, pbi.item) AS name,
                SUM(pbi.qty) AS qty,
-               COALESCE(SUM(pbi.qty * pbi.price), 0) AS spend
+               COALESCE(SUM(pbi.qty * pbi.price * (
+                   CASE WHEN sub.subtotal > 0 THEN pb.total / sub.subtotal ELSE 1 END
+               )), 0) AS spend
         FROM `tabPurchase Bill Item` pbi
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        INNER JOIN (
+            SELECT parent, SUM(qty * price) AS subtotal
+            FROM `tabPurchase Bill Item` GROUP BY parent
+        ) sub ON sub.parent = pbi.parent
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
         """ + _pb_cond + """
