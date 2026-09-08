@@ -181,6 +181,16 @@ class TestClosingAShift(ShiftTestCase):
         self.addCleanup(self._drop_orders)
 
     def _drop_orders(self):
+        """Committed, because closing a shift commits.
+
+        `pos_close_shift` commits by design — the consolidation behind it cannot
+        run inside the caller's transaction — so every order a closing test made
+        is already durable and the framework's rollback will not take it back
+        out. A cleanup that does not commit deletes nothing: that is how this
+        site collected ~300 draft POS Orders and crossed the kitchen screen's
+        200-ticket ceiling, which then failed a test that had nothing to do
+        with shifts.
+        """
         user = frappe.session.user
         frappe.set_user("Administrator")
         try:
@@ -193,6 +203,7 @@ class TestClosingAShift(ShiftTestCase):
                         frappe.delete_doc("POS Order", name, force=True, ignore_permissions=True)
                     except Exception:
                         frappe.db.rollback()
+            frappe.db.commit()
         finally:
             frappe.set_user(user)
 
