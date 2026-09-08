@@ -283,6 +283,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           </div>
           <div style="font-size:12px;color:var(--text-faint);margin-bottom:10px;" id="repItemSub"></div>
           <div id="repItems" style="display:flex;flex-direction:column;"></div>
+          <button id="repItemsAllBtn" onclick="showAllItems()" style="display:none;width:100%;margin-top:12px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:13.5px;">See the full list</button>
         </div>
       </div>
 
@@ -480,6 +481,19 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       <button onclick="hideDay()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
     <div id="dayBody" style="overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Item performance: the whole list, since the card shows the top 25 -->
+<div id="itemsAllOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideAllItems()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;max-height:82vh;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;display:flex;flex-direction:column;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;flex:none;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex:none;">
+      <div id="itemsAllTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);flex:1;">All items</div>
+      <button onclick="hideAllItems()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div id="itemsAllSub" style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;flex:none;">&nbsp;</div>
+    <div id="itemsAllBody" style="overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -956,28 +970,53 @@ function lfPoll(fn, ms){
   function setItemGroup(g){ itemGroup=g;
     document.querySelectorAll('#itemGroupTabs .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.group===g));
     renderItemPerformance(); }
+  const ITEM_CAP=25;   // the card shows this many; the sheet shows them all
+  // The rows the current tab and filter ask for, longest form. The card slices
+  // it, the sheet does not — so the two can never disagree about the order.
+  function itemRowsFor(){
+    const keep=r=>itemGroup==='__all__'||r.group===itemGroup;
+    if(itemView==='low') return repUnsold.filter(keep).concat(repItems.filter(keep).slice().sort((a,b)=>a.qty-b.qty));
+    if(itemView==='income') return repItems.filter(keep).slice().sort((a,b)=>b.revenue-a.revenue);
+    return repItems.filter(keep).slice().sort((a,b)=>b.qty-a.qty);
+  }
+  // The bar is the item's share of the period's item revenue in every view, so
+  // a row means the same thing whichever tab or list it was found in.
+  function itemRowHtml(t){
+    const pct=Math.round(t.revenue/repItemsRevenue*100), zero=!t.qty;
+    const meta=zero?'<span style="color:var(--color-warning);font-weight:700;">nothing sold</span>':(t.qty+' sold · '+pct+'%');
+    return `<div style="padding:11px 0;border-bottom:1px solid var(--border-subtle);${zero?'opacity:.72;':''}"><div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;"><span style="width:38px;height:38px;border-radius:11px;background:${zero?'var(--surface-sunken)':'var(--orange-50)'};display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(t.name)}</div><div style="font-size:12.5px;color:var(--text-muted);">${meta}</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(t.revenue)}</span></div><div style="height:6px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--orange-300);border-radius:var(--radius-pill);"></div></div></div>`;
+  }
+  function itemCountLine(){
+    const keep=r=>itemGroup==='__all__'||r.group===itemGroup;
+    const shown=repItems.filter(keep).length, dead=repUnsold.filter(keep).length;
+    return (shown?shown+' sold':'')+(dead?((shown?' · ':'')+dead+' unsold'):'');
+  }
   function renderItemPerformance(){
     const wrap=document.getElementById('repItems'); if(!wrap) return;
-    const keep=r=>itemGroup==='__all__'||r.group===itemGroup;
-    let rows;
-    if(itemView==='low') rows=repUnsold.filter(keep).concat(repItems.filter(keep).slice().sort((a,b)=>a.qty-b.qty));
-    else if(itemView==='income') rows=repItems.filter(keep).slice().sort((a,b)=>b.revenue-a.revenue);
-    else rows=repItems.filter(keep).slice().sort((a,b)=>b.qty-a.qty);
-    rows=rows.slice(0,25);
+    const all=itemRowsFor(), rows=all.slice(0,ITEM_CAP);
     document.getElementById('repItemSub').textContent=ITEM_SUB[itemView];
-    const shown=repItems.filter(keep).length, dead=repUnsold.filter(keep).length;
-    document.getElementById('repItemCount').textContent=
-      (shown?shown+' sold':'')+(dead?((shown?' · ':'')+dead+' unsold'):'');
+    document.getElementById('repItemCount').textContent=itemCountLine();
+    const btn=document.getElementById('repItemsAllBtn');
+    // Only offered when the card is actually hiding something; a button that
+    // opens the same list again is a button that teaches nobody to trust it.
+    btn.style.display=(all.length>ITEM_CAP)?'block':'none';
+    btn.textContent='See all '+all.length+' items';
     if(!rows.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">Nothing in this period.</div>'; return; }
-    // The bar is the item's share of the period's item revenue in every view,
-    // so a row means the same thing whichever tab found it.
-    wrap.innerHTML=rows.map(t=>{ const pct=Math.round(t.revenue/repItemsRevenue*100);
-      const zero=!t.qty;
-      const meta=zero?'<span style="color:var(--color-warning);font-weight:700;">nothing sold</span>':(t.qty+' sold · '+pct+'%');
-      return `<div style="padding:11px 0;border-bottom:1px solid var(--border-subtle);${zero?'opacity:.72;':''}"><div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;"><span style="width:38px;height:38px;border-radius:11px;background:${zero?'var(--surface-sunken)':'var(--orange-50)'};display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(t.name)}</div><div style="font-size:12.5px;color:var(--text-muted);">${meta}</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(t.revenue)}</span></div><div style="height:6px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--orange-300);border-radius:var(--radius-pill);"></div></div></div>`;
-    }).join('');
+    wrap.innerHTML=rows.map(itemRowHtml).join('');
     icons();
   }
+  // The full list, in the tab and filter the card is already on — the sheet is
+  // the same question asked without the cap, not a different one.
+  function showAllItems(){
+    const all=itemRowsFor();
+    const label={high:'High orders',low:'Low orders',income:'Max income'}[itemView];
+    document.getElementById('itemsAllTitle').textContent=label+(itemGroup==='__all__'?'':' · '+itemGroup);
+    document.getElementById('itemsAllSub').textContent=all.length+' items · '+ITEM_SUB[itemView].toLowerCase();
+    document.getElementById('itemsAllBody').innerHTML=all.length?all.map(itemRowHtml).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">Nothing in this period.</div>';
+    document.getElementById('itemsAllOverlay').style.display='flex';
+    icons();
+  }
+  function hideAllItems(){ document.getElementById('itemsAllOverlay').style.display='none'; }
 
   // ── Payment methods over the range (Reports tab) ──
   // Same bars as the dashboard's mix, with the period's total under them so the
