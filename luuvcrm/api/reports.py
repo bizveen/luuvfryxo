@@ -174,6 +174,14 @@ def _report_range(days=7, start=None, end=None, cap=92):
     return add_days(e, -(days - 1)), e, days
 
 
+#: The order types the app writes, keyed by a normalised form of whatever is on
+#: the row — the Select offers "Dine In\nTake Away\nDelivery", but a value typed
+#: in the Desk, or written by an older build, need not match it exactly.
+ORDER_TYPE_NAMES = {"dine in": "Dine In", "dinein": "Dine In",
+                    "take away": "Take Away", "takeaway": "Take Away",
+                    "delivery": "Delivery"}
+
+
 @frappe.whitelist()
 def get_manager_sales_report(days=7, start=None, end=None):
     """Daily sales trend + item-wise sales over a window (all cashiers).
@@ -312,6 +320,44 @@ def get_manager_sales_report(days=7, start=None, end=None):
                "count": int(by_hour[h].cnt or 0) if h in by_hour else 0}
               for h in range(24)]
 
+    # ── dine in vs take away ──────────────────────────────────────────────
+    # The order type lives on POS Order, the money on POS Invoice, so this is a
+    # join rather than a sum of either alone. Revenue is the invoice's, not the
+    # order's, so the split agrees with Total revenue and with every other card.
+    #
+    # Delivery is a valid order type nothing writes today: the till offers Dine
+    # In and Take Away only, so an aggregator's order is rung up as Take Away.
+    # It is carried here anyway so the day it is set the card already reads it.
+    kind_rows = frappe.db.sql(
+        """
+        SELECT so.order_type AS kind, COUNT(*) AS cnt,
+               COALESCE(SUM(pi.grand_total), 0) AS revenue
+        FROM `tabPOS Invoice` pi
+        INNER JOIN `tabPOS Order` so ON so.pos_invoice = pi.name
+        WHERE pi.docstatus = 1 AND pi.posting_date BETWEEN %s AND %s
+        """ + _pi_cond + """
+        GROUP BY so.order_type
+        """,
+        (start, end) + _pi_params, as_dict=True)
+
+    kinds, kind_counts = {}, {}
+    for r in kind_rows:
+        # "Dine-In" and "Dine In" are the same trade; a hyphen typed once into
+        # the Desk must not open a second row on the chart.
+        key = ORDER_TYPE_NAMES.get((r.kind or "").strip().lower().replace("-", " "), "Other")
+        kinds[key] = kinds.get(key, 0) + float(r.revenue or 0)
+        kind_counts[key] = kind_counts.get(key, 0) + int(r.cnt or 0)
+
+    # A sale with no POS Order behind it is money this split cannot place.
+    # Said out loud rather than dropped: a card that quietly adds up to less
+    # than Total revenue is worse than one that admits the gap.
+    stray = round(total_revenue - sum(kinds.values()), 2)
+    if stray > 0.005:
+        kinds["Not recorded"] = stray
+        kind_counts["Not recorded"] = max(0, total_sales - sum(kind_counts.values()))
+    order_types = [{"kind": k, "revenue": v, "count": kind_counts.get(k, 0)}
+                   for k, v in sorted(kinds.items(), key=lambda x: -x[1]) if v]
+
     # ── how it was paid: one row per mode over the window ──
     # A different axis from revenue_breakdown above: that one says what the
     # money *was*, this says how it *arrived*. Both sum to total revenue, which
@@ -350,6 +396,7 @@ def get_manager_sales_report(days=7, start=None, end=None):
         "avg_ticket": avg_ticket,
         "best_day": best_day,
         "payments": payments,
+        "order_types": order_types,
         "revenue_breakdown": {
             "net_sales": net_sales,
             "service_charge": service_charge,

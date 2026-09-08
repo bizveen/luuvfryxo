@@ -233,6 +233,12 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <div style="font-size:12px;color:var(--text-faint);margin-bottom:14px;">Cash, card and every other method the till takes · this period</div>
           <div id="repPayMix" style="display:flex;flex-direction:column;gap:14px;"></div>
         </div>
+        <!-- dine in vs take away: where the period's revenue was eaten -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Dine in vs take away</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:14px;">Seats, packaging and staffing follow this split · this period</div>
+          <div id="repOrderTypes" style="display:flex;flex-direction:column;gap:14px;"></div>
+        </div>
         <!-- food cost vs sales (approved purchases + wastage over the range) -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
           <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Sales vs costs</div>
@@ -921,6 +927,7 @@ function lfPoll(fn, ms){
       document.getElementById('repBest').textContent=m.best_day&&m.best_day.revenue>0?m.best_day.label:'—';
       renderRevenueBreakdown(m.revenue_breakdown);
       renderReportPayMix(m.payments);
+      renderOrderTypes(m.order_types);
       // daily bar chart + 7-day moving-average line (full labels, tap a bar to drill down)
       repDaily=m.daily||[]; if(selDay && !repDaily.some(x=>x.date===selDay)) selDay=null;
       repHourly=m.hourly||[];
@@ -1026,6 +1033,27 @@ function lfPoll(fn, ms){
     icons();
   }
   function hideAllItems(){ document.getElementById('itemsAllOverlay').style.display='none'; }
+
+  // ── Dine in vs take away over the range (Reports tab) ──────────────────
+  // The same bars as the payment mix, because it is the same shape of answer:
+  // one total, split every way it can be split. Average bill per row, since a
+  // take-away ticket being smaller than a table's is the point of the card.
+  const KIND_TONE={'Dine In':['utensils','var(--color-primary)','var(--orange-50)'],
+                   'Take Away':['shopping-bag','var(--color-info)','var(--color-info-subtle)'],
+                   'Delivery':['bike','var(--color-success)','var(--color-success-subtle)'],
+                   'Not recorded':['help-circle','var(--text-muted)','var(--surface-sunken)']};
+  function renderOrderTypes(rows){
+    const wrap=document.getElementById('repOrderTypes'); if(!wrap) return;
+    rows=rows||[];
+    if(!rows.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;">No sales in this period.</div>'; return; }
+    const total=rows.reduce((a,r)=>a+r.revenue,0)||1;
+    wrap.innerHTML=rows.map(r=>{ const t=KIND_TONE[r.kind]||['circle','var(--text-muted)','var(--surface-sunken)'];
+      const pct=Math.round(r.revenue/total*100);
+      const avg=r.count?(' · avg Rs '+nfmt(r.revenue/r.count)):'';
+      return `<div><div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;"><span style="width:30px;height:30px;border-radius:9px;background:${t[2]};color:${t[1]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${t[0]}" style="width:16px;height:16px;"></i></span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(r.kind)}</div><div style="font-size:12px;color:var(--text-muted);">${r.count} sale${r.count===1?'':'s'}${avg}</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(r.revenue)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:38px;text-align:right;">${pct}%</span></div><div style="height:8px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:${t[1]};border-radius:var(--radius-pill);"></div></div></div>`;
+    }).join('');
+    icons();
+  }
 
   // ── Payment methods over the range (Reports tab) ──
   // Same bars as the dashboard's mix, with the period's total under them so the

@@ -237,6 +237,60 @@ class TestTheItemPerformanceCard(DashboardTestCase):
             self.assertTrue(row["group"])
 
 
+class TestDineInVersusTakeAway(DashboardTestCase):
+    """Where the food was eaten — seats, packaging and staffing follow it."""
+
+    def kinds(self, days=1):
+        report = api.get_manager_sales_report(days=days)
+        return {r["kind"]: r for r in report["order_types"]}, report
+
+    def sell_typed(self, order_type):
+        result = self.call(api.send_to_kitchen,
+                           items=json.dumps([{"item": self.burger, "qty": 1}]),
+                           order_type=order_type)
+        name = result["name"] if isinstance(result, dict) else result
+        self._orders.append(name)
+        paid = self.call(api.process_payment, order_name=name, payment_mode="Cash")
+        fx.drop_invoice(self, paid["invoice_name"])
+        return paid
+
+    def test_the_two_are_counted_apart(self):
+        before, _ = self.kinds()
+        self.sell_typed("Dine In")
+        self.sell_typed("Take Away")
+        after, _ = self.kinds()
+        for kind in ("Dine In", "Take Away"):
+            was = before.get(kind, {}).get("revenue", 0)
+            self.assertEqual(after[kind]["revenue"] - was, 1000, kind)
+
+    def test_a_row_carries_its_sale_count(self):
+        """Without the count there is no average bill, which is the number that
+        says a table is worth more than a parcel."""
+        before, _ = self.kinds()
+        self.sell_typed("Dine In")
+        after, _ = self.kinds()
+        self.assertEqual(after["Dine In"]["count"]
+                         - before.get("Dine In", {}).get("count", 0), 1)
+
+    def test_the_split_adds_up_to_the_period_s_revenue(self):
+        """Including whatever it cannot place: a card that quietly sums to less
+        than Total revenue is worse than one that admits the gap."""
+        self.sell_typed("Dine In")
+        _, report = self.kinds()
+        self.assertAlmostEqual(sum(r["revenue"] for r in report["order_types"]),
+                               report["total_revenue"], 2)
+
+    def test_a_hyphen_does_not_open_a_second_row(self):
+        """"Dine-In" was typed into this site once. It is the same trade."""
+        paid = self.sell_typed("Dine In")
+        order = frappe.db.get_value("POS Order", {"pos_invoice": paid["invoice_name"]})
+        frappe.db.set_value("POS Order", order, "order_type", "Dine-In")
+        kinds, _ = self.kinds()
+        self.assertNotIn("Dine-In", kinds)
+        self.assertNotIn("Other", kinds)
+        self.assertIn("Dine In", kinds)
+
+
 class TestTheHourlyTrend(DashboardTestCase):
     def test_every_hour_is_present_even_the_closed_ones(self):
         """The chart trims the quiet ends itself; a gap in the middle of
