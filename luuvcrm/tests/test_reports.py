@@ -213,6 +213,116 @@ class TestADiscountReachesThePurchaseReport(FrappeTestCase):
                                self.AMOUNT, 2)
 
 
+class TestWhatThePurchaseReportNowSays(FrappeTestCase):
+    """Six readings off data the bills already carried and nothing showed."""
+
+    def setUp(self):
+        super().setUp()
+        if not frappe.db.exists("DocType", "Purchase Bill"):
+            self.skipTest("no Purchase Bill on this site")
+        self.rice = fx.item(self, "PURCH-CMP-RICE")
+        self._bills = []
+        self.addCleanup(self._drop)
+
+    def _drop(self):
+        for name in self._bills:
+            if frappe.db.exists("Purchase Bill", name):
+                frappe.delete_doc("Purchase Bill", name, force=True, ignore_permissions=True)
+        frappe.db.commit()
+
+    def bill(self, vendor, price, qty=10, status="approved", old_price=0, when=None):
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill", "vendor": vendor, "status": status,
+            "requested_at": when or frappe.utils.now_datetime(),
+            "total": qty * price,
+            "items": [{"item": self.rice, "item_name": "Cmp Rice", "uom": "Kg",
+                       "qty": qty, "price": price, "old_price": old_price}],
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        frappe.db.commit()
+        self._bills.append(doc.name)
+        return doc
+
+    def report(self, days=1):
+        return api.get_manager_purchase_report(days=days)
+
+    def row(self, rows, name="Cmp Rice"):
+        return next((r for r in rows if r["name"] == name), None)
+
+    # ── same item, different vendors ──
+    def test_a_price_gap_between_vendors_is_reported(self):
+        self.bill("Cheap Vendor", 100)
+        self.bill("Dear Vendor", 150)
+        row = self.row(self.report()["price_spread"])
+        self.assertEqual((row["low"], row["high"], row["vendors"]), (100, 150, 2))
+        self.assertEqual(row["spread_pct"], 50.0)
+        self.assertEqual(row["could_save"], 50 * 20)   # the gap over both bills' qty
+
+    def test_one_vendor_is_not_a_comparison(self):
+        self.bill("Only Vendor", 100)
+        self.bill("Only Vendor", 150)
+        self.assertIsNone(self.row(self.report()["price_spread"]))
+
+    def test_two_units_are_not_two_quotes_for_the_same_thing(self):
+        """Rs 100/Kg against Rs 100/Nos is not a spread; grouping them would
+        invent one."""
+        self.bill("Cheap Vendor", 100)
+        b = self.bill("Dear Vendor", 150)
+        frappe.db.set_value("Purchase Bill Item", b.items[0].name, "uom", "Nos")
+        frappe.db.commit()
+        self.assertIsNone(self.row(self.report()["price_spread"]))
+
+    # ── what changed price ──
+    def test_a_rise_is_reported_against_the_old_price(self):
+        self.bill("V", 120, old_price=100)
+        row = self.row(self.report()["price_moves"])
+        self.assertEqual((row["was"], row["now"], row["change_pct"]), (100, 120, 20.0))
+
+    def test_a_price_that_did_not_move_is_not_news(self):
+        self.bill("V", 100, old_price=100)
+        self.assertIsNone(self.row(self.report()["price_moves"]))
+
+    # ── owed to vendors ──
+    def test_an_unpaid_bill_is_owed(self):
+        self.bill("Slow Payer", 100)
+        row = self.row(self.report()["owed"], "Slow Payer")
+        self.assertEqual(row["amount"], 1000)
+        self.assertEqual(row["count"], 1)
+
+    def test_a_paid_bill_is_not(self):
+        b = self.bill("Prompt Payer", 100)
+        b.db_set("payment_status", "paid")
+        frappe.db.commit()
+        self.assertIsNone(self.row(self.report()["owed"], "Prompt Payer"))
+
+    def test_what_is_owed_ignores_the_window(self):
+        """A bill from March is owed today whatever range the screen is on."""
+        self.bill("Old Debt", 100, when=frappe.utils.add_days(frappe.utils.now_datetime(), -200))
+        self.assertIsNotNone(self.row(self.report(days=1)["owed"], "Old Debt"))
+
+    # ── pending and rejected ──
+    def test_pending_spend_is_counted_apart_from_approved(self):
+        before = self.report()["waiting"]["pending"]["amount"]
+        self.bill("V", 100, status="pending")
+        report = self.report()
+        self.assertEqual(report["waiting"]["pending"]["amount"] - before, 1000)
+
+    def test_a_pending_bill_stays_out_of_the_spend(self):
+        before = self.report()["total_spend"]
+        self.bill("V", 100, status="pending")
+        self.assertEqual(self.report()["total_spend"], before)
+
+    # ── spend against sales ──
+    def test_spend_is_shown_against_the_period_s_revenue(self):
+        report = self.report()
+        if report["revenue"] > 0:
+            self.assertAlmostEqual(report["spend_pct"],
+                                   round(report["total_spend"] * 100.0 / report["revenue"], 1), 1)
+        else:
+            self.assertEqual(report["spend_pct"], 0)
+
+
 class TestWhoMayReadThem(FrappeTestCase):
     def test_a_cashier_is_refused(self):
         email = "lf-test-report-cashier@example.com"

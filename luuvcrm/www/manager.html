@@ -326,7 +326,38 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <div><div style="font-size:12px;opacity:.82;">Bills</div><div class="mono" style="font-weight:500;font-size:18px;" id="purchBills">0</div></div>
             <div><div style="font-size:12px;opacity:.82;">Avg bill</div><div class="mono" style="font-weight:500;font-size:18px;">Rs <span id="purchAvg">0</span></div></div>
             <div><div style="font-size:12px;opacity:.82;">Biggest day</div><div class="mono" style="font-weight:500;font-size:18px;" id="purchBest">—</div></div>
+            <div><div style="font-size:12px;opacity:.82;">Of sales</div><div class="mono" style="font-weight:500;font-size:18px;" id="purchPct">—</div></div>
           </div>
+        </div>
+        <!-- what is waiting on a decision, and what was refused -->
+        <div id="purchWaitingCard" style="display:none;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Not in the chart</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:14px;">The spend above is approved bills only · this period</div>
+          <div id="purchWaiting" style="display:flex;flex-direction:column;gap:12px;"></div>
+        </div>
+        <!-- money still owed to vendors -->
+        <div id="purchOwedCard" style="display:none;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Owed to vendors</div>
+            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="purchOwedTotal"></span>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">Every approved bill not marked paid — <b>not</b> limited to this period</div>
+          <div id="purchOwed" style="display:flex;flex-direction:column;"></div>
+        </div>
+        <!-- same item, different vendors -->
+        <div id="purchSpreadCard" style="display:none;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Same item, different price</div>
+            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="purchSpreadTotal"></span>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">What this period's quantity would have cost at each vendor's price</div>
+          <div id="purchSpread" style="display:flex;flex-direction:column;"></div>
+        </div>
+        <!-- what got dearer -->
+        <div id="purchMovesCard" style="display:none;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">What changed price</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">First price this period against the last · a reason to reprice the menu</div>
+          <div id="purchMoves" style="display:flex;flex-direction:column;"></div>
         </div>
         <!-- spend chart -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
@@ -1247,6 +1278,69 @@ function lfPoll(fn, ms){
     wrap.innerHTML=`<div style="display:flex;gap:6px;">${axisCol(ymax,BAR_H,VAL_H+GAP,H)}<div style="flex:1;min-width:0;overflow-x:auto;padding-bottom:2px;"><div style="position:relative;display:flex;align-items:flex-end;gap:5px;height:${H}px;">${gridLines(ymax,BAR_H,VAL_H+GAP)}${cols}</div></div></div>`;
   }
 
+  // ── Purchases: the four cards behind the spend ─────────────────────────
+  // A row of the same shape throughout — icon, name, a line of detail, a figure
+  // on the right — so four new cards read as one screen rather than four.
+  function purchRow(icon,tone,bg,name,detail,figure,note){
+    return `<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);"><span style="width:36px;height:36px;border-radius:11px;background:${bg};color:${tone};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${icon}" style="width:17px;height:17px;"></i></span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(name)}</div><div style="font-size:12.5px;color:var(--text-muted);">${detail}</div></div><div style="text-align:right;flex:none;"><div class="mono" style="font-size:14px;color:var(--text-strong);">${figure}</div>${note?`<div style="font-size:11.5px;color:var(--text-faint);">${note}</div>`:''}</div></div>`;
+  }
+  function showCard(id,on){ document.getElementById(id).style.display=on?'block':'none'; }
+
+  // Pending is spend nobody can see coming; rejected is a decision nobody can
+  // review. Neither is in the chart above, which counts approved bills only.
+  function renderWaiting(w,turn){
+    w=w||{}; const p=w.pending||{count:0,amount:0}, r=w.rejected||{count:0,amount:0};
+    const any=p.count||r.count||turn;
+    showCard('purchWaitingCard',!!any); if(!any) return;
+    let html='';
+    if(p.count) html+=purchRow('clock','var(--color-warning)','var(--color-warning-subtle)','Waiting for approval',p.count+' bill'+(p.count===1?'':'s'),'Rs '+nfmt(p.amount),'not counted above');
+    if(r.count) html+=purchRow('x-circle','var(--color-danger)','var(--color-danger-subtle)','Rejected',r.count+' bill'+(r.count===1?'':'s'),'Rs '+nfmt(r.amount),'refused');
+    if(turn) html+=purchRow('timer','var(--color-info)','var(--color-info-subtle)','Time to a decision',turn.count+' bill'+(turn.count===1?'':'s')+' decided',hoursLabel(turn.avg_hours),'slowest '+hoursLabel(turn.max_hours));
+    document.getElementById('purchWaiting').innerHTML=html; icons();
+  }
+  function hoursLabel(h){ h=+h||0; return h<48?(Math.round(h)+'h'):(Math.round(h/24)+'d'); }
+
+  // Not windowed, and the card says so: a bill from March is owed today
+  // whatever range the screen is on.
+  function renderOwed(rows,total){
+    rows=rows||[]; showCard('purchOwedCard',!!rows.length); if(!rows.length) return;
+    document.getElementById('purchOwedTotal').textContent='Rs '+nfmt(total||0);
+    document.getElementById('purchOwed').innerHTML=rows.map(v=>{
+      const old=v.oldest_days>=60, warn=v.oldest_days>=30;
+      const tone=old?'var(--color-danger)':(warn?'var(--color-warning)':'var(--text-muted)');
+      const bg=old?'var(--color-danger-subtle)':(warn?'var(--color-warning-subtle)':'var(--surface-sunken)');
+      return purchRow('wallet',tone,bg,v.name,v.count+' bill'+(v.count===1?'':'s'),'Rs '+nfmt(v.amount),
+                      'oldest '+v.oldest_days+'d');
+    }).join(''); icons();
+  }
+
+  // The one card here that pays for itself. "Could save" is the honest ceiling,
+  // not a promise — the cheap vendor may not carry the volume.
+  function renderPriceSpread(rows){
+    rows=rows||[]; showCard('purchSpreadCard',!!rows.length); if(!rows.length) return;
+    const total=rows.reduce((a,r)=>a+r.could_save,0);
+    document.getElementById('purchSpreadTotal').textContent='up to Rs '+nfmt(total);
+    document.getElementById('purchSpread').innerHTML=rows.slice(0,10).map(r=>{
+      const u=r.uom?('/'+r.uom):'';
+      return purchRow('git-compare-arrows','var(--color-primary)','var(--orange-50)',r.name,
+        `Rs ${nfmt(r.low)}${u} to Rs ${nfmt(r.high)}${u} · ${r.vendors} vendors`,
+        'Rs '+nfmt(r.could_save), r.spread_pct+'% apart');
+    }).join(''); icons();
+  }
+
+  // Rises first, because a fall needs no decision.
+  function renderPriceMoves(rows){
+    rows=rows||[]; showCard('purchMovesCard',!!rows.length); if(!rows.length) return;
+    document.getElementById('purchMoves').innerHTML=rows.slice(0,10).map(r=>{
+      const up=r.now>r.was, u=r.uom?('/'+r.uom):'';
+      const tone=up?'var(--color-danger)':'var(--color-success)';
+      const bg=up?'var(--color-danger-subtle)':'var(--color-success-subtle)';
+      return purchRow(up?'trending-up':'trending-down',tone,bg,r.name,
+        `Rs ${nfmt(r.was)}${u} → Rs ${nfmt(r.now)}${u}`,
+        `<span style="color:${tone};font-weight:700;">${up?'+':''}${r.change_pct}%</span>`,'');
+    }).join(''); icons();
+  }
+
   // ── Purchases (daily + weekly approved-bill spend, top vendors, top items) ──
   let pDays=7, pMonth='', pGran='daily', pData=null, pLoaded=false;
   function setPRange(d){ pDays=d; pMonth=''; syncMonthBtn('pMonthBtn','');
@@ -1269,7 +1363,12 @@ function lfPoll(fn, ms){
       document.getElementById('purchBills').textContent=m.bill_count;
       document.getElementById('purchAvg').textContent=nfmt(m.avg_bill);
       document.getElementById('purchBest').textContent=m.best_day&&m.best_day.spend>0?m.best_day.label:'—';
+      document.getElementById('purchPct').textContent=m.revenue>0?(m.spend_pct+'%'):'—';
       renderPurchaseChart();
+      renderWaiting(m.waiting,m.turnaround);
+      renderOwed(m.owed,m.owed_total);
+      renderPriceSpread(m.price_spread);
+      renderPriceMoves(m.price_moves);
       // top vendors
       const vend=m.vendors||[]; const vspend=m.vendors_spend||1;
       document.getElementById('purchVendorCount').textContent=vend.length?(vend.length+' vendors'):'';

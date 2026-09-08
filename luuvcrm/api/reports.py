@@ -626,6 +626,9 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     # Purchase Bill is ours, so it carries the branch itself — no cost centre
     # hop needed. Raw SQL sees no permission layer, so say it out loud.
     _pb_cond, _pb_params = branch.sql_restaurant("pb")
+    # Revenue hangs off the invoice's cost centre, not the bill's restaurant —
+    # a different hop, so a different condition.
+    _inv_cond_pb, _inv_params_pb = branch.sql_cost_center("pi")
 
     # ── daily spend + bill count (one grouped query over the line items) ──
     rows = frappe.db.sql(
@@ -720,13 +723,158 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     items = [{"name": r.name, "qty": float(r.qty or 0), "spend": float(r.spend or 0)}
              for r in irows if r.name]
 
+    # ── the same item, priced by different vendors ────────────────────────
+    # The one report here that pays for itself. Grouped by UOM as well as item,
+    # because a price per Kg and a price per Nos are not two quotes for the same
+    # thing — comparing them would invent a spread that is not there.
+    cmp_rows = frappe.db.sql(
+        """
+        SELECT COALESCE(pbi.item_name, pbi.item) AS name, pbi.uom AS uom,
+               COUNT(DISTINCT pb.vendor) AS vendors,
+               MIN(pbi.price) AS lo, MAX(pbi.price) AS hi,
+               SUM(pbi.qty) AS qty
+        FROM `tabPurchase Bill Item` pbi
+        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        WHERE pb.status = 'approved' AND pbi.price > 0
+          AND pb.requested_at >= %s AND pb.requested_at < %s
+        """ + _pb_cond + """
+        GROUP BY name, pbi.uom
+        HAVING COUNT(DISTINCT pb.vendor) > 1 AND MAX(pbi.price) > MIN(pbi.price)
+        """,
+        (range_start, range_end) + _pb_params, as_dict=True)
+    price_spread = []
+    for r in cmp_rows:
+        lo, hi, qty = float(r.lo or 0), float(r.hi or 0), float(r.qty or 0)
+        if lo <= 0:
+            continue
+        price_spread.append({
+            "name": r.name, "uom": r.uom or "", "vendors": int(r.vendors or 0),
+            "low": lo, "high": hi, "spread_pct": round((hi - lo) * 100.0 / lo, 1),
+            # What buying this period's quantity at the best price would have
+            # saved. The honest ceiling, not a promise: the cheap vendor may not
+            # carry the volume, and the dear one may be the only one on a Sunday.
+            "could_save": round((hi - lo) * qty, 2),
+        })
+    price_spread.sort(key=lambda x: -x["could_save"])
+
+    # ── what got dearer ───────────────────────────────────────────────────
+    # old_price is written on every line and read by nothing. It is the buying
+    # price the item carried before this bill, so the pair is a movement — and a
+    # movement in what a kitchen buys weekly is a menu repricing decision.
+    move_rows = frappe.db.sql(
+        """
+        SELECT COALESCE(pbi.item_name, pbi.item) AS name, pbi.uom AS uom,
+               pbi.old_price AS was, pbi.price AS now_price, pb.requested_at AS at
+        FROM `tabPurchase Bill Item` pbi
+        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        WHERE pb.status = 'approved' AND pbi.old_price > 0 AND pbi.price > 0
+          AND pbi.price <> pbi.old_price
+          AND pb.requested_at >= %s AND pb.requested_at < %s
+        """ + _pb_cond + """
+        ORDER BY pb.requested_at ASC
+        """,
+        (range_start, range_end) + _pb_params, as_dict=True)
+    # One row per item: the first price it carried in the window against the
+    # last. Every wobble in between is noise a manager cannot act on.
+    first_last = {}
+    for r in move_rows:
+        key = (r.name, r.uom or "")
+        if key not in first_last:
+            first_last[key] = [float(r.was or 0), float(r.now_price or 0)]
+        else:
+            first_last[key][1] = float(r.now_price or 0)
+    price_moves = []
+    for (name, uom), (was, now_price) in first_last.items():
+        if was <= 0 or now_price == was:
+            continue
+        price_moves.append({"name": name, "uom": uom, "was": was, "now": now_price,
+                            "change_pct": round((now_price - was) * 100.0 / was, 1)})
+    price_moves.sort(key=lambda x: -abs(x["change_pct"]))
+
+    # ── what is still owed, and for how long ──────────────────────────────
+    # Deliberately NOT windowed: a bill from March is owed today whatever range
+    # the screen is on. Ageing is from the request date, which is the closest
+    # thing this app has to an invoice date.
+    owed, owed_total = [], 0.0
+    if frappe.db.has_column("Purchase Bill", "payment_status"):
+        for r in frappe.db.sql(
+            """
+            SELECT pb.vendor AS name, COUNT(*) AS cnt,
+                   COALESCE(SUM(pb.total), 0) AS amount,
+                   MIN(pb.requested_at) AS oldest
+            FROM `tabPurchase Bill` pb
+            WHERE pb.status = 'approved'
+              AND IFNULL(pb.payment_status, 'unpaid') <> 'paid'
+            """ + _pb_cond + """
+            GROUP BY pb.vendor
+            ORDER BY amount DESC
+            """, _pb_params, as_dict=True):
+            age = (getdate(_today()) - getdate(r.oldest)).days if r.oldest else 0
+            owed.append({"name": r.name or "—", "count": int(r.cnt or 0),
+                         "amount": float(r.amount or 0), "oldest_days": max(0, age)})
+        owed_total = sum(v["amount"] for v in owed)
+
+    # ── committed but not yet approved, and what was refused ──────────────
+    # The chart counts approved bills only, so a pending pile is spend nobody
+    # can see coming and a rejected one is a decision nobody can review.
+    waiting = {"pending": {"count": 0, "amount": 0.0},
+               "rejected": {"count": 0, "amount": 0.0}}
+    for r in frappe.db.sql(
+        """
+        SELECT pb.status AS status, COUNT(*) AS cnt, COALESCE(SUM(pb.total), 0) AS amount
+        FROM `tabPurchase Bill` pb
+        WHERE pb.status IN ('pending', 'rejected')
+          AND pb.requested_at >= %s AND pb.requested_at < %s
+        """ + _pb_cond + """
+        GROUP BY pb.status
+        """, (range_start, range_end) + _pb_params, as_dict=True):
+        if r.status in waiting:
+            waiting[r.status] = {"count": int(r.cnt or 0), "amount": float(r.amount or 0)}
+
+    # ── how long a bill waits for a decision ──────────────────────────────
+    turnaround = None
+    if frappe.db.has_column("Purchase Bill", "resolved_at"):
+        row = frappe.db.sql(
+            """
+            SELECT COUNT(*) AS cnt,
+                   AVG(TIMESTAMPDIFF(HOUR, pb.requested_at, pb.resolved_at)) AS avg_h,
+                   MAX(TIMESTAMPDIFF(HOUR, pb.requested_at, pb.resolved_at)) AS max_h
+            FROM `tabPurchase Bill` pb
+            WHERE pb.status <> 'pending' AND pb.resolved_at IS NOT NULL
+              AND pb.resolved_at >= pb.requested_at
+              AND pb.requested_at >= %s AND pb.requested_at < %s
+            """ + _pb_cond + """
+            """, (range_start, range_end) + _pb_params, as_dict=True)[0]
+        if int(row.cnt or 0):
+            turnaround = {"count": int(row.cnt or 0),
+                          "avg_hours": round(float(row.avg_h or 0), 1),
+                          "max_hours": round(float(row.max_h or 0), 1)}
+
     total_spend = sum(d["spend"] for d in daily)
     bill_count = sum(d["count"] for d in daily)
     avg_bill = total_spend / bill_count if bill_count else 0
     best_day = max(daily, key=lambda d: d["spend"]) if daily else None
 
+    # ── spend against the revenue it bought ───────────────────────────────
+    # Food cost % is the number a restaurant is actually run on, and the
+    # Purchases tab showed spend with nothing to weigh it against.
+    revenue = float(frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(pi.grand_total), 0) FROM `tabPOS Invoice` pi
+        WHERE pi.docstatus = 1 AND pi.posting_date BETWEEN %s AND %s
+        """ + _inv_cond_pb, (start, end) + _inv_params_pb)[0][0] or 0)
+    spend_pct = round(total_spend * 100.0 / revenue, 1) if revenue > 0 else 0
+
     return {
         "days": days,
+        "price_spread": price_spread,
+        "price_moves": price_moves,
+        "owed": owed,
+        "owed_total": owed_total,
+        "waiting": waiting,
+        "turnaround": turnaround,
+        "revenue": revenue,
+        "spend_pct": spend_pct,
         "start": str(start),
         "end": str(end),
         "daily": daily,
