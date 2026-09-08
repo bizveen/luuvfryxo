@@ -640,13 +640,15 @@ def add_payment_mode(mode="PickMe", mode_type="Bank"):
         print(f"  + Mode of Payment {mode} (type={mode_type})")
 
     profiles = frappe.get_all("POS Profile", fields=["name", "company"])
-    if not profiles:
-        print("  ! no POS Profile to attach it to")
-        return
 
+    # Book the account before touching the profiles, and off every company when
+    # no till exists yet: a site is often set up in that order, and a mode left
+    # accountless is one that fails at the first sale rather than here.
+    companies = {p.company for p in profiles if p.company} \
+        or set(frappe.get_all("Company", pluck="name"))
     doc = frappe.get_doc("Mode of Payment", mode)
     booked = {a.company for a in (doc.accounts or []) if a.default_account}
-    for company in sorted({p.company for p in profiles if p.company} - booked):
+    for company in sorted(companies - booked):
         account = _payment_mode_account(company)
         if not account:
             print(f"  ! {mode}: no bank or cash account on {company} — set one by hand")
@@ -656,6 +658,9 @@ def add_payment_mode(mode="PickMe", mode_type="Bank"):
     doc.flags.ignore_permissions = True
     doc.save()
 
+    if not profiles:
+        print(f"  ! no POS Profile to offer {mode} on — run this again once a till exists")
+        return
     for profile in profiles:
         if frappe.db.exists("POS Payment Method", {"parent": profile.name,
                                                    "mode_of_payment": mode}):
