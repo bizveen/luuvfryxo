@@ -8,6 +8,7 @@ import frappe
 from frappe import _
 from luuvcrm import branch, roles
 
+from luuvcrm.api import menu
 from luuvcrm.api.approvals import _format_approvals, _pending_and_recent_approvals
 
 
@@ -226,20 +227,50 @@ def get_manager_sales_report(days=7, start=None, end=None):
     # ── item-wise sales over the window (from paid POS Orders) ──
     item_rows = frappe.db.sql(
         """
-        SELECT COALESCE(soi.item_name, soi.item) AS name,
+        SELECT soi.item AS item,
+               COALESCE(soi.item_name, soi.item) AS name,
                SUM(soi.qty) AS qty,
                SUM(soi.rate * soi.qty) AS revenue
         FROM `tabPOS Order Item` soi
         INNER JOIN `tabPOS Order` so ON so.name = soi.parent
         WHERE so.pos_invoice IS NOT NULL AND so.pos_invoice != ''
           AND so.creation >= %s AND so.creation < %s
-        GROUP BY name
+        GROUP BY soi.item, name
         ORDER BY revenue DESC
         """,
         (start, add_days(end, 1)), as_dict=True)
-    items = [{"name": r.name, "qty": int(r.qty or 0), "revenue": float(r.revenue or 0)}
+    items = [{"item": r.item, "name": r.name, "qty": int(r.qty or 0),
+              "revenue": float(r.revenue or 0)}
              for r in item_rows if r.name]
     items_revenue = sum(i["revenue"] for i in items) or 1
+
+    # ── what did not sell ──────────────────────────────────────────────────
+    # The query above can only see items that appeared on a bill, so an item
+    # that sold nothing all month is absent from every list built from it —
+    # and those are exactly the ones a manager is deciding whether to keep.
+    # Read them off the active menu and carry them at zero.
+    # Through `menu_items()` rather than a query of our own: it is the one place
+    # that decides what "on the menu" means — an item is unavailable only when
+    # the flag is explicitly 0, so a menu written before the flag existed still
+    # counts. A ninth copy of that rule here is a menu that disagrees with the
+    # till. It carries the item group too, from the same read.
+    sold = {i["item"] for i in items if i.get("item")}
+    unsold = [{"item": e["code"], "name": e["name"], "qty": 0, "revenue": 0.0,
+               "rate": float(e.get("rate") or 0), "group": e.get("group") or "Other"}
+              for e in menu.menu_items() if e.get("code") and e["code"] not in sold]
+
+    # ── Food / Beverage, for the item card's filter ──
+    # The sold list is built from bill lines, which carry no group; one read for
+    # all of them. An item whose group was renamed or deleted reads as "Other"
+    # rather than dropping out of the filter entirely.
+    codes = [i["item"] for i in items if i.get("item")]
+    groups = {}
+    if codes:
+        groups = {r.name: (r.item_group or "Other") for r in
+                  frappe.get_all("Item", filters={"name": ["in", codes]},
+                                 fields=["name", "item_group"])}
+    for row in items:
+        row["group"] = groups.get(row.get("item"), "Other")
 
     # ── revenue breakdown: service charge vs other charges vs net sales ──
     # Service charge is posted as a Sales Taxes and Charges row (description
@@ -260,6 +291,26 @@ def get_manager_sales_report(days=7, start=None, end=None):
     service_charge = float(tax.sc or 0)
     other_charges = float(tax.other or 0)
     net_sales = total_revenue - service_charge - other_charges
+
+    # ── revenue by hour of day, summed across the window ──
+    # The dashboard has this for today; over a month it stops being trivia and
+    # becomes a rostering decision — which hours pay for the staff on them.
+    hourly_rows = frappe.db.sql(
+        """
+        SELECT HOUR(pi.creation) AS h,
+               COALESCE(SUM(pi.grand_total), 0) AS revenue,
+               COUNT(*) AS cnt
+        FROM `tabPOS Invoice` pi
+        WHERE pi.docstatus = 1 AND pi.posting_date BETWEEN %s AND %s
+        """ + _pi_cond + """
+        GROUP BY h
+        """,
+        (start, end) + _pi_params, as_dict=True)
+    by_hour = {int(r.h): r for r in hourly_rows}
+    hourly = [{"hour": h,
+               "revenue": float(by_hour[h].revenue or 0) if h in by_hour else 0.0,
+               "count": int(by_hour[h].cnt or 0) if h in by_hour else 0}
+              for h in range(24)]
 
     # ── how it was paid: one row per mode over the window ──
     # A different axis from revenue_breakdown above: that one says what the
@@ -291,7 +342,9 @@ def get_manager_sales_report(days=7, start=None, end=None):
         "end": str(end),
         "daily": daily,
         "items": items,
+        "unsold": unsold,
         "items_revenue": items_revenue,
+        "hourly": hourly,
         "total_revenue": total_revenue,
         "total_sales": total_sales,
         "avg_ticket": avg_ticket,

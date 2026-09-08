@@ -241,12 +241,21 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
         </div>
         <!-- daily chart -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px;">
-            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Daily sales</div>
-            <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--text-muted);flex:none;"><svg width="20" height="6" style="overflow:visible;"><line x1="0" y1="3" x2="20" y2="3" stroke="var(--gray-700)" stroke-width="2" stroke-dasharray="5 4"/></svg> 7-day avg</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Sales trend</div>
+            <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="trendTabs">
+              <button class="rangeBtn active" data-trend="daily" onclick="setTrendTab('daily')">Daily</button>
+              <button class="rangeBtn" data-trend="hourly" onclick="setTrendTab('hourly')">Hourly</button>
+              <button class="rangeBtn" data-trend="monthly" onclick="setTrendTab('monthly')">Monthly</button>
+            </div>
           </div>
-          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">Tap a day for the full breakdown</div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:12px;">
+            <div style="font-size:12px;color:var(--text-faint);" id="trendSub">Tap a day for the full breakdown</div>
+            <span id="trendLegend" style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--text-muted);flex:none;"><svg width="20" height="6" style="overflow:visible;"><line x1="0" y1="3" x2="20" y2="3" stroke="var(--gray-700)" stroke-width="2" stroke-dasharray="5 4"/></svg> 7-day avg</span>
+          </div>
           <div id="dailyChart" style="overflow-x:auto;padding-bottom:2px;"></div>
+          <div id="hourlyChart" style="overflow-x:auto;padding-bottom:2px;" hidden></div>
+          <div id="monthlyChart" style="overflow-x:auto;padding-bottom:2px;" hidden></div>
         </div>
         <!-- sales by weekday (computed from the daily series) -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
@@ -254,21 +263,25 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;" id="wkSub">Average per day over the range</div>
           <div id="weekdayBars" style="display:flex;flex-direction:column;gap:12px;"></div>
         </div>
-        <!-- monthly sales (last 12 months, independent of the range toggle) -->
-        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;">
-            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Monthly sales</div>
-            <span class="mono" style="font-size:12.5px;color:var(--text-faint);">12 months</span>
-          </div>
-          <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;" id="monSub">—</div>
-          <div id="monthlyChart" style="overflow-x:auto;padding-bottom:2px;"></div>
-        </div>
-        <!-- item-wise -->
+        <!-- item performance: which sell, which do not, which earn -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
-            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Item-wise sales</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Item performance</div>
             <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="repItemCount"></span>
           </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="itemTabs">
+              <button class="rangeBtn active" data-view="high" onclick="setItemView('high')">High orders</button>
+              <button class="rangeBtn" data-view="low" onclick="setItemView('low')">Low orders</button>
+              <button class="rangeBtn" data-view="income" onclick="setItemView('income')">Max income</button>
+            </div>
+            <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;" id="itemGroupTabs">
+              <button class="rangeBtn active" data-group="__all__" onclick="setItemGroup('__all__')">All</button>
+              <button class="rangeBtn" data-group="Food" onclick="setItemGroup('Food')">Food</button>
+              <button class="rangeBtn" data-group="Beverage" onclick="setItemGroup('Beverage')">Beverage</button>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:10px;" id="repItemSub"></div>
           <div id="repItems" style="display:flex;flex-direction:column;"></div>
         </div>
       </div>
@@ -872,7 +885,7 @@ function lfPoll(fn, ms){
     b.classList.toggle('active',!!ym);
     b.querySelector('span').textContent=ym?(MON_FULL[+ym.split('-')[1]-1].slice(0,3)+' '+ym.split('-')[0]):'Month'; }
 
-  // ── Reports (daily sales trend + item-wise sales) ──
+  // ── Reports (sales trend: daily/hourly/monthly + item performance) ──
   let repDays=7, repMonth='', repLoaded=false;
   function setRange(d){ repDays=d; repMonth=''; syncMonthBtn('repMonthBtn','');
     document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.toggle('active',+b.dataset.days===d)); loadReports(true); }
@@ -894,12 +907,11 @@ function lfPoll(fn, ms){
       renderReportPayMix(m.payments);
       // daily bar chart + 7-day moving-average line (full labels, tap a bar to drill down)
       repDaily=m.daily||[]; if(selDay && !repDaily.some(x=>x.date===selDay)) selDay=null;
-      renderDailyChart(); renderWeekdays(); loadMonthly();
-      // item-wise list with share bars
-      const items=m.items||[]; const irev=m.items_revenue||1;
-      document.getElementById('repItemCount').textContent=items.length?(items.length+' items'):'';
-      document.getElementById('repItems').innerHTML=items.length?items.map(t=>{ const pct=Math.round(t.revenue/irev*100);
-        return `<div style="padding:11px 0;border-bottom:1px solid var(--border-subtle);"><div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;"><span style="width:38px;height:38px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${t.name}</div><div style="font-size:12.5px;color:var(--text-muted);">${t.qty} sold · ${pct}%</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(t.revenue)}</span></div><div style="height:6px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--orange-300);border-radius:var(--radius-pill);"></div></div></div>`; }).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No sales in this period.</div>';
+      repHourly=m.hourly||[];
+      renderTrend(); renderWeekdays();
+      repItems=(m.items||[]).slice(); repUnsold=(m.unsold||[]).slice();
+      repItemsRevenue=m.items_revenue||1;
+      renderItemPerformance();
       icons();
     }catch(e){}
   }
@@ -921,6 +933,50 @@ function lfPoll(fn, ms){
         +bar('Overheads',m.overhead,m.overhead_pct,'var(--color-info)','Approved expenses — rent, salaries, utilities…')
         +bar('Profit',Math.abs(m.profit),Math.abs(m.profit_pct),pTone,((m.profit||0)<0?'LOSS — costs exceeded sales this period':''));
     }catch(e){}
+  }
+
+  // ── Item performance: which sell, which do not, which earn ─────────────
+  // Three questions a manager actually asks of a menu, off one list:
+  //   high   — what moves. The kitchen preps for these.
+  //   low    — what to cut. Sorted up from zero, and the zeroes come from the
+  //            menu rather than the sales, because an item that sold nothing
+  //            all month appears on no bill and so is in no sales query — and
+  //            it is the one the question is really about.
+  //   income — what pays. Not the same list as `high`: a cheap item can top
+  //            the counts and earn less than a dish sold five times.
+  // Filtering and sorting are client-side: the whole list is already here, and
+  // six round-trips to re-sort what is in hand is six chances to be stale.
+  let repItems=[], repUnsold=[], repItemsRevenue=1, itemView='high', itemGroup='__all__';
+  const ITEM_SUB={high:'Most units sold — what the kitchen preps for',
+                  low:'Least sold first, starting with what sold nothing at all',
+                  income:'Most revenue — not always the same as most sold'};
+  function setItemView(v){ itemView=v;
+    document.querySelectorAll('#itemTabs .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+    renderItemPerformance(); }
+  function setItemGroup(g){ itemGroup=g;
+    document.querySelectorAll('#itemGroupTabs .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.group===g));
+    renderItemPerformance(); }
+  function renderItemPerformance(){
+    const wrap=document.getElementById('repItems'); if(!wrap) return;
+    const keep=r=>itemGroup==='__all__'||r.group===itemGroup;
+    let rows;
+    if(itemView==='low') rows=repUnsold.filter(keep).concat(repItems.filter(keep).slice().sort((a,b)=>a.qty-b.qty));
+    else if(itemView==='income') rows=repItems.filter(keep).slice().sort((a,b)=>b.revenue-a.revenue);
+    else rows=repItems.filter(keep).slice().sort((a,b)=>b.qty-a.qty);
+    rows=rows.slice(0,25);
+    document.getElementById('repItemSub').textContent=ITEM_SUB[itemView];
+    const shown=repItems.filter(keep).length, dead=repUnsold.filter(keep).length;
+    document.getElementById('repItemCount').textContent=
+      (shown?shown+' sold':'')+(dead?((shown?' · ':'')+dead+' unsold'):'');
+    if(!rows.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">Nothing in this period.</div>'; return; }
+    // The bar is the item's share of the period's item revenue in every view,
+    // so a row means the same thing whichever tab found it.
+    wrap.innerHTML=rows.map(t=>{ const pct=Math.round(t.revenue/repItemsRevenue*100);
+      const zero=!t.qty;
+      const meta=zero?'<span style="color:var(--color-warning);font-weight:700;">nothing sold</span>':(t.qty+' sold · '+pct+'%');
+      return `<div style="padding:11px 0;border-bottom:1px solid var(--border-subtle);${zero?'opacity:.72;':''}"><div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;"><span style="width:38px;height:38px;border-radius:11px;background:${zero?'var(--surface-sunken)':'var(--orange-50)'};display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(t.name)}</div><div style="font-size:12.5px;color:var(--text-muted);">${meta}</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(t.revenue)}</span></div><div style="height:6px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--orange-300);border-radius:var(--radius-pill);"></div></div></div>`;
+    }).join('');
+    icons();
   }
 
   // ── Payment methods over the range (Reports tab) ──
@@ -953,7 +1009,53 @@ function lfPoll(fn, ms){
   }
 
   // ── Daily chart: full-detail bars + 7-day moving-average overlay + y-axis ──
-  let repDaily=[], selDay=null;
+  let repDaily=[], repHourly=[], selDay=null;
+  // ── Sales trend: one card, three views of the same window ──────────────
+  // Daily and Hourly come from the range the Reports tab is on; Monthly is the
+  // last 12 months regardless, loaded once and re-rendered so the picked month
+  // stays highlighted. Only the visible one is drawn — three charts painting on
+  // every poll is three times the work for two views nobody is looking at.
+  let trendTab='daily', monSubText='—';
+  const TREND_SUB={daily:'Tap a day for the full breakdown',
+                   hourly:'Which hours earn — every day in the range added up'};
+  function setTrendTab(t){
+    trendTab=t;
+    document.querySelectorAll('#trendTabs .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.trend===t));
+    document.getElementById('dailyChart').hidden=(t!=='daily');
+    document.getElementById('hourlyChart').hidden=(t!=='hourly');
+    document.getElementById('monthlyChart').hidden=(t!=='monthly');
+    // the 7-day average line only exists on the daily chart
+    document.getElementById('trendLegend').hidden=(t!=='daily');
+    document.getElementById('trendSub').textContent=(t==='monthly')?monSubText:TREND_SUB[t];
+    renderTrend();
+  }
+  function renderTrend(){
+    if(trendTab==='daily') renderDailyChart();
+    else if(trendTab==='hourly') renderHourlyChart();
+    else loadMonthly();    // lazy: the 12-month request waits for the tab
+  }
+
+  // Hourly: the range's takings by hour of day. Bars only — a moving average
+  // across midnight would say nothing, and every hour is its own decision.
+  function renderHourlyChart(){
+    const wrap=document.getElementById('hourlyChart'); if(!wrap) return;
+    const series=repHourly||[];
+    if(!series.some(h=>h.revenue>0)){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:40px 0;">No sales in this period.</div>'; return; }
+    // Trade hours only: a restaurant open 11am-10pm should not read as
+    // half a chart of empty night.
+    const first=series.findIndex(h=>h.revenue>0), last=series.length-1-[...series].reverse().findIndex(h=>h.revenue>0);
+    const shown=series.slice(Math.max(0,first-1), Math.min(24,last+2));
+    const dmax=Math.max(...shown.map(h=>h.revenue)), ymax=niceCeil(dmax);
+    const VAL_H=13,GAP=4,BAR_H=chartH(100),LAB_H=14,H=VAL_H+GAP+BAR_H+GAP+LAB_H;
+    const cols=shown.map(h=>{ const pk=h.revenue===dmax&&h.revenue>0;
+      return `<div title="${hourLabel(h.hour)}: Rs ${nfmt(h.revenue)} · ${h.count} sale${h.count===1?'':'s'}" style="flex:1;min-width:26px;display:flex;flex-direction:column;align-items:center;gap:${GAP}px;">
+        <span class="mono" style="font-size:9.5px;font-weight:500;color:${pk?'var(--color-primary)':'var(--text-muted)'};white-space:nowrap;height:${VAL_H}px;line-height:${VAL_H}px;">${h.revenue>0?kfmt(h.revenue):''}</span>
+        <div style="height:${BAR_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;"><div style="width:100%;max-width:30px;height:${Math.max(3,Math.round(h.revenue/ymax*BAR_H))}px;background:${pk?'var(--color-primary)':'var(--orange-200)'};border-radius:5px 5px 3px 3px;"></div></div>
+        <span class="mono" style="font-size:9.5px;color:var(--text-faint);white-space:nowrap;height:${LAB_H}px;line-height:${LAB_H}px;">${hourLabel(h.hour)}</span>
+      </div>`; }).join('');
+    wrap.innerHTML=`<div style="display:flex;gap:6px;">${axisCol(ymax,BAR_H,VAL_H+GAP,H)}<div style="flex:1;min-width:0;overflow-x:auto;padding-bottom:2px;"><div style="position:relative;display:flex;align-items:flex-end;gap:5px;height:${H}px;">${gridLines(ymax,BAR_H,VAL_H+GAP)}${cols}</div></div></div>`;
+  }
+
   function movingAvg(arr,w){ return arr.map((_,i)=>{ const s=arr.slice(Math.max(0,i-w+1),i+1); return s.reduce((a,x)=>a+x,0)/s.length; }); }
   // Round a max up to a "nice" tick ceiling (1/2/2.5/5 × 10^k) so axis labels are round.
   function niceCeil(v){ if(v<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(v))); const n=v/p; const m=n<=1?1:(n<=2?2:(n<=2.5?2.5:(n<=5?5:10))); return m*p; }
@@ -1044,7 +1146,8 @@ function lfPoll(fn, ms){
     monLoaded=true;
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_monthly_sales',{months:12}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       monData=m;
-      document.getElementById('monSub').textContent='Rs '+nfmt(m.total_revenue)+' · '+m.total_sales+' sales'+(m.best&&m.best.revenue>0?(' · best: '+m.best.label+' ’'+m.best.yy):'');
+      monSubText='Rs '+nfmt(m.total_revenue)+' · '+m.total_sales+' sales'+(m.best&&m.best.revenue>0?(' · best: '+m.best.label+' ’'+m.best.yy):'');
+      if(trendTab==='monthly') document.getElementById('trendSub').textContent=monSubText;
       renderMonthlyChart();
     }catch(e){}
   }

@@ -112,6 +112,11 @@ def menu_rate(case, item_code, rate):
         "parentfield": "items",
         "item": item_code,
         "rate": rate,
+        # Explicit, because db_insert() applies no docfield default and every
+        # availability-respecting screen — menu_items(), and so the till, the
+        # customer menu and the reports — reads 0 as "sold out". A fixture that
+        # puts an item on the menu invisibly tests nothing.
+        "available": 1,
         "idx": 9000,
     })
     row.db_insert()

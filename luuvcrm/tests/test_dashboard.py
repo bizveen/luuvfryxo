@@ -194,6 +194,72 @@ class TestAThirdModeInTheMix(DashboardTestCase):
         self.assertEqual(bill["modes"], [self.pickme])
 
 
+class TestTheItemPerformanceCard(DashboardTestCase):
+    """The Reports tab asks three questions of one list — what moves, what to
+    cut, what pays — and filters it by Food or Beverage. The sorting is done on
+    the screen; what the server has to get right is the shape."""
+
+    def test_an_item_carries_its_code_and_group(self):
+        """Without the group there is no Food/Beverage filter, and without the
+        code the row cannot be matched to anything."""
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash")
+        report = api.get_manager_sales_report(days=1)
+        row = next(i for i in report["items"] if i["item"] == self.burger)
+        self.assertTrue(row["group"])
+        self.assertEqual(row["name"], frappe.db.get_value("Item", self.burger, "item_name"))
+
+    def test_a_menu_item_that_sold_nothing_is_reported(self):
+        """The whole point of the Low orders tab: an item that sold nothing is
+        on no bill, so it is in no sales query — and it is the one the manager
+        is deciding about."""
+        fx.menu_rate(self, self.cola, 250)
+        fx.forget_menu_cache()
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash")
+        report = api.get_manager_sales_report(days=1)
+        unsold = {i["item"] for i in report["unsold"]}
+        self.assertIn(self.cola, unsold)
+
+    def test_an_item_that_sold_is_not_called_unsold(self):
+        fx.menu_rate(self, self.cola, 250)
+        fx.forget_menu_cache()
+        self.sell([{"item": self.cola, "qty": 1}], payment_mode="Cash")
+        report = api.get_manager_sales_report(days=1)
+        self.assertNotIn(self.cola, {i["item"] for i in report["unsold"]})
+
+    def test_the_unsold_carry_a_group_too(self):
+        """Or they vanish from the Food/Beverage filter — the tab that needs
+        them most is the one that would lose them."""
+        fx.menu_rate(self, self.cola, 250)
+        fx.forget_menu_cache()
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash")
+        report = api.get_manager_sales_report(days=1)
+        for row in report["unsold"]:
+            self.assertTrue(row["group"])
+
+
+class TestTheHourlyTrend(DashboardTestCase):
+    def test_every_hour_is_present_even_the_closed_ones(self):
+        """The chart trims the quiet ends itself; a gap in the middle of
+        service has to be a zero-height bar, not a missing one."""
+        report = api.get_manager_sales_report(days=1)
+        self.assertEqual([h["hour"] for h in report["hourly"]], list(range(24)))
+
+    def test_the_hours_sum_to_the_period_s_revenue(self):
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash")
+        report = api.get_manager_sales_report(days=1)
+        self.assertAlmostEqual(sum(h["revenue"] for h in report["hourly"]),
+                               report["total_revenue"], 2)
+
+    def test_a_sale_lands_in_the_hour_it_was_rung_up(self):
+        import frappe.utils
+
+        hour = frappe.utils.now_datetime().hour
+        before = api.get_manager_sales_report(days=1)["hourly"][hour]["revenue"]
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode="Cash")
+        after = api.get_manager_sales_report(days=1)["hourly"][hour]["revenue"]
+        self.assertEqual(after - before, 1000)
+
+
 class TestTopItems(DashboardTestCase):
     """Tallied by loading every paid order in full; now one read of the lines."""
 
