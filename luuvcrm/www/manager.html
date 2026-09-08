@@ -1006,13 +1006,21 @@ function lfPoll(fn, ms){
     wrap.innerHTML=rows.map(itemRowHtml).join('');
     icons();
   }
-  // The full list, in the tab and filter the card is already on — the sheet is
-  // the same question asked without the cap, not a different one.
+  // The whole menu in one order — most ordered first, the unsold falling to the
+  // bottom on nothing sold. The card's three tabs are three ways to read the
+  // top of a list; the sheet is the list, so it does not re-sort itself under
+  // whoever opened it. The Food/Beverage filter still applies: that narrows
+  // what you are looking at rather than how it is ranked.
+  function itemRowsAll(){
+    const keep=r=>itemGroup==='__all__'||r.group===itemGroup;
+    return repItems.filter(keep).concat(repUnsold.filter(keep))
+      .sort((a,b)=> (b.qty-a.qty) || (b.revenue-a.revenue));
+  }
   function showAllItems(){
-    const all=itemRowsFor();
-    const label={high:'High orders',low:'Low orders',income:'Max income'}[itemView];
-    document.getElementById('itemsAllTitle').textContent=label+(itemGroup==='__all__'?'':' · '+itemGroup);
-    document.getElementById('itemsAllSub').textContent=all.length+' items · '+ITEM_SUB[itemView].toLowerCase();
+    const all=itemRowsAll();
+    document.getElementById('itemsAllTitle').textContent='Item performance';
+    document.getElementById('itemsAllSub').textContent=
+      (itemGroup==='__all__'?'All items':itemGroup)+' · '+all.length+' items · most ordered first';
     document.getElementById('itemsAllBody').innerHTML=all.length?all.map(itemRowHtml).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">Nothing in this period.</div>';
     document.getElementById('itemsAllOverlay').style.display='flex';
     icons();
