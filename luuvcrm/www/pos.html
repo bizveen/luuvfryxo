@@ -1220,21 +1220,29 @@ function lfPoll(fn, ms){
     document.getElementById('pmTable').textContent=table||'—'; document.getElementById('pmTotal').textContent=fmt(total);
     renderPayModes(); mErr('payErr',''); gdReset(); show('payModal'); }
   // ── payment buttons ──────────────────────────────────────
-  // The till offers what its POS Profile offers, so an aggregator (PickMe,
-  // Uber Eats) is added once in ERPNext — luuvcrm.setup_doctype.add_payment_mode —
-  // and appears here, in the split dialog, in the shift close and in the
-  // manager's payment mix without touching this page. Cash keeps its tender
-  // and change field, Cash+Card its two boxes; every other mode charges the
-  // bill in full, which is what an aggregator settlement is.
-  function payModesFor(){ const p=shiftData&&shiftData.pos_profile; return (p&&PROFILE_PAY[p])||['Cash']; }
+  // An aggregator (PickMe, Uber Eats) is added once in ERPNext —
+  // luuvcrm.setup_doctype.add_payment_mode — and appears here, in the split
+  // dialog, in the shift close and in the manager's payment mix without
+  // touching this page. Cash keeps its tender and change field, Cash+Card its
+  // two boxes; every other mode charges the bill in full, which is what an
+  // aggregator settlement is.
+  //
+  // The profile ADDS modes, it never removes them. Cash and card were written
+  // into this page long before POS Profiles carried their payment methods, and
+  // a real profile often lists only Cash — nobody ever had to fill that table
+  // in, because the buttons did not read it. Reading it as the whole truth took
+  // the card and split buttons off a working till.
+  const BASE_MODES=['Cash','Credit Card'];
+  function payModesFor(){ const p=shiftData&&shiftData.pos_profile, extra=(p&&PROFILE_PAY[p])||[];
+    return BASE_MODES.concat(extra.filter(m=>BASE_MODES.indexOf(m)<0)); }
   function payDefaultMode(modes){ return modes.indexOf('Cash')>-1?'Cash':(modes[0]||'Cash'); }
   function modeLabel(m){ return m==='Cash+Card'?'Split':(m==='Credit Card'?'Card':m); }
   function renderModeButtons(id,modes,pick,active){ const el=document.getElementById(id); el.innerHTML='';
     // built as elements, not markup: a mode name is site data and may carry a quote
     modes.forEach(m=>{ const d=document.createElement('div'); d.className='pmode'+(m===active?' active':'');
       d.dataset.m=m; d.textContent=modeLabel(m); d.onclick=()=>pick(m); el.appendChild(d); }); }
-  function renderPayModes(){ const modes=payModesFor().slice();
-    if(modes.indexOf('Cash')>-1&&modes.indexOf('Credit Card')>-1) modes.push('Cash+Card');
+  function renderPayModes(){ const modes=payModesFor();
+    modes.splice(2,0,'Cash+Card');   // Cash · Card · Split, then the extras
     const def=payDefaultMode(modes); renderModeButtons('pmodes',modes,setPayMode,def); setPayMode(def); }
   function renderSplitModes(){ const modes=payModesFor(); const def=payDefaultMode(modes);
     renderModeButtons('splitModes',modes,setSplitMode,def); setSplitMode(def); }

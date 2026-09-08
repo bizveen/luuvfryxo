@@ -217,26 +217,34 @@ def delivery_payment_mode(case, mode="PickMe"):
     """A payment method that is neither cash nor card — a delivery aggregator.
 
     Wires it through the real setup helper, so the test covers what a site
-    actually runs rather than a hand-built row, and takes the whole thing back
-    out afterwards: the Mode of Payment, its per-company accounts, and the POS
-    Profile rows the helper appended.
+    actually runs rather than a hand-built row.
+
+    Removes only what it created. The site may already offer this mode for real
+    — a till taking PickMe is the point of it — and a fixture that deleted it
+    would take a live payment method away; one that skipped instead would stop
+    testing the moment the feature went into use.
     """
     from luuvcrm import setup_doctype
 
-    if frappe.db.exists("Mode of Payment", mode):
-        case.skipTest(f"Mode of Payment {mode} already exists on this site")
-    profiles = frappe.get_all("POS Profile", pluck="name")
+    pre_existing = bool(frappe.db.exists("Mode of Payment", mode))
+    already_offered = {
+        p for p in frappe.get_all("POS Profile", pluck="name")
+        if frappe.db.exists("POS Payment Method", {"parent": p, "mode_of_payment": mode})
+    }
     setup_doctype.add_payment_mode(mode)
     frappe.db.commit()
 
     def drop():
-        for profile in profiles:
+        for profile in frappe.get_all("POS Profile", pluck="name"):
+            if profile in already_offered:
+                continue
             doc = frappe.get_doc("POS Profile", profile)
             kept = [r for r in doc.payments if r.mode_of_payment != mode]
             if len(kept) != len(doc.payments):
                 doc.payments = kept
                 doc.save(ignore_permissions=True)
-        frappe.delete_doc("Mode of Payment", mode, force=True, ignore_permissions=True)
+        if not pre_existing:
+            frappe.delete_doc("Mode of Payment", mode, force=True, ignore_permissions=True)
         frappe.db.commit()
 
     case.addCleanup(drop)
