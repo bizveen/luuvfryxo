@@ -247,6 +247,41 @@ class TestClosingAShift(ShiftTestCase):
         for row in closing.payment_reconciliation:
             self.assertEqual(float(row.difference), 0)
 
+    def test_a_third_mode_gets_its_own_row_on_the_z_report(self):
+        """The Z-report prints one "<mode> sales" line per reconciliation row.
+        A mode with no row prints nothing, and the shift tallies without it."""
+        frappe.set_user("Administrator")
+        mode = fx.delivery_payment_mode(self, "PickMe")
+        frappe.set_user(self.cashier)
+
+        opening = self.open_shift(opening_balance=1000)
+        self.sell(payment_mode=mode)
+        shift = self.call(api.pos_close_shift, closing_balance=1000)["shift"]
+
+        self.assertEqual(shift["payment_breakdown"].get(mode), 1000)
+        opening.reload()
+        closing = frappe.get_doc("POS Closing Entry", opening.pos_closing_entry)
+        rows = {r.mode_of_payment: r for r in closing.payment_reconciliation}
+        self.assertIn(mode, rows)
+        self.assertEqual(float(rows[mode].expected_amount), 1000)
+
+    def test_it_is_trusted_rather_than_counted(self):
+        """Only cash has a drawer. The aggregator's total is known exactly, so
+        it auto-fills and the close cannot report it short."""
+        frappe.set_user("Administrator")
+        mode = fx.delivery_payment_mode(self, "PickMe")
+        frappe.set_user(self.cashier)
+
+        opening = self.open_shift(opening_balance=1000)
+        self.sell(payment_mode=mode)
+        self.call(api.pos_close_shift, closing_balance=1000)   # drawer untouched
+        opening.reload()
+        closing = frappe.get_doc("POS Closing Entry", opening.pos_closing_entry)
+        rows = {r.mode_of_payment: r for r in closing.payment_reconciliation}
+        self.assertEqual(float(rows[mode].difference), 0)
+        self.assertEqual(float(rows["Cash"].closing_amount), 1000)
+        self.assertEqual(float(rows["Cash"].difference), 0)
+
     def test_the_true_shift_start_is_not_overwritten(self):
         """The close widens period_start_date in memory to catch a sale paid
         just before the shift opened, then must put the real one back — the

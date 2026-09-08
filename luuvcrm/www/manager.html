@@ -652,6 +652,9 @@ function lfPoll(fn, ms){
 
   function hourLabel(h){ const ap=h<12?'a':'p'; let hh=h%12; if(hh===0) hh=12; return hh+ap; }
 
+  // A payment mode is site data — a till may take PickMe, or whatever comes
+  // after it. Only cash and card have an icon of their own; the rest are apps.
+  function modeIcon(m){ return m==='Cash'?'banknote':(m==='Credit Card'?'credit-card':'smartphone'); }
   async function loadAll(){ await loadDashboard(); await loadApprovals(); loadActivityFlags(); }
   async function loadDashboard(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_dashboard',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
@@ -663,7 +666,7 @@ function lfPoll(fn, ms){
       // payment mix
       const palette={Cash:['banknote','var(--color-success)','var(--color-success-subtle)'],'Credit Card':['credit-card','var(--color-info)','var(--color-info-subtle)']};
       const paySum=(m.payments||[]).reduce((a,p)=>a+p.amount,0)||1;
-      document.getElementById('payMix').innerHTML=(m.payments||[]).map(p=>{ const k=palette[p.mode]||['smartphone','var(--color-primary)','var(--orange-50)']; const pct=Math.round(p.amount/paySum*100);
+      document.getElementById('payMix').innerHTML=(m.payments||[]).map(p=>{ const k=palette[p.mode]||[modeIcon(p.mode),'var(--color-primary)','var(--orange-50)']; const pct=Math.round(p.amount/paySum*100);
         return `<div><div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;"><span style="width:30px;height:30px;border-radius:9px;background:${k[2]};color:${k[1]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${k[0]}" style="width:16px;height:16px;"></i></span><span style="font-size:14px;font-weight:700;color:var(--text-strong);flex:1;">${p.mode}</span><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(p.amount)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:38px;text-align:right;">${pct}%</span></div><div style="height:8px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:${k[1]};border-radius:var(--radius-pill);"></div></div></div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;">No payments yet.</div>';
       // hourly (fixed y-axis + gridlines)
       const hmax=Math.max(1,...(m.hourly||[]).map(h=>h.amount));
@@ -1316,7 +1319,7 @@ function lfPoll(fn, ms){
       if(m.discount) totals+=`<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:13px;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(m.discount)}</span></div>`;
       (m.taxes||[]).forEach(t=>{ totals+=`<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:13px;color:var(--text-body);"><span>${esc(t.label)}</span><span class="mono">Rs ${nfmt(t.amount)}</span></div>`; });
       totals+=`<div style="display:flex;justify-content:space-between;gap:8px;padding:10px 0 2px;border-top:1px solid var(--border-subtle);margin-top:6px;font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(m.grand_total)}</span></div>`;
-      const payHtml=(m.payments||[]).map(p=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-body);padding:3px 0;"><i data-lucide="${p.mode==='Cash'?'banknote':'credit-card'}" style="width:15px;height:15px;color:var(--color-success);"></i> <span style="flex:1;">${esc(p.mode)}</span><span class="mono">Rs ${nfmt(p.amount)}</span></div>`).join('');
+      const payHtml=(m.payments||[]).map(p=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-body);padding:3px 0;"><i data-lucide="${modeIcon(p.mode)}" style="width:15px;height:15px;color:var(--color-success);"></i> <span style="flex:1;">${esc(p.mode)}</span><span class="mono">Rs ${nfmt(p.amount)}</span></div>`).join('');
       document.getElementById('saleBody').innerHTML=`
         ${chips?`<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;">${chips}</div>`:''}
         <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:2px;">Items</div>${itemsHtml}

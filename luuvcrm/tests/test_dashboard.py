@@ -120,6 +120,60 @@ class TestThePaymentMix(DashboardTestCase):
         self.assertEqual(amounts, sorted(amounts, reverse=True))
 
 
+class TestAThirdModeInTheMix(DashboardTestCase):
+    """A delivery aggregator is a payment mode like any other. Every screen that
+    breaks money down by mode reads the mode off the invoice, so it separates on
+    its own — these say so, because "it should just work" is how a mode ends up
+    silently folded into Cash."""
+
+    def setUp(self):
+        super().setUp()
+        self.pickme = fx.delivery_payment_mode(self, "PickMe")
+        self.before = api.get_manager_dashboard()   # the fixture may have traded
+
+    def test_it_gets_its_own_line_in_the_payment_mix(self):
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode=self.pickme)
+        now = api.get_manager_dashboard()
+        self.assertEqual(self.mode(now, self.pickme) - self.mode(self.before, self.pickme), 1000)
+
+    def test_it_is_not_folded_into_cash_or_card(self):
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode=self.pickme)
+        now = api.get_manager_dashboard()
+        self.assertEqual(self.mode(now, "Cash") - self.mode(self.before, "Cash"), 0)
+        self.assertEqual(self.mode(now, "Credit Card")
+                         - self.mode(self.before, "Credit Card"), 0)
+
+    def test_it_never_reaches_the_cash_drawer(self):
+        """PickMe settles to a bank days later. Counted as cash it is a till
+        that reads over by the aggregator's takings, every night."""
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode=self.pickme)
+        now = api.get_manager_dashboard()
+        self.assertEqual(now["cash"]["cash_sales"] - self.before["cash"]["cash_sales"], 0)
+
+    def test_the_mix_still_sums_to_the_day_s_revenue(self):
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode=self.pickme)
+        self.sell([{"item": self.cola, "qty": 2}], payment_mode="Cash")
+        now = api.get_manager_dashboard()
+        self.assertAlmostEqual(sum(p["amount"] for p in now["payments"]),
+                               sum(p["amount"] for p in self.before["payments"]) + 1500, 2)
+
+    def test_the_day_report_separates_it_too(self):
+        """The manager's tap-a-day drill-down builds its own breakdown."""
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode=self.pickme)
+        day = api.get_manager_day_report(frappe.utils.today())
+        amounts = {p["mode"]: p["amount"] for p in day["payments"]}
+        self.assertIn(self.pickme, amounts)
+        self.assertGreaterEqual(amounts[self.pickme], 1000)
+
+    def test_the_bill_says_which_mode_paid_it(self):
+        """Each row in the day's bill list carries its modes, so a PickMe bill
+        is recognisable without opening it."""
+        paid = self.sell([{"item": self.burger, "qty": 1}], payment_mode=self.pickme)
+        day = api.get_manager_day_report(frappe.utils.today())
+        bill = next(b for b in day["bills"] if b["name"] == paid["invoice_name"])
+        self.assertEqual(bill["modes"], [self.pickme])
+
+
 class TestTopItems(DashboardTestCase):
     """Tallied by loading every paid order in full; now one read of the lines."""
 
