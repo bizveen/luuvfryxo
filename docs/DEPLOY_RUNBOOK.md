@@ -68,7 +68,7 @@ trail (so no flag rule can ever fire); the front-end error log posts to an
 endpoint that does not exist; `/admin` and `/errors` are shut to the owner; and
 nine security findings are closed.
 
-**Three things staff will notice on day one** — tell whoever is on shift:
+**Four things staff will notice on day one** — tell whoever is on shift:
 
 - Waiter and Kitchen Staff lose their Frappe Desk login. The `/waiter` and
   `/kitchen` web apps are unaffected. If somebody genuinely used the Desk, give
@@ -79,6 +79,10 @@ nine security findings are closed.
   answer a failed payment with a fabricated success and the words "Queued for
   sync", with no queue anywhere behind it. Staff will see failures they never
   saw — those failures were always happening.
+- **The payment dialog can carry more than Cash, Card and Split.** Whatever the
+  POS Profile lists is offered alongside them — PickMe, to start with. It is a
+  §4 step, not automatic, and a cashier will see a new button the first time
+  they open the till.
 
 ---
 
@@ -108,6 +112,21 @@ bench --site <live> doctor                                # is the scheduler ali
 
 Save all four outputs. Note the **POS Profile name**, the **Restaurant name**,
 and roughly how many `POS Order` rows exist — you will want them in §5.
+
+Read the live till's payment methods too — §4 has a manual step that depends on
+what this returns:
+
+```bash
+bench --site <live> mariadb --execute \
+  "select parent, idx, mode_of_payment from \`tabPOS Payment Method\`"
+bench --site <live> mariadb --execute \
+  "select parent, company, default_account from \`tabMode of Payment Account\`"
+```
+
+Write down which modes the profile lists and which ones have an account. A
+profile carrying only `Cash` is the normal state on a site nobody ever filled
+that table in on — it is not a fault, and it is not what the till has been
+offering.
 
 ---
 
@@ -197,6 +216,53 @@ bench restart
 | `sync_custom_fields` | Applies the 32 declared custom fields |
 | `add_menu_available_field` | Adds `Restaurant Menu Item.available`, default 1 |
 
+### Payment methods — the one write this deploy does by hand
+
+Not a patch, deliberately: it writes site data, and which methods a restaurant
+takes is the restaurant's decision, not the release's.
+
+The till shows **Cash, Card and Split whatever the profile says** — those three
+are built into `pos.html` and were there long before the profile was read at
+all. Anything beyond them — **PickMe**, and whatever comes after it — appears
+only if the live POS Profile lists it.
+
+So take the §2 output and compare:
+
+- **`PickMe` missing from the profile** → the button will not be there. Add it.
+- **`Credit Card` missing from the profile** → the button still works, because
+  it is one of the built-in three. Add it anyway, so the card line has an
+  opening float row at shift open and the profile says what the till actually
+  takes.
+
+```bash
+bench --site <live> execute luuvcrm.setup_doctype.add_payment_mode
+bench --site <live> execute luuvcrm.setup_doctype.add_payment_mode \
+      --kwargs "{'mode': 'Credit Card'}"
+```
+
+Idempotent and additive — it creates the Mode of Payment if absent, books it an
+account per company, and appends the row to every POS Profile. It never edits a
+row that is already there, so running it twice is safe and running it for the
+next aggregator is the same command with a different `mode`.
+
+Three things have to line up, and each one fails somewhere different:
+
+| Missing | Where it bites |
+|---|---|
+| The `Mode of Payment` | The button posts a mode that does not exist |
+| An account for the company | The **POS Profile refuses to save**; and were the row already there, the first sale fails at submit — naming neither the mode nor the company |
+| The row on the POS Profile | No button, and the shift close carries no float row for it |
+
+**Read the account line it prints.** It prefers the company's default bank
+account, then any bank account, and only then falls back to whatever `Cash` is
+booked against — and it says which one it took. An aggregator settles days
+later and its money is never in the drawer, so a fallback to the cash account
+is a line to fix in ERPNext, not to skim past.
+
+Then **`bench --site <live> clear-cache`** and reload `/pos` in the browser. The
+list of methods is rendered into the page at load; a tablet with the till
+already open keeps showing the old buttons until it is refreshed.
+
 ---
 
 ## 5. Verify — in this order
@@ -216,7 +282,9 @@ Then in a browser, signed in as a real staff account:
 | `/pos` opens | The menu grid and the table list, both populated |
 | Open a shift | It opens and reports a float |
 | Build a bill, send to kitchen | The ticket appears on `/kitchen` |
+| Open the payment dialog | `Cash · Card · Split`, plus every extra method the live profile lists — `PickMe` among them if §4 added it |
 | Take a payment | An invoice number comes back, and the receipt prints |
+| Take one on `PickMe` | The invoice submits, and the shift close shows a `PickMe` row it filled in itself |
 | Print a KOT | The right sections on the paper |
 | `/waiter`, `/kitchen` | Load, and the menu is not empty |
 | `/manager` | Today's numbers, and the approvals list |
