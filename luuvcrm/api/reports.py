@@ -261,6 +261,30 @@ def get_manager_sales_report(days=7, start=None, end=None):
     other_charges = float(tax.other or 0)
     net_sales = total_revenue - service_charge - other_charges
 
+    # ── how it was paid: one row per mode over the window ──
+    # A different axis from revenue_breakdown above: that one says what the
+    # money *was*, this says how it *arrived*. Both sum to total revenue, which
+    # is why they are two cards and not six bars in one.
+    #
+    # A join rather than an `IN (…)` of the range's invoice names — a month of
+    # trade is thousands of names to ship into the query, and the payment rows
+    # are what is wanted anyway.
+    pay = {}
+    for r in frappe.db.sql(
+        """
+        SELECT sp.mode_of_payment AS mode, COALESCE(SUM(sp.amount), 0) AS amount
+        FROM `tabSales Invoice Payment` sp
+        INNER JOIN `tabPOS Invoice` pi ON pi.name = sp.parent AND pi.docstatus = 1
+        WHERE sp.parenttype = 'POS Invoice' AND pi.posting_date BETWEEN %s AND %s
+        """ + _pi_cond + """
+        GROUP BY sp.mode_of_payment
+        """,
+        (start, end) + _pi_params, as_dict=True):
+        # NULL and "" group separately in SQL and both read as "Other"
+        mode = r.mode or "Other"
+        pay[mode] = pay.get(mode, 0) + float(r.amount or 0)
+    payments = [{"mode": m, "amount": a} for m, a in sorted(pay.items(), key=lambda x: -x[1]) if a]
+
     return {
         "days": days,
         "start": str(start),
@@ -272,6 +296,7 @@ def get_manager_sales_report(days=7, start=None, end=None):
         "total_sales": total_sales,
         "avg_ticket": avg_ticket,
         "best_day": best_day,
+        "payments": payments,
         "revenue_breakdown": {
             "net_sales": net_sales,
             "service_charge": service_charge,

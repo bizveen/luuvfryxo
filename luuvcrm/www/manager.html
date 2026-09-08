@@ -227,6 +227,12 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <div style="font-size:12px;color:var(--text-faint);margin-bottom:14px;">Service charge shown separately · this period</div>
           <div id="repBreakdown" style="display:flex;flex-direction:column;gap:14px;"></div>
         </div>
+        <!-- payment methods: how the period's revenue was actually paid -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Payment methods</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:14px;">Cash, card and every other method the till takes · this period</div>
+          <div id="repPayMix" style="display:flex;flex-direction:column;gap:14px;"></div>
+        </div>
         <!-- food cost vs sales (approved purchases + wastage over the range) -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
           <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Sales vs costs</div>
@@ -655,6 +661,17 @@ function lfPoll(fn, ms){
   // A payment mode is site data — a till may take PickMe, or whatever comes
   // after it. Only cash and card have an icon of their own; the rest are apps.
   function modeIcon(m){ return m==='Cash'?'banknote':(m==='Credit Card'?'credit-card':'smartphone'); }
+  // The payment mix, drawn the same on the dashboard (today) and in the Reports
+  // tab (the chosen period), so a cashier's PickMe row looks the same in both.
+  const MODE_TONE={Cash:['var(--color-success)','var(--color-success-subtle)'],
+                   'Credit Card':['var(--color-info)','var(--color-info-subtle)']};
+  function payMixHtml(payments){
+    const rows=payments||[]; const sum=rows.reduce((a,p)=>a+p.amount,0)||1;
+    return rows.map(p=>{ const t=MODE_TONE[p.mode]||['var(--color-primary)','var(--orange-50)'];
+      const pct=Math.round(p.amount/sum*100);
+      return `<div><div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;"><span style="width:30px;height:30px;border-radius:9px;background:${t[1]};color:${t[0]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${modeIcon(p.mode)}" style="width:16px;height:16px;"></i></span><span style="font-size:14px;font-weight:700;color:var(--text-strong);flex:1;">${esc(p.mode)}</span><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(p.amount)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:38px;text-align:right;">${pct}%</span></div><div style="height:8px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:${t[0]};border-radius:var(--radius-pill);"></div></div></div>`;
+    }).join('');
+  }
   async function loadAll(){ await loadDashboard(); await loadApprovals(); loadActivityFlags(); }
   async function loadDashboard(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_dashboard',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
@@ -664,10 +681,7 @@ function lfPoll(fn, ms){
       document.getElementById('voids').textContent=m.void_count;
       document.getElementById('todaySub').textContent='Live · '+(m.date||'');
       // payment mix
-      const palette={Cash:['banknote','var(--color-success)','var(--color-success-subtle)'],'Credit Card':['credit-card','var(--color-info)','var(--color-info-subtle)']};
-      const paySum=(m.payments||[]).reduce((a,p)=>a+p.amount,0)||1;
-      document.getElementById('payMix').innerHTML=(m.payments||[]).map(p=>{ const k=palette[p.mode]||[modeIcon(p.mode),'var(--color-primary)','var(--orange-50)']; const pct=Math.round(p.amount/paySum*100);
-        return `<div><div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;"><span style="width:30px;height:30px;border-radius:9px;background:${k[2]};color:${k[1]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${k[0]}" style="width:16px;height:16px;"></i></span><span style="font-size:14px;font-weight:700;color:var(--text-strong);flex:1;">${p.mode}</span><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(p.amount)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);width:38px;text-align:right;">${pct}%</span></div><div style="height:8px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:${k[1]};border-radius:var(--radius-pill);"></div></div></div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;">No payments yet.</div>';
+      document.getElementById('payMix').innerHTML=payMixHtml(m.payments)||'<div style="color:var(--text-faint);font-size:13px;">No payments yet.</div>';
       // hourly (fixed y-axis + gridlines)
       const hmax=Math.max(1,...(m.hourly||[]).map(h=>h.amount));
       const hy=niceCeil(hmax), HB=chartH(80), HH=HB+5+13;
@@ -877,6 +891,7 @@ function lfPoll(fn, ms){
       document.getElementById('repAvg').textContent=nfmt(m.avg_ticket);
       document.getElementById('repBest').textContent=m.best_day&&m.best_day.revenue>0?m.best_day.label:'—';
       renderRevenueBreakdown(m.revenue_breakdown);
+      renderReportPayMix(m.payments);
       // daily bar chart + 7-day moving-average line (full labels, tap a bar to drill down)
       repDaily=m.daily||[]; if(selDay && !repDaily.some(x=>x.date===selDay)) selDay=null;
       renderDailyChart(); renderWeekdays(); loadMonthly();
@@ -906,6 +921,19 @@ function lfPoll(fn, ms){
         +bar('Overheads',m.overhead,m.overhead_pct,'var(--color-info)','Approved expenses — rent, salaries, utilities…')
         +bar('Profit',Math.abs(m.profit),Math.abs(m.profit_pct),pTone,((m.profit||0)<0?'LOSS — costs exceeded sales this period':''));
     }catch(e){}
+  }
+
+  // ── Payment methods over the range (Reports tab) ──
+  // Same bars as the dashboard's mix, with the period's total under them so the
+  // card reads against "Total revenue" above it.
+  function renderReportPayMix(payments){
+    const wrap=document.getElementById('repPayMix'); if(!wrap) return;
+    const rows=payments||[];
+    if(!rows.length){ wrap.innerHTML='<div style="color:var(--text-faint);font-size:13px;">No payments in this period.</div>'; return; }
+    const total=rows.reduce((a,p)=>a+p.amount,0);
+    wrap.innerHTML=payMixHtml(rows)+
+      `<div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:12px;margin-top:2px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);">Total taken</span><span class="mono" style="font-size:15px;font-weight:500;color:var(--text-strong);">Rs ${nfmt(total)}</span></div>`;
+    icons();
   }
 
   // ── Revenue breakdown: net sales vs service charge vs other charges (Reports tab) ──

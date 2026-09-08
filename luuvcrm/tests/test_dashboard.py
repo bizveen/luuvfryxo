@@ -165,6 +165,26 @@ class TestAThirdModeInTheMix(DashboardTestCase):
         self.assertIn(self.pickme, amounts)
         self.assertGreaterEqual(amounts[self.pickme], 1000)
 
+    def test_the_sales_report_breaks_the_period_down_by_mode(self):
+        """The Reports tab's own card. A different axis from the revenue
+        breakdown beside it — that one says what the money was, this says how
+        it arrived — which is why they are two cards and not six bars."""
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode=self.pickme)
+        self.sell([{"item": self.cola, "qty": 2}], payment_mode="Cash")
+        report = api.get_manager_sales_report(days=1)
+        amounts = {p["mode"]: p["amount"] for p in report["payments"]}
+        self.assertIn(self.pickme, amounts)
+        self.assertIn("Cash", amounts)
+        self.assertGreaterEqual(amounts[self.pickme], 1000)
+
+    def test_the_sales_report_s_modes_sum_to_its_revenue(self):
+        """Every rupee the period took arrived by some method, so the card must
+        add up to the Total revenue printed above it."""
+        self.sell([{"item": self.burger, "qty": 1}], payment_mode=self.pickme)
+        report = api.get_manager_sales_report(days=1)
+        self.assertAlmostEqual(sum(p["amount"] for p in report["payments"]),
+                               report["total_revenue"], 2)
+
     def test_the_bill_says_which_mode_paid_it(self):
         """Each row in the day's bill list carries its modes, so a PickMe bill
         is recognisable without opening it."""
