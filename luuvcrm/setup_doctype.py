@@ -589,6 +589,85 @@ def ensure_walk_in_customer():
     print(f"  + Customer {WALK_IN} (group={group}, territory={territory})")
 
 
+# ─── Extra payment methods ───────────────────────────────────────────────────
+
+def _payment_mode_account(company):
+    """An account to book a non-cash mode against, for one company.
+
+    ERPNext refuses to submit an invoice paid by a mode that has no account for
+    the invoice's company, and the failure names neither the mode nor the
+    company. Prefer a bank account — an aggregator settles later, the money is
+    never in the drawer — and fall back to whatever Cash is already booked
+    against rather than leave the mode unusable.
+    """
+    account = frappe.db.get_value("Company", company, "default_bank_account")
+    if not account:
+        account = frappe.db.get_value("Account", {"company": company, "account_type": "Bank",
+                                                  "is_group": 0}, "name")
+    if not account:
+        account = frappe.db.get_value("Mode of Payment Account",
+                                      {"parent": "Cash", "company": company}, "default_account")
+    return account
+
+
+def add_payment_mode(mode="PickMe", mode_type="Bank"):
+    """Add one payment method to every till, end to end.
+
+    The POS reads its payment buttons from the POS Profile, so a mode is added
+    here — not in pos.html — and the till shows it on the next load. Three
+    things have to line up, and missing any one of them fails at a different
+    moment: the Mode of Payment itself, an account for it per company (or the
+    invoice will not submit), and a row on each POS Profile (or the button
+    never appears and the shift close never reconciles it).
+
+    Idempotent, and never edits an existing row — run it again for the next
+    aggregator:
+
+        bench --site <site> execute luuvcrm.setup_doctype.add_payment_mode
+        bench --site <site> execute luuvcrm.setup_doctype.add_payment_mode \\
+              --kwargs "{'mode': 'Uber Eats'}"
+    """
+    if not frappe.db.exists("DocType", "Mode of Payment"):
+        print("  ! no Mode of Payment DocType — is erpnext installed?")
+        return
+    if frappe.db.exists("Mode of Payment", mode):
+        print(f"  = Mode of Payment {mode} already present")
+    else:
+        doc = frappe.get_doc({"doctype": "Mode of Payment", "mode_of_payment": mode,
+                              "type": mode_type, "enabled": 1})
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        print(f"  + Mode of Payment {mode} (type={mode_type})")
+
+    profiles = frappe.get_all("POS Profile", fields=["name", "company"])
+    if not profiles:
+        print("  ! no POS Profile to attach it to")
+        return
+
+    doc = frappe.get_doc("Mode of Payment", mode)
+    booked = {a.company for a in (doc.accounts or []) if a.default_account}
+    for company in sorted({p.company for p in profiles if p.company} - booked):
+        account = _payment_mode_account(company)
+        if not account:
+            print(f"  ! {mode}: no bank or cash account on {company} — set one by hand")
+            continue
+        doc.append("accounts", {"company": company, "default_account": account})
+        print(f"  + {mode} account on {company}: {account}")
+    doc.flags.ignore_permissions = True
+    doc.save()
+
+    for profile in profiles:
+        if frappe.db.exists("POS Payment Method", {"parent": profile.name,
+                                                   "mode_of_payment": mode}):
+            print(f"  = POS Profile {profile.name} already offers {mode}")
+            continue
+        pp = frappe.get_doc("POS Profile", profile.name)
+        pp.append("payments", {"mode_of_payment": mode, "default": 0})
+        pp.flags.ignore_permissions = True
+        pp.save()
+        print(f"  + POS Profile {profile.name} now offers {mode}")
+
+
 # ─── Drift report ────────────────────────────────────────────────────────────
 
 def report_drift():

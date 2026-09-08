@@ -158,6 +158,56 @@ class TestPaymentModes(PaymentTestCase):
         self.assertTrue(result["invoice_name"])
 
 
+class TestDeliveryAggregatorMode(PaymentTestCase):
+    """A third payment method — PickMe and its kind. Neither cash nor card, and
+    nothing in the payment path may assume there are only those two."""
+
+    def setUp(self):
+        super().setUp()
+        self.mode = fx.delivery_payment_mode(self, "PickMe")
+
+    def test_the_whole_bill_is_booked_against_it(self):
+        order = self.order([{"item": self.burger, "qty": 1}])
+        result = self.pay(order, payment_mode=self.mode)
+        invoice = frappe.get_doc("POS Invoice", result["invoice_name"])
+        self.assertEqual([(p.mode_of_payment, p.amount) for p in invoice.payments],
+                         [(self.mode, 1100)])
+
+    def test_a_split_bill_can_be_paid_by_it(self):
+        order = self.order([{"item": self.burger, "qty": 1},
+                            {"item": self.cola, "qty": 1}])
+        result = self.split(order, [{"item": self.burger, "qty": 1}],
+                            payment_mode=self.mode)
+        invoice = frappe.get_doc("POS Invoice", result["invoice_name"])
+        self.assertEqual([p.mode_of_payment for p in invoice.payments], [self.mode])
+
+    def test_no_change_is_recorded_for_it(self):
+        """Only cash has a drawer to give change from."""
+        order = self.order([{"item": self.burger, "qty": 1}])
+        result = self.pay(order, payment_mode=self.mode, tendered=2000)
+        invoice = frappe.get_doc("POS Invoice", result["invoice_name"])
+        self.assertFalse(invoice.get("custom_change_returned"))
+
+    def test_the_till_offers_it(self):
+        """The POS reads its buttons off the POS Profile — a mode that is not
+        on the profile has no button and never reconciles at close."""
+        for profile in frappe.get_all("POS Profile", pluck="name"):
+            offered = [r.mode_of_payment for r in
+                       frappe.get_doc("POS Profile", profile).payments]
+            self.assertIn(self.mode, offered)
+
+    def test_adding_it_again_changes_nothing(self):
+        from luuvcrm import setup_doctype
+
+        setup_doctype.add_payment_mode(self.mode)
+        for profile in frappe.get_all("POS Profile", pluck="name"):
+            offered = [r.mode_of_payment for r in
+                       frappe.get_doc("POS Profile", profile).payments]
+            self.assertEqual(offered.count(self.mode), 1)
+        accounts = frappe.get_doc("Mode of Payment", self.mode).accounts
+        self.assertEqual(len(accounts), len({a.company for a in accounts}))
+
+
 class TestPayingTwiceIsRefused(PaymentTestCase):
     def test_an_order_cannot_be_paid_again(self):
         order = self.order([{"item": self.burger, "qty": 1}])

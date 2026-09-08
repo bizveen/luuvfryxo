@@ -213,6 +213,36 @@ def payment_mode_account(case, mode="Credit Card"):
     return row.name
 
 
+def delivery_payment_mode(case, mode="PickMe"):
+    """A payment method that is neither cash nor card — a delivery aggregator.
+
+    Wires it through the real setup helper, so the test covers what a site
+    actually runs rather than a hand-built row, and takes the whole thing back
+    out afterwards: the Mode of Payment, its per-company accounts, and the POS
+    Profile rows the helper appended.
+    """
+    from luuvcrm import setup_doctype
+
+    if frappe.db.exists("Mode of Payment", mode):
+        case.skipTest(f"Mode of Payment {mode} already exists on this site")
+    profiles = frappe.get_all("POS Profile", pluck="name")
+    setup_doctype.add_payment_mode(mode)
+    frappe.db.commit()
+
+    def drop():
+        for profile in profiles:
+            doc = frappe.get_doc("POS Profile", profile)
+            kept = [r for r in doc.payments if r.mode_of_payment != mode]
+            if len(kept) != len(doc.payments):
+                doc.payments = kept
+                doc.save(ignore_permissions=True)
+        frappe.delete_doc("Mode of Payment", mode, force=True, ignore_permissions=True)
+        frappe.db.commit()
+
+    case.addCleanup(drop)
+    return mode
+
+
 def guide(case, tag, percent=5.0, balance=0.0):
     """A Tour Guide with a cashback percent and an opening balance.
 

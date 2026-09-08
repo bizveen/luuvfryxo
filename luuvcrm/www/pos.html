@@ -387,14 +387,11 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
 
 <!-- Payment dialog -->
 <div class="lf-dialog__overlay" id="payModal"><div class="lf-dialog">
-  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Payment</h3><p class="lf-dialog__desc">Split across cash and card as needed.</p></div>
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Payment</h3><p class="lf-dialog__desc">Pick how the bill is being paid. Cash and card can be split.</p></div>
   <div class="lf-dialog__body">
     <div class="msum"><div class="r"><span>Items</span><span id="pmItems">0</span></div><div class="r"><span id="pmCtx">Table</span><span id="pmTable">—</span></div><div class="r tot"><span>Total</span><span class="mono" id="pmTotal">0</span></div></div>
-    <div class="pmodes" id="pmodes">
-      <div class="pmode active" data-m="Cash" onclick="setPayMode('Cash')">Cash</div>
-      <div class="pmode" data-m="Credit Card" onclick="setPayMode('Credit Card')">Card</div>
-      <div class="pmode" data-m="Cash+Card" onclick="setPayMode('Cash+Card')">Split</div>
-    </div>
+    <!-- filled by renderPayModes() from the till's POS Profile -->
+    <div class="pmodes" id="pmodes"></div>
     <div class="field" id="tenderField"><label>Amount tendered</label><input type="number" id="tendered" value="0" oninput="calcChange()"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:10px 14px;background:var(--orange-50);border-radius:var(--radius-md);"><span style="font-size:15px;font-weight:700;color:var(--text-body);">Return / Change</span><span class="mono" id="changeDue" style="font-size:28px;font-weight:900;line-height:1;color:var(--color-primary);">0</span></div></div>
     <div id="ccFields" style="display:none;"><div class="field"><label>Cash</label><input type="number" id="ccCash" value="0"></div><div class="field"><label>Card</label><input type="number" id="ccCard" value="0"></div></div>
     <div id="gdWrap" style="margin-top:10px;border-top:1px dashed var(--border-default);padding-top:8px;">
@@ -461,10 +458,8 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
   <div class="lf-dialog__body">
     <div id="splitItems" style="display:flex;flex-direction:column;gap:12px;"></div>
     <div class="msum" style="margin-top:14px;"><div class="r tot"><span>This bill</span><span class="mono" id="splitTotal">0</span></div></div>
-    <div class="pmodes" id="splitModes">
-      <div class="pmode active" data-m="Cash" onclick="setSplitMode('Cash')">Cash</div>
-      <div class="pmode" data-m="Credit Card" onclick="setSplitMode('Credit Card')">Card</div>
-    </div>
+    <!-- filled by renderSplitModes() from the till's POS Profile -->
+    <div class="pmodes" id="splitModes"></div>
     <div class="merr" id="splitErr"></div>
   </div>
   <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('splitModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="splitConfirm" onclick="confirmSplit()">Charge selected</button></div>
@@ -1219,11 +1214,30 @@ function lfPoll(fn, ms){
     document.getElementById('pmItems').textContent=Object.values(cart).reduce((a,b)=>a+b,0);
     document.getElementById('pmCtx').textContent=orderType==='Take Away'?'Order':'Table';
     document.getElementById('pmTable').textContent=orderType==='Take Away'?'Take Away':(table||'—');
-    document.getElementById('pmTotal').textContent=fmt(t.gt); setPayMode('Cash'); mErr('payErr',''); gdReset(); show('payModal'); }
+    document.getElementById('pmTotal').textContent=fmt(t.gt); renderPayModes(); mErr('payErr',''); gdReset(); show('payModal'); }
   function openPayForOrder(name,total,itemsCount,table){ payCtx={ kind:'existing', orderName:name, total:total, table:table };
     document.getElementById('pmItems').textContent=itemsCount; document.getElementById('pmCtx').textContent='Table';
     document.getElementById('pmTable').textContent=table||'—'; document.getElementById('pmTotal').textContent=fmt(total);
-    setPayMode('Cash'); mErr('payErr',''); gdReset(); show('payModal'); }
+    renderPayModes(); mErr('payErr',''); gdReset(); show('payModal'); }
+  // ── payment buttons ──────────────────────────────────────
+  // The till offers what its POS Profile offers, so an aggregator (PickMe,
+  // Uber Eats) is added once in ERPNext — luuvcrm.setup_doctype.add_payment_mode —
+  // and appears here, in the split dialog, in the shift close and in the
+  // manager's payment mix without touching this page. Cash keeps its tender
+  // and change field, Cash+Card its two boxes; every other mode charges the
+  // bill in full, which is what an aggregator settlement is.
+  function payModesFor(){ const p=shiftData&&shiftData.pos_profile; return (p&&PROFILE_PAY[p])||['Cash']; }
+  function payDefaultMode(modes){ return modes.indexOf('Cash')>-1?'Cash':(modes[0]||'Cash'); }
+  function modeLabel(m){ return m==='Cash+Card'?'Split':(m==='Credit Card'?'Card':m); }
+  function renderModeButtons(id,modes,pick,active){ const el=document.getElementById(id); el.innerHTML='';
+    // built as elements, not markup: a mode name is site data and may carry a quote
+    modes.forEach(m=>{ const d=document.createElement('div'); d.className='pmode'+(m===active?' active':'');
+      d.dataset.m=m; d.textContent=modeLabel(m); d.onclick=()=>pick(m); el.appendChild(d); }); }
+  function renderPayModes(){ const modes=payModesFor().slice();
+    if(modes.indexOf('Cash')>-1&&modes.indexOf('Credit Card')>-1) modes.push('Cash+Card');
+    const def=payDefaultMode(modes); renderModeButtons('pmodes',modes,setPayMode,def); setPayMode(def); }
+  function renderSplitModes(){ const modes=payModesFor(); const def=payDefaultMode(modes);
+    renderModeButtons('splitModes',modes,setSplitMode,def); setSplitMode(def); }
   function setPayMode(m){ payMode=m; document.querySelectorAll('#pmodes .pmode').forEach(p=>p.classList.toggle('active',p.dataset.m===m));
     const tf=document.getElementById('tenderField'), cc=document.getElementById('ccFields');
     if(m==='Cash'){ tf.style.display='block'; cc.style.display='none'; document.getElementById('tendered').value=Math.round(effTotal()); calcChange(); }
@@ -1547,7 +1561,7 @@ function lfPoll(fn, ms){
     if(!splitData.length){ toast(splitFilter==='takeaway'?'No takeaway items on this order':'Nothing left to split'); return; }
     document.getElementById('splitTitle').textContent=splitFilter==='takeaway'?'Split takeaway':'Split bill';
     document.getElementById('splitDesc').textContent=splitFilter==='takeaway'?'Takeaway items billed on their own — no service charge. Dine-in keeps the service charge.':'Pick the items (and how many) for this bill. The rest stays on the order.';
-    setSplitMode('Cash'); mErr('splitErr',''); renderSplit(); show('splitModal'); }catch(e){ toast('Connection error'); } }
+    renderSplitModes(); mErr('splitErr',''); renderSplit(); show('splitModal'); }catch(e){ toast('Connection error'); } }
   function renderSplit(){ const wrap=document.getElementById('splitItems');
     wrap.innerHTML=splitData.map((l,idx)=>`<div class="spl-row"><div style="flex:1;min-width:0;"><div style="font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--text-strong);">${l.name} ${l.takeaway?'<span style="font-size:11px;font-weight:700;color:#9a6207;background:var(--color-warning-subtle);padding:1px 7px;border-radius:var(--radius-pill);">🛍️ TA</span>':''}</div><div style="font-size:12px;color:var(--text-muted);">${nfmt(l.rate)} · ${l.remaining} left</div></div>
       <div class="lf-qty lf-qty--sm"><button class="lf-qty__btn" onclick="splitStep(${idx},-1)">−</button><span class="lf-qty__val">${l.sel}</span><button class="lf-qty__btn" onclick="splitStep(${idx},1)">+</button></div></div>`).join('');
