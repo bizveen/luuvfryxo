@@ -972,7 +972,7 @@ function lfPoll(fn, ms){
   function setItemGroup(g){ itemGroup=g;
     document.querySelectorAll('#itemGroupTabs .rangeBtn').forEach(b=>b.classList.toggle('active',b.dataset.group===g));
     renderItemPerformance(); }
-  const ITEM_CAP=25;   // the card shows this many; the sheet shows them all
+  const ITEM_CAP=10;   // the card shows a top ten; the sheet shows them all
   // The rows the current tab and filter ask for, longest form. The card slices
   // it, the sheet does not — so the two can never disagree about the order.
   function itemRowsFor(){
