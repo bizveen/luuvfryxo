@@ -313,6 +313,29 @@ class TestWhatThePurchaseReportNowSays(FrappeTestCase):
         self.bill("V", 100, status="pending")
         self.assertEqual(self.report()["total_spend"], before)
 
+    # ── the item card's three readings ──
+    def test_an_item_carries_its_unit_and_how_many_bills_it_was_on(self):
+        """Quantity alone cannot be ranked across units — 500 eggs against
+        50 Kg of beef — so the unit and the bill count travel with it."""
+        self.bill("V", 100, qty=10)
+        self.bill("V", 100, qty=5)
+        row = self.row(self.report()["items"])
+        self.assertEqual(row["uom"], "Kg")
+        self.assertEqual(row["qty"], 15)
+        self.assertEqual(row["bills"], 2)
+
+    def test_two_units_of_one_item_are_two_rows(self):
+        """Summing 10 Kg with 10 Nos into one quantity is a number that means
+        nothing."""
+        self.bill("V", 100, qty=10)
+        b = self.bill("V", 100, qty=10)
+        frappe.db.set_value("Purchase Bill Item", b.items[0].name, "uom", "Nos")
+        frappe.db.commit()
+        rows = [r for r in self.report()["items"] if r["name"] == "Cmp Rice"]
+        self.assertEqual(sorted(r["uom"] for r in rows), ["Kg", "Nos"])
+        for r in rows:
+            self.assertEqual(r["qty"], 10)
+
     # ── spend against sales ──
     def test_spend_is_shown_against_the_period_s_revenue(self):
         report = self.report()

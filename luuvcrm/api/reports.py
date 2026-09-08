@@ -702,8 +702,9 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     # ── top items bought ──
     irows = frappe.db.sql(
         """
-        SELECT COALESCE(pbi.item_name, pbi.item) AS name,
+        SELECT COALESCE(pbi.item_name, pbi.item) AS name, pbi.uom AS uom,
                SUM(pbi.qty) AS qty,
+               COUNT(DISTINCT pb.name) AS bills,
                COALESCE(SUM(pbi.qty * pbi.price * (
                    CASE WHEN sub.subtotal > 0 THEN pb.total / sub.subtotal ELSE 1 END
                )), 0) AS spend
@@ -716,11 +717,16 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         WHERE pb.status = 'approved'
           AND pb.requested_at >= %s AND pb.requested_at < %s
         """ + _pb_cond + """
-        GROUP BY name
+        GROUP BY name, pbi.uom
         ORDER BY spend DESC
         """,
         (range_start, range_end) + _pb_params, as_dict=True)
-    items = [{"name": r.name, "qty": float(r.qty or 0), "spend": float(r.spend or 0)}
+    # Grouped by unit as well as name: summing 50 Kg of beef with 50 Nos of eggs
+    # into one quantity would be a number that means nothing. `bills` — how many
+    # bills the item appeared on — is the one measure of "how much we use this"
+    # that survives the units being different.
+    items = [{"name": r.name, "uom": r.uom or "", "qty": float(r.qty or 0),
+              "bills": int(r.bills or 0), "spend": float(r.spend or 0)}
              for r in irows if r.name]
 
     # ── the same item, priced by different vendors ────────────────────────
