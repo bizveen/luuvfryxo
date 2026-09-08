@@ -209,12 +209,63 @@ bench restart
 |---|---|
 | `create_roles` | Creates any missing app role; re-enables a disabled one |
 | `grant_pos_permissions` | The DocPerms a till needs on ERPNext's own doctypes |
-| `add_branch_field` | Adds the `restaurant` column to 7 doctypes. **Adds only — every existing row stays NULL** |
+| `add_branch_field` | Adds the `restaurant` column to 7 doctypes (named below). **Adds only — every existing row stays NULL** |
 | `grant_app_permissions` | The app's DocPerm table, and the revokes that close the REST-API walkaround |
 | `sync_settings_fields` | Puts the settings keys on the Settings single |
 | `narrow_desk_access` | Takes Desk access off Waiter and Kitchen Staff |
 | `sync_custom_fields` | Applies the 32 declared custom fields |
 | `add_menu_available_field` | Adds `Restaurant Menu Item.available`, default 1 |
+
+### Which rows carry a restaurant, and what fills it in
+
+`add_branch_field` puts a `restaurant` Link on seven doctypes — the ones that
+represent a branch's own trade:
+
+| DocType | What it is |
+|---|---|
+| `POS Order` | A ticket, from the till or a waiter |
+| `Purchase Bill` | What a branch bought |
+| `Expense` | Rent, salaries, utilities |
+| `Wastage` | What was thrown away |
+| `POS Approval` | A void, a discount, a bill sent up for a decision |
+| `POS Cash Movement` | Money in or out of the drawer |
+| `LF Activity Log` | The staff trail |
+
+**A row created after this deploy fills itself in.** `branch.stamp` is a
+`before_insert` hook on all seven: it writes `branch.current()` — the restaurant
+the session belongs to — whenever the caller has not set one. The field is
+`read_only`, so nobody types it and nobody can type the wrong one; it is set
+once, at insert, from who was signed in.
+
+That resolution is a chain, not a guess (`branch.current()`), each step a
+stronger statement than the next:
+
+1. A **User Permission on `Restaurant`** — Frappe's own answer to which branch
+   a user belongs to, and the one that will drive the filtering when the reads
+   flip to `get_list`.
+2. The **open shift's POS Profile**. A cashier on a till is unambiguously at
+   that till's branch.
+3. A **POS Profile assigned to the user** — the same hop, for a manager who is
+   not on a shift.
+4. **The only Restaurant, if there is exactly one.** This is the step that
+   carries a single-branch site: nothing has to be configured for the stamp to
+   be right.
+
+There is deliberately no "first of several" step. Where it cannot tell, it
+returns **`None` rather than picking**, and the row is written unstamped — which
+is why §2's `branch.check` matters before a second restaurant exists.
+
+**Rows that already exist stay NULL.** Nothing on a one-restaurant site narrows
+a read by branch — `sql_restaurant()` returns no condition at all unless the
+session is scoped — so those rows stay visible exactly as they are today.
+Filling them in is the backfill in §7, which is its own day and its own backup.
+Do not run it here, and read §7 before turning on `apply_strict_user_permissions`:
+that is the switch that makes an un-backfilled row disappear.
+
+So after the deploy there is nothing to set by hand. The check is that the
+stamping works, which §5 does with one real order.
+
+---
 
 ### Payment methods — the one write this deploy does by hand
 
@@ -284,6 +335,7 @@ Then in a browser, signed in as a real staff account:
 | Build a bill, send to kitchen | The ticket appears on `/kitchen` |
 | Open the payment dialog | `Cash · Card · Split`, plus every extra method the live profile lists — `PickMe` among them if §4 added it |
 | Take a payment | An invoice number comes back, and the receipt prints |
+| The new order carries its branch | `bench --site <live> mariadb --execute "select name, restaurant from \`tabPOS Order\` order by creation desc limit 1"` — the restaurant is filled in, not NULL. If it is NULL, `branch.current()` resolved nothing: go back to §2's `branch.check` |
 | Take one on `PickMe` | The invoice submits, and the shift close shows a `PickMe` row it filled in itself |
 | Print a KOT | The right sections on the paper |
 | `/waiter`, `/kitchen` | Load, and the menu is not empty |
@@ -347,8 +399,9 @@ and its own backup. **None of them belongs in this deploy.**
    filled, historical revenue belongs to no branch — the report helpers degrade
    to unscoped, so nothing breaks.
 2. **`branch.backfill()`** — stamps the restaurant onto every historical row
-   across seven doctypes. Only meaningful after (1), and only ever with a fresh
-   backup.
+   across the seven doctypes named in §4. New rows have been filling themselves
+   in since the deploy; this is only about the ones that predate it. Only
+   meaningful after (1), and only ever with a fresh backup.
 3. **`apply_strict_user_permissions`** — leave it **off**. Turning it on flips
    the `ifnull` branch that keeps NULL rows visible, and every un-backfilled row
    vanishes for every non-Owner at once.
