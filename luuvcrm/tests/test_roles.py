@@ -268,6 +268,47 @@ class TestTheDocPermsTheScreensNeed(FrappeTestCase):
     is a blank screen rather than an error.
     """
 
+    def test_granting_survives_rows_frappe_itself_would_refuse(self):
+        """The live site's Restaurant has standard DocPerm rows with `import: 1`
+        on a DocType that is not importable, and System Manager twice at level
+        0. Frappe never validates standard rows — and refuses every custom
+        write once one exists, which is how the deploy rehearsal died in
+        `grant_app_permissions`. Rebuild that state and grant through it."""
+        doctype = "Restaurant"
+        if not frappe.db.exists("DocType", doctype):
+            self.skipTest("hospitality is not installed")
+        allow_import_before = frappe.db.get_value("DocType", doctype, "allow_import")
+        custom_before = frappe.get_all("Custom DocPerm", filters={"parent": doctype}, fields=["*"])
+        try:
+            frappe.db.set_value("DocType", doctype, "allow_import", 0, update_modified=False)
+            frappe.db.delete("Custom DocPerm", {"parent": doctype})
+            for flags in ({"read": 1, "import": 1}, {"read": 1, "write": 1}):
+                frappe.get_doc({"doctype": "Custom DocPerm", "parent": doctype,
+                                "parenttype": "DocType", "parentfield": "permissions",
+                                "role": "System Manager", "permlevel": 0, **flags}
+                               ).insert(ignore_permissions=True)
+            frappe.clear_cache(doctype=doctype)
+
+            fixed = roles._custom_perms_valid(doctype)
+            self.assertTrue(any("merged" in f for f in fixed), fixed)
+            self.assertTrue(any("import off" in f for f in fixed), fixed)
+            rows = frappe.get_all("Custom DocPerm", filters={"parent": doctype, "role": "System Manager"},
+                                  fields=["read", "write", "import"])
+            self.assertEqual(len(rows), 1, "one row per role and level")
+            self.assertEqual((rows[0].read, rows[0].write, rows[0]["import"]), (1, 1, 0),
+                             "the merged row carries the OR of the flags, import off")
+
+            roles.ensure_app_docperms()          # the call that used to raise
+            self.assertTrue(_role_may(roles.CASHIER, doctype, "read"))
+        finally:
+            frappe.db.delete("Custom DocPerm", {"parent": doctype})
+            for row in custom_before:
+                row.pop("name", None)
+                frappe.get_doc({**row, "doctype": "Custom DocPerm"}).insert(ignore_permissions=True)
+            frappe.db.set_value("DocType", doctype, "allow_import", allow_import_before,
+                                update_modified=False)
+            frappe.clear_cache(doctype=doctype)
+
     def test_the_site_has_everything_the_table_asks_for(self):
         self.assertEqual(roles.missing_docperms(), {},
                          "run luuvcrm.patches.v1_0.grant_app_permissions")

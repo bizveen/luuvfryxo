@@ -233,6 +233,7 @@ rehearse() {
   upload "$STATE/luuvcrm-$SHA.tar.gz" "$RDIR/"
   upload "$REPO/deploy/REMOVE.list" "$RDIR/"
   local rlog="$STATE/rehearse-$SHA-$TS.log"
+  set +e
   remote <<EOF | tee "$rlog"
 $OVERLAY_FN
 set -e
@@ -240,6 +241,8 @@ STAMP=$STAMP
 docker rm -f lf-rehearse >/dev/null 2>&1 || true
 docker rmi lf-rehearse-img >/dev/null 2>&1 || true
 cleanup() {
+  # the throwaway site too: a failed run must not leave a site dir + database behind
+  docker exec -w "\$BENCH" lf-rehearse bench drop-site "\$REHEARSE_SITE" --db-root-password "\$DB_ROOT_PASSWORD" --force --no-backup >/dev/null 2>&1 || true
   docker rm -f lf-rehearse >/dev/null 2>&1 || true
   docker rmi lf-rehearse-img >/dev/null 2>&1 || true
 }
@@ -291,8 +294,13 @@ echo "-- clean up"
 \$B bench drop-site "\$REHEARSE_SITE" --db-root-password "\$DB_ROOT_PASSWORD" --force --no-backup
 echo "REHEARSAL PASS \$SHA"
 EOF
-  download "$RDIR/rehearse-migrate.log" "$STATE/rehearse-migrate-$SHA-$TS.log" || true
-  grep -q "REHEARSAL PASS $SHA" "$rlog" || die "rehearsal did not pass — see $rlog"
+  set -e
+  download "$RDIR/rehearse-migrate.log" "$STATE/rehearse-migrate-$SHA-$TS.log" 2>/dev/null || true
+  download "$RDIR/rehearse-tests.log" "$STATE/rehearse-tests-$SHA-$TS.log" 2>/dev/null || true
+  if ! grep -q "REHEARSAL PASS $SHA" "$rlog"; then
+    echo "--- last lines of the migrate log ---"; tr '\r' '\n' < "$STATE/rehearse-migrate-$SHA-$TS.log" 2>/dev/null | grep -v "^Updating DocTypes" | tail -25
+    die "rehearsal did not pass — $rlog, $STATE/rehearse-migrate-$SHA-$TS.log"
+  fi
   printf 'SHA=%s\nTS=%s\n' "$SHA" "$TS" > "$STATE/last-rehearsal"
   echo "rehearsal ok — $rlog"
 }
@@ -316,6 +324,7 @@ deploy() {
   upload "$STATE/luuvcrm-$SHA.tar.gz" "$RDIR/"
   upload "$REPO/deploy/REMOVE.list" "$RDIR/"
   local dlog="$STATE/deploy-$SHA-$TS.log"
+  set +e
   remote <<EOF | tee "$dlog"
 $OVERLAY_FN
 set -e
@@ -368,7 +377,8 @@ echo "-- 9. restart the workers"
 for w in \$WORKERS; do docker restart "\$w" >/dev/null && echo "   \$w"; done
 echo "DEPLOY DONE \$SHA"
 EOF
-  download "$RDIR/migrate.log" "$STATE/migrate-$SHA-$TS.log" || true
+  set -e
+  download "$RDIR/migrate.log" "$STATE/migrate-$SHA-$TS.log" 2>/dev/null || true
   grep -q "DEPLOY DONE $SHA" "$dlog" || die "deploy did not finish — read $dlog; the pre-deploy snapshot is $RDIR/luuvcrm-pre-deploy.tgz on the host"
   printf 'SHA=%s\nTS=%s\nRDIR=%s\nSNAPSHOT=%s/luuvcrm-pre-deploy.tgz\n' "$SHA" "$TS" "$RDIR" "$RDIR" > "$STATE/last-deploy"
   smoke
