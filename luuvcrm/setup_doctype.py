@@ -89,7 +89,10 @@ EXPECTED_DOCTYPES = (
     "Item Review",
     "POS Item Addon",
     "Kitchen Group",
-    "WhatsApp Account",
+    # Not "WhatsApp Account": that DocType belongs to the frappe_whatsapp app
+    # (13 fields, module "Frappe Whatsapp"). This app shipped a 5-field one of
+    # the same name for a while, which would have overwritten it on the first
+    # migrate. api/wa.py reads it when present and creates nothing.
     "Customer Account",
     "Customer Token",
     "Loyalty Customer",
@@ -299,6 +302,7 @@ def execute():
 
     _step("settings single", ensure_settings_single)
     _step("settings singles", ensure_singles)
+    _step("home page", ensure_home_page)
     _step("kitchen groups", seed_kitchen_groups)
     _step("expense categories", seed_expense_categories)
     _step("Walk In customer", ensure_walk_in_customer)
@@ -514,6 +518,23 @@ def ensure_settings_single():
         doc.save(ignore_permissions=True)
         settings.forget()
         print(f"  = {settings.SETTINGS_DOCTYPE} seeded with defaults")
+
+
+def ensure_home_page():
+    """Point `/` at the restaurant's landing page — on a site that has not
+    chosen one, and on one still pointing at `app2`, a page deleted in the
+    September cleanup.
+
+    Website Settings, not a `home_page` hook: hooks are bench-wide and this app
+    is installed on a site that is not a restaurant, whose front door is its
+    own. A site that has set its home page to anything else is left alone.
+    """
+    current = frappe.db.get_single_value("Website Settings", "home_page")
+    if current and current != "app2":
+        return
+    frappe.db.set_single_value("Website Settings", "home_page", "home")
+    frappe.clear_cache()
+    print("  = Website Settings.home_page = home")
 
 
 def ensure_singles():

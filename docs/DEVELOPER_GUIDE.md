@@ -71,7 +71,7 @@ the table map. `test_pages.py` asserts the staff gates.
 | `/cus` | Customers | guest page, phone + PIN token |
 | `/customer`, `/myorders`, `/my_orders` | — | 301 → `/cus`, kept for links already sent |
 | `/kiosk`, `/menu`, `/track`, `/claim` | Customers, walk-up | public by design |
-| `/order`, `/home`, `/` | Customers, walk-up | public by design. **The templates are `order-online.html` and `restaurant-home.html`**: erpnext ships pages called `order` and `home`, and Frappe resolves by `reversed(get_installed_apps())`, so the later app wins the name — `/order` was a 500 and `/home` served erpnext's page. `website_route_rules` in `hooks.py` keeps the public URLs. `/` comes from the `home_page` hook, which beats Website Settings. **Adding a page: check the name is not one erpnext, hospitality or hrms already uses** — `test_pages.TestNoPageIsShadowedByAnotherApp` is the standing check. |
+| `/order`, `/home`, `/` | Customers, walk-up | public by design. erpnext ships pages called `order` and `home` too, and Frappe resolves by `reversed(get_installed_apps())`, so the later app wins the name — `required_apps` makes bench install erpnext *before* this app, which is why ours answer. No `website_route_rules`, no `home_page` hook: hooks are bench-wide and this app shares a bench with a site that is not a restaurant. `/` is Website Settings → `home`, set on a fresh site by `setup_doctype.ensure_home_page()`. |
 | `/pos-login` | Staff sign-in | public by design |
 | `/app` | Frappe Desk | Frappe's own. `before_request` sends only `?promo=` / `?ref=` / `?phone=` deep links to `/cus` |
 

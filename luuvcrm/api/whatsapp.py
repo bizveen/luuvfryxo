@@ -29,10 +29,7 @@ def send_order_whatsapp(order_name):
     """Send order details to the restaurant's WhatsApp business number."""
     order = frappe.get_doc("POS Order", order_name)
 
-    if not frappe.db.exists("WhatsApp Account", {}):
-        return
-
-    wa_account = frappe.db.get_value("WhatsApp Account", {}, "name")
+    wa_account = wa.wa_account()
     if not wa_account:
         return
 
@@ -91,9 +88,7 @@ def send_customer_whatsapp(order_name, mobile, dial="94"):
     """Send tracking link to customer via WhatsApp. `dial` = the customer's country dial code
     (default Sri Lanka 94); the number is normalised to international E.164 for the Cloud API."""
     to = _intl_number(mobile, dial)
-    if not to or not frappe.db.exists("WhatsApp Account", {}):
-        return
-    wa_account = frappe.db.get_value("WhatsApp Account", {}, "name")
+    wa_account = wa.wa_account() if to else None
     if not wa_account:
         return
 

@@ -5,6 +5,7 @@
   "//   ": "which is why it is also the right one for these. Never in git.",
 
   "luuvcrm_public_url": "https://your-restaurant.example.com",
+  "_about_luuvcrm_passive": "set luuvcrm_passive to 1 on a site that has the app installed but is not a restaurant (a shared bench): the request hooks and the patches stay out of it",
 
   "// print templates": "Google Doc ids for the printed layouts. The docs are shared 'anyone with the link', so an id is a capability — treat it like a key.",
   "luuvcrm_print_template_docs": {

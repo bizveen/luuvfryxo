@@ -82,6 +82,18 @@ KEYS = [
     # ── the deployment's, set in site_config.json ────────────────────────────
     Key("public_url", OPERATOR, "https://luuvgrand.com",
         "Root of the links that go out in WhatsApp. No trailing slash."),
+    # ── the switch that makes a shared bench safe ────────────────────────────
+    # This app can be installed on a site that is not a restaurant — on the
+    # live bench it is, because that site's own DocTypes live in a module this
+    # app owns. Hooks are bench-wide, so everything that runs on every request
+    # (branding, the /app redirect) and every patch asks this first, and stays
+    # out of a site that only carries the app. Set it on that site:
+    #     bench --site <site> set-config luuvcrm_passive 1
+    # A restaurant never sets it; a fresh install is active by default.
+    Key("passive", OPERATOR, False,
+        "1 on a site that has the app installed but is not a restaurant. "
+        "Turns off the request hooks and the patches there."),
+
     Key("print_template_docs", OPERATOR, {}, secret=True,
         about="Google Doc ids for the guest check / KOT / receipt / Z-report "
               "layouts, as {kind: id}. The docs are shared 'anyone with the "
@@ -128,6 +140,19 @@ def _from_settings(name):
     if name not in cached:
         cached[name] = frappe.db.get_single_value(SETTINGS_DOCTYPE, name)
     return cached[name]
+
+
+def passive():
+    """True on a site that carries the app without being a restaurant.
+
+    Read from site_config only — never from the database — because it is asked
+    on every request of every site on the bench, and because the sites it is
+    for do not have this app's tables. Never raises, like `get()`.
+    """
+    try:
+        return bool(get("passive"))
+    except Exception:
+        return False
 
 
 def forget():

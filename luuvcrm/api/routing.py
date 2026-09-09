@@ -6,6 +6,8 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 
+from luuvcrm import settings
+
 
 # ─── /app routing: Frappe Desk vs customer PWA ───────────────────────────────
 # The customer PWA used to live at /app, which shadowed Frappe Desk (Desk is
@@ -25,6 +27,8 @@ def route_app_requests():
     request = getattr(frappe.local, "request", None)
     if request is None or request.path.rstrip("/") != "/app":
         return
+    if settings.passive():
+        return  # not a restaurant: /app is whatever that site says it is
     deep_link = request.args.get("promo") or request.args.get("ref") or request.args.get("phone")
     if not deep_link:
         return  # bare /app → Frappe default (login screen / Desk)

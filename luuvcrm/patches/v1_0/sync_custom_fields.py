@@ -22,8 +22,11 @@ own. One line, and it is written down.
 import frappe
 
 from luuvcrm.setup_doctype import add_custom_fields
+from luuvcrm import settings
 
 
 def execute():
+    if settings.passive():
+        return  # a site that only carries the app; see settings.KEYS "passive"
     add_custom_fields()
     frappe.clear_cache()

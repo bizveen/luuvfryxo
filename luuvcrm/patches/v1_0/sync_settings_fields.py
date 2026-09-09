@@ -14,7 +14,10 @@ a patch of its own** — that is the cost of the rule, and it is a line of code.
 """
 
 from luuvcrm.setup_doctype import ensure_settings_single
+from luuvcrm import settings
 
 
 def execute():
+    if settings.passive():
+        return  # a site that only carries the app; see settings.KEYS "passive"
     ensure_settings_single()

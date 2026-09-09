@@ -9,9 +9,12 @@ and into migrations (docs/ROADMAP.md Phase 3).
 import frappe
 
 from luuvcrm.roles import ensure_roles
+from luuvcrm import settings
 
 
 def execute():
+    if settings.passive():
+        return  # a site that only carries the app; see settings.KEYS "passive"
     result = ensure_roles()
     if result["created"]:
         frappe.logger().info(f"luuvcrm: created roles {result['created']}")

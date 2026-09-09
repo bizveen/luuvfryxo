@@ -134,6 +134,26 @@ class TestNoPageNamesOneClient(BrandTestCase):
         self.assertEqual(ctx.brand_name, "Test Kitchen")
         self.assertEqual(ctx.app_name, "Test Kitchen")
 
+    def test_a_passive_site_keeps_its_own_name(self):
+        """This app is installed on a second site that is not a restaurant —
+        its DocTypes live in a module this app owns. `update_website_context`
+        and `boot_session` are bench-wide hooks, so without the switch that
+        site's login page said "Luuv Fryxo". With `luuvcrm_passive` in its
+        site_config, neither hook touches it."""
+        from unittest.mock import patch
+
+        self.set_brand(brand_name="Test Kitchen")
+        with patch.dict(frappe.conf, {"luuvcrm_passive": 1}):
+            self.assertTrue(settings.passive())
+            ctx = frappe._dict(app_name="Zeloura")
+            branding.update_website_context(ctx)
+            self.assertEqual(ctx.app_name, "Zeloura")
+            self.assertNotIn("brand_name", ctx)
+            boot = frappe._dict(app_name="Zeloura", system_settings=frappe._dict(app_name="Zeloura"))
+            branding.boot_session(boot)
+            self.assertEqual(boot.app_name, "Zeloura")
+        self.assertFalse(settings.passive())
+
     def test_the_context_hook_is_wired(self):
         """`update_website_context` is what puts `brand_name` in every page's
         context. The function existed and was never hooked — so every page that

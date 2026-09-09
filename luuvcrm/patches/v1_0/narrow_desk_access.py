@@ -15,9 +15,12 @@ does not hand desk access back to a Cashier or Manager somebody took it from.
 import frappe
 
 from luuvcrm.roles import ensure_roles
+from luuvcrm import settings
 
 
 def execute():
+    if settings.passive():
+        return  # a site that only carries the app; see settings.KEYS "passive"
     result = ensure_roles()
     if result["narrowed"]:
         frappe.logger().info(

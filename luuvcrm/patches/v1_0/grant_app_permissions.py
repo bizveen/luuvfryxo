@@ -14,9 +14,12 @@ then flip the reads. Not the other way round.
 import frappe
 
 from luuvcrm import roles
+from luuvcrm import settings
 
 
 def execute():
+    if settings.passive():
+        return  # a site that only carries the app; see settings.KEYS "passive"
     granted = roles.ensure_app_docperms()
     if granted:
         frappe.logger().info(f"luuvcrm: granted app docperms {sorted(granted)}")

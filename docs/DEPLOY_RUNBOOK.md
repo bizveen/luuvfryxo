@@ -26,6 +26,8 @@ Break any of these and stop; ask a human.
 
 | Never | Why |
 |---|---|
+| **Forget that `luuvcrm` is installed on a second site** | The bench has ~15 sites on one backend, and this app is installed on `clothing` (the Zeloura shop) as well as on `fryxo`. Its DocTypes live in module **Zeloura**, which this app owns, and its theme pages call `luuvcrm.zeloura_api.get_csrf`. Hooks are bench-wide. Before the deploy, that site gets `luuvcrm_passive: 1` in its site_config (the script does it), and `live-only/zeloura/` goes back over the package after every overlay. Never `bench migrate` the clothing site with this app's JSON in place unless you mean to create 24 restaurant DocTypes there. |
+| **Deploy by replacing the app directory** | The live directory is not a git checkout (1 commit, 54 dirty entries), not a volume (it lives in the backend container's writable layer — as does a separate copy in each worker), and not only ours (the clothing code, `.bak` files, scratch scripts, two APKs). The deploy is an overlay + the paths in `deploy/REMOVE.list`, and nothing else moves. See §4. |
 | **Touch anything in §4 before the §3 backup exists and is off the box** | Everything after §4 is irreversible in practice. A backup taken afterwards is a backup of the damage. This is the first write of the deploy and it is not optional, not even for "a small migrate". |
 | Deploy without running §2 (drift report) and §3 (rehearsal) | The DocType sync is the irreversible step. §2 turns an assumption into a fact; §3 is the only thing that catches `remove_orphan_doctypes` deleting a DocType. |
 | Run `branch.backfill()` | It writes a `restaurant` value onto every historical row across seven doctypes. It is a data migration, not a deploy. See §7. |
@@ -61,7 +63,13 @@ Facts, so you can recognise a wrong turn.
 | Custom fields | created by `setup_*` endpoints | 32 declared, applied by a patch |
 | Tests | 6 files | 28 files, 793 test methods |
 
-**Ten things that are broken on live today and start working:** `/order` is a
+**Checked on the live site on 2026-09-08/09, read-only:** `/`, `/home` and `/order` all answer 200 there
+(luuvcrm was installed after erpnext on both sites, so its pages already win), Website Settings already
+points `/` at `home`, the live `api.py` has every endpoint this branch has, and there are no hand edits on the
+host that the repo lacks — except the clothing site's code, which is now `live-only/`. The list below is what
+the *code* fixes; the first three items were true of the dev bench, not of the restaurant.
+
+**Things that are broken and start working:** `/order` is a
 500 for customers; `/home` serves ERPNext's page instead of the restaurant's;
 `/` is a 404; `/activity` is a 500; the manager's "Add item" button fails; the
 service worker caches nothing; the money endpoints write nothing to the staff
@@ -167,28 +175,37 @@ back. Restoring to yesterday means the restaurant re-rings yesterday's trade.
 ### 3b. Rehearse the migrate somewhere else
 
 This also proves the backup restores — which is the only proof that matters,
-and the reason it comes before the rehearsal rather than beside it:
+and the reason it comes before the rehearsal rather than beside it.
+
+On this host the "somewhere else" is a **throwaway container from the same
+image**, sharing the sites volume and the database server but holding its own
+copy of the app directory — so the live backend keeps running the old code
+while the new code migrates a restored copy of the site. The script does all
+of it and removes both the container and the site afterwards:
 
 ```bash
-bench new-site rehearse.localhost --db-name rehearse --admin-password <pw>
-bench --site rehearse.localhost restore <the backup you just made>
-cd apps/luuvcrm && git checkout product && cd -
-bench --site rehearse.localhost migrate > /tmp/rehearse.log 2>&1; echo "exit=$?"
-grep -nEi "^Error|Traceback|orphan|deleted" /tmp/rehearse.log
-bench --site rehearse.localhost execute luuvcrm.setup_doctype.report_drift
+export DB_ROOT_PASSWORD=<mariadb root>          # new-site / restore / drop-site need it
+deploy/vps-deploy.sh rehearse                    # add RUN_TESTS=1 to run the 793 tests on the throwaway site
 ```
 
-**Pass condition:** migrate exits 0, the log names no deleted DocType, and the
-drift report is empty. If any of those fails, **stop** — the same thing will
-happen to the live site.
+What it does, so you can recognise a wrong turn: `docker run` the backend's
+image with the three `frappe_docker_*` volumes → overlay the tarball into
+*that* container → `bench new-site rehearse.localhost` → `restore` the §3a
+dump → `migrate` to a log → `report_drift`, `branch.check`,
+`settings.describe`, the menu → `bench serve` on port 8001 inside the
+container and fetch `/`, `/home`, `/order`, `/menu`, `/pos-login` with a
+`Host:` header → `drop-site` → `docker rm`. It ends with `REHEARSAL PASS
+<sha>` or it fails, and `deploy` refuses to run without that line for the
+same commit.
+
+**Pass condition:** migrate exits 0, the log names no deleted DocType, the
+drift report is empty, every public page renders. If any of those fails,
+**stop** — the same thing will happen to the live site.
 
 Also back up the encryption key **separately from the database**. It is not in
 the dump, and without it a restored site cannot read a single WhatsApp token or
-verify a `/track` link:
-
-```bash
-grep encryption_key sites/<live>/site_config.json
-```
+verify a `/track` link. `bench backup` writes it into
+`*-site_config_backup.json`, which `backup` copies to the PC and checks for.
 
 ---
 
@@ -198,38 +215,39 @@ grep encryption_key sites/<live>/site_config.json
 out loud which backup file you are covered by and where the copy off the box
 is; if you cannot name both, go back to §3a.
 
-The live host is a non-bare checkout reached over an SMB share. Mount it first —
-if the share is not mounted, git reports "does not appear to be a git
-repository", which is a mount problem, not an auth problem.
+There is no `git push` to the host. The app directory there is not a
+checkout, not a volume, and not only ours — so the deploy is an **overlay**:
 
 ```bash
-gio mount -a "smb://192.168.1.8/users"
+deploy/vps-deploy.sh preflight      # read-only. Lists CHANGED / NEW / REMOVE / KEPT for every live file; builds the tarball
+deploy/vps-deploy.sh backup         # §3a, copied to deploy-state/backups/<ts>/ on the PC
+deploy/vps-deploy.sh rehearse       # §3b
+deploy/vps-deploy.sh deploy         # below. Refuses without a backup < 12 h old and a passed rehearsal for this commit
 ```
 
-The host's working tree routinely carries whitespace-only diffs (last-line
-CRLF/LF) in `www/{kiosk,my_orders,myorders,qrcodes,track}.html` and
-`www/qrcodes.py`. A dirty tree rejects the push, so stash them **on the host**
-first. Then, on the development machine:
+`deploy` does, in order, with the restaurant closed or quiet:
 
-```bash
-git checkout main
-git merge product              # expect a clean merge; a conflict means STOP
-git push host main
-```
+| Step | What | Why |
+|---|---|---|
+| 0 | `bench --site clothing set-config luuvcrm_passive 1` | The one write to the other site. Turns this app's request hooks and patches off there. |
+| 1 | `set-maintenance-mode on` for `fryxo` | Only that site; the other 14 keep serving. |
+| 2 | tar of the live app dir → host | The rollback source, taken *after* maintenance mode so nothing is mid-write. |
+| 3 | overlay into the backend | `git archive` of HEAD copied over the tree; the paths in `deploy/REMOVE.list` moved to `apps/luuvcrm.removed-<ts>/`; `live-only/zeloura/luuvcrm/` copied back over the package; `chown 1001`; every module compiled. |
+| 4 | the same overlay into the scheduler and the two queue workers | Each has its **own** copy of the app in its own container layer. The doc_events and the daily purge run there. |
+| 5 | `docker restart` the backend | gunicorn runs with `--preload`, so nothing short of a restart loads new Python. ~15 s blip for every tenant. Readiness is probed through the *clothing* site's `/api/method/ping`, because fryxo is in maintenance mode. |
+| 6 | `bench --site fryxo migrate` → `deploy-state/migrate-<sha>-<ts>.log` | The irreversible step. A non-zero exit stops the script with the site still in maintenance mode. |
+| 7 | `sites/assets/luuvcrm`: replace the symlink with a copy of `public/` | The assets volume is shared with the nginx frontends, but the symlink pointed at `apps/…/public`, which resolves to *each frontend's own image copy* — so the new `app/icon-*.png` would have 404'd. |
+| 8 | `clear-cache`, `clear-website-cache`, maintenance off | |
+| 9 | restart the workers | |
 
-On the host, with the restaurant closed or quiet:
+Then `smoke` (§5), automatically. No `bench build`: this app has no JS
+bundles, only `public/css`, and step 7 carries the assets.
 
-```bash
-bench --site <live> set-maintenance-mode on
-bench --site <live> migrate > /tmp/migrate.log 2>&1; echo "exit=$?"
-grep -nEi "^Error|Traceback|does not exist" /tmp/migrate.log
-bench build --app luuvcrm
-bench --site <live> clear-cache
-bench --site <live> set-maintenance-mode off
-bench restart
-```
-
-`bench build` is not optional — the front-end assets changed.
+**What the overlay leaves alone**, on purpose: every `.bak`, the `check_*` /
+`debug_*` / `fix_*` scratch scripts, `wwwpos.py`, `wwwwaiter.py`, the two
+APKs, `www/app.*.disabled`, and the clothing site's code. `preflight` prints
+them as `KEPT`. Only `deploy/REMOVE.list` moves anything, and it moves it
+aside rather than deleting it.
 
 **Eight patches run during that migrate.** They are all additive:
 
@@ -401,19 +419,20 @@ bench --site <live> execute luuvcrm.roles.ensure_pos_docperms
 bench --site <live> clear-cache && bench restart
 ```
 
-**Anything worse — roll back.** The code alone is not enough if the schema
-changed, so restore the backup as well. This is the moment §3a was for: a
-restore takes the site back to the minute the backup was taken, and every sale
-rung up since is gone with it, so decide quickly rather than deploying on top of
-a symptom to save the last hour of trade.
+**Anything worse — roll back.**
 
 ```bash
-bench --site <live> set-maintenance-mode on
-cd apps/luuvcrm && git checkout <the commit main was on before the merge> && cd -
-bench --site <live> restore <the §3a backup>
-bench --site <live> migrate
-bench --site <live> set-maintenance-mode off && bench restart
+deploy/vps-deploy.sh rollback          # the pre-deploy app dir back into the backend and the workers, restart, caches
+deploy/vps-deploy.sh rollback --db     # the same, plus `bench restore` of the §3a dump (needs DB_ROOT_PASSWORD)
 ```
+
+The code alone is enough **only if migrate did not run** — the script stops
+before it on a failed overlay. Once migrate has run, the DocType conversion is
+in the database and the old code cannot read it back: use `--db`. A restore
+takes the site back to the minute the backup was taken, and every sale rung
+up since is gone with it, so decide quickly rather than deploying on top of a
+symptom to save the last hour of trade. The failed tree stays on the host as
+`apps/luuvcrm.failed-<ts>` for the post-mortem.
 
 Rolling back is not a failure. Deploying on top of a symptom nobody understands
 is.
@@ -445,8 +464,6 @@ backfill.
 
 ## 8. The week after
 
-- **Re-point the counter tablets** from `/pos2` to `/pos`. The redirect is there
-  for one release and then goes.
 - **Fill in `LuuvCRM Settings`** if anything should differ from the defaults —
   though the defaults are already this restaurant's own name, town, phone and
   colour, so nothing looks different until somebody changes it.
@@ -454,6 +471,8 @@ backfill.
   where it lives, and whether it is still on its default.
 - **Watch `/errors` and `/activity`.** Both are working for the first time. The
   first week's rows are a backlog, not a regression.
+- **Know that the app lives in container layers.** `apps/` is not a volume: the backend's copy, the scheduler's and each queue worker's are separate writable layers of separate containers. `docker restart` keeps them; `docker compose up --force-recreate`, an image pull or a rebuild **loses every deploy since the image was built**. Keep `deploy-state/luuvcrm-<sha>.tar.gz` and the pre-deploy snapshot; re-running `deploy` (overlay only, no migrate needed) puts the code back. Moving `apps/` onto a volume or into the image is the real fix and belongs to the compose file, not to this app.
+- **The counter tablets** now land on `/pos` — `/pos2` and `/pos3` are 301s. Re-point the bookmarks during a close; the redirects go the release after.
 - **Confirm gzip is on in nginx.** Measured on this app: all 24 pages are 766 KB
   raw and 184 KB compressed. It is one config line.
 

@@ -27,11 +27,9 @@ from luuvcrm.api import menu as M
 from luuvcrm.tests import fixtures as fx
 
 
-#: Page *modules*, not routes: `/order` and `/home` are served by
-#: `order_online.py` and `restaurant_home.py`, because erpnext ships pages with
-#: those names and Frappe hands the name to the app installed last. See
-#: test_pages.TestNoPageIsShadowedByAnotherApp.
-PAGES = ("pos", "waiter", "kiosk", "order_online", "menu", "restaurant_home", "cus")
+#: Page modules. `/order` and `/home` share their names with erpnext pages and
+#: are ours by install order — see test_pages.TestNoPageIsShadowedByAnotherApp.
+PAGES = ("pos", "waiter", "kiosk", "order", "menu", "home", "cus")
 
 
 class MenuTestCase(FrappeTestCase):

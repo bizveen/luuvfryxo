@@ -4,12 +4,10 @@ Two branches, two different jobs.
 
 ## `main` — the live restaurant
 
-What Luuv Fryxo runs. Features, fixes, and anything the client asks for. Deploys to the `host` remote as it always has:
-
-```bash
-gio mount -a "smb://192.168.1.8/users"
-git push host main
-```
+What Luuv Fryxo runs. Features, fixes, and anything the client asks for. Deploys with
+`deploy/vps-deploy.sh` (preflight → backup → rehearse → deploy) — see `docs/DEPLOY_RUNBOOK.md` §4.
+There is no `host` remote and no SMB share for this site: the live app directory is not a
+git checkout, so the deploy is an overlay of `git archive HEAD` over it.
 
 **Security fixes go here**, not on `product`. The three critical findings in `PRODUCTION_READINESS.md` §3 are open on the live site right now; fixing them on a branch nobody deploys helps nobody.
 

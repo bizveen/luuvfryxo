@@ -419,7 +419,7 @@ class TestThePublicPagesStayPublic(PageTestCase):
 
     #: route -> page module. /pos-login is here too: a login page that requires
     #: a login is a door locked from the inside.
-    PUBLIC = ("menu", "restaurant_home", "kiosk", "order_online", "claim", "track",
+    PUBLIC = ("menu", "home", "kiosk", "order", "claim", "track",
               "cus", "pos-login")
 
     def module(self, name):
@@ -450,30 +450,29 @@ class TestThePublicPagesStayPublic(PageTestCase):
 
 
 class TestNoPageIsShadowedByAnotherApp(PageTestCase):
-    """Frappe resolves a page by walking `reversed(get_installed_apps())`, so the
-    app installed *last* wins a name — and erpnext is installed after this one.
-    Two of our pages had already lost, and both failures were the quiet kind:
+    """Frappe resolves a page by walking `reversed(frappe.get_installed_apps())`
+    — the app installed *last* wins a name. erpnext ships `home` and `order`,
+    and so do we:
 
-    - **`/order` was a 500.** erpnext's `templates/pages/order.py` calls
-      `frappe.get_doc(form_dict.doctype, form_dict.name)` with nothing in the
-      form dict and raises `ValueError`. `/home` and `/track` both put an
-      "Order Online" button in front of customers, and it went to a stack trace.
-    - **`/home` was erpnext's website home.** 200, the wrong page, and the
-      restaurant's own 494-line landing page had never once been served.
+    - **`/order`** is erpnext's `templates/pages/order.py` on a bench where
+      erpnext came after this app: it does `frappe.get_doc(form_dict.doctype,
+      form_dict.name)` with nothing in the form dict and raises. `/home` and
+      `/track` both put an "Order Online" button in front of customers.
+    - **`/home`** would be erpnext's website home. 200, the wrong page.
 
-    The route table in the guide had both of them marked ✅, because a route
-    table records what an app *declares*, and this is decided by what the site
-    *resolves*. So the check has to ask the resolver.
+    `required_apps` is what settles it: bench installs erpnext and hospitality
+    *before* this app, so on every site installed the documented way — the
+    live one included — this app resolves after erpnext and both pages are
+    ours. There were `website_route_rules` and a `home_page` hook forcing the
+    same outcome for a while; they went, because hooks are bench-wide and this
+    app shares a bench with a site that is not a restaurant (see hooks.py).
+
+    So the check asks the resolver, with a real request environ — the rules
+    were matched by werkzeug against it, and the renderers still are.
     """
 
     def resolved_app(self, route):
-        """Which app answers this URL, asked of the real resolver.
-
-        `website_route_rules` are matched by werkzeug against
-        `frappe.local.request.environ`, and a test has no request — so without
-        this the rules are skipped and the check quietly measures the wrong
-        thing. Building an environ is what makes the assertion mean what it
-        says."""
+        """Which app answers this URL, asked of the real resolver."""
         from werkzeug.test import EnvironBuilder
 
         from frappe.website.path_resolver import PathResolver
@@ -486,9 +485,20 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
         finally:
             frappe.local.request = previous
 
+    def installed_in_the_documented_order(self):
+        """True when this app resolves after erpnext — the order `required_apps`
+        produces and the order the live site has. A dev bench that installed
+        this app first sees erpnext's pages instead; that is the bench's
+        problem, not the app's, and the tests below say so rather than fail."""
+        apps = frappe.get_installed_apps()
+        return "erpnext" not in apps or apps.index("luuvcrm") > apps.index("erpnext")
+
     def test_every_luuvcrm_page_is_served_by_luuvcrm(self):
         import pathlib
 
+        if not self.installed_in_the_documented_order():
+            self.skipTest("erpnext was installed after luuvcrm on this bench; "
+                          "reinstall in the required_apps order")
         www = pathlib.Path(frappe.get_app_path("luuvcrm", "www"))
         shadowed = []
         for template in sorted(www.glob("*.html")):
@@ -498,30 +508,57 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
                 shadowed.append(f"/{route} → {app}:{path}")
         self.assertEqual(shadowed, [], f"another app answers these: {shadowed}")
 
-    def test_the_two_public_urls_still_point_at_our_pages(self):
-        """The files are named `order-online` and `restaurant-home` now, which
-        nothing else claims, and `website_route_rules` keeps the public URLs
-        exactly as they were — every link already on a sticker or in a WhatsApp
-        message still works."""
-        for route, expected in (("order", "order-online"), ("home", "restaurant-home")):
+    def test_the_two_public_urls_are_our_pages(self):
+        """`/order` and `/home` — the two URLs on stickers and in messages —
+        are served from `www/order.html` and `www/home.html` by install order
+        alone. No route rule, no hook: nothing here can reach the other site."""
+        if not self.installed_in_the_documented_order():
+            self.skipTest("erpnext was installed after luuvcrm on this bench")
+        for route in ("order", "home"):
             with self.subTest(route=route):
                 app, path = self.resolved_app(route)
                 self.assertEqual(app, "luuvcrm")
-                self.assertIn(expected, path)
+                self.assertIn(f"www/{route}.html", path.replace("\\", "/"))
+
+    def test_nothing_bench_wide_decides_a_route(self):
+        """The rules and the `home_page` hook would have applied to every site
+        on the bench, and one of them is a clothing shop whose `/` is its own
+        Web Page. Both stay gone."""
+        from luuvcrm import hooks
+
+        self.assertFalse(getattr(hooks, "website_route_rules", None))
+        self.assertFalse(getattr(hooks, "home_page", None))
+        self.assertEqual(frappe.get_hooks("home_page", app_name="luuvcrm"), [])
 
     def test_the_site_root_is_not_the_page_that_was_deleted(self):
-        """Website Settings still pointed `/` at `app2`, deleted in the
-        September cleanup, so the restaurant's front door was a 404. The
-        `home_page` hook is read before Website Settings, which is what makes
-        this a code fix rather than something somebody has to remember to click.
-        """
+        """Website Settings pointed `/` at `app2`, deleted in the September
+        cleanup, so the restaurant's front door was a 404. A fresh site gets
+        `home` from `setup_doctype.ensure_home_page()` (after_install); a site
+        that chose something else keeps it."""
         from frappe.website.utils import get_home_page
 
-        self.assertEqual(frappe.get_hooks("home_page"), ["home"])
-        self.assertNotEqual(get_home_page(), "app2")
+        from luuvcrm import setup_doctype
+
+        before = frappe.db.get_single_value("Website Settings", "home_page")
+        try:
+            frappe.db.set_single_value("Website Settings", "home_page", "app2")
+            setup_doctype.ensure_home_page()
+            self.assertEqual(
+                frappe.db.get_single_value("Website Settings", "home_page"), "home")
+            frappe.clear_cache()
+            self.assertNotEqual(get_home_page(), "app2")
+
+            frappe.db.set_single_value("Website Settings", "home_page", "shop")
+            setup_doctype.ensure_home_page()
+            self.assertEqual(
+                frappe.db.get_single_value("Website Settings", "home_page"), "shop",
+                "a site that chose its own front door keeps it")
+        finally:
+            frappe.db.set_single_value("Website Settings", "home_page", before or "")
+            frappe.clear_cache()
 
     def test_the_landing_page_is_the_restaurant_one(self):
-        page = importlib.import_module("luuvcrm.www.restaurant_home")
+        page = importlib.import_module("luuvcrm.www.home")
         ctx = frappe._dict()
         self.as_user("Guest")
         page.get_context(ctx)

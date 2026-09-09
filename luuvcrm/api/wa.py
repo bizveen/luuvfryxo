@@ -8,14 +8,30 @@ import frappe
 from frappe import _
 
 
+#: Owned by the `frappe_whatsapp` app, not by this one. This app used to ship a
+#: five-field DocType of the same name, which collided with the thirteen-field
+#: one every site that sends messages actually has. It reads that one and
+#: creates nothing: on a site without frappe_whatsapp there is no account, and
+#: every sender answers "not sent" rather than raising.
+WA_ACCOUNT_DOCTYPE = "WhatsApp Account"
+
+
+def wa_account():
+    """The name of the configured WhatsApp Account, or None when the site has
+    none — including when the DocType itself is not installed."""
+    if not frappe.db.exists("DocType", WA_ACCOUNT_DOCTYPE):
+        return None
+    return frappe.db.get_value(WA_ACCOUNT_DOCTYPE, {}, "name")
+
+
 def _send_wa_reply(mobile, message):
     """Send a text reply via WhatsApp. Returns True when the API accepted it."""
-    wa_account = frappe.db.get_value("WhatsApp Account", {}, "name")
-    if not wa_account:
+    account = wa_account()
+    if not account:
         return False
     try:
         import requests
-        acc = frappe.get_doc("WhatsApp Account", wa_account)
+        acc = frappe.get_doc(WA_ACCOUNT_DOCTYPE, account)
         token = acc.get_password("token")
         url = f"{acc.url}/{acc.version}/{acc.phone_id}/messages"
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}

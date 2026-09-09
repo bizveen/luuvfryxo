@@ -1,0 +1,23 @@
+# Files the deploy MOVES OUT of the live app directory (to apps/luuvcrm.removed-<ts>/).
+# Paths are relative to apps/luuvcrm. One per line; blank lines and # comments ignored.
+#
+# The overlay deploy never deletes anything on its own: the live directory holds
+# files this repo does not (the clothing site's code, .bak copies, scratch
+# scripts, two 70 MB APKs), and every one of them is left alone. Only what is
+# named here goes — and it goes into a sibling directory, not /dev/null.
+
+# The single-module API became the luuvcrm/api/ package. Python prefers the
+# package when both exist, so this is not strictly load-bearing — it goes so
+# that nobody edits a file nothing imports.
+luuvcrm/api.py
+
+# A stray second copy of POS Order / POS Order Item outside the Zeloura module
+# directory (moved in 1a83e40). Not in modules.txt, so Frappe never read it.
+luuvcrm/doctype
+luuvcrm/doctypepos_orderpos_order.json
+luuvcrm/doctypepos_orderpos_order.py
+
+# The three static PWA manifests, replaced by the luuvcrm.api.manifest endpoint.
+luuvcrm/www/cus_manifest.json
+luuvcrm/www/manager_manifest.json
+luuvcrm/www/purchases_manifest.json

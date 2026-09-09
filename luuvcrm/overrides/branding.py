@@ -34,6 +34,9 @@ def brand(context=None):
 
 
 def update_website_context(context):
+    # A site that only carries the app keeps its own name on its own pages.
+    if settings.passive():
+        return
     values = brand()
     context.update(values)
     context["app_name"] = values["brand_name"]
@@ -41,6 +44,8 @@ def update_website_context(context):
 
 
 def boot_session(bootinfo):
+    if settings.passive():
+        return
     name = settings.get("brand_name")
     bootinfo.app_name = name
     if bootinfo.system_settings:
