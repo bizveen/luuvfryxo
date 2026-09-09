@@ -44,6 +44,7 @@ mkdir -p "$STATE"
 STATE=$(cd "$STATE" && pwd)
 TS=$(date +%Y%m%d-%H%M%S)
 SHA=$(git -C "$REPO" rev-parse --short HEAD)
+APPTREE=$(git -C "$REPO" rev-parse "HEAD:luuvcrm")   # the package alone: what a migrate actually runs
 RDIR=/home/ubuntu/lf-deploy/$TS            # per-run scratch on the host
 
 # ─── plumbing ────────────────────────────────────────────────────────────────
@@ -273,7 +274,7 @@ echo "-- drift / branch / settings / menu"
 ! grep -Eq "^missing .*: [1-9]" "\$RDIR/drift.txt" || { echo "DRIFT AFTER MIGRATE"; exit 1; }
 \$B bench --site "\$REHEARSE_SITE" execute luuvcrm.branch.check
 \$B bench --site "\$REHEARSE_SITE" execute luuvcrm.settings.describe
-echo "   menu items: \$(\$B bench --site "\$REHEARSE_SITE" execute luuvcrm.api.get_menu_data | grep -o '"item_name"' | wc -l || true)"
+echo "   menu items: \$(\$B bench --site "\$REHEARSE_SITE" execute luuvcrm.api.get_menu_data | grep -o '"code":' | wc -l || true)"
 echo "-- render the public pages through a dev server inside the container"
 docker exec -d -w "\$BENCH" lf-rehearse bash -c "bench serve --port 8001 > /tmp/serve.log 2>&1"
 sleep 12
@@ -301,7 +302,7 @@ EOF
     echo "--- last lines of the migrate log ---"; tr '\r' '\n' < "$STATE/rehearse-migrate-$SHA-$TS.log" 2>/dev/null | grep -v "^Updating DocTypes" | tail -25
     die "rehearsal did not pass — $rlog, $STATE/rehearse-migrate-$SHA-$TS.log"
   fi
-  printf 'SHA=%s\nTS=%s\n' "$SHA" "$TS" > "$STATE/last-rehearsal"
+  printf 'SHA=%s\nTREE=%s\nTS=%s\n' "$SHA" "$APPTREE" "$TS" > "$STATE/last-rehearsal"
   echo "rehearsal ok — $rlog"
 }
 
@@ -315,7 +316,9 @@ deploy() {
     local when; when=$(date -d "${bts%%-*} $(echo "${bts##*-}" | sed 's/\(..\)\(..\)\(..\)/\1:\2:\3/')" +%s 2>/dev/null || echo 0)
     local age=$(( $(date +%s) - when ))
     [ "$age" -lt 43200 ] || die "the last backup ($bts) is older than 12 hours — take a fresh one"
-    grep -q "SHA=$SHA" "$STATE/last-rehearsal" 2>/dev/null || die "no passed rehearsal for $SHA — run rehearse"
+    # the same package tree that passed the rehearsal; a change outside luuvcrm/ (this script, docs) needs no new one
+    grep -q "TREE=$APPTREE" "$STATE/last-rehearsal" 2>/dev/null || die "no passed rehearsal for this app tree ($APPTREE) - run rehearse"
+    grep -q "SHA=$SHA" "$STATE/last-rehearsal" 2>/dev/null || echo "note: rehearsed at $(sed -n 's/^SHA=//p' "$STATE/last-rehearsal"), deploying $SHA - same luuvcrm/ tree"
   fi
   # the deploy's own TS is the run's; the backup's TS came from last-backup
   local BTS; BTS=$(sed -n 's/^TS=//p' "$STATE/last-backup" 2>/dev/null || echo "none")
@@ -422,7 +425,7 @@ B="docker exec -w $BENCH $BACKEND"
 $B bench --site "$SITE" execute luuvcrm.setup_doctype.report_drift > /tmp/drift.txt; cat /tmp/drift.txt | sed 's/^/   /'
 ! grep -Eq "^missing .*: [1-9]" /tmp/drift.txt || { echo "   DRIFT"; exit 1; }
 $B bench --site "$SITE" execute luuvcrm.branch.check | sed 's/^/   branch.check: /'
-n=$($B bench --site "$SITE" execute luuvcrm.api.get_menu_data | grep -o '"item_name"' | wc -l || true)
+n=$($B bench --site "$SITE" execute luuvcrm.api.get_menu_data | grep -o '"code":' | wc -l || true)
 echo "   menu items: $n"; [ "$n" -gt 0 ] || exit 1
 echo "   workers: $(for w in $WORKERS; do docker inspect -f '{{.State.Status}}' $w; done | tr '\n' ' ')"
 EOF
