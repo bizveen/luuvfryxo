@@ -310,10 +310,14 @@ APP_DOCPERM_REVOKE = {
 }
 
 
-#: Every flag a DocPerm row carries. Merging two rows is the OR of these.
-PERM_FLAGS = ("select", "read", "write", "create", "delete", "submit", "cancel",
-              "amend", "report", "export", "import", "share", "print", "email",
-              "set_user_permissions")
+def _perm_flags():
+    """Every Check flag a DocPerm row carries on *this* Frappe, from the meta.
+    Merging two rows is the OR of these. Not a hardcoded tuple: the set has
+    changed across versions (`set_user_permissions` is gone in v15), and a
+    name the table does not have is an SQL error in the middle of a migrate.
+    """
+    return tuple(f.fieldname for f in frappe.get_meta("Custom DocPerm").fields
+                 if f.fieldtype == "Check" and f.fieldname != "if_owner")
 
 
 def _custom_perms_valid(doctype):
@@ -340,9 +344,10 @@ def _custom_perms_valid(doctype):
 
     setup_custom_perms(doctype)          # copies the standard rows the first time; no-op after
     fixed = []
+    flags = _perm_flags()
 
     rows = frappe.get_all("Custom DocPerm", filters={"parent": doctype},
-                          fields=["name", "role", "permlevel", "if_owner", *PERM_FLAGS],
+                          fields=["name", "role", "permlevel", "if_owner", *flags],
                           order_by="idx asc, creation asc")
     seen = {}
     for row in rows:
@@ -351,7 +356,7 @@ def _custom_perms_valid(doctype):
         if keep is None:
             seen[key] = row
             continue
-        merged = {f: 1 for f in PERM_FLAGS if cint(row.get(f)) or cint(keep.get(f))}
+        merged = {f: 1 for f in flags if cint(row.get(f)) or cint(keep.get(f))}
         if merged:
             frappe.db.set_value("Custom DocPerm", keep.name, merged, update_modified=False)
             keep.update(merged)
