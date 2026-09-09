@@ -304,6 +304,7 @@ from luuvcrm.api.purchases import (
     get_purchase_day_summary,
     rename_purchase_item,
     RAW_MATERIALS,
+    _apply_bill_discount,
     _bill_dict,
     _buying_price_list,
     _decide_purchase_bill,
@@ -377,6 +378,8 @@ from luuvcrm.api.shifts import (
 )
 from luuvcrm.api.wa import (
     PROMO_WA_NUMBER,
+    WA_ACCOUNT_DOCTYPE,
+    wa_account,
     wa_number,
     _intl_number,
     _local_number,

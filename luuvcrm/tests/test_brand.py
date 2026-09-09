@@ -17,6 +17,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from luuvcrm import api, settings
 from luuvcrm.overrides import branding
+from luuvcrm.tests import fixtures as fx
 
 PAGES = pathlib.Path(frappe.get_app_path("luuvcrm", "www"))
 
@@ -76,7 +77,10 @@ class TestTheBrandReachesEveryPage(BrandTestCase):
         """A page that forgets the include keeps the palette it shipped with,
         and one screen in the wrong colour is worse than none."""
         missing = []
+        skip = {p.split("/")[-1] for p in fx.live_only_paths() if p.startswith("www/")}
         for page in sorted(PAGES.glob("*.html")):
+            if page.name in skip:
+                continue          # the clothing site's page, on the host only
             html = page.read_text()
             if "</head>" not in html:
                 continue          # a redirect stub, not a screen
@@ -118,9 +122,12 @@ class TestNoPageNamesOneClient(BrandTestCase):
         under the restaurant's name, and none of them is this restaurant's."""
         app = pathlib.Path(frappe.get_app_path("luuvcrm"))
         named = {}
+        live_only = fx.live_only_paths()
         for py in sorted(app.rglob("*.py")):
             if "tests" in py.parts or py.name in ("settings.py", "hooks.py", "branding.py", "brand.py"):
                 continue          # settings declares the default; the others only describe how it got here
+            if py.relative_to(app).as_posix() in live_only:
+                continue          # the clothing site's code, on the host only
             n = self.occurrences(py)
             if n > self.ALLOWED.get(py.name, 0):
                 named[str(py.relative_to(app))] = n

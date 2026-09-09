@@ -618,8 +618,11 @@ def get_due_bills():
     rows = frappe.db.sql("""
         SELECT name FROM `tabPurchase Bill`
         WHERE status = 'approved' AND IFNULL(payment_status, 'unpaid') != 'paid'
-        ORDER BY requested_at ASC LIMIT 200
+        ORDER BY requested_at ASC LIMIT 2000
     """, as_dict=True)
+    # 2000, not 200: the live restaurant owes more than 200 bills (every bill
+    # approved before payment_status existed reads as owed), and a cap below
+    # the count hid the newest ones from the list that exists to show them.
     bills = [_bill_dict(r.name) for r in rows]
 
     vend = {}

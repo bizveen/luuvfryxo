@@ -21,3 +21,22 @@ luuvcrm/doctypepos_orderpos_order.py
 luuvcrm/www/cus_manifest.json
 luuvcrm/www/manager_manifest.json
 luuvcrm/www/purchases_manifest.json
+
+# One-off scratch scripts (gitignored: check_*/debug_*/fix_*) and two page
+# experiments that never shipped, all still sitting in the importable package
+# on the host. Inert, but two of them still ask for "whichever restaurant is
+# first" and the suite's grep finds them. Moved aside, not deleted.
+luuvcrm/check_company.py
+luuvcrm/check_items.py
+luuvcrm/check_price_lists.py
+luuvcrm/check_tables.py
+luuvcrm/check_uoms.py
+luuvcrm/check_zeloura_data.py
+luuvcrm/debug_quotation.py
+luuvcrm/debug_quotation2.py
+luuvcrm/fix_company.py
+luuvcrm/fix_currency.py
+luuvcrm/fix_items.py
+luuvcrm/wwwpos.py
+luuvcrm/wwwwaiter.py
+luuvcrm/test_child_parent.py

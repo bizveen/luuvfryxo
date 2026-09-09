@@ -216,7 +216,9 @@ def staff_invite_link(user=None):
     doc = frappe.get_doc("User", user)
     if not doc.enabled:
         frappe.throw(_("Switch the account back on first"))
-    link = doc._reset_password(send_email=False)
+    # `reset_password`, the public one: `_reset_password` is not on User in
+    # Frappe 15.101 (the live version), and the rehearsal found it.
+    link = doc.reset_password(send_email=False)
 
     activity.log_activity(
         "staff.invite", label="Invite link issued for %s" % user,

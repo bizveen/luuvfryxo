@@ -100,6 +100,9 @@ def _install_client_errors():
     }).insert(ignore_permissions=True)
     frappe.db.commit()
     frappe.clear_cache()
+    # Created at runtime, so the grant patch never saw it: give it the rows
+    # roles.APP_DOCPERMS declares (managers read, write, delete) here.
+    roles.ensure_app_docperms()
     return {"created": True}
 
 

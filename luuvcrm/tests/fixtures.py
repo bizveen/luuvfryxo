@@ -8,6 +8,8 @@ Names are prefixed `_LFT-` so a failed run leaves something obvious behind
 rather than something that looks like real data.
 """
 
+import pathlib
+
 import frappe
 from frappe.utils import add_days, today
 
@@ -63,6 +65,15 @@ def item(case, code, standard_rate=0):
 
 def item_price(case, item_code, rate, price_list="Standard Selling",
                valid_from=None, valid_upto=None, customer=None, selling=1):
+    # "Standard Selling" is ERPNext's default on a fresh bench and absent on
+    # the live restaurant, whose lists are its own. A test that prices an item
+    # must not depend on which bench it runs on.
+    if not frappe.db.exists("Price List", price_list):
+        frappe.get_doc({"doctype": "Price List", "price_list_name": price_list,
+                        "selling": 1, "enabled": 1,
+                        "currency": frappe.db.get_default("currency") or "LKR"
+                        }).insert(ignore_permissions=True)
+        _cleanup(case, "Price List", price_list)
     doc = frappe.get_doc({
         "doctype": "Item Price",
         "item_code": item_code,
@@ -415,3 +426,17 @@ def forget_customer_cache(mobile):
     for key in (f"wa_otp:{mobile}", f"wa_otp_cool:{mobile}", f"wa_otp_tries:{mobile}",
                 f"wa_verified:{mobile}", f"lf_pin_fail:{mobile}"):
         cache.delete_value(key)
+
+
+def live_only_paths():
+    """Paths (relative to the package) of the clothing site's code that the
+    deploy copies over the package on the host — `live-only/` in the repo.
+    A test that scans the package on disk skips these: they are another
+    product's files, and on a dev bench they are not there at all."""
+    root = pathlib.Path(frappe.get_app_path("luuvcrm")).parent / "live-only"
+    out = set()
+    for sub in root.glob("*/luuvcrm"):
+        for f in sub.rglob("*"):
+            if f.is_file():
+                out.add(f.relative_to(sub).as_posix())
+    return out

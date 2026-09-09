@@ -500,8 +500,11 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
             self.skipTest("erpnext was installed after luuvcrm on this bench; "
                           "reinstall in the required_apps order")
         www = pathlib.Path(frappe.get_app_path("luuvcrm", "www"))
+        skip = {p.split("/")[-1] for p in fx.live_only_paths() if p.startswith("www/")}
         shadowed = []
         for template in sorted(www.glob("*.html")):
+            if template.name in skip:
+                continue          # the clothing site's page, on the host only
             route = template.stem
             app, path = self.resolved_app(route)
             if app != "luuvcrm":

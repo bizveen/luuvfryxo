@@ -327,12 +327,12 @@ class TestFixingAnItemsName(PurchaseTestCase):
 
     def test_the_unit_can_be_corrected_too(self):
         self.call(api.rename_purchase_item, item=self.tomato,
-                  new_name="Tomato", unit="Kg")
+                  new_name="_LFT-Tomato", unit="Kg")
         self.assertEqual(frappe.db.get_value("Item", self.tomato, "stock_uom"), "Kg")
 
     def test_a_unit_that_does_not_exist_yet_is_created(self):
         self.call(api.rename_purchase_item, item=self.tomato,
-                  new_name="Tomato", unit="_LFT-Bushel")
+                  new_name="_LFT-Tomato", unit="_LFT-Bushel")
         self.assertTrue(frappe.db.exists("UOM", "_LFT-Bushel"))
         self.addCleanup(frappe.delete_doc, "UOM", "_LFT-Bushel", force=True,
                         ignore_permissions=True)
