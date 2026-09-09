@@ -17,6 +17,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from luuvcrm import roles
+from luuvcrm.tests import fixtures as fx
 
 
 def _user(email, role):
