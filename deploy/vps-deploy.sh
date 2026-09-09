@@ -71,7 +71,7 @@ overlay_into() {  # $1 = container
   docker exec "$c" test -f "$APP/luuvcrm/hooks.py" || { echo "  $c: no luuvcrm here, skipped"; return 0; }
   docker cp "$RDIR/luuvcrm-$SHA.tar.gz" "$c:/tmp/luuvcrm.tgz"
   docker cp "$RDIR/REMOVE.list" "$c:/tmp/REMOVE.list"
-  docker exec -u root -e APP="$APP" -e BENCH="$BENCH" -e TS="$TS" "$c" bash -s <<'"'"'IEOF'"'"'
+  docker exec -i -u root -e APP="$APP" -e BENCH="$BENCH" -e TS="$TS" "$c" bash -s <<'"'"'IEOF'"'"'
 set -e
 rm -rf /tmp/lf-overlay && mkdir -p /tmp/lf-overlay
 tar xzf /tmp/luuvcrm.tgz -C /tmp/lf-overlay
@@ -237,18 +237,25 @@ rehearse() {
 $OVERLAY_FN
 set -e
 STAMP=$STAMP
-image=\$(docker inspect "\$BACKEND" --format '{{.Config.Image}}')
 docker rm -f lf-rehearse >/dev/null 2>&1 || true
+docker rmi lf-rehearse-img >/dev/null 2>&1 || true
+cleanup() {
+  docker rm -f lf-rehearse >/dev/null 2>&1 || true
+  docker rmi lf-rehearse-img >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+echo "-- snapshot the running backend as the rehearsal image (its writable layer holds apps the base image lacks)"
+docker commit --pause=false "\$BACKEND" lf-rehearse-img >/dev/null
 docker run -d --name lf-rehearse --network "\$NET" \\
   -v frappe_docker_sites:\$BENCH/sites -v frappe_docker_assets:\$BENCH/sites/assets -v frappe_docker_logs:\$BENCH/logs \\
-  -w "\$BENCH" "\$image" sleep infinity >/dev/null
+  -w "\$BENCH" lf-rehearse-img sleep infinity >/dev/null
 echo "-- overlay into the throwaway container"
 overlay_into lf-rehearse
 B="docker exec -w \$BENCH lf-rehearse"
 echo "-- new site + restore \$STAMP"
 \$B bench drop-site "\$REHEARSE_SITE" --db-root-password "\$DB_ROOT_PASSWORD" --force --no-backup >/dev/null 2>&1 || true
-\$B bench new-site "\$REHEARSE_SITE" --db-root-password "\$DB_ROOT_PASSWORD" --admin-password admin --mariadb-user-host-login-scope='%' \\
-  || \$B bench new-site "\$REHEARSE_SITE" --db-root-password "\$DB_ROOT_PASSWORD" --admin-password admin --no-mariadb-socket
+\$B bench new-site "\$REHEARSE_SITE" --force --db-root-password "\$DB_ROOT_PASSWORD" --admin-password admin --mariadb-user-host-login-scope='%' \\
+  || \$B bench new-site "\$REHEARSE_SITE" --force --db-root-password "\$DB_ROOT_PASSWORD" --admin-password admin --no-mariadb-socket
 \$B bench --site "\$REHEARSE_SITE" restore "\$BENCH/sites/\$SITE/private/backups/\$STAMP-\$SITE-database.sql.gz" --db-root-password "\$DB_ROOT_PASSWORD"
 echo "-- migrate"
 set +e
@@ -282,7 +289,6 @@ if [ -n "\$RUN_TESTS" ]; then
 fi
 echo "-- clean up"
 \$B bench drop-site "\$REHEARSE_SITE" --db-root-password "\$DB_ROOT_PASSWORD" --force --no-backup
-docker rm -f lf-rehearse >/dev/null
 echo "REHEARSAL PASS \$SHA"
 EOF
   download "$RDIR/rehearse-migrate.log" "$STATE/rehearse-migrate-$SHA-$TS.log" || true
