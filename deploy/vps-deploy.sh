@@ -106,7 +106,11 @@ preflight() {
 
   echo "-- Jinja traps in www (.__ and {# both 417 through Frappe's renderer)"
   if grep -l '\.__' luuvcrm/www/*.js luuvcrm/www/*.html luuvcrm/templates/includes/*.html 2>/dev/null; then die "a '.__' sequence in a served file"; fi
-  if grep -l '{#' luuvcrm/www/*.js luuvcrm/www/*.html luuvcrm/templates/includes/*.html 2>/dev/null; then die "a '{#' sequence in a served file"; fi
+  # A real Jinja comment ({# ... #}) is fine; an unterminated one is a TemplateSyntaxError = 417.
+  for f in luuvcrm/www/*.js luuvcrm/www/*.html luuvcrm/templates/includes/*.html; do
+    o=$(grep -o '{#' "$f" | wc -l); c=$(grep -o '#}' "$f" | wc -l)
+    [ "$o" = "$c" ] || die "$f: '{#' opened $o times, closed $c"
+  done
   echo "-- tag balance in every page (an unclosed <style> once blanked /manager)"
   for f in luuvcrm/www/*.html; do
     for t in style script; do
