@@ -349,11 +349,10 @@ docker exec -u root -e APP="\$APP" -e BENCH="\$BENCH" "\$BACKEND" bash -c '
   A=\$BENCH/sites/assets/luuvcrm
   if [ -L "\$A" ]; then rm "\$A"; cp -r "\$APP/luuvcrm/public" "\$A"; echo "   symlink replaced by a copy"; else cp -r "\$APP/luuvcrm/public/." "\$A/"; echo "   copy refreshed"; fi
   chown -R 1000:1000 "\$A"'
-echo "-- 7b. payment modes the till never showed before (DROP_MODES=\"$DROP_MODES\")"
-for m in "\$@"; do :; done
+echo "-- 7b. payment modes the till never showed before: $DROP_MODES"
 IFS=';' read -ra _modes <<< "$DROP_MODES"
 for m in "\${_modes[@]}"; do
-  [ -n "\$m" ] && \$B bench --site "\$SITE" execute luuvcrm.setup_doctype.remove_payment_mode --kwargs "{'mode': '\$m'}"
+  if [ -n "\$m" ]; then \$B bench --site "\$SITE" execute luuvcrm.setup_doctype.remove_payment_mode --kwargs "{'mode': '\$m'}"; fi
 done
 echo "-- 8. caches, maintenance off"
 \$B bench --site "\$SITE" clear-cache
