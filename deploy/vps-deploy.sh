@@ -127,8 +127,8 @@ bad = []
 for f in sorted(glob.glob("luuvcrm/www/*.html")):
     p = P(); p.feed(pathlib.Path(f).read_text(encoding="utf-8")); p.close()
     bad += [f"{f}: <{t}> opened {p.o[t]}, closed {p.c[t]}" for t in ("script", "style") if p.o[t] != p.c[t]]
-print("
-".join(bad)); sys.exit(1 if bad else 0)
+for b in bad: print(b)
+sys.exit(1 if bad else 0)
 PY
 
   echo "-- tarball"
