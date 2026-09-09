@@ -112,12 +112,24 @@ preflight() {
     [ "$o" = "$c" ] || die "$f: '{#' opened $o times, closed $c"
   done
   echo "-- tag balance in every page (an unclosed <style> once blanked /manager)"
-  for f in luuvcrm/www/*.html; do
-    for t in style script; do
-      o=$(grep -o "<$t[ >]" "$f" | wc -l || true); c=$(grep -o "</$t>" "$f" | wc -l || true)
-      [ "$o" = "$c" ] || die "$f: <$t> opened $o times, closed $c"
-    done
-  done
+  # A real parser, not grep: a page writes '<script>' inside a JS string and a
+  # regex counts that as a tag. html.parser treats script/style bodies as CDATA.
+  python - <<'PY' || die "a page with an unclosed <script> or <style>"
+from html.parser import HTMLParser
+import glob, pathlib, sys
+class P(HTMLParser):
+    def __init__(s): super().__init__(); s.o = {"script": 0, "style": 0}; s.c = {"script": 0, "style": 0}
+    def handle_starttag(s, t, a):
+        if t in s.o: s.o[t] += 1
+    def handle_endtag(s, t):
+        if t in s.c: s.c[t] += 1
+bad = []
+for f in sorted(glob.glob("luuvcrm/www/*.html")):
+    p = P(); p.feed(pathlib.Path(f).read_text(encoding="utf-8")); p.close()
+    bad += [f"{f}: <{t}> opened {p.o[t]}, closed {p.c[t]}" for t in ("script", "style") if p.o[t] != p.c[t]]
+print("
+".join(bad)); sys.exit(1 if bad else 0)
+PY
 
   echo "-- tarball"
   git archive --format=tar.gz --prefix=luuvcrm/ -o "$STATE/luuvcrm-$SHA.tar.gz" HEAD
