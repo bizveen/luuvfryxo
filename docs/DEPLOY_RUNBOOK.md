@@ -313,6 +313,16 @@ stamping works, which §5 does with one real order.
 
 ---
 
+### Bank Draft comes off the two tills that list it
+
+`deploy` runs `remove_payment_mode("Bank Draft")` after migrate (step 7b,
+`DROP_MODES`). kandy and Kurunegala carry a `Bank Draft` row booked to
+`Cash - LF` that no cashier has ever seen — the old POS ignored the profile.
+The new one shows every listed mode as a button, so without this a cashier
+who has never seen "Bank Draft" gets a button that behaves like Cash. The
+Mode of Payment and every invoice that used it stay; `add_payment_mode
+--kwargs "{'mode': 'Bank Draft'}"` puts it back. Set `DROP_MODES=""` to keep it.
+
 ### Payment methods — the one write this deploy does by hand
 
 Not a patch, deliberately: it writes site data, and which methods a restaurant

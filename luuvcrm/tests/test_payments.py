@@ -208,6 +208,25 @@ class TestDeliveryAggregatorMode(PaymentTestCase):
         self.assertEqual(len(accounts), len({a.company for a in accounts}))
 
 
+    def test_it_can_be_taken_off_the_till_again(self):
+        """remove_payment_mode drops the profile rows and nothing else — the
+        Mode of Payment stays, so history that used it still resolves, and
+        add_payment_mode puts the button back."""
+        from luuvcrm import setup_doctype
+
+        removed = setup_doctype.remove_payment_mode(self.mode)
+        self.assertTrue(removed)
+        for profile in frappe.get_all("POS Profile", pluck="name"):
+            offered = [r.mode_of_payment for r in
+                       frappe.get_doc("POS Profile", profile).payments]
+            self.assertNotIn(self.mode, offered)
+            self.assertTrue(offered, "the till must keep at least one method")
+        self.assertTrue(frappe.db.exists("Mode of Payment", self.mode))
+        self.assertEqual(setup_doctype.remove_payment_mode(self.mode), [])
+        setup_doctype.add_payment_mode(self.mode)
+        self.test_the_till_offers_it()
+
+
 class TestPayingTwiceIsRefused(PaymentTestCase):
     def test_an_order_cannot_be_paid_again(self):
         order = self.order([{"item": self.burger, "qty": 1}])

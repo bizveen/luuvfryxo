@@ -631,6 +631,47 @@ def _payment_mode_account(company):
     return account
 
 
+def remove_payment_mode(mode="Bank Draft"):
+    """Take one payment method off every till. The Mode of Payment itself, and
+    every invoice that ever used it, stay.
+
+    The mirror of add_payment_mode, and the reason it exists: the POS shows a
+    button for every mode the profile lists, so a mode somebody added to a
+    profile years ago and nobody ever pressed — Bank Draft, booked to the cash
+    account — becomes a button on the day the till starts reading the profile.
+    A cashier who has never seen it will press it. Removing the *row* is the
+    smallest change that keeps the till looking as it did; the mode can be
+    offered again with add_payment_mode.
+
+    Idempotent:
+
+        bench --site <site> execute luuvcrm.setup_doctype.remove_payment_mode \\
+              --kwargs "{'mode': 'Bank Draft'}"
+    """
+    if not frappe.db.exists("DocType", "POS Profile"):
+        return
+    removed = []
+    for profile in frappe.get_all("POS Profile", pluck="name"):
+        pp = frappe.get_doc("POS Profile", profile)
+        keep = [r for r in pp.payments if r.mode_of_payment != mode]
+        if len(keep) == len(pp.payments):
+            continue
+        if not keep:
+            print(f"  ! POS Profile {profile}: {mode} is its only method — left alone")
+            continue
+        pp.payments = []
+        for r in keep:
+            pp.append("payments", {"mode_of_payment": r.mode_of_payment,
+                                   "default": r.default, "allow_in_returns": r.get("allow_in_returns")})
+        pp.flags.ignore_permissions = True
+        pp.save()
+        removed.append(profile)
+        print(f"  - POS Profile {profile} no longer offers {mode}")
+    if not removed:
+        print(f"  = no POS Profile offers {mode}")
+    return removed
+
+
 def add_payment_mode(mode="PickMe", mode_type="Bank"):
     """Add one payment method to every till, end to end.
 
