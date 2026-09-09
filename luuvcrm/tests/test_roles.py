@@ -269,42 +269,49 @@ class TestTheDocPermsTheScreensNeed(FrappeTestCase):
     """
 
     def test_granting_survives_rows_frappe_itself_would_refuse(self):
-        """The live site's Restaurant has standard DocPerm rows with `import: 1`
-        on a DocType that is not importable, and System Manager twice at level
-        0. Frappe never validates standard rows — and refuses every custom
-        write once one exists, which is how the deploy rehearsal died in
-        `grant_app_permissions`. Rebuild that state and grant through it."""
+        """The live site's Restaurant has *standard* DocPerm rows with
+        `import: 1` on a DocType that is not importable, and System Manager
+        twice at level 0. Frappe validates the standard rows on every
+        permission write and refuses — which is how the deploy rehearsal died
+        in `grant_app_permissions`. Rebuild that state and grant through it."""
         doctype = "Restaurant"
         if not frappe.db.exists("DocType", doctype):
             self.skipTest("hospitality is not installed")
         allow_import_before = frappe.db.get_value("DocType", doctype, "allow_import")
+        std_before = frappe.get_all("DocPerm", filters={"parent": doctype}, fields=["*"])
         custom_before = frappe.get_all("Custom DocPerm", filters={"parent": doctype}, fields=["*"])
+        self.assertTrue(std_before, "hospitality ships Restaurant with permissions")
+
+        def _restore(table, rows):
+            frappe.db.delete(table, {"parent": doctype})
+            for row in rows:
+                frappe.get_doc({**row, "doctype": table}).db_insert()
+
         try:
             frappe.db.set_value("DocType", doctype, "allow_import", 0, update_modified=False)
             frappe.db.delete("Custom DocPerm", {"parent": doctype})
-            for flags in ({"read": 1, "import": 1}, {"read": 1, "write": 1}):
-                frappe.get_doc({"doctype": "Custom DocPerm", "parent": doctype,
-                                "parenttype": "DocType", "parentfield": "permissions",
-                                "role": "System Manager", "permlevel": 0, **flags}
-                               ).insert(ignore_permissions=True)
+            first = std_before[0]
+            frappe.db.set_value("DocPerm", first.name, "import", 1, update_modified=False)
+            twin = {**first, "name": None, "idx": len(std_before) + 1, "import": 0, "write": 1}
+            frappe.get_doc({**twin, "doctype": "DocPerm"}).db_insert()
             frappe.clear_cache(doctype=doctype)
 
-            fixed = roles._custom_perms_valid(doctype)
+            fixed = roles._perms_valid(doctype)
             self.assertTrue(any("merged" in f for f in fixed), fixed)
             self.assertTrue(any("import off" in f for f in fixed), fixed)
-            rows = frappe.get_all("Custom DocPerm", filters={"parent": doctype, "role": "System Manager"},
-                                  fields=["read", "write", "import"])
-            self.assertEqual(len(rows), 1, "one row per role and level")
-            self.assertEqual((rows[0].read, rows[0].write, rows[0]["import"]), (1, 1, 0),
-                             "the merged row carries the OR of the flags, import off")
+            for table in ("DocPerm", "Custom DocPerm"):
+                rows = frappe.get_all(table, filters={"parent": doctype, "role": first.role,
+                                                      "permlevel": first.permlevel},
+                                      fields=["read", "write", "import"])
+                self.assertEqual(len(rows), 1, f"{table}: one row per role and level")
+                self.assertEqual((rows[0].write, rows[0]["import"]), (1, 0),
+                                 f"{table}: the merged row carries the OR of the flags, import off")
 
             roles.ensure_app_docperms()          # the call that used to raise
             self.assertTrue(_role_may(roles.CASHIER, doctype, "read"))
         finally:
-            frappe.db.delete("Custom DocPerm", {"parent": doctype})
-            for row in custom_before:
-                row.pop("name", None)
-                frappe.get_doc({**row, "doctype": "Custom DocPerm"}).insert(ignore_permissions=True)
+            _restore("DocPerm", std_before)
+            _restore("Custom DocPerm", custom_before)
             frappe.db.set_value("DocType", doctype, "allow_import", allow_import_before,
                                 update_modified=False)
             frappe.clear_cache(doctype=doctype)

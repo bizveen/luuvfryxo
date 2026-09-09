@@ -310,66 +310,67 @@ APP_DOCPERM_REVOKE = {
 }
 
 
-def _perm_flags():
-    """Every Check flag a DocPerm row carries on *this* Frappe, from the meta.
-    Merging two rows is the OR of these. Not a hardcoded tuple: the set has
-    changed across versions (`set_user_permissions` is gone in v15), and a
+def _perm_flags(table):
+    """Every Check flag a permission row carries on *this* Frappe, from the
+    meta. Merging two rows is the OR of these. Not a hardcoded tuple: the set
+    has changed across versions (`set_user_permissions` is gone in v15), and a
     name the table does not have is an SQL error in the middle of a migrate.
     """
-    return tuple(f.fieldname for f in frappe.get_meta("Custom DocPerm").fields
+    return tuple(f.fieldname for f in frappe.get_meta(table).fields
                  if f.fieldtype == "Check" and f.fieldname != "if_owner")
 
 
-def _custom_perms_valid(doctype):
-    """Make `doctype`'s Custom DocPerm rows pass Frappe's own validation, so
-    that `add_permission` / `update_permission_property` can run at all.
+def _perms_valid(doctype):
+    """Make `doctype`'s permission rows pass Frappe's own validation, so that
+    `add_permission` / `update_permission_property` can run at all.
 
-    Both of those re-validate *every* row of the doctype after each write, and
-    the first Custom DocPerm write copies the standard rows in. The live
-    site's Restaurant, Restaurant Table and Restaurant Menu come from
-    hospitality with `import: 1` on rows and `allow_import` unset on the
-    DocType, and Restaurant carries System Manager twice at level 0 — neither
-    is ever validated while the rows stay standard, and both fail the moment a
-    custom row exists: "Cannot set import as DocType(Restaurant) is not
-    importable", "Only one rule allowed with the same Role, Level". The
-    rehearsal of the 2026-09 deploy stopped there.
+    Both of those call `validate_permissions_for_doctype` after each write,
+    and that loads the DocType *document* — whose `permissions` rows are the
+    standard `tabDocPerm` table, whatever Custom DocPerm says. The live site's
+    Restaurant, Restaurant Table and Restaurant Menu come from hospitality
+    with `import: 1` on rows and `allow_import` unset on the DocType, and
+    Restaurant carries System Manager twice at level 0. Frappe never validates
+    those rows until something writes a permission, and then refuses every
+    write: "Cannot set import as DocType(Restaurant) is not importable",
+    "Only one rule allowed with the same Role, Level". The rehearsal of the
+    2026-09 deploy stopped there — twice, because the first fix only touched
+    the custom copies.
 
-    Two repairs, both semantically neutral: `import` off on a doctype that is
-    not importable (the flag had no effect), and duplicate rows merged into one
-    carrying the OR of their flags (which is what Frappe granted anyway).
-    Returns what it changed, for the log.
+    So both tables get the same two repairs, both semantically neutral:
+    `import` off on a doctype that is not importable (the flag had no
+    effect), and duplicate rows merged into one carrying the OR of their
+    flags (which is what Frappe granted anyway). Returns what it changed.
     """
     from frappe.permissions import setup_custom_perms
     from frappe.utils import cint
 
     setup_custom_perms(doctype)          # copies the standard rows the first time; no-op after
+    importable = cint(frappe.db.get_value("DocType", doctype, "allow_import"))
     fixed = []
-    flags = _perm_flags()
-
-    rows = frappe.get_all("Custom DocPerm", filters={"parent": doctype},
-                          fields=["name", "role", "permlevel", "if_owner", *flags],
-                          order_by="idx asc, creation asc")
-    seen = {}
-    for row in rows:
-        key = (row.role, cint(row.permlevel), cint(row.if_owner))
-        keep = seen.get(key)
-        if keep is None:
-            seen[key] = row
-            continue
-        merged = {f: 1 for f in flags if cint(row.get(f)) or cint(keep.get(f))}
-        if merged:
-            frappe.db.set_value("Custom DocPerm", keep.name, merged, update_modified=False)
-            keep.update(merged)
-        frappe.delete_doc("Custom DocPerm", row.name, force=True, ignore_permissions=True)
-        fixed.append(f"merged duplicate {row.role}@{row.permlevel}")
-
-    if not frappe.db.get_value("DocType", doctype, "allow_import"):
-        flagged = frappe.get_all("Custom DocPerm", filters={"parent": doctype, "import": 1},
-                                 pluck="name")
-        for name in flagged:
-            frappe.db.set_value("Custom DocPerm", name, "import", 0, update_modified=False)
-        if flagged:
-            fixed.append(f"import off on {len(flagged)} rows (not importable)")
+    for table in ("DocPerm", "Custom DocPerm"):
+        flags = _perm_flags(table)
+        rows = frappe.get_all(table, filters={"parent": doctype},
+                              fields=["name", "role", "permlevel", "if_owner", *flags],
+                              order_by="idx asc, creation asc")
+        seen = {}
+        for row in rows:
+            key = (row.role, cint(row.permlevel), cint(row.if_owner))
+            keep = seen.get(key)
+            if keep is None:
+                seen[key] = row
+                continue
+            merged = {f: 1 for f in flags if cint(row.get(f)) or cint(keep.get(f))}
+            if merged:
+                frappe.db.set_value(table, keep.name, merged, update_modified=False)
+                keep.update(merged)
+            frappe.db.delete(table, {"name": row.name})
+            fixed.append(f"{table}: merged duplicate {row.role}@{row.permlevel}")
+        if not importable:
+            flagged = [r.name for r in seen.values() if cint(r.get("import"))]
+            for name in flagged:
+                frappe.db.set_value(table, name, "import", 0, update_modified=False)
+            if flagged:
+                fixed.append(f"{table}: import off on {len(flagged)} rows (not importable)")
 
     if fixed:
         frappe.clear_cache(doctype=doctype)
@@ -389,7 +390,7 @@ def revoke_app_docperms():
     for doctype, by_role in APP_DOCPERM_REVOKE.items():
         if not frappe.db.exists("DocType", doctype):
             continue
-        _custom_perms_valid(doctype)
+        _perms_valid(doctype)
         for role, perms in by_role.items():
             if not frappe.db.exists("Role", role):
                 continue
@@ -438,7 +439,7 @@ def ensure_app_docperms():
     for doctype, by_perm in APP_DOCPERMS.items():
         if not frappe.db.exists("DocType", doctype):
             continue        # created by a setup_* nobody has run on this site yet
-        for fix in _custom_perms_valid(doctype):
+        for fix in _perms_valid(doctype):
             frappe.logger().info(f"luuvcrm: {doctype} DocPerms repaired — {fix}")
         for perm, role_names in by_perm.items():
             for role in role_names:
@@ -502,7 +503,7 @@ def ensure_pos_docperms(role=CASHIER):
     for doctype, perms in POS_DOCPERMS.items():
         if not frappe.db.exists("DocType", doctype):
             continue  # ERPNext not installed, or an older version
-        _custom_perms_valid(doctype)
+        _perms_valid(doctype)
         add_permission(doctype, role, 0)
         for perm in perms:
             update_permission_property(doctype, role, 0, perm, 1)
