@@ -243,7 +243,7 @@ echo "-- drift / branch / settings / menu"
 ! grep -Eq "^missing .*: [1-9]" "\$RDIR/drift.txt" || { echo "DRIFT AFTER MIGRATE"; exit 1; }
 \$B bench --site "\$REHEARSE_SITE" execute luuvcrm.branch.check
 \$B bench --site "\$REHEARSE_SITE" execute luuvcrm.settings.describe
-echo "   menu items: \$(\$B bench --site "\$REHEARSE_SITE" execute luuvcrm.api.get_menu_data | grep -o '"item_code"' | wc -l)"
+echo "   menu items: \$(\$B bench --site "\$REHEARSE_SITE" execute luuvcrm.api.get_menu_data | grep -o '"item_name"' | wc -l)"
 echo "-- render the public pages through a dev server inside the container"
 docker exec -d -w "\$BENCH" lf-rehearse bash -c "bench serve --port 8001 > /tmp/serve.log 2>&1"
 sleep 12
@@ -381,7 +381,7 @@ B="docker exec -w $BENCH $BACKEND"
 $B bench --site "$SITE" execute luuvcrm.setup_doctype.report_drift > /tmp/drift.txt; cat /tmp/drift.txt | sed 's/^/   /'
 ! grep -Eq "^missing .*: [1-9]" /tmp/drift.txt || { echo "   DRIFT"; exit 1; }
 $B bench --site "$SITE" execute luuvcrm.branch.check | sed 's/^/   branch.check: /'
-n=$($B bench --site "$SITE" execute luuvcrm.api.get_menu_data | grep -o '"item_code"' | wc -l)
+n=$($B bench --site "$SITE" execute luuvcrm.api.get_menu_data | grep -o '"item_name"' | wc -l)
 echo "   menu items: $n"; [ "$n" -gt 0 ] || exit 1
 echo "   workers: $(for w in $WORKERS; do docker inspect -f '{{.State.Status}}' $w; done | tr '\n' ' ')"
 EOF
