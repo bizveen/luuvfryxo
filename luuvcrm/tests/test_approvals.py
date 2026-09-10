@@ -471,3 +471,141 @@ class TestThePurchaseCardShowsThePriceMove(FrappeTestCase):
                                                        "action_payload") or "{}").get("bill") == bill),
                     None)
         self.assertTrue(card["lines"][0].get("unit"))
+
+
+class TestBillChangesLand(ApprovalTestCase):
+    """Approving a bill change has to change the bill — or say why it could not.
+
+    For two weeks (27 Aug – 9 Sep 2026) the execution failed 89 times and every
+    one of those cards still read "approved": the manager saw a green tick, the
+    till heard "approved", and the item stayed. Three shapes, each pinned here:
+    a bill emptied of every item (an order cannot be saved with none), a card
+    approved after the bill was voided or paid, and an older card approved
+    after a newer one for the same bill, which put the older item list back.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.burger = fx.item(self, "APPR-BURGER")
+        fx.item_price(self, self.burger, 1000)
+        self.cola = fx.item(self, "APPR-COLA")
+        fx.item_price(self, self.cola, 250)
+        fx.service_charge(self, 10)
+        self._orders = []
+        self.addCleanup(self._drop_orders)
+
+    def _drop_orders(self):
+        user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            for name in self._orders:
+                if frappe.db.exists("POS Order", name):
+                    frappe.delete_doc("POS Order", name, force=True, ignore_permissions=True)
+        finally:
+            frappe.set_user(user)
+
+    def order(self, items):
+        result = self.call(api.send_to_kitchen, items=json.dumps(items), order_type="Dine In")
+        name = result["name"] if isinstance(result, dict) else result
+        self._orders.append(name)
+        return name
+
+    def items_of(self, order):
+        return sorted(i.item for i in frappe.get_doc("POS Order", order).items)
+
+    def cashier(self):
+        self.as_user(self.user_with(roles.CASHIER, "cashier"))
+
+    def manager(self):
+        frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
+
+    def edit(self, order, items):
+        return self.request(approval_type="edit", title="Remove item approval",
+                            pos_order=order, action="update_items",
+                            action_payload=json.dumps({"items": items}))
+
+    def approve(self, name):
+        return self.call(api.resolve_approval, name=name, decision="approved")
+
+    def test_removing_every_item_voids_the_bill(self):
+        order = self.order([{"item": self.burger, "qty": 1}])
+        self.cashier()
+        card = self.edit(order, [])
+        self.manager()
+        result = self.approve(card)
+        self.assertEqual(result["executed"], "voided")
+        self.assertIsNone(result["note"])
+        self.assertEqual(frappe.db.get_value("POS Order", order, "docstatus"), 2)
+        self.assertEqual(frappe.db.get_value("POS Approval", card, "status"), "approved")
+
+    def test_a_newer_edit_replaces_the_older_one(self):
+        order = self.order([{"item": self.burger, "qty": 1}, {"item": self.cola, "qty": 1}])
+        self.cashier()
+        older = self.edit(order, [{"item": self.burger, "qty": 1}])
+        newer = self.edit(order, [{"item": self.cola, "qty": 1}])
+        self.assertEqual(frappe.db.get_value("POS Approval", older, "status"), "superseded")
+        self.manager()
+        self.assertEqual(self.approve(newer)["executed"], "items_updated")
+        self.assertEqual(self.items_of(order), [self.cola])
+
+    def test_a_stale_edit_is_not_applied_over_a_newer_one(self):
+        """Belt and braces for the case above: a card that somehow stays
+        pending beside a newer one must still not put the old list back."""
+        order = self.order([{"item": self.burger, "qty": 1}, {"item": self.cola, "qty": 1}])
+        self.cashier()
+        older = self.edit(order, [{"item": self.burger, "qty": 1}])
+        self.edit(order, [{"item": self.cola, "qty": 1}])
+        frappe.db.set_value("POS Approval", older, "status", "pending")
+        self.manager()
+        result = self.approve(older)
+        self.assertIsNone(result["executed"])
+        self.assertIn("newer", result["note"])
+        self.assertEqual(frappe.db.get_value("POS Approval", older, "status"), "rejected")
+        self.assertEqual(self.items_of(order), [self.burger, self.cola])
+
+    def test_a_change_to_a_paid_bill_is_closed_with_the_reason(self):
+        order = self.order([{"item": self.burger, "qty": 1}])
+        self.cashier()
+        card = self.request(approval_type="void", title="Void", pos_order=order, action="void")
+        frappe.db.set_value("POS Order", order, "pos_invoice", "ACC-PSINV-TEST-1")
+        self.manager()
+        result = self.approve(card)
+        self.assertIsNone(result["executed"])
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("paid", result["note"])
+        doc = frappe.get_doc("POS Approval", card)
+        self.assertEqual(doc.status, "rejected")
+        self.assertIn("paid", doc.manager_comment)
+        self.assertEqual(frappe.db.get_value("POS Order", order, "docstatus"), 0)
+
+    def test_a_change_to_a_voided_bill_is_closed_with_the_reason(self):
+        order = self.order([{"item": self.burger, "qty": 1}, {"item": self.cola, "qty": 1}])
+        self.cashier()
+        card = self.edit(order, [{"item": self.burger, "qty": 1}])
+        frappe.db.set_value("POS Order", order, "docstatus", 2)
+        self.manager()
+        result = self.approve(card)
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("voided", result["note"])
+        self.assertEqual(self.items_of(order), [self.burger, self.cola])
+
+    def test_a_failure_rolls_the_decision_back(self):
+        """An error while applying the change is not swallowed any more: it
+        reaches the manager and the card stays pending, so nobody is told
+        "approved" about a change that did not happen."""
+        from unittest.mock import patch
+
+        order = self.order([{"item": self.burger, "qty": 1}, {"item": self.cola, "qty": 1}])
+        self.cashier()
+        card = self.edit(order, [{"item": self.burger, "qty": 1}])
+        self.manager()
+        # A request that throws is rolled back whole by Frappe; inside the test
+        # transaction that is a savepoint.
+        frappe.db.savepoint("approval_failed")
+        with patch("luuvcrm.api.approvals._apply_order_items",
+                   side_effect=frappe.ValidationError("kitchen is on fire")):
+            with self.assertRaises(frappe.ValidationError):
+                self.approve(card)
+        frappe.db.rollback(save_point="approval_failed")
+        self.assertEqual(frappe.db.get_value("POS Approval", card, "status"), "pending")
+        self.assertEqual(self.items_of(order), [self.burger, self.cola])
