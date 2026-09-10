@@ -1,50 +1,38 @@
 # Branches
 
-Two branches, two different jobs.
+One branch now: **`main`**.
 
-## `main` — the live restaurant
+## `main` — the restaurant, and the product
 
-What Luuv Fryxo runs. Features, fixes, and anything the client asks for. Deploys with
-`deploy/vps-deploy.sh` (preflight → backup → rehearse → deploy) — see `docs/DEPLOY_RUNBOOK.md` §4.
-There is no `host` remote and no SMB share for this site: the live app directory is not a
-git checkout, so the deploy is an overlay of `git archive HEAD` over it.
+What Luuv Fryxo runs, and where all work happens. Features, fixes, structural work, anything the
+client asks for. It went live on 2026-09-10.
 
-**Security fixes go here**, not on `product`. The three critical findings in `PRODUCTION_READINESS.md` §3 are open on the live site right now; fixing them on a branch nobody deploys helps nobody.
+Deploys with `deploy/vps-deploy.sh` (preflight → backup → rehearse → deploy) — see
+`docs/DEPLOY_RUNBOOK.md` §4. **The live app directory is not a git checkout**, so the deploy is an
+overlay of `git archive HEAD` over it, not a pull. That is why the script compares md5s and keeps
+tarballs in `deploy-state/`: rollback is putting the last tarball back, not `git reset`.
 
-## `product` — the sellable version
+## `product` — retired
 
-Where LuuvCRM becomes software a second restaurant can install. Structural work only:
+`product` was the sellable version, split off so structural work — the schema into the repo, the
+`api.py` split, the brand-from-settings rewrite — could happen without risking a live site
+mid-service. All of it is merged: `git rev-list --left-right --count product...main` reads `0 62`.
+The branch is kept as history and is never merged into or deployed. Nothing needs to come off it.
 
-| Work | Why it is here and not on main |
-|---|---|
-| Schema into the repo (B1) | Touches every `setup_*` endpoint and adds ~26 DocType files. Large, and risky to land on a live site mid-service. |
-| Delete the duplicate `POS Order` (B2) | Needs a migrate to verify; do it where a broken migrate costs nothing. |
-| Tests + CI (B3) | Additive, but pairs with the schema work. |
-| Declare dependencies (B4) | Only matters for a fresh install. |
-| One brand from settings | Rewrites strings across all 25 pages. |
-| Collapse `/pos`, `/pos2`, `/pos3` (done) | Deleted the file the restaurant is using. Landing it on main needs the counter bookmarks re-pointed in the same close — see the note under ROADMAP §2b. |
-| Split `api.py` (done) | 7,338 lines moved at once — merges badly with anything, so it landed here in one commit. |
-| Performance work (P1–P6) | Judgement call: see below. |
+**Why the split ended.** The two-branch rule existed to protect a live site from a refactor. Once
+the refactored version *became* the live site, the second branch was a place for work to sit
+undeployed — which is the failure mode it was meant to prevent, wearing the other hat. `main` is
+protected now by the deploy script's rehearsal and by the tests, not by a branch nobody ships.
 
-## Keeping them from diverging
-
-This is the real risk. `product` will rewrite files that `main` is actively changing — `api.py` most of all.
-
-**Rules that keep the merge survivable:**
-
-1. **`main` → `product`, often.** Merge main into product at least weekly, and always before starting a big refactor. Never the other way round by accident.
-2. **Small, mergeable things land on `main` first**, then flow down. Security fixes, bug fixes, a query limit, an index — all of these belong on `main` and reach `product` by merge.
-3. **`product` only holds work that would be unsafe or pointless on the live site.** If a change is safe to deploy, it is a `main` change.
-4. **Performance fixes: decide per fix.** An N+1 fix or a missing index is a `main` change — the restaurant feels the benefit immediately and it merges cleanly. Moving the activity logger off the request path, or introducing an asset build, is `product` work.
-5. **Land the schema work as one merge, not a trickle.** It is the one change that genuinely cannot be split.
-
-## Merging back
-
-`product` is not merged into `main` as a whole. When a piece of it is finished and proven — the installer, say — it comes back as its own reviewed merge, after a fresh-site install test passes. The rest stays on `product` until it is equally ready.
-
-If `product` ever becomes the version being sold, it becomes the new `main` and the live site upgrades onto it deliberately, with a backup and a rollback plan — not by drifting.
+If a change is ever genuinely too large to land on a live site in one go, branch for that change,
+finish it, merge it, delete the branch. Do not keep a standing second branch.
 
 ## Remotes
 
-- **`host`** — the live server (SMB share). `main` deploys here.
-- **`origin`** — GitHub. Not used for deploys.
+| Remote | What it is | Push? |
+|---|---|---|
+| **`host`** | The owner's machine, over an SMB share (`192.168.1.8`). `git fetch host` needs the share mounted: `gio mount -a "smb://192.168.1.8/users"`. It is a non-bare checkout with `receive.denyCurrentBranch=updateInstead`, so a dirty file there rejects the push — it regularly carries whitespace-only diffs. Stash on the host, then push. | `main` only. Never `product`. |
+| **`origin`** | GitHub (`bizveen/luuvfryxo`). Deliberately left behind — ~148 commits — and not used for deploys. | No. The owner pushes it if and when they want to. |
+
+Neither remote is the live server. The VPS is reached by the deploy script over SSH; it has no git
+repository on it at all.

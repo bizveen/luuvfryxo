@@ -499,7 +499,7 @@ up without re-discovering it.
 | # | What | Fix |
 |---|---|---|
 | 18 | ~145 commits on `main` are not on `origin` (GitHub). | `git push origin main` from the owner's machine — the agent's push is blocked by policy. |
-| 19 | `docs/DEVELOPER_GUIDE.md` and `docs/ROADMAP.md` still describe the branch-picker as read-only ("choosing what to look at must not decide whose row it is"). | Since `fc19acd` an owner's explicit choice also stamps their rows; update the two paragraphs. |
+| 19 | ~~The docs describe the branch-picker as read-only.~~ **Done.** `docs/ROADMAP.md` §2c now lists `select()` as step 4 of `branch.current()` and says why the read-only principle was reversed for owners. `DEVELOPER_GUIDE.md` turned out not to carry the sentence at all. `docs/BRANCHES.md` was rewritten in the same pass — it still described `product` as live work and contradicted itself about the `host` remote. | — |
 
 ## 8. The week after
 

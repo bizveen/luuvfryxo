@@ -1,10 +1,21 @@
-# Roadmap to production
+# Roadmap
 
-The working checklist for turning LuuvCRM into software a second restaurant can install. Ordered — later items assume earlier ones are done.
+The working checklist for turning LuuvCRM into software a second restaurant can install.
+Ordered — later items assume earlier ones are done.
 
-**Branch:** all of this happens on `product`. `main` is the live restaurant. Merge to `main` last, and only when explicitly asked.
+**It went live on 2026-09-10.** Phases 1–6 were written before that, as a road *to* production, and
+they are kept below as the record of how it got there. Phase 7 is the list that is actually open,
+and it starts from a running restaurant rather than from a repo.
 
-**Definition of done for every item below:** the change is made, a test covers it, `bench --site test.localhost run-tests --app luuvcrm` passes, and it is committed. An item without a test is not done.
+**Branch: `main`, and only `main`.** `product` is fully merged and retired — it has nothing `main`
+does not have. The live site is deployed from `main` with `deploy/vps-deploy.sh`; see
+`docs/BRANCHES.md` for what that costs and `docs/DEPLOY_RUNBOOK.md` for how it is done.
+
+**Definition of done for every item below:** the change is made, a test covers it,
+`bench --site test.localhost run-tests --app luuvcrm` passes, and it is committed. An item without a
+test is not done. Since 2026-09-10 there is a second half to that: **a change is not finished until
+it is deployed or explicitly parked.** Code that is right in the repo and absent from the counter
+has helped nobody.
 
 Status: `[x]` done · `[ ]` not started · `[~]` partly done, note says what is left.
 
@@ -159,7 +170,8 @@ first* above.
 - [x] **`restaurant` Link field on all seven doctypes**, in `luuvcrm/branch.py`, installed by `luuvcrm/patches/v1_0/add_branch_field.py`. Read-only: it is stamped, never typed.
   **Watch this one.** `create_custom_field` adds the column itself for a Custom DocType but *not* for one that lives in the repo, where it stays metadata until the next schema sync — and `POS Order` is a repo doctype. It failed exactly that way first time, in the worst available manner: the field was in the meta, so a save set it and the value went nowhere, and a `has_column`-based "is everything branched?" check read a clean zero. `ensure_branch_field()` now calls `frappe.db.updatedb()` for any doctype whose meta has the field and whose table does not, and there is a test for the column rather than the field.
 - [x] **Stamped on insert** by `branch.stamp`, wired in `hooks.py` as `before_insert` for all seven. It never raises: a row that fails to get a branch is a reporting problem, a row that fails to save is a cashier who cannot sell.
-- [x] **All 14 replaced with `branch.current()`**, which resolves in this order, each step a stronger statement than the next: a User Permission on `Restaurant` → the open shift's POS Profile, through its company → any POS Profile assigned to the user → the only Restaurant, if there is exactly one. There is deliberately no "first of several" step: with two restaurants and nothing to go on it returns `None`, because a wrong branch is worse than no branch — nothing anywhere would say so. A test greps for the old call so it cannot come back.
+- [x] **All 14 replaced with `branch.current()`**, which resolves in this order, each step a stronger statement than the next: a User Permission on `Restaurant` → the open shift's POS Profile, through its company → any POS Profile assigned to the user → **the branch the person has explicitly chosen** (`select()`) → the only Restaurant, if there is exactly one. There is deliberately no "first of several" step: with two restaurants and nothing to go on it returns `None`, because a wrong branch is worse than no branch — nothing anywhere would say so. A test greps for the old call so it cannot come back.
+  **The chosen-branch step was added on 2026-09-10 (`05c1f73`), the day after the deploy, and it is a deliberate reversal.** The picker had been read-only on principle — choosing what to look at must not decide whose row it is — and that was wrong for the one person it applies to. Only an owner or an admin ever reaches step 4; everyone else is already answered by 1–3. An owner who has picked Kandy and then enters a bill from their phone means Kandy, and without this the row went in with no branch at all and stayed visible to every branch. The blind fallback — first restaurant by name — stays in `viewing()`, which is a display decision and never stamps anything.
 - [x] **Flipped the reads that are made on somebody's behalf** — 20 of them, over the seven branched doctypes, in the order, kitchen, report, approval, purchasing, expense, wastage, drawer and POS-page reads. Not a blanket conversion of all 85 `get_all` calls, and that distinction is the point:
   - **`get_list` needs a Frappe user.** `customer_get_orders` is `allow_guest` and token-authenticated, as is the guide app; there is no session user for permissions to apply to, so flipping those returns nothing at all. They stay `get_all` deliberately.
   - Internal work — the branch resolver, the activity writer, the `setup_*` installers, the purges — is not "on behalf of" anyone either.
@@ -365,9 +377,91 @@ The pivotal work. Nothing after this is possible without it.
 
 ---
 
+## Phase 7 — Live, and maintained
+
+Everything above was written towards a deploy. This one starts from a restaurant that is already
+running on the code, which changes what "done" means: a change is finished when it is on the
+counter, and until then it is inventory.
+
+**The list of what is open on the live site is `docs/DEPLOY_RUNBOOK.md` §7**, written the day of the
+deploy, 19 items, each saying what it is and how to fix it. It is not copied here — one list, one
+place. What is below is the repo's half: the work that is code, and the order to do it in.
+
+### 7a · Close the security findings (first, and none of them are code)
+
+Runbook §7a items 1–4 are all Desk operations on the live site — the `Administrator` password, three
+enabled test accounts, a till user carrying the `Admin` Role Profile, nine `_Test Company` rows.
+They are first because item 1 is bench-wide: it is not only this restaurant that it opens.
+
+- [ ] **The repo's part is a guard, not a fix.** Nothing in this app can change a password on a site
+      it is not running on. What it can do is refuse to be the reason those accounts exist:
+      `roles.py` should have a check that names any enabled user holding `System Manager` or the
+      `Admin` Role Profile who is not the owner, so `branch.check`-style reporting covers people the
+      way it already covers rows. A finding that has to be re-discovered by hand will be.
+
+### 7b · Make the next deploy cheaper than this one
+
+The first deploy took two runs and a rehearsal, and the runbook records why. The script now handles
+most of it; these are the parts that are still manual.
+
+- [ ] **`apps/` is not a Docker volume** (runbook §7c #10) — a `docker compose up --force-recreate`
+      loses every deploy. This is the single largest risk to everything below, and it is not ours to
+      fix: it lives in whoever owns the VPS's `frappe_docker` compose file. Until then the tarballs
+      in `deploy-state/` are the recovery, and the runbook says so.
+- [ ] **Queue workers carry no `luuvcrm`** (§7c #13). Nothing enqueues today, so nothing is broken —
+      which means the day something does enqueue, it will fail somewhere nobody is looking. Before
+      writing the first `frappe.enqueue` in this app, check the workers, or the feature ships broken.
+- [ ] **A post-deploy verification that runs against the live site and says pass or fail**, rather
+      than a human reading a smoke check. The script has `probe` and `smoke`; make the deploy end on
+      their verdict the way `fc19acd` made the test summary the verdict.
+- [ ] **Retire `/pos2` and `/pos3`** (§7b #7). They are 301s for this release only. Deleting them is
+      one commit; re-pointing the counter tablets is the part that has to happen first, during a
+      close. Do not delete the files until somebody confirms the bookmarks moved.
+
+### 7c · Finish the second restaurant
+
+This is Phase 2c's tail, and now it has a date on it: it is what the app is for.
+
+- [ ] **Backfill `cost_center` on the live `POS Invoice` rows** (§7d #14, and the open Phase 2c item
+      above). Historical revenue belongs to no branch until this is done, and branch-scoped invoice
+      reports cannot exist. Its own day, its own backup.
+- [ ] **Decide how a public page picks its branch** — still parked, and it is now the *only* thing
+      standing between here and a second restaurant serving a menu. `/menu`, `/home`, `/order`,
+      `/kiosk` and `/cus` have no session user, so `branch.current()` returns `None` the day there
+      are two and the page goes blank. Nothing else in 7c can be tested end to end without it.
+- [ ] **Then the sequence in §7d**: a Cost Center and Warehouse per branch → `POS Profile.restaurant`
+      on each till → a menu and tables per branch → `branch.assign()` each manager → `branch.check`
+      until it is empty → decide `apply_strict_user_permissions`.
+
+### 7d · Keep the tests worth running
+
+- [ ] **`main`'s tests break a `product`-shaped site** (the open Phase 3 item). `product` is retired
+      now, so the branch half of that is gone — but the underlying fault is not: a suite that
+      rewrites `custom:` flags on the site it runs against is a suite that damages what it tests.
+      Fix it at the fixture, not by remembering which site to use.
+- [ ] **Endpoint coverage: 38 of 157.** The number moves by writing tests, not by planning them.
+      Next in risk order: promo campaigns, the guide app's endpoints, the drawer and expense writes.
+- [ ] **Run `scripts/acceptance.sh` at last.** Written, never run. `bench new-site` →
+      `install-app luuvcrm` → a working sale. If it does not pass, "installable" is still a claim.
+
+### 7e · Housekeeping
+
+- [ ] Move the demo menu to `luuvcrm/demo/` behind an explicit `bench execute`.
+- [ ] Delete every `setup_*` endpoint whose work now lives in a patch or fixture.
+- [ ] **`docs/PRODUCTION_READINESS.md` describes a site that is now in production.** Re-read it
+      against the live site and either tick its findings or move them into §7.
+
+---
+
 ## Rules that apply throughout
 
-1. **Work on `product`.** Merge to `main` last, and only when asked.
-2. **Every change gets a test**, new or updated, and the suite is run before committing.
+1. **Work on `main`.** There is no second branch any more; `product` is merged and retired.
+2. **Every change gets a test**, new or updated, and the suite is run before committing. Run the
+   modules the change touches, and read the summary line — never the tail of the output.
 3. **Commit finished work.** Do not leave it in the working tree.
-4. **Keep this file current.** Tick items as they land; add what is discovered.
+4. **A change is not done until it is deployed, or parked out loud.** Since 2026-09-10 the code has
+   a restaurant on it. Landing a fix in the repo and not saying it is undeployed is the same as not
+   fixing it, and worse, because the list says it is closed.
+5. **Keep this file current.** Tick items as they land; add what is discovered. The live site's own
+   open list lives in `docs/DEPLOY_RUNBOOK.md` §7 — add there, not here, when the finding is about
+   the running site rather than the code.
