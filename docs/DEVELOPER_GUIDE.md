@@ -60,7 +60,7 @@ the table map. `test_pages.py` asserts the staff gates.
 | `/pos` | Cashier at the counter | login + `roles.require_pos()` |
 | `/waiter` | Floor staff | login + `roles.require_waiter()` |
 | `/kitchen` | Kitchen | login + `roles.require_kitchen()` |
-| `/purchases` | Manager — vendor bills, approvals | login + `roles.require_manager()` |
+| `/purchases` | Purchaser or manager — vendor bills, approvals | login + `roles.require_purchases()` |
 | `/qrpromo` | Manager — sticker batches, the free item | login + `roles.require_manager()` |
 | `/qrcodes` | Manager — printable kiosk QR labels | login + `roles.require_manager()` |
 | `/manager`, `/activity` | Manager — takings, the staff trail | login + manager roles |

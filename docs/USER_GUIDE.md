@@ -14,7 +14,7 @@ Everything the restaurant's staff need, screen by screen. Written for people who
 | Customer at the table | `/kiosk` | Shared tablet |
 | Customer at home | `/cus` | Their own phone |
 | Manager / owner | `/manager` | Phone |
-| Manager (purchasing) | `/purchases` | Phone |
+| Purchaser, or a manager | `/purchases` | Phone |
 | Everything else | `/admin` | Any |
 
 Everyone signs in at `/pos-login` with the email and password the manager creates. **Never share one login between two people** — the activity trail and the sales reports are keyed to who was signed in.

@@ -155,10 +155,29 @@ class TestManagerReportsAreGuarded(FrappeTestCase):
             with self.subTest(endpoint=fn.__name__):
                 self.assertIn("roles.require_manager()", _source(fn))
 
-    def test_purchase_reads_require_a_pos_role(self):
+    #: The guard each staff read must carry. Purchasing is a role of its own
+    #: since 2026-09-10, so the purchase reads ask for it rather than for any POS
+    #: role; the expenses list is shared by the till and purchasing. What this
+    #: test protects is unchanged — none of them is open to just anybody — only
+    #: the name of the guard moved.
+    STAFF_GUARD = {
+        "get_expenses": "roles.require_expenses()",
+        "get_due_bills": "roles.require_purchases()",
+        "get_purchase_bills": "roles.require_purchases()",
+        "search_purchase_bills": "roles.require_purchases()",
+        "get_price_book": "roles.require_purchases()",
+    }
+
+    def test_staff_reads_carry_their_guard(self):
         for fn in self.STAFF_ONLY:
             with self.subTest(endpoint=fn.__name__):
-                self.assertIn("roles.require_pos()", _source(fn))
+                self.assertIn(self.STAFF_GUARD[fn.__name__], _source(fn))
+
+    def test_no_purchase_read_is_open_to_the_till(self):
+        """The narrowing itself: a cashier who is not a Purchaser is refused."""
+        for fn in self.STAFF_ONLY:
+            with self.subTest(endpoint=fn.__name__):
+                self.assertNotIn("roles.require_pos()", _source(fn))
 
     def test_no_manager_report_is_guest_accessible(self):
         for fn in self.MANAGER_ONLY + self.STAFF_ONLY:

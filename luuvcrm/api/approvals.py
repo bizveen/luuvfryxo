@@ -220,13 +220,14 @@ def get_pending_approvals():
 @frappe.whitelist()
 def get_purchase_approvals():
     """Purchase-bill approvals for the purchases page — the same cards the manager
-    app shows, with every other approval type left out. Open to any POS user on the
-    page, not managers only: whoever is on the floor can clear a colleague's bill,
-    while their own stays blocked by roles.block_self_approval().
+    app shows, with every other approval type left out. Open to whoever holds a
+    purchasing role, not managers only: one Purchaser can clear a colleague's bill,
+    while their own stays blocked by roles.block_self_approval(). It used to be
+    open to any POS user, which put the price book in the hands of the whole till.
 
     Pending only. This tab is a queue to empty, not a history — a resolved bill
     belongs in the Bills list, where it already shows with its status."""
-    roles.require_pos()
+    roles.require_purchases()
     rows = _pending_and_recent_approvals("purchase_bill", include_recent=False)
     return {"approvals": _format_approvals(rows), "pending": len(rows)}
 @frappe.whitelist()
@@ -236,14 +237,31 @@ def get_approval_status(name):
     return {"status": frappe.db.get_value("POS Approval", name, "status") or "unknown"}
 @frappe.whitelist(methods=["POST"])
 def resolve_approval():
-    """Manager approves/rejects a POS Approval; on approve the action is executed."""
-    roles.require_pos()
+    """Approve or reject a POS Approval; on approve the action is executed.
+
+    Who may answer depends on what is being answered, so the gate is in two
+    steps. First, anybody who could answer *something* — the till or purchasing
+    — so a guest or the kitchen is turned away before a row is even loaded. Then
+    the approval's own kind decides: a purchase bill needs a purchasing role, and
+    everything else (a discount, a void, an edited order, an expense) a POS role.
+
+    A single gate cannot be right. `require_pos()` alone let any cashier decide
+    purchase bills — and rewrite the buying price book — while refusing a
+    Purchaser, who is not a POS role, on the one screen built for them: the
+    /purchases queue approves through this endpoint, not resolve_purchase_bill.
+    """
+    if not roles.has_any(roles.POS_ROLES | roles.PURCHASE_ROLES):
+        frappe.throw(_("You are not permitted to answer approvals"), frappe.PermissionError)
     data = frappe.local.form_dict
     name = data.get("name")
     decision = data.get("decision")
     if decision not in ("approved", "rejected"):
         frappe.throw(_("Decision must be 'approved' or 'rejected'"))
     doc = frappe.get_doc("POS Approval", name)
+    if (doc.action or "") == "purchase_bill":
+        roles.require_purchases()
+    else:
+        roles.require_pos()
     if doc.status != "pending":
         frappe.throw(_("Already resolved"))
     roles.block_self_approval(doc.requested_by)

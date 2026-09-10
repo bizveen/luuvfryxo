@@ -117,7 +117,7 @@ def setup_raw_materials():
 @frappe.whitelist()
 def get_purchase_catalog():
     """Buying items + current purchase price (the price book) — raw materials first."""
-    roles.require_pos()
+    roles.require_purchases()
     pl = _buying_price_list()
     items = frappe.get_all("Item", filters={"item_group": "Raw Materials", "disabled": 0},
                            fields=["name", "item_name", "stock_uom", "item_group"],
@@ -142,7 +142,7 @@ def get_purchase_catalog():
 def create_purchase_item():
     """Create a new buying Item from the purchases app (name + unit).
     Reuses an existing Item if one with the same name is already there."""
-    roles.require_pos()
+    roles.require_purchases()
     data = frappe.local.form_dict
     item_name = (data.get("item_name") or "").strip()
     if not item_name:
@@ -203,7 +203,7 @@ def rename_purchase_item():
     picker and on every bill raised from now on; bills already raised keep the
     name and unit they were saved with, because their line is a snapshot.
     """
-    roles.require_pos()
+    roles.require_purchases()
     data = frappe.local.form_dict
     item = (data.get("item") or "").strip()
     new_name = (data.get("new_name") or "").strip()
@@ -264,7 +264,7 @@ def _bill_dict(name):
     }
 @frappe.whitelist(methods=["POST"])
 def create_purchase_bill():
-    roles.require_pos()
+    roles.require_purchases()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         _install_purchase_bill()
     data = frappe.local.form_dict
@@ -315,7 +315,7 @@ def create_purchase_bill():
     return {"ok": True, "name": doc.name, "total": total}
 @frappe.whitelist()
 def get_purchase_bills():
-    roles.require_pos()
+    roles.require_purchases()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "approved_today": 0, "pending_amt": 0, "week": 0}
     rows = frappe.get_list("Purchase Bill", filters={}, fields=["name", "status", "requested_at"],
@@ -366,7 +366,7 @@ def get_purchase_day_summary(date=None):
     """
     from frappe.utils import add_days, formatdate, getdate, today as _today
 
-    roles.require_pos()
+    roles.require_purchases()
     day = getdate(date or _today())
     empty = {"date": str(day), "label": formatdate(day, "EEE, d MMM"),
              "is_today": str(day) == str(getdate(_today())), "bills": [], "count": 0,
@@ -432,8 +432,7 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
     20,000. The lines load only when a card is tapped (get_purchase_bill).
     Matches the vendor, the note, or any item name on the bill.
     """
-    roles.require_pos()
-    roles.require_pos()
+    roles.require_purchases()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "more": False}
 
@@ -479,14 +478,14 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
 @frappe.whitelist()
 def get_purchase_bill(name=None):
     """One bill in full. Search results carry no lines — a tapped card fetches them."""
-    roles.require_pos()
-    roles.require_pos()
+    roles.require_purchases()
+    roles.require_purchases()
     if not name or not frappe.db.exists("Purchase Bill", name):
         frappe.throw(_("Bill not found"))
     return _bill_dict(name)
 @frappe.whitelist()
 def get_price_book():
-    roles.require_pos()
+    roles.require_purchases()
     cat = get_purchase_catalog()
     return cat
 def _decide_purchase_bill(name, decision, discount=None):
@@ -550,13 +549,14 @@ def _apply_bill_discount(doc, discount=None):
     return amount
 @frappe.whitelist(methods=["POST"])
 def resolve_purchase_bill():
-    """Manager approves/rejects a bill; approving updates each item's buying Item Price.
+    """Somebody holding a purchasing role approves or rejects a bill; approving
+    updates each item's buying Item Price. Not their own — block_self_approval.
 
     A `discount` may come with an approval — what the vendor took off the whole
     bill. It is asked for here rather than at entry because approval is the
     moment somebody is holding the paper and can see the figure written on it.
     """
-    roles.require_pos()
+    roles.require_purchases()
     data = frappe.local.form_dict
     name = data.get("name")
     decision = data.get("decision")
@@ -606,7 +606,7 @@ def setup_purchase_payment_fields():
 def get_due_bills():
     """Approved bills not yet marked paid — the vendor payables list. Oldest owed
     first (so the most overdue payment is at the top), with a per-vendor summary."""
-    roles.require_pos()
+    roles.require_purchases()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "total_due": 0, "count": 0, "vendors": []}
     if not frappe.db.has_column("Purchase Bill", "payment_status"):
@@ -637,7 +637,7 @@ def get_due_bills():
 def mark_bill_paid():
     """Mark an approved bill as paid to the vendor (clears it from the due list).
     `paid` param 0/1 lets a mistaken tap be undone."""
-    roles.require_pos()
+    roles.require_purchases()
     if not frappe.db.has_column("Purchase Bill", "payment_status"):
         _install_purchase_payment_fields()
     data = frappe.local.form_dict

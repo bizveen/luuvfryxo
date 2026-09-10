@@ -118,7 +118,7 @@ def setup_expenses():
 @frappe.whitelist()
 def get_expense_categories():
     """Categories for the /purchases expense form. Manager-editable from Desk > Expense Category."""
-    roles.require_pos()
+    roles.require_expenses()
     if not frappe.db.exists("DocType", "Expense Category"):
         _install_expenses()
     return {"categories": [r.name for r in frappe.get_all(
@@ -143,7 +143,7 @@ def create_expense():
     neither accounts for pay-outs. Subtracting an expense in only one of them is worse than in
     neither, so an expense is a record, not a till movement. The shift is stored for context only.
     """
-    roles.require_pos()
+    roles.require_expenses()
     if not frappe.db.exists("DocType", "Expense"):
         _install_expenses()
     data = frappe.local.form_dict
@@ -203,7 +203,7 @@ def _decide_expense(name, decision):
 @frappe.whitelist()
 def get_expenses():
     """Recent expenses + header stats for the /purchases app."""
-    roles.require_pos()
+    roles.require_expenses()
     if not frappe.db.exists("DocType", "Expense"):
         return {"expenses": [], "approved_today": 0, "pending_amt": 0, "week": 0}
     rows = frappe.get_list("Expense", fields=["name"], order_by="requested_at desc",

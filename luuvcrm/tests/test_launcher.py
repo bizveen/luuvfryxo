@@ -231,3 +231,20 @@ class TestTilesAreForAPhoneOrTheInstalledApp(LauncherTestCase):
     def test_choosing_a_restaurant_goes_through_the_same_endpoint_as_admin(self):
         self.assertIn("luuvcrm.api.set_branch_choice", self.html())
         frappe.is_whitelisted(frappe.get_attr("luuvcrm.api.set_branch_choice"))
+
+
+class TestWhereAPurchaserLands(LauncherTestCase):
+    def test_a_purchaser_goes_straight_to_purchases(self):
+        self.as_user(_user(self, "buy", roles.PURCHASER))
+        self.assertEqual(self.land()[0], "/purchases")
+
+    def test_a_cashier_who_also_buys_lands_on_the_till(self):
+        """The morning needs the till; Purchases is one tap away on the switch."""
+        email = _user(self, "buy-cash", roles.PURCHASER)
+        frappe.get_doc("User", email).add_roles(roles.CASHIER)
+        self.as_user(email)
+        self.assertEqual(self.land()[0], "/pos")
+        self.assertIn("purchases", [a["key"] for a in launcher.apps_for(email)])
+
+    def test_a_cashier_is_not_offered_purchases(self):
+        self.assertNotIn("purchases", self.keys(_user(self, "cash-nobuy", roles.CASHIER)))

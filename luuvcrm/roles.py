@@ -39,6 +39,7 @@ from frappe import _
 KITCHEN_STAFF = "Kitchen Staff"
 WAITER = "Waiter"
 CASHIER = "Cashier"
+PURCHASER = "Purchaser"
 RESTAURANT_MANAGER = "Restaurant Manager"
 RESTAURANT_OWNER = "Restaurant Owner"
 SYSTEM_MANAGER = "System Manager"
@@ -61,8 +62,24 @@ OWNER_ROLES = ADMIN_ROLES | {RESTAURANT_OWNER}
 #: Reports, purchasing, approvals, the menu.
 MANAGER_ROLES = OWNER_ROLES | {RESTAURANT_MANAGER}
 
+#: May open /purchases and do everything on it: enter a supplier bill, keep the
+#: purchase catalogue, approve or reject a bill, mark one paid. A branch of the
+#: tree rather than a level in it — a Purchaser is not a cashier and cannot open
+#: the till, and a cashier is not a Purchaser. Managers are in because it is
+#: their screen too.
+#:
+#: Approving does not need a manager, and that is deliberate:
+#: `block_self_approval` already stops whoever entered a bill from approving it,
+#: so two people holding this role are a complete check without one.
+PURCHASE_ROLES = MANAGER_ROLES | {PURCHASER}
+
 #: May operate a till: sell, take payment, run a shift.
 POS_ROLES = MANAGER_ROLES | {CASHIER, POS_USER, SALES_USER}
+
+#: May enter and read expenses. The till pays some out of the drawer, and the
+#: /purchases screen has an expenses tab — so either kind of work gets in, and
+#: widening it to Purchaser takes it away from nobody.
+EXPENSE_ROLES = POS_ROLES | PURCHASE_ROLES
 
 #: May take and amend orders. A cashier can do everything a waiter can.
 WAITER_ROLES = POS_ROLES | {WAITER}
@@ -73,7 +90,7 @@ KITCHEN_ROLES = WAITER_ROLES | {KITCHEN_STAFF}
 
 #: Every role this app defines, in the order a person is likely to be promoted
 #: through them. Used by the installer to create them.
-LUUVCRM_ROLES = (KITCHEN_STAFF, WAITER, CASHIER, RESTAURANT_MANAGER, RESTAURANT_OWNER)
+LUUVCRM_ROLES = (KITCHEN_STAFF, WAITER, CASHIER, PURCHASER, RESTAURANT_MANAGER, RESTAURANT_OWNER)
 
 #: Roles that get a Frappe Desk login. Floor staff use the web apps only.
 DESK_ROLES = frozenset({CASHIER, RESTAURANT_MANAGER, RESTAURANT_OWNER})
@@ -110,6 +127,14 @@ def require_owner(user=None):
 
 def require_manager(user=None):
     _require(MANAGER_ROLES, _("Only a manager can do this"), user)
+
+
+def require_purchases(user=None):
+    _require(PURCHASE_ROLES, _("Only somebody who handles purchasing can do this"), user)
+
+
+def require_expenses(user=None):
+    _require(EXPENSE_ROLES, _("You are not permitted to record expenses"), user)
 
 
 def require_pos(user=None):
@@ -243,19 +268,30 @@ _TILL = (CASHIER,)
 _FLOOR = (WAITER,)
 _KITCHEN = (KITCHEN_STAFF,)
 _MANAGERS = (RESTAURANT_MANAGER, RESTAURANT_OWNER)
+_BUYING = (PURCHASER,)
 
 APP_DOCPERMS = {
-    # Money out. A cashier enters a bill or an expense; only a manager decides
-    # it — which is the approval flow, and why write is not granted at the till.
-    "Purchase Bill":      {"read": _TILL + _MANAGERS, "create": _TILL + _MANAGERS,
+    # Money out. Whoever enters a bill does not decide it — which is the
+    # approval flow, and why write is granted to neither the till nor a
+    # Purchaser: write is what would let somebody set their own bill to
+    # "approved" through Frappe's REST API, around block_self_approval.
+    # A Purchaser's reads go through `get_list`, which applies these rows.
+    # (The till's read/create is left in place: ensure_app_docperms only adds,
+    # and no till screen reads a purchase bill any more — the endpoints are the
+    # gate, require_purchases().)
+    "Purchase Bill":      {"read": _TILL + _BUYING + _MANAGERS,
+                           "create": _TILL + _BUYING + _MANAGERS,
                            "write": _MANAGERS, "delete": _MANAGERS},
-    "Expense":            {"read": _TILL + _MANAGERS, "create": _TILL + _MANAGERS,
+    "Expense":            {"read": _TILL + _BUYING + _MANAGERS,
+                           "create": _TILL + _BUYING + _MANAGERS,
                            "write": _MANAGERS, "delete": _MANAGERS},
     "Wastage":            {"read": _TILL + _FLOOR + _MANAGERS,
                            "create": _TILL + _FLOOR + _MANAGERS,
                            "write": _MANAGERS, "delete": _MANAGERS},
     # Anyone on the floor may ask for an approval; only a manager answers it.
-    "POS Approval":       {"read": _TILL + _FLOOR + _MANAGERS,
+    # A Purchaser reads it for the purchase queue; the row itself is inserted
+    # by create_purchase_bill with ignore_permissions, so no create is needed.
+    "POS Approval":       {"read": _TILL + _FLOOR + _BUYING + _MANAGERS,
                            "create": _TILL + _FLOOR + _MANAGERS,
                            "write": _MANAGERS, "delete": _MANAGERS},
     "POS Cash Movement":  {"read": _TILL + _MANAGERS, "create": _TILL + _MANAGERS,
@@ -272,7 +308,7 @@ APP_DOCPERMS = {
                            "write": _TILL + _MANAGERS},
     "Restaurant Menu":    {"read": _TILL + _FLOOR + _KITCHEN + _MANAGERS},
     # Reference data the screens resolve against.
-    "Expense Category":   {"read": _TILL + _MANAGERS},
+    "Expense Category":   {"read": _TILL + _BUYING + _MANAGERS},
     "POS Item Addon":     {"read": _TILL + _FLOOR + _MANAGERS},
     "Tour Guide":         {"read": _TILL + _MANAGERS, "create": _MANAGERS,
                            "write": _MANAGERS},

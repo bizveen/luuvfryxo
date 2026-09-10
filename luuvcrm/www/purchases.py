@@ -16,7 +16,7 @@ def get_context(context):
         frappe.local.flags.redirect_location = "/pos-login?redirect=/purchases"
         raise frappe.Redirect
 
-    roles.require_manager()
+    roles.require_purchases()
 
     context.csrf_token = frappe.sessions.get_csrf_token()
     user = frappe.session.user

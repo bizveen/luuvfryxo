@@ -28,16 +28,16 @@ import frappe
 
 from luuvcrm import roles
 
-#: In the order they are offered. Floor staff land on the first one they can
-#: open, which is why the floor screens run most-senior-first: a cashier (who
-#: can also open the waiter and kitchen screens) lands on the till.
+#: In the order they are offered. The floor screens run most-senior-first, so a
+#: cashier (who can also open the waiter and kitchen screens) lands on the till —
+#: see `primary()` for where somebody who is not shown the tiles goes.
 APPS = (
     {"key": "admin", "path": "/admin", "label": "Admin", "icon": "🛠️",
      "about": "Menu, tables, staff and branches", "allowed": roles.MANAGER_ROLES},
     {"key": "manager", "path": "/manager", "label": "Manager", "icon": "📊",
      "about": "Today's sales, approvals and the cash drawer", "allowed": roles.MANAGER_ROLES},
     {"key": "purchases", "path": "/purchases", "label": "Purchases", "icon": "🧾",
-     "about": "Supplier bills and what is still owed", "allowed": roles.MANAGER_ROLES},
+     "about": "Supplier bills and what is still owed", "allowed": roles.PURCHASE_ROLES},
     {"key": "pos", "path": "/pos", "label": "POS", "icon": "🍔",
      "about": "Orders and payments at the counter", "allowed": roles.POS_ROLES},
     {"key": "waiter", "path": "/waiter", "label": "Waiter", "icon": "🤵",
@@ -58,6 +58,25 @@ def apps_for(user=None):
         return []
     return [{k: v for k, v in app.items() if k != "allowed"}
             for app in APPS if roles.has_any(app["allowed"], user)]
+
+
+#: The screens a shift is worked on. Somebody who is not shown the tiles lands
+#: on the first of these they can open, before any back-office app.
+FLOOR = ("pos", "waiter", "kitchen")
+
+
+def primary(apps):
+    """Where somebody who is not shown the tiles is sent.
+
+    Their floor screen if they have one, otherwise the first app they can open. A
+    cashier who also buys for the kitchen lands on the till, because that is what
+    the morning needs, and reaches Purchases through the switch; a Purchaser and
+    nothing else goes straight to Purchases.
+    """
+    for app in apps:
+        if app["key"] in FLOOR:
+            return app
+    return apps[0]
 
 
 def chooses(user=None):

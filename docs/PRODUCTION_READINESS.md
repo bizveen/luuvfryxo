@@ -22,7 +22,7 @@ Everything in this report is reproducible against the current tree; file and lin
 | Kitchen display | `/kitchen` | Kitchen | Production |
 | Self-order kiosk | `/kiosk` | Customer | Production |
 | Manager phone app | `/manager` | Owner/manager | Production |
-| Purchases & approvals | `/purchases` | Manager | Production (newest module) |
+| Purchases & approvals | `/purchases` | Purchaser or manager | Production (newest module) |
 | Customer PWA | `/cus` | Customer | Production |
 | Tour-guide portal | `/guide` | Partner guides | Production |
 | QR promo admin | `/qrpromo`, `/claim` | Marketing | Production |

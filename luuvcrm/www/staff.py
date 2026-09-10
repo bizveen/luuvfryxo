@@ -51,7 +51,7 @@ def get_context(context):
 
     asked = str(frappe.local.form_dict.get("choose") or "") in ("1", "true")
     if len(apps) == 1 or not (asked or launcher.chooses()):
-        frappe.local.flags.redirect_location = apps[0]["path"]
+        frappe.local.flags.redirect_location = launcher.primary(apps)["path"]
         raise frappe.Redirect
 
     user = frappe.session.user

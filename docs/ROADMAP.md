@@ -54,6 +54,7 @@ Done — `luuvcrm/roles.py`, commit below. The four role sets that lived in thre
   | **Kitchen Staff** | Kitchen | `/kitchen` — advance order status | Everything else |
   | **Waiter** | Floor | `/waiter` — take and amend own orders | Take payment, see the day's totals |
   | **Cashier** | Counter | `/pos` — sell, take payment, open/close shift | See reports, approve anything |
+  | **Purchaser** | Whoever buys for the restaurant | `/purchases` — enter bills, keep the catalogue, approve **somebody else's** bill, mark bills paid | Approve their own bill, open the till or the reports |
   | **Restaurant Manager** | Branch manager | `/manager`, `/purchases`, `/activity`, `/errors`, menu, approvals — **for their own branch** | See other branches, change schema |
   | **Restaurant Owner** | Owner | Everything a manager can, **across every branch**, plus consolidated reporting | Change schema |
   | **System Manager** | Developer / installer | Frappe's own admin role: create doctypes, migrate, edit permissions, manage users | — *not a business role* |
@@ -84,7 +85,7 @@ Every page and its current gate:
 | `/pos` | login + POS roles | ✅ correct — one POS route; `/pos2` and `/pos3` are redirects to it, kept for one release |
 | `/waiter` | login + Waiter roles | ✅ correct |
 | `/kitchen` | login + Kitchen roles | ✅ correct — it used to render for a guest |
-| `/purchases` | login + Manager roles | ✅ correct |
+| `/purchases` | login + Purchase roles — `Purchaser` or any manager (`require_purchases`, since 2026-09-10) | ✅ correct |
 | `/qrpromo` | login + Manager roles | ✅ correct |
 | `/guide` | guest, token auth | ✅ correct — no session gate, and a test asserts there is none |
 | `/manager`, `/activity`, `/errors` | login + Manager roles | ✅ correct — `/activity` was a 500 and `/errors` was System-Manager-only until the gate tests were written |
@@ -498,6 +499,26 @@ This is Phase 2c's tail, and now it has a date on it: it is what the app is for.
       Every app has a way back (`templates/includes/app_switch.html`), drawn only for somebody who
       can open more than one. `luuvcrm/launcher.py` is the one list of apps and who is offered
       them; each page keeps its own gate, and the list uses the same `roles.*_ROLES` those gates do.
+
+- [x] **Purchasing is a role now, not a manager's privilege (2026-09-10).** `Purchaser` can open
+      `/purchases` and do the whole job on it — enter a bill, keep the catalogue, approve, mark paid —
+      without being a manager or a cashier. Approving never needed a manager: `block_self_approval`
+      already stops whoever entered a bill from approving it, so two Purchasers are a complete check.
+      **The screen and the endpoints disagreed before this.** The page was manager-only; the twelve
+      endpoints behind it accepted any POS role, so a cashier could approve a colleague's bill — and
+      rewrite the buying price book — by calling the API. And `resolve_approval`, which answers
+      discounts and voids for the till, rightly, also decides purchase bills: a second door, now
+      gated on the purchase branch alone. Both are `require_purchases()`. The role gets read and
+      create on `Purchase Bill`, never write — write is what would let someone approve their own bill
+      through Frappe's REST API, around the endpoint. `add_purchaser_role` brings it to the live site.
+      **Two traps found on the way, both "the page opens and its own buttons refuse".** The
+      `/purchases` queue approves through `resolve_approval`, whose gate was `require_pos()` — so a
+      Purchaser could open the screen and approve nothing. It now admits anybody who could answer
+      *something*, then gates by the approval's kind: purchase bills need purchasing, everything else
+      the till. And the page's expenses tab called three `require_pos()` endpoints; those take
+      `EXPENSE_ROLES` now — the till *or* purchasing, widened rather than moved, because the till pays
+      some expenses out of the drawer. A test reads `purchases.html` and asks every endpoint it calls
+      whether a Purchaser gets in, so a third one cannot slip past.
 
 ### 7e · Housekeeping
 

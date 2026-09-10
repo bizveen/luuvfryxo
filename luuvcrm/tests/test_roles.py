@@ -392,3 +392,33 @@ def _role_may(role, doctype, perm):
         rows = frappe.get_all("DocPerm", filters={"parent": doctype, "role": role},
                               fields=[perm])
     return any(r.get(perm) for r in rows)
+
+
+class TestThePurchaserRole(FrappeTestCase):
+    """Purchasing is a job, given to somebody — not a level everyone above a
+    cashier reaches, and not something a cashier has by default."""
+
+    def test_it_is_one_of_this_app_s_roles_and_so_grantable(self):
+        from luuvcrm.api import staff
+
+        self.assertIn(roles.PURCHASER, roles.LUUVCRM_ROLES)
+        self.assertIn(roles.PURCHASER, staff.GRANTABLE)
+
+    def test_it_exists_on_the_site(self):
+        roles.ensure_roles()
+        self.assertTrue(frappe.db.exists("Role", roles.PURCHASER))
+
+    def test_it_gets_no_desk_login(self):
+        self.assertNotIn(roles.PURCHASER, roles.DESK_ROLES)
+
+    def test_managers_can_still_purchase_and_a_cashier_cannot(self):
+        self.assertLessEqual(roles.MANAGER_ROLES, roles.PURCHASE_ROLES)
+        self.assertNotIn(roles.CASHIER, roles.PURCHASE_ROLES)
+
+    def test_expenses_are_open_to_both_the_till_and_purchasing(self):
+        self.assertLessEqual(roles.POS_ROLES, roles.EXPENSE_ROLES)
+        self.assertLessEqual(roles.PURCHASE_ROLES, roles.EXPENSE_ROLES)
+
+    def test_a_purchaser_reaches_neither_the_till_nor_the_reports(self):
+        self.assertNotIn(roles.PURCHASER, roles.POS_ROLES)
+        self.assertNotIn(roles.PURCHASER, roles.MANAGER_ROLES)

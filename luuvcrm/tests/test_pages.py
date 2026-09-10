@@ -277,7 +277,7 @@ class TestTheStaffPagesAreGated(PageTestCase):
     GATES = {
         "waiter":    (roles.WAITER, roles.KITCHEN_STAFF),
         "kitchen":   (roles.KITCHEN_STAFF, None),
-        "purchases": (roles.RESTAURANT_MANAGER, roles.CASHIER),
+        "purchases": (roles.PURCHASER, roles.CASHIER),
         "qrpromo":   (roles.RESTAURANT_MANAGER, roles.CASHIER),
         "qrcodes":   (roles.RESTAURANT_MANAGER, roles.CASHIER),
         "manager":   (roles.RESTAURANT_MANAGER, roles.CASHIER),

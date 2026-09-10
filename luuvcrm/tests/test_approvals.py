@@ -141,9 +141,23 @@ class TestAnsweringARequest(ApprovalTestCase):
 class TestSelfApproval(ApprovalTestCase):
     """Separation of duties: nobody answers their own request, whatever it is."""
 
+    def buyer(self):
+        """Somebody who can both raise a purchase approval and decide one.
+
+        A cashier alone no longer reaches the second half: purchase bills are
+        decided by `roles.PURCHASE_ROLES`, so a plain cashier is stopped by that
+        gate before the self-approval rule is ever asked. To test the rule, the
+        buyer has to be somebody the gate lets through — a cashier who is also a
+        Purchaser. Its own tag, so the extra role never leaks onto the "buyer"
+        account the tests below use as a plain cashier.
+        """
+        email = self.user_with(roles.CASHIER, "buyer-purchaser")
+        if roles.PURCHASER not in frappe.get_roles(email):
+            frappe.get_doc("User", email).add_roles(roles.PURCHASER)
+        return email
+
     def test_the_person_who_entered_a_purchase_bill_cannot_approve_it(self):
-        cashier = self.user_with(roles.CASHIER, "buyer")
-        self.as_user(cashier)
+        self.as_user(self.buyer())
         name = self.request(approval_type="bill", action="purchase_bill",
                             action_payload=json.dumps({"bill": "_LFT-NO-SUCH-BILL"}))
         with self.assertRaises(frappe.PermissionError) as caught:
@@ -151,8 +165,7 @@ class TestSelfApproval(ApprovalTestCase):
         self.assertIn("someone else has to answer", str(caught.exception))
 
     def test_nor_can_they_reject_it(self):
-        cashier = self.user_with(roles.CASHIER, "buyer")
-        self.as_user(cashier)
+        self.as_user(self.buyer())
         name = self.request(approval_type="bill", action="purchase_bill",
                             action_payload=json.dumps({"bill": "_LFT-NO-SUCH-BILL"}))
         with self.assertRaises(frappe.PermissionError):
@@ -166,6 +179,20 @@ class TestSelfApproval(ApprovalTestCase):
                             action_payload=json.dumps({"bill": "_LFT-NO-SUCH-BILL"}))
         with self.assertRaises(frappe.PermissionError):
             self.call(api.resolve_approval, name=name, decision="approved")
+
+    def test_a_plain_cashier_cannot_decide_a_purchase_bill_at_all(self):
+        """Not their own and not anybody else's: purchasing is a role, and this
+        endpoint decides discounts and voids for the till but purchase bills only
+        for somebody who holds it."""
+        buyer = self.user_with(roles.RESTAURANT_MANAGER, "manager")
+        self.as_user(buyer)
+        name = self.request(approval_type="bill", action="purchase_bill",
+                            action_payload=json.dumps({"bill": "_LFT-NO-SUCH-BILL"}))
+        frappe.set_user(self.user_with(roles.CASHIER, "not-a-buyer"))
+        with self.assertRaises(frappe.PermissionError) as caught:
+            self.call(api.resolve_approval, name=name, decision="approved")
+        self.assertIn("purchasing", str(caught.exception))
+        self.assertEqual(frappe.db.get_value("POS Approval", name, "status"), "pending")
 
     def test_somebody_else_may_approve_it(self):
         buyer = self.user_with(roles.CASHIER, "buyer")

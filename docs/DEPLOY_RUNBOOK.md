@@ -535,6 +535,7 @@ verify. Nothing here changes a row the restaurant already has.
 
 | Patch | What it does | If it does not run |
 |---|---|---|
+| `add_purchaser_role` | Creates the `Purchaser` role and grants it read + create on `Purchase Bill` and `Expense`, read on `POS Approval` and `Expense Category`. Nobody holds it until the owner gives it to somebody in `/admin → Staff`. | Nobody can be given the role — it is not in the Staff screen's list until the Role row exists. The purchase endpoints are still closed to cashiers either way, because that is code, not the patch. |
 | `add_table_enabled_field` | Adds `Restaurant Table.enabled`, default 1, so every existing table stays in service. | The code reads a missing column as "every table is enabled": the POS grid still shows every table, and `/admin → Tables` shows "migrate first" instead of the off switch. Nothing breaks; the new switch just is not there. |
 
 The first deploy's `deploy` step already runs `bench migrate` — confirm in the
@@ -560,6 +561,16 @@ run log that `add_table_enabled_field` is listed as executed, not skipped.
   menu → *Install app* / *Add to Home screen*. It opens on the tiles, and moving
   between apps stays inside the app window. The per-app installs (`/manager`,
   `/purchases`) keep working; nobody has to reinstall.
+- **Purchasing is a role of its own: `Purchaser`.** Give it in `/admin → Staff` to
+  whoever buys for the restaurant. They can open `/purchases` and do everything on
+  it — enter a bill, approve somebody else's, mark it paid — without being a
+  manager. **Nobody can approve a bill they entered**, manager included, so one
+  Purchaser alone cannot enter and approve their own purchase; it takes two people,
+  or a Purchaser and a manager. **A cashier who is not a Purchaser can no longer
+  reach purchasing** — no cashier screen ever offered it, but the endpoints used to
+  accept them. Managers and the owner keep it. **Expenses are unchanged for the
+  till**: a cashier can still record one; a Purchaser now can too, from the
+  expenses tab on `/purchases`.
 - **`/admin → Tables`.** Add a table (it is numbered after the branch's last one —
   there is no name to type), and turn one off. Off hides it from the POS grid, the
   waiter screen, the kiosk, the online order page and the QR sheet. **A bill
@@ -587,7 +598,10 @@ Then by hand, in this order:
 1. Sign in as a **cashier** → you land on `/pos`, not on tiles.
 2. Sign in as the **owner** on a phone → tiles. Sign in again at a desktop
    browser → straight to `/admin`; its sidebar "⇄ Switch app" still shows the tiles.
-3. `/admin → Tables` → every existing table is listed and **on**. Do not turn a
+3. `/admin → Staff` → the role list includes **Purchaser**. Do not give it to a
+   real person as a test; if you want to see it work, give it to a spare account,
+   sign in as it, and confirm you land on `/purchases` and nowhere else.
+4. `/admin → Tables` → every existing table is listed and **on**. Do not turn a
    real one off to test it; add a table, turn *that* off, confirm it left the POS
    grid, turn it back on.
 
@@ -596,11 +610,12 @@ Then by hand, in this order:
 `test_launcher` (new, 16), `test_tables` (new, 13), `test_branch` (71, twice — see
 the test-pollution fix in `bb2ffea`), `test_pages`, `test_menu`, `test_orders`,
 `test_service`, `test_setup`, `test_api_package`, `test_dashboard`, `test_shifts`,
-`test_brand`, `test_activity` — all passing.
+`test_brand`, `test_activity`, `test_approvals`, `test_purchases`, `test_roles`,
+`test_security` — all passing.
 
-**`test_security` has one failure on the dev bench, and it is the bench, not the
-code:** `test_wrong_pins_lock_the_number_out`. The PIN lockout counter lives in
-the Redis cache, and Redis was not running there. `_pin_locked()` is written to
+**`test_security.test_wrong_pins_lock_the_number_out` depends on Redis.** It
+failed once on the dev bench while Redis was down, and passed once Redis was back.
+The PIN lockout counter lives in the Redis cache. `_pin_locked()` is written to
 fail open when the cache is unreachable — a restaurant that loses Redis must not
 also lose every customer login — so with no Redis the counter never counts. On
 the live site Redis is up. If this test fails on a bench, check

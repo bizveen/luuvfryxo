@@ -124,13 +124,21 @@ class TestEnteringABill(PurchaseTestCase):
         self.assertEqual(len(approvals), 1, "a bill nobody is asked about is never approved")
         self.assertEqual(approvals[0].approval_type, "bill")
 
-    def test_a_cashier_can_enter_one_without_admin_rights(self):
+    def test_a_purchaser_can_enter_one_without_admin_rights(self):
         """create_purchase_bill builds the Purchase Bill and POS Approval doctypes
-        on first use; while that work sat behind a System Manager guard, a
-        cashier entering the first bill on a fresh site got a PermissionError."""
-        self.as_user(self.user_with(roles.CASHIER, "cashier"))
+        on first use; while that work sat behind a System Manager guard, the
+        first bill entered on a fresh site got a PermissionError."""
+        self.as_user(self.user_with(roles.PURCHASER, "purchaser"))
         name = self.enter()
         self.assertEqual(frappe.db.get_value("Purchase Bill", name, "status"), "pending")
+
+    def test_a_cashier_cannot_enter_one(self):
+        """Purchasing is a job somebody is given, not something the till can do.
+        The endpoints used to accept any POS role while the page was
+        manager-only, so the screen said no and the endpoint said yes."""
+        self.as_user(self.user_with(roles.CASHIER, "cashier"))
+        with self.assertRaises(frappe.PermissionError):
+            self.enter()
 
     def test_kitchen_staff_cannot_enter_one(self):
         self.as_user(self.user_with(roles.KITCHEN_STAFF, "kitchen"))
@@ -140,7 +148,7 @@ class TestEnteringABill(PurchaseTestCase):
 
 class TestResolvingABill(PurchaseTestCase):
     def test_approving_updates_the_price_book_and_says_how_many(self):
-        self.as_user(self.user_with(roles.CASHIER, "buyer"))
+        self.as_user(self.user_with(roles.PURCHASER, "buyer"))
         name = self.enter()
         frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
         result = self.call(api.resolve_purchase_bill, name=name, decision="approved")
@@ -148,7 +156,7 @@ class TestResolvingABill(PurchaseTestCase):
         self.assertEqual(frappe.db.get_value("Purchase Bill", name, "status"), "approved")
 
     def test_rejecting_leaves_the_price_book_alone(self):
-        self.as_user(self.user_with(roles.CASHIER, "buyer"))
+        self.as_user(self.user_with(roles.PURCHASER, "buyer"))
         name = self.enter()
         frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
         self.call(api.resolve_purchase_bill, name=name, decision="rejected")
@@ -157,7 +165,7 @@ class TestResolvingABill(PurchaseTestCase):
             "price_list_rate"))
 
     def test_a_bill_is_resolved_once(self):
-        self.as_user(self.user_with(roles.CASHIER, "buyer"))
+        self.as_user(self.user_with(roles.PURCHASER, "buyer"))
         name = self.enter()
         frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
         self.call(api.resolve_purchase_bill, name=name, decision="approved")
@@ -175,7 +183,7 @@ class TestResolvingABill(PurchaseTestCase):
     def test_the_buyer_cannot_approve_their_own_bill(self):
         """Approving rewrites the buying price book, so one person must not be
         able to both enter a purchase and wave it through."""
-        self.as_user(self.user_with(roles.CASHIER, "buyer"))
+        self.as_user(self.user_with(roles.PURCHASER, "buyer"))
         name = self.enter()
         with self.assertRaises(frappe.PermissionError) as caught:
             self.call(api.resolve_purchase_bill, name=name, decision="approved")
@@ -187,7 +195,7 @@ class TestOwingTheVendor(PurchaseTestCase):
     """An approved bill is money owed until somebody marks it paid."""
 
     def approved_bill(self, **kwargs):
-        self.as_user(self.user_with(roles.CASHIER, "buyer"))
+        self.as_user(self.user_with(roles.PURCHASER, "buyer"))
         name = self.enter(**kwargs)
         frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
         self.call(api.resolve_purchase_bill, name=name, decision="approved")
@@ -530,3 +538,105 @@ class TestADiscountAtApproval(PurchaseTestCase):
             "order by creation desc limit 1".format(activity.DOCTYPE), as_dict=True)
         self.assertTrue(rows and "250" in (rows[0].detail or ""),
                         "the discount belongs in the row that records the decision")
+
+
+class TestThePurchaserRole(PurchaseTestCase):
+    """A Purchaser does the whole job on /purchases without a manager: enter,
+    approve, pay. The one thing they cannot do is approve their own bill — and
+    that rule is what makes a manager unnecessary rather than merely absent."""
+
+    def bill_by(self, tag):
+        self.as_user(self.user_with(roles.PURCHASER, tag))
+        return self.enter()
+
+    def approval_for(self, bill):
+        rows = frappe.get_all("POS Approval",
+                              filters={"action": "purchase_bill", "status": "pending"},
+                              fields=["name", "action_payload"])
+        return next(r.name for r in rows
+                    if json.loads(r.action_payload or "{}").get("bill") == bill)
+
+    def test_one_purchaser_approves_another_s_bill(self):
+        name = self.bill_by("enters")
+        frappe.set_user(self.user_with(roles.PURCHASER, "checks"))
+        result = self.call(api.resolve_purchase_bill, name=name, decision="approved")
+        self.assertEqual(result["status"], "approved")
+
+    def test_but_never_their_own(self):
+        name = self.bill_by("alone")
+        with self.assertRaises(frappe.PermissionError):
+            self.call(api.resolve_purchase_bill, name=name, decision="approved")
+
+    def test_a_purchaser_marks_a_bill_paid(self):
+        name = self.bill_by("owes")
+        frappe.set_user(self.user_with(roles.PURCHASER, "pays"))
+        self.call(api.resolve_purchase_bill, name=name, decision="approved")
+        out = self.call(api.mark_bill_paid, name=name, paid=1)
+        self.assertEqual(out["payment_status"], "paid")
+
+    def test_a_cashier_cannot_approve_through_the_approvals_endpoint_either(self):
+        """The second door. resolve_approval answers discounts and voids for any
+        POS user, rightly — and it also decides purchase bills. Gating only
+        purchases.py would have left this open to the whole till."""
+        name = self.bill_by("door")
+        approval = self.approval_for(name)
+        frappe.set_user(self.user_with(roles.CASHIER, "door-cashier"))
+        with self.assertRaises(frappe.PermissionError):
+            self.call(api.resolve_approval, name=approval, decision="approved")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", name, "status"), "pending")
+
+    def test_a_purchaser_can_approve_through_it(self):
+        name = self.bill_by("door2")
+        approval = self.approval_for(name)
+        frappe.set_user(self.user_with(roles.PURCHASER, "door2-checks"))
+        self.call(api.resolve_approval, name=approval, decision="approved")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", name, "status"), "approved")
+
+    def test_the_purchase_queue_is_not_the_till_s(self):
+        self.as_user(self.user_with(roles.CASHIER, "queue-cashier"))
+        with self.assertRaises(frappe.PermissionError):
+            api.get_purchase_approvals()
+
+    def test_a_purchaser_is_not_a_manager_and_not_a_cashier(self):
+        """A branch of the tree, not a rung on it."""
+        user = self.user_with(roles.PURCHASER, "scope")
+        self.assertFalse(roles.is_manager(user))
+        self.assertFalse(roles.has_any(roles.POS_ROLES, user))
+
+
+class TheWholePurchasesScreenOpensToAPurchaser(PurchaseTestCase):
+    """The trap this role walked into twice on the way in: the page let a
+    Purchaser through, and an endpoint behind it did not — first
+    `resolve_approval` (the queue approves through it), then the expenses tab.
+    A screen that opens and then refuses its own buttons is worse than one that
+    does not open. So this reads the page and asks every endpoint it calls."""
+
+    def test_the_expenses_tab_opens_to_a_purchaser(self):
+        self.as_user(self.user_with(roles.PURCHASER, "expenses"))
+        api.get_expense_categories()
+        api.get_expenses()
+
+    def test_and_stays_open_to_the_till(self):
+        """Widened, not moved: the till pays some expenses out of the drawer."""
+        self.as_user(self.user_with(roles.CASHIER, "expenses-till"))
+        api.get_expense_categories()
+        api.get_expenses()
+
+    def test_every_endpoint_the_page_calls_admits_a_purchaser(self):
+        import inspect
+        import pathlib
+        import re
+
+        html = (pathlib.Path(roles.__file__).parent / "www" / "purchases.html").read_text()
+        called = set(re.findall(r"call\('([a-z_]+)'", html)) | \
+            set(re.findall(r"luuvcrm\.api\.([a-z_]+)", html))
+        called.discard("manifest")      # public by design; carries no data
+        self.assertGreater(len(called), 5, "the page's calls were not found — the pattern broke")
+
+        admits = ("require_purchases()", "require_expenses()", "PURCHASE_ROLES")
+        shut = []
+        for name in sorted(called):
+            source = inspect.getsource(getattr(api, name))
+            if not any(a in source for a in admits):
+                shut.append(name)
+        self.assertEqual(shut, [], "the page calls these, and a Purchaser is refused by them")
