@@ -767,8 +767,30 @@ class TestWhichBranchAScreenShows(BranchTestCase):
         branch.select(self.other, owner)
         self.addCleanup(branch.select, "", owner)
         self.assertEqual(branch.viewing(owner), self.other)
-        self.assertIsNone(branch.current(owner),
-                          "choosing what to look at must not decide whose row it is")
+        self.assertEqual(branch.current(owner), self.other,
+                         "an explicit choice is a statement about whose rows these are")
+
+    def test_without_a_choice_an_owner_s_row_has_no_branch(self):
+        """The blind fallback stays out of `current()`: an owner who has not
+        said which branch they are working on writes an unbranched row, which
+        `branch.check` reports, rather than a silently misfiled one."""
+        owner = _user(self, "chooser5", roles.RESTAURANT_OWNER)
+        branch.unassign(owner)
+        branch.select("", owner)
+        self.assertIsNone(branch.current(owner))
+        self.assertIsNotNone(branch.viewing(owner))
+
+    def test_an_owner_s_bill_carries_the_branch_they_chose(self):
+        """The gap found after the deploy: an owner off the till, on their
+        phone, entering a bill for Kandy — it went in with no branch."""
+        owner = _user(self, "chooser6", roles.RESTAURANT_OWNER)
+        branch.unassign(owner)
+        branch.select(self.other, owner)
+        self.addCleanup(branch.select, "", owner)
+        self.as_user(owner)
+        order = self.order()
+        self.assertEqual(frappe.db.get_value("POS Order", order.name, branch.FIELD),
+                         self.other)
 
     def test_clearing_the_choice_falls_back_to_the_first_by_name(self):
         owner = _user(self, "chooser3", roles.RESTAURANT_OWNER)

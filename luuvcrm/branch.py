@@ -69,12 +69,20 @@ def current(user=None):
        till is unambiguously at that till's branch.
     3. **A POS Profile assigned to the user**, the same hop. Covers a manager
        who is not on a shift.
-    4. **The only Restaurant, if there is exactly one.** Today's behaviour,
+    4. **The branch the person has explicitly chosen** (`select()`, the
+       owner's picker). Only an owner or an admin ever gets this far — everyone
+       else is answered by 1–3 — and an owner who has said "I am working on
+       Kandy" and then enters a bill from their phone means Kandy. Without
+       this step that bill was written with no branch at all and stayed
+       visible to every branch (found the day after the 2026-09 deploy).
+    5. **The only Restaurant, if there is exactly one.** Today's behaviour,
        preserved exactly, which is what makes this change safe to land before
        the second restaurant exists.
 
     There is deliberately no "first of several" step. That is the bug this
-    module exists to remove: it cannot be right, and it fails silently.
+    module exists to remove: it cannot be right, and it fails silently. The
+    picker's *fallback* — first by name, in `viewing()` — is a display
+    decision and never reaches here.
     """
     user = user or frappe.session.user
 
@@ -86,6 +94,10 @@ def current(user=None):
         restaurant = _restaurant_for_profile(profile)
         if restaurant and (not allowed or restaurant in allowed):
             return restaurant
+
+    chosen = selected(user)          # already checked to exist and be permitted
+    if chosen:
+        return chosen
 
     only = _the_only_restaurant()
     if only and (not allowed or only in allowed):
@@ -151,8 +163,8 @@ def viewing(user=None):
       than guess, because a guess there files a Kandy sale in Colombo's books
       and nothing ever says so.
     * `viewing()` answers **"what should this screen show?"** — a blank menu
-      helps nobody, so after `current()` and the person's own choice it falls
-      back to the first branch by name.
+      helps nobody, so after `current()` (which now includes the person's own
+      choice) it falls back to the first branch by name.
 
     The fallback is a display decision the owner asked for, and it is safe only
     because it is confined here: nothing writes a row from it.

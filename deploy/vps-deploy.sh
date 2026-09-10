@@ -21,7 +21,7 @@
 # and get the same overlay. Nothing here runs `git` on the host.
 #
 # Env you can set: HOST, KEY, DB_ROOT_PASSWORD (rehearse, rollback --db),
-# RUN_TESTS=1 (rehearse: run the suite on the throwaway site), FORCE=1 (deploy
+# RUN_TESTS=1 (rehearse: run the suite on the throwaway site; TEST_MODULE=luuvcrm.tests.test_x for one module), FORCE=1 (deploy
 # without a fresh backup / passed rehearsal — do not).
 set -euo pipefail
 
@@ -61,7 +61,7 @@ SSH="ssh -i $KEY -o StrictHostKeyChecking=no -o ConnectTimeout=20 $HOST"
 remote() {
   $SSH "TS=$TS SHA=$SHA BENCH=$BENCH APP=$APP BACKEND=$BACKEND SITE=$SITE OTHER_SITE=$OTHER_SITE \
         NET=$NET RDIR=$RDIR REHEARSE_SITE=$REHEARSE_SITE WORKERS='$WORKERS' \
-        DB_ROOT_PASSWORD='${DB_ROOT_PASSWORD:-}' RUN_TESTS='${RUN_TESTS:-}' bash -s"
+        DB_ROOT_PASSWORD='${DB_ROOT_PASSWORD:-}' RUN_TESTS='${RUN_TESTS:-}' TEST_MODULE='${TEST_MODULE:-}' bash -s"
 }
 upload() { scp -q -i "$KEY" -o StrictHostKeyChecking=no "$1" "$HOST:$2"; }
 download() { scp -q -i "$KEY" -o StrictHostKeyChecking=no "$HOST:$1" "$2"; }
@@ -293,7 +293,8 @@ echo "\$body" | grep -q "menu" || { echo "/home rendered without the menu"; exit
 if [ -n "\$RUN_TESTS" ]; then
   echo "-- test suite (allowed here: not a production site)"
   \$B bench --site "\$REHEARSE_SITE" set-config allow_tests true
-  \$B bash -c "bench --site \$REHEARSE_SITE run-tests --app luuvcrm" > "\$RDIR/rehearse-tests.log" 2>&1 || { tail -40 "\$RDIR/rehearse-tests.log"; echo "TESTS FAILED"; exit 1; }
+  if [ -n "\$TEST_MODULE" ]; then tsel="--module \$TEST_MODULE"; else tsel="--app luuvcrm"; fi
+  \$B bash -c "bench --site \$REHEARSE_SITE run-tests \$tsel" > "\$RDIR/rehearse-tests.log" 2>&1 || { tail -40 "\$RDIR/rehearse-tests.log"; echo "TESTS FAILED"; exit 1; }
   tail -5 "\$RDIR/rehearse-tests.log"
 fi
 echo "-- clean up"
