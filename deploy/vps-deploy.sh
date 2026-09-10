@@ -142,11 +142,12 @@ sys.exit(1 if bad else 0)
 PY
 
   echo "-- tarball"
-  git archive --format=tar.gz --prefix=luuvcrm/ -o "$STATE/luuvcrm-$SHA.tar.gz" HEAD
+  git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz --prefix=luuvcrm/ -o "$STATE/luuvcrm-$SHA.tar.gz" HEAD
   ls -l "$STATE/luuvcrm-$SHA.tar.gz"
 
   echo "-- live manifest"
-  $SSH "docker exec $BACKEND bash -c 'cd $APP && find . -type f -not -path \"./.git/*\" -not -path \"*/__pycache__/*\" -not -name \"*.pyc\" | sort | xargs md5sum'" \
+  # md5 of each file with CR stripped, so CRLF/LF copies of the same text compare equal
+  $SSH "docker exec $BACKEND bash -c 'cd $APP && find . -type f -not -path \"./.git/*\" -not -path \"*/__pycache__/*\" -not -name \"*.pyc\" | sort | while read -r f; do printf \"%s  %s\\n\" \"\$(tr -d \"\\r\" < \"\$f\" | md5sum | cut -d\" \" -f1)\" \"\$f\"; done'" \
     | sed 's#  \./#  #' > "$STATE/live-manifest-$TS.txt"
   echo "   $(wc -l < "$STATE/live-manifest-$TS.txt") files on the host"
 
@@ -157,7 +158,7 @@ PY
   while read -r path; do
     local live blob
     live=$(grep " ${path}$" "$STATE/live-manifest-$TS.txt" | cut -d' ' -f1 || true)
-    blob=$(git cat-file -p "HEAD:$path" | md5sum | cut -d' ' -f1)
+    blob=$(git cat-file -p "HEAD:$path" | tr -d '\r' | md5sum | cut -d' ' -f1)
     if [ -z "$live" ]; then echo "NEW      $path" >> "$report"; new=$((new+1))
     elif [ "$live" = "$blob" ]; then same=$((same+1))
     else echo "CHANGED  $path" >> "$report"; changed=$((changed+1)); fi
@@ -184,9 +185,8 @@ PY
   while read -r f; do
     local rel=${f#live-only/zeloura/}
     local live; live=$(grep " ${rel}$" "$STATE/live-manifest-$TS.txt" | cut -d' ' -f1 || true)
-    local mine; mine=$(md5sum "$f" | cut -d' ' -f1)
-    local mine_lf; mine_lf=$(tr -d '\r' < "$f" | md5sum | cut -d' ' -f1)
-    if [ -n "$live" ] && [ "$live" != "$mine" ] && [ "$live" != "$mine_lf" ]; then echo "   DIFFERS: $rel (host is newer — pull it into live-only/ first)"; drift=1; fi
+    local mine; mine=$(tr -d '\r' < "$f" | md5sum | cut -d' ' -f1)
+    if [ -n "$live" ] && [ "$live" != "$mine" ]; then echo "   DIFFERS: $rel (host is newer — pull it into live-only/ first)"; drift=1; fi
   done < <(git ls-files live-only | grep -v README)
   [ "$drift" = 0 ] && echo "   identical" || die "live-only/ is behind the host"
 
@@ -294,8 +294,10 @@ if [ -n "\$RUN_TESTS" ]; then
   echo "-- test suite (allowed here: not a production site)"
   \$B bench --site "\$REHEARSE_SITE" set-config allow_tests true
   if [ -n "\$TEST_MODULE" ]; then tsel="--module \$TEST_MODULE"; else tsel="--app luuvcrm"; fi
-  \$B bash -c "bench --site \$REHEARSE_SITE run-tests \$tsel" > "\$RDIR/rehearse-tests.log" 2>&1 || { tail -40 "\$RDIR/rehearse-tests.log"; echo "TESTS FAILED"; exit 1; }
-  tail -5 "\$RDIR/rehearse-tests.log"
+  \$B bash -c "bench --site \$REHEARSE_SITE run-tests \$tsel" > "\$RDIR/rehearse-tests.log" 2>&1 || true
+  grep -E "^Ran |^OK|^FAILED" "\$RDIR/rehearse-tests.log"
+  # bench run-tests exits 0 whatever happened; the summary line is the verdict
+  grep -qE "^OK" "\$RDIR/rehearse-tests.log" || { grep -E "^(FAIL|ERROR): " "\$RDIR/rehearse-tests.log" | head -20; echo "TESTS FAILED"; exit 1; }
 fi
 echo "-- clean up"
 \$B bench drop-site "\$REHEARSE_SITE" --db-root-password "\$DB_ROOT_PASSWORD" --force --no-backup

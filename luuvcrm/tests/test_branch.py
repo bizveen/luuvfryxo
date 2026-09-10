@@ -296,7 +296,9 @@ class TestPinningTheStaff(FrappeTestCase):
         for email in (self.EMAIL, self.OWNER):
             if not frappe.db.exists("User", email):
                 frappe.get_doc({"doctype": "User", "email": email, "first_name": "LFT",
-                                "send_welcome_email": 0}).insert(ignore_permissions=True)
+                                "send_welcome_email": 0,
+                                "roles": [{"role": roles.CASHIER}]   # a System User, as staff are
+                                }).insert(ignore_permissions=True)
             self.addCleanup(self._drop, email)
         self.restaurant = branch._the_only_restaurant()
         if not self.restaurant:
