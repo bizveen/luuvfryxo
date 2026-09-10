@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ restaurant.name if restaurant else "Menu" }} | Zeloura</title>
+  <title>{{ restaurant.name if restaurant else "Menu" }} | {{ brand_name }}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -176,7 +176,7 @@
 </head>
 <body>
   <div class="hero">
-    <div class="brand">Zeloura &bull; Restaurant</div>
+    <div class="brand">{{ brand_name }} &bull; Restaurant</div>
     <h1>{% if restaurant %}{{ restaurant.name }}{% else %}Our Menu{% endif %}</h1>
     <p>Freshly prepared with love. Every dish tells a story of flavour and tradition.</p>
   </div>
@@ -220,7 +220,7 @@
     {% endif %}
   </div>
 
-  <div class="footer">&copy; {{ restaurant.name if restaurant else "Zeloura" }}. All rights reserved.</div>
+  <div class="footer">&copy; {{ restaurant.name if restaurant else brand_name }}. All rights reserved.</div>
 </div>
 
 {% if whatsapp_number %}
