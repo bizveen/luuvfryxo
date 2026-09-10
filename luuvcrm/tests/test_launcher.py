@@ -13,15 +13,23 @@ import importlib
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from luuvcrm import activity, launcher, roles
+from luuvcrm import activity, branch, launcher, roles
+from luuvcrm.tests.test_branch import _restaurant
 
 
 def _user(case, tag, role):
+    """A test user with no branch pinned and no branch chosen, on the way in and
+    out. `branch.assign()` commits, so a pin from an earlier run outlives the
+    rollback — see the fix in test_branch._user for what that cost."""
     email = f"lf-test-launch-{tag}@example.com"
     if not frappe.db.exists("User", email):
         frappe.get_doc({"doctype": "User", "email": email, "first_name": "Launch",
                         "send_welcome_email": 0, "roles": [{"role": role}]
                         }).insert(ignore_permissions=True)
+    branch.unassign(email)
+    frappe.defaults.clear_user_default(branch.CHOSEN_KEY, email)
+    case.addCleanup(branch.unassign, email)
+    case.addCleanup(frappe.defaults.clear_user_default, branch.CHOSEN_KEY, email)
     return email
 
 
@@ -154,3 +162,72 @@ class TestTheStaffApp(LauncherTestCase):
                 self.assertIn("templates/includes/app_switch.html", html)
         admin = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "admin.html"))
         self.assertIn(launcher.CHOOSER, admin)
+
+
+class TestTheRestaurantComesFirst(LauncherTestCase):
+    """An owner or admin with more than one restaurant picks the restaurant
+    before anything else — the choice every screen and every one of their bills
+    then resolves through."""
+
+    def test_on_one_restaurant_there_is_nothing_to_pick(self):
+        if len(branch.all_restaurants()) != 1:
+            self.skipTest("this site has more than one Restaurant")
+        self.as_user(_user(self, "own-one", roles.RESTAURANT_OWNER))
+        self.assertEqual(self.land()[1].branches, [])
+
+    def test_an_owner_with_two_restaurants_picks_one_first(self):
+        _restaurant(self, "LAUNCH-B")
+        self.as_user(_user(self, "own-two", roles.RESTAURANT_OWNER))
+        where, context = self.land()
+        self.assertEqual(where, "chooser")
+        self.assertGreaterEqual(len(context.branches), 2)
+
+    def test_last_time_s_choice_is_marked(self):
+        other = _restaurant(self, "LAUNCH-C")
+        email = _user(self, "own-last", roles.RESTAURANT_OWNER)
+        branch.select(other, email)
+        self.as_user(email)
+        self.assertEqual(self.land()[1].chosen, other)
+
+    def test_a_manager_pinned_to_a_branch_is_not_asked(self):
+        """Their branch is not a preference; `branch.select` would refuse the
+        other one anyway."""
+        other = _restaurant(self, "LAUNCH-D")
+        email = _user(self, "mgr-pinned", roles.RESTAURANT_MANAGER)
+        branch.assign(email, other)
+        self.as_user(email)
+        self.assertEqual(self.land()[1].branches, [])
+
+    def test_the_restaurant_step_is_skipped_when_coming_from_the_switch(self):
+        """The page renders both steps and shows one; `asked` is what it reads.
+        Somebody moving between apps is not starting their day."""
+        _restaurant(self, "LAUNCH-E")
+        self.as_user(_user(self, "own-switch", roles.RESTAURANT_OWNER))
+        self.assertTrue(self.land(choose="1")[1].asked)
+        self.assertFalse(self.land()[1].asked)
+
+
+class TestTilesAreForAPhoneOrTheInstalledApp(LauncherTestCase):
+    def html(self):
+        return frappe.read_file(frappe.get_app_path("luuvcrm", "www", "staff.html"))
+
+    def test_at_a_desk_a_manager_goes_to_the_back_office(self):
+        self.as_user(_user(self, "mgr-desk", roles.RESTAURANT_MANAGER))
+        self.assertEqual(self.land()[1].desktop_home, "/admin")
+
+    def test_the_page_knows_a_phone_and_the_installed_app_apart_from_a_desk(self):
+        """Only the browser can tell, so the rule lives on the page. Pinned here
+        so it cannot quietly become "always tiles" again."""
+        html = self.html()
+        self.assertIn("(display-mode: standalone)", html)
+        self.assertIn("navigator.standalone", html)
+        self.assertIn("(max-width: 820px)", html)
+        self.assertIn("location.replace", html)
+
+    def test_the_switch_still_shows_tiles_at_a_desk(self):
+        """The early redirect is only for a fresh open with nothing to ask."""
+        self.assertIn("{%- if not branches and not asked %}", self.html())
+
+    def test_choosing_a_restaurant_goes_through_the_same_endpoint_as_admin(self):
+        self.assertIn("luuvcrm.api.set_branch_choice", self.html())
+        frappe.is_whitelisted(frappe.get_attr("luuvcrm.api.set_branch_choice"))

@@ -544,8 +544,11 @@ run log that `add_table_enabled_field` is listed as executed, not skipped.
 
 - **Signing in lands on `/staff`, not `/pos`.** Floor staff are forwarded straight
   to their own screen — a cashier to `/pos`, a waiter to `/waiter`, the kitchen to
-  `/kitchen` — so the counter sees no difference. **The owner and managers see a
-  set of tiles** (Admin, Manager, Purchases, POS, Waiter, Kitchen) and pick one.
+  `/kitchen` — so the counter sees no difference. **The owner and managers, on a
+  phone or in the installed app, see a set of tiles** (Admin, Manager, Purchases,
+  POS, Waiter, Kitchen) and pick one; **at a desktop browser they go straight to
+  `/admin`**. With more than one restaurant, the owner or admin **picks the
+  restaurant first**, with last time's choice marked.
   This also fixes a waiter signing in from `/waiter`, who was being sent to the
   till and refused.
 - **A "⇄ Apps" button, bottom-left, on POS, Waiter, Kitchen, Manager and
@@ -582,7 +585,8 @@ bench --site <live> execute frappe.db.has_column --args '["Restaurant Table", "e
 Then by hand, in this order:
 
 1. Sign in as a **cashier** → you land on `/pos`, not on tiles.
-2. Sign in as the **owner** → tiles. Open Admin → the sidebar has "⇄ Switch app" → back to tiles.
+2. Sign in as the **owner** on a phone → tiles. Sign in again at a desktop
+   browser → straight to `/admin`; its sidebar "⇄ Switch app" still shows the tiles.
 3. `/admin → Tables` → every existing table is listed and **on**. Do not turn a
    real one off to test it; add a table, turn *that* off, confirm it left the POS
    grid, turn it back on.

@@ -9,6 +9,19 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <script src="/lferr.js?v=1" data-app="staff"></script>
+<script>
+// Tiles are for a phone or the installed app. At a desktop browser the back
+// office is the screen, so an owner or manager goes straight there. Only the
+// browser can tell which this is, which is why the server does not decide it.
+function lfTilesHere(){
+  return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+      || matchMedia('(max-width: 820px)').matches;
+}
+{%- if not branches and not asked %}
+// Nothing to ask first, and nobody pressed the switch: leave before painting.
+if(!lfTilesHere()) location.replace({{ desktop_home|tojson }});
+{%- endif %}
+</script>
 <style>
 :root{
   --color-primary:#F15207;
@@ -30,10 +43,17 @@ h1{font-size:22px;margin:0 0 16px}
 .tile{display:flex;gap:14px;align-items:center;padding:18px;background:var(--card);
   border:1px solid var(--line);border-radius:14px;text-decoration:none;color:inherit;
   min-height:84px;transition:border-color .15s,transform .15s}
+button.tile{font:inherit;text-align:left;cursor:pointer;width:100%}
+button.tile:disabled{opacity:.6;cursor:progress}
 .tile:hover,.tile:focus-visible{border-color:var(--color-primary);transform:translateY(-1px);outline:none}
+.tile.last{border-color:var(--color-primary)}
 .tile .ic{font-size:30px;line-height:1}
-.tile .lb{font-weight:600;font-size:16px}
-.tile .ab{color:var(--muted);font-size:13px;margin-top:3px}
+.tile .lb{font-weight:600;font-size:16px;display:block}
+.tile .ab{color:var(--muted);font-size:13px;margin-top:3px;display:block}
+.tile .tag{color:var(--color-primary);font-size:12px;font-weight:600;margin-top:4px;display:block}
+.cur{color:var(--muted);font-size:14px;margin:0 0 14px}
+.cur a{color:var(--color-primary)}
+.err{color:#b91c1c;font-size:14px;margin-top:12px}
 .hint{color:var(--muted);font-size:13px;margin-top:24px;line-height:1.5}
 </style>
 {% include "templates/includes/brand.html" %}
@@ -46,21 +66,76 @@ h1{font-size:22px;margin:0 0 16px}
       <div class="nm">{{ brand_name }}</div>
       <div class="who">{{ current_user_full }}</div>
     </div>
-    <a class="out" href="/api/method/logout?redirect-to=/pos-login%3Fredirect%3D/staff">Sign out</a>
+    <a class="out" href="/api/method/logout?redirect-to=/pos-login%3Fredirect%3D/staff">{{ _("Sign out") }}</a>
   </header>
 
-  <h1>{{ _("Where to?") }}</h1>
-  <div class="grid">
-    {%- for app in apps %}
-    <a class="tile" href="{{ app.path }}">
-      <span class="ic">{{ app.icon }}</span>
-      <span><span class="lb">{{ app.label }}</span><span class="ab" style="display:block">{{ app.about }}</span></span>
-    </a>
-    {%- endfor %}
-  </div>
-  <p class="hint">{{ _("Every app has a switch button, so you can come back here without signing out.") }}</p>
+  {#- Step 1 — which restaurant. Only for somebody who can choose, and not when
+      they came from the in-app switch. -#}
+  <section id="stepBranch"{% if not (branches and not asked) %} hidden{% endif %}>
+    <h1>{{ _("Which restaurant?") }}</h1>
+    <div class="grid">
+      {%- for b in branches %}
+      <button type="button" class="tile{% if b.name == chosen %} last{% endif %}" data-branch="{{ b.name }}">
+        <span class="ic">🏪</span>
+        <span>
+          <span class="lb">{{ b.name }}</span>
+          {%- if b.address %}<span class="ab">{{ b.address }}</span>{% endif %}
+          {%- if b.name == chosen %}<span class="tag">{{ _("Last time") }}</span>{% endif %}
+        </span>
+      </button>
+      {%- endfor %}
+    </div>
+    <p class="err" id="branchErr" hidden>{{ _("Could not choose that restaurant. Check the connection and try again.") }}</p>
+  </section>
+
+  {#- Step 2 — the apps. -#}
+  <section id="stepApps"{% if branches and not asked %} hidden{% endif %}>
+    {%- if branches %}
+    <p class="cur">{{ _("Working on") }} <strong id="curName">{{ chosen or "—" }}</strong> · <a href="/staff">{{ _("change") }}</a></p>
+    {%- endif %}
+    <h1>{{ _("Where to?") }}</h1>
+    <div class="grid">
+      {%- for app in apps %}
+      <a class="tile" href="{{ app.path }}">
+        <span class="ic">{{ app.icon }}</span>
+        <span><span class="lb">{{ app.label }}</span><span class="ab">{{ app.about }}</span></span>
+      </a>
+      {%- endfor %}
+    </div>
+    <p class="hint">{{ _("Every app has a switch button, so you can come back here without signing out.") }}</p>
+  </section>
 </div>
 <script>
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const DESK = {{ desktop_home|tojson }};
+
+// Picking a restaurant is the same choice /admin's picker makes, through the same
+// endpoint: every screen resolves through it afterwards, and it is what an
+// owner's bills are stamped with (branch.current(), step 4).
+document.querySelectorAll('[data-branch]').forEach(btn => btn.addEventListener('click', async () => {
+  const err = document.getElementById('branchErr');
+  err.hidden = true;
+  document.querySelectorAll('[data-branch]').forEach(b => b.disabled = true);
+  try{
+    const res = await fetch('/api/method/luuvcrm.api.set_branch_choice', {
+      method: 'POST', credentials: 'include',
+      headers: {'X-Frappe-CSRF-Token': CSRF, 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({restaurant: btn.dataset.branch}).toString()
+    });
+    if(!res.ok) throw new Error(res.status);
+  }catch(e){
+    document.querySelectorAll('[data-branch]').forEach(b => b.disabled = false);
+    err.hidden = false;
+    return;
+  }
+  if(!lfTilesHere()){ location.replace(DESK); return; }
+  const cur = document.getElementById('curName');
+  if(cur) cur.textContent = btn.dataset.branch;
+  document.getElementById('stepBranch').hidden = true;
+  document.getElementById('stepApps').hidden = false;
+  window.scrollTo(0, 0);
+}));
+
 // The same worker the floor screens register, at the same scope: one per scope
 // is all a browser allows, and this keeps /pos, /waiter and /kitchen usable
 // offline for whoever installs the staff app.

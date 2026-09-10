@@ -9,7 +9,10 @@ a waiter signing in *from their own app* was sent to the till and refused.
 `/staff` is the answer, and the one place this list lives:
 
 * an **owner or manager** gets a chooser — Admin, Manager, Purchases, and the
-  floor screens — because they genuinely move between them;
+  floor screens — because they genuinely move between them. On a phone or in the
+  installed app, that is; at a desktop browser they go straight to `/admin`, and
+  an owner with more than one restaurant picks the restaurant first. Both are
+  decided on the page, see `www/staff.py`;
 * **floor staff** go straight to their own screen, because a cashier who is shown
   five tiles every morning will tap the wrong one mid-rush.
 

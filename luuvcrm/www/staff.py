@@ -1,9 +1,22 @@
 """/staff — where a person lands after signing in, and the installed staff app.
 
-An owner or manager is shown the apps they can open and picks one. Floor staff
-are sent straight to their own screen unless they asked for the tiles
+Floor staff are sent straight to their own screen unless they asked for the tiles
 (`?choose=1`, which is what the in-app switch links to). See `luuvcrm/launcher.py`
 for why it is split that way.
+
+An owner or manager gets this page, and what it shows depends on two things:
+
+* **Which restaurant, first** — for somebody who can choose one (`branch.can_choose`:
+  more than one restaurant, and no User Permission pinning them to one of them).
+  Asked on every fresh open, with last time's choice marked, because the choice is
+  stored and a step that only appears once would never appear again. Not asked
+  when they arrive from the in-app switch: they are moving between apps, not
+  starting the day.
+* **Tiles on a phone or in the installed app; the back office at a desk.** Only
+  the browser knows which it is — `display-mode: standalone` and the viewport
+  width — so the page decides, and the server hands it `desktop_home`. The
+  switch's `?choose=1` still shows tiles at a desk, because that is somebody
+  asking for them.
 
 This is also the start URL of the staff PWA (`manifest?app=staff`, scope `/`), so
 one icon on a tablet's home screen opens whichever app the person signing in
@@ -12,7 +25,7 @@ belongs in — rather than one icon per app, installed per person.
 
 import frappe
 
-from luuvcrm import launcher
+from luuvcrm import branch, launcher
 
 no_cache = 1
 no_sitemap = 1
@@ -42,7 +55,12 @@ def get_context(context):
         raise frappe.Redirect
 
     user = frappe.session.user
+    keys = [a["key"] for a in apps]
     context.apps = apps
+    context.asked = asked
+    context.desktop_home = "/admin" if "admin" in keys else apps[0]["path"]
+    context.branches = branch.choices() if branch.can_choose(user) else []
+    context.chosen = branch.selected(user) or ""
     context.csrf_token = frappe.sessions.get_csrf_token()
     context.current_user_full = (frappe.get_value("User", user, "full_name")
                                  or user.split("@")[0].title())

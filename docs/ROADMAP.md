@@ -490,6 +490,11 @@ This is Phase 2c's tail, and now it has a date on it: it is what the app is for.
       `/staff` shows the owner and managers the apps they can open, and forwards floor staff straight
       to their own screen, because five tiles every morning is a wrong tap mid-rush. It is the start
       URL of one PWA with scope `/`, so moving between apps stays inside the installed window.
+      The tiles are for a phone or the installed app; at a desktop browser an owner or manager goes
+      straight to `/admin`. Only the browser knows which it is (`display-mode: standalone`, the
+      viewport width), so the page decides. With more than one restaurant, an owner or admin picks
+      the restaurant first — on every fresh open, since a stored choice would otherwise mean the step
+      never appears again — and not when arriving from the in-app switch.
       Every app has a way back (`templates/includes/app_switch.html`), drawn only for somebody who
       can open more than one. `luuvcrm/launcher.py` is the one list of apps and who is offered
       them; each page keeps its own gate, and the list uses the same `roles.*_ROLES` those gates do.
