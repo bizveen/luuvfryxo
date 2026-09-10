@@ -1352,6 +1352,7 @@ async function downloadKOTPDF() {
 </div>
 
 <script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(e){console.error("SW reg failed:",e)})}</script>
+{% include "templates/includes/app_switch.html" %}
 </body>
 </html>
 {% endif %}

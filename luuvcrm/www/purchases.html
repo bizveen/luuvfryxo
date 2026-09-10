@@ -755,5 +755,6 @@ function lfPoll(fn, ms){
   lfPoll(()=>{ if(sheetOpen('addOverlay')||sheetOpen('expOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
 </script>
+{% include "templates/includes/app_switch.html" %}
 </body>
 </html>

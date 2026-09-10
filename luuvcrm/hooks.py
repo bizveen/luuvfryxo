@@ -32,7 +32,7 @@ app_include_css = "/assets/luuvcrm/css/luuvcrm_desk.css"
 # `brand_name` in every page's context — which is how the 21 pages that used to
 # say "Luuv Fryxo" in their markup now say whose restaurant this is. The Jinja
 # global stays for `brand.html`, which needs the colours and icons too.
-jinja = {"methods": ["luuvcrm.overrides.branding.brand"]}
+jinja = {"methods": ["luuvcrm.overrides.branding.brand", "luuvcrm.launcher.staff_apps"]}
 update_website_context = ["luuvcrm.overrides.branding.update_website_context"]
 boot_session = ["luuvcrm.overrides.branding.boot_session"]
 

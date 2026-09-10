@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ brand_name }}</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<link rel="manifest" href="/api/method/luuvcrm.api.manifest?app=staff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<script src="/lferr.js?v=1" data-app="staff"></script>
+<style>
+:root{
+  --color-primary:#F15207;
+  --bg:#FAF8F6; --card:#fff; --text:#1c1917; --muted:#78716c; --line:#e7e5e4;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:max(24px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+.wrap{max-width:720px;margin:0 auto}
+header{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+header img{width:44px;height:44px;border-radius:12px;object-fit:cover}
+header .nm{font-weight:700;font-size:18px}
+header .who{color:var(--muted);font-size:14px}
+header .out{margin-left:auto;color:var(--muted);font-size:14px;text-decoration:none;
+  padding:8px 12px;border:1px solid var(--line);border-radius:10px}
+h1{font-size:22px;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.tile{display:flex;gap:14px;align-items:center;padding:18px;background:var(--card);
+  border:1px solid var(--line);border-radius:14px;text-decoration:none;color:inherit;
+  min-height:84px;transition:border-color .15s,transform .15s}
+.tile:hover,.tile:focus-visible{border-color:var(--color-primary);transform:translateY(-1px);outline:none}
+.tile .ic{font-size:30px;line-height:1}
+.tile .lb{font-weight:600;font-size:16px}
+.tile .ab{color:var(--muted);font-size:13px;margin-top:3px}
+.hint{color:var(--muted);font-size:13px;margin-top:24px;line-height:1.5}
+</style>
+{% include "templates/includes/brand.html" %}
+</head>
+<body>
+<div class="wrap">
+  <header>
+    {% if brand_logo %}<img src="{{ brand_logo }}" alt="">{% endif %}
+    <div>
+      <div class="nm">{{ brand_name }}</div>
+      <div class="who">{{ current_user_full }}</div>
+    </div>
+    <a class="out" href="/api/method/logout?redirect-to=/pos-login%3Fredirect%3D/staff">Sign out</a>
+  </header>
+
+  <h1>{{ _("Where to?") }}</h1>
+  <div class="grid">
+    {%- for app in apps %}
+    <a class="tile" href="{{ app.path }}">
+      <span class="ic">{{ app.icon }}</span>
+      <span><span class="lb">{{ app.label }}</span><span class="ab" style="display:block">{{ app.about }}</span></span>
+    </a>
+    {%- endfor %}
+  </div>
+  <p class="hint">{{ _("Every app has a switch button, so you can come back here without signing out.") }}</p>
+</div>
+<script>
+// The same worker the floor screens register, at the same scope: one per scope
+// is all a browser allows, and this keeps /pos, /waiter and /kitchen usable
+// offline for whoever installs the staff app.
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js', {scope: '/'}).catch(() => {}); }
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{%- set _apps = staff_apps() -%}
+{#-
+  The way back to /staff from inside an app, for anyone who can open more than one.
+
+  Included just before </body> by /pos, /waiter, /kitchen, /manager and
+  /purchases. /admin has the same link in its sidebar instead, where there is
+  room for words. A person who can open only one app never sees it: a button
+  that leads back to a single tile is a button that does nothing.
+
+  Fixed bottom-left and small, because these five screens have five different
+  headers and adding it to each would be five different edits. If it sits on a
+  control on one of them, this file is the only one to change.
+-#}
+{%- if _apps|length > 1 %}
+<a href="/staff?choose=1" class="lf-switch" aria-label="{{ _('Switch app') }}" title="{{ _('Switch app') }}">⇄<span>{{ _("Apps") }}</span></a>
+<style>
+.lf-switch{position:fixed;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));
+  z-index:2147483000;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;
+  border-radius:18px;background:rgba(28,25,23,.78);color:#fff;text-decoration:none;
+  font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.18);
+  -webkit-tap-highlight-color:transparent}
+.lf-switch:hover,.lf-switch:focus-visible{background:var(--color-primary,#F15207);outline:none}
+@media print{.lf-switch{display:none}}
+</style>
+{%- endif %}

@@ -40,6 +40,14 @@ APPS = {
         "suffix": "Kitchen", "short": "Kitchen", "scope": "/kitchen",
         "about": "Watch the order queue and move food through the pass.",
     },
+    # The one staff icon: it starts on the chooser and its scope is the whole
+    # site, so moving from /admin to /pos stays inside the installed window
+    # instead of dropping into a browser tab with an address bar.
+    "staff": {
+        "suffix": "Staff", "short": "Staff", "scope": "/", "start": "/staff",
+        "orientation": "any",
+        "about": "Every staff app you can open, behind one icon.",
+    },
     "cus": {
         "suffix": "", "short": "Order", "scope": "/cus",
         "about": "Order, track your orders and collect rewards.",
@@ -61,10 +69,11 @@ def manifest(app="cus"):
         "name": f"{name} {spec['suffix']}".strip(),
         "short_name": f"{settings.get('brand_short')} {spec['short']}".strip(),
         "description": spec["about"],
-        "start_url": spec["scope"],
+        "id": spec.get("start", spec["scope"]),
+        "start_url": spec.get("start", spec["scope"]),
         "scope": spec["scope"],
         "display": "standalone",
-        "orientation": "portrait",
+        "orientation": spec.get("orientation", "portrait"),
         "background_color": "#FAF8F6",
         "theme_color": settings.get("brand_color"),
         "icons": [

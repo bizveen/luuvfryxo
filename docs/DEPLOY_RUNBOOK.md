@@ -524,3 +524,80 @@ up without re-discovering it.
   `settings.KEYS` reaches the live site through `patches.txt` and no other way.
   Adding one without its patch works on every developer's machine and reaches
   production never.
+
+## 9. The next deploy — what has landed on `main` since 2026-09-10
+
+Everything below is committed and tested and **not yet on the live site**. Deploy
+it with the same script and the same order as §3–§5: backup, rehearse, deploy,
+verify. Nothing here changes a row the restaurant already has.
+
+### 9a. It needs a migrate this time
+
+| Patch | What it does | If it does not run |
+|---|---|---|
+| `add_table_enabled_field` | Adds `Restaurant Table.enabled`, default 1, so every existing table stays in service. | The code reads a missing column as "every table is enabled": the POS grid still shows every table, and `/admin → Tables` shows "migrate first" instead of the off switch. Nothing breaks; the new switch just is not there. |
+
+The first deploy's `deploy` step already runs `bench migrate` — confirm in the
+run log that `add_table_enabled_field` is listed as executed, not skipped.
+
+### 9b. What changes, and who will notice
+
+- **Signing in lands on `/staff`, not `/pos`.** Floor staff are forwarded straight
+  to their own screen — a cashier to `/pos`, a waiter to `/waiter`, the kitchen to
+  `/kitchen` — so the counter sees no difference. **The owner and managers see a
+  set of tiles** (Admin, Manager, Purchases, POS, Waiter, Kitchen) and pick one.
+  This also fixes a waiter signing in from `/waiter`, who was being sent to the
+  till and refused.
+- **A "⇄ Apps" button, bottom-left, on POS, Waiter, Kitchen, Manager and
+  Purchases** — only for somebody who can open more than one app. On `/admin` it
+  is "⇄ Switch app" in the sidebar, where "Manager app ↗" used to be. **Check it
+  on the counter tablet during a quiet moment:** if it sits on top of a POS
+  button, `templates/includes/app_switch.html` is the one file to move it in.
+- **One installable staff app.** Open `/staff` in Chrome on the tablet or phone →
+  menu → *Install app* / *Add to Home screen*. It opens on the tiles, and moving
+  between apps stays inside the app window. The per-app installs (`/manager`,
+  `/purchases`) keep working; nobody has to reinstall.
+- **`/admin → Tables`.** Add a table (it is numbered after the branch's last one —
+  there is no name to type), and turn one off. Off hides it from the POS grid, the
+  waiter screen, the kiosk, the online order page and the QR sheet. **A bill
+  already on a table that has been turned off still prices, prints and pays** —
+  say that to whoever uses it first, because it is the thing they will worry about.
+- **Nothing visible from the public-page branch work** while there is one
+  restaurant. `/menu`, `/home`, `/order`, `/kiosk` and `/cus` only ask "which one
+  are you at?" once a second restaurant exists and the link says nothing about
+  which.
+
+### 9c. Verify — add these to §5
+
+```bash
+# the staff manifest resolves and starts on the chooser
+curl -s "https://<live>/api/method/luuvcrm.api.manifest?app=staff" | grep -E '"start_url"|"scope"'
+#   "start_url": "/staff",   "scope": "/"
+
+# the tables flag arrived
+bench --site <live> execute frappe.db.has_column --args '["Restaurant Table", "enabled"]'
+#   True
+```
+
+Then by hand, in this order:
+
+1. Sign in as a **cashier** → you land on `/pos`, not on tiles.
+2. Sign in as the **owner** → tiles. Open Admin → the sidebar has "⇄ Switch app" → back to tiles.
+3. `/admin → Tables` → every existing table is listed and **on**. Do not turn a
+   real one off to test it; add a table, turn *that* off, confirm it left the POS
+   grid, turn it back on.
+
+### 9d. Tests that ran before this was committed
+
+`test_launcher` (new, 16), `test_tables` (new, 13), `test_branch` (71, twice — see
+the test-pollution fix in `bb2ffea`), `test_pages`, `test_menu`, `test_orders`,
+`test_service`, `test_setup`, `test_api_package`, `test_dashboard`, `test_shifts`,
+`test_brand`, `test_activity` — all passing.
+
+**`test_security` has one failure on the dev bench, and it is the bench, not the
+code:** `test_wrong_pins_lock_the_number_out`. The PIN lockout counter lives in
+the Redis cache, and Redis was not running there. `_pin_locked()` is written to
+fail open when the cache is unreachable — a restaurant that loses Redis must not
+also lose every customer login — so with no Redis the counter never counts. On
+the live site Redis is up. If this test fails on a bench, check
+`redis://127.0.0.1:13000` answers before reading anything into it.

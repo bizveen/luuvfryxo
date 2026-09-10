@@ -483,6 +483,17 @@ This is Phase 2c's tail, and now it has a date on it: it is what the app is for.
       (`Luuv-Fryxo-15`) and the screens show the last segment, which is the number the floor already
       uses — so the add form asks for seats and nothing else.
 
+- [x] **Signing in lands on `/staff`, and there is one staff app to install (2026-09-10).** The
+      login screen sent everyone to `/pos`: right for a cashier, a retyped URL for a manager, a 403
+      for a waiter or the kitchen — and `/waiter` served the login form in place with no
+      `?redirect`, so a waiter signing in from their own app was sent to the till and refused.
+      `/staff` shows the owner and managers the apps they can open, and forwards floor staff straight
+      to their own screen, because five tiles every morning is a wrong tap mid-rush. It is the start
+      URL of one PWA with scope `/`, so moving between apps stays inside the installed window.
+      Every app has a way back (`templates/includes/app_switch.html`), drawn only for somebody who
+      can open more than one. `luuvcrm/launcher.py` is the one list of apps and who is offered
+      them; each page keeps its own gate, and the list uses the same `roles.*_ROLES` those gates do.
+
 ### 7e · Housekeeping
 
 - [ ] Move the demo menu to `luuvcrm/demo/` behind an explicit `bench execute`.

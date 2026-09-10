@@ -206,7 +206,7 @@ async function handleLogin(e) {
     });
     const data = await res.json();
     if (data.message === "Logged In") {
-      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/pos';
+      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/staff';
       window.location.href = redirect;
     } else {
       err.textContent = 'Invalid username or password';
