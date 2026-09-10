@@ -449,28 +449,57 @@ is.
 
 ---
 
-## 7. What this deploy deliberately does **not** do
+## 7. What is still open after the deploy (2026-09-10)
 
-These three are real work, they touch live data, and each deserves its own day
-and its own backup. **None of them belongs in this deploy.**
+The deploy went live on 2026-09-10 (`8582a45`, then `fc19acd` the same
+morning). No complaint from the floor on day one. Everything below was
+found while getting it there and is **not done**. Each line says what, why
+it matters, and what the fix is, so the next session can pick any of them
+up without re-discovering it.
 
-1. **Backfill `cost_center` on existing `POS Invoice` rows.** Every one is empty
-   today, because the POS Profile never carried a cost centre. Until they are
-   filled, historical revenue belongs to no branch — the report helpers degrade
-   to unscoped, so nothing breaks.
-2. **`branch.backfill()`** — stamps the restaurant onto every historical row
-   across the seven doctypes named in §4. New rows have been filling themselves
-   in since the deploy; this is only about the ones that predate it. Only
-   meaningful after (1), and only ever with a fresh backup.
-3. **`apply_strict_user_permissions`** — leave it **off**. Turning it on flips
-   the `ifnull` branch that keeps NULL rows visible, and every un-backfilled row
-   vanishes for every non-Owner at once.
+### 7a. Security — do these first
 
-Order, when the day comes: add the field → backfill → verify → *then* consider
-turning strict permissions on. Never create a second Restaurant before the
-backfill.
+| # | What | Why it matters | Fix |
+|---|---|---|---|
+| 1 | **`Administrator` still logs in with the password `admin`** on the public site. | Anyone who has read the old SKILL.md, or guesses, owns every one of the ~15 tenants on this backend — the Administrator account is bench-wide. | Change it in Desk (`/app/user/Administrator` → Reset Password), and store the new one in a password manager, not in a repo file. |
+| 2 | **Three test accounts are enabled as System Manager**: `test@example.com`, `testdelete@example.com`, `testpassword@example.com` (plus `test1`–`test4`, `testperm`, `test'5@` as enabled users). | Leftovers of somebody's test run on the live site. Each is a login with full access and a guessable name. | Disable them (User → Enabled off). Do not delete: an Activity Log / order may reference them. `assign_staff` pinned them to the restaurant, which changes nothing; the pin goes with the disable. |
+| 3 | **`damindyanawanjalee@gmail.com` carries the `Admin` Role Profile** (as does `Guest`, inertly). | A till user with every ERPNext manager role — HR, Accounts, Stock, System Manager. The app pins her to the restaurant, but Frappe Desk is wide open to her. A Role Profile also re-applies its roles on every save, so anything taken away by hand comes back. | Give her a floor profile (Cashier + Waiter, or a `Till` Role Profile with just those) and clear `Admin`. Kasun's profile was already cleared 2026-09-10 for the same reason. |
+| 4 | **Nine `_Test Company*` rows** (and their `Cash - _TC*` accounts, Credit Card mode accounts) sit in the live Chart of Accounts. | Somebody ran the test suite against production once. They pollute company/account dropdowns and any consolidated report. | Delete the companies (Desk → Company → delete; each drags its accounts). Take a backup first; if a delete refuses because a document links to it, that document is the real problem — find it. |
 
----
+### 7b. Operations
+
+| # | What | Why it matters | Fix |
+|---|---|---|---|
+| 5 | **A POS shift has been open since 2026-09-01 09:21** (Dambulla). | Nine days of trade under one opening entry; the Z-report for it will be meaningless and the drawer difference huge. | Close it from `/pos` (Close shift). Then open shifts daily — the app ties open/close to login/logout, so make sure the tablet logs out at close. |
+| 6 | **`PickMe` and `Credit Card` are booked to `Cash - LF`.** | There is no bank account on the `Luuv Fryxo` company at all, so `add_payment_mode` fell back to the cash account. Card and aggregator money is never in the drawer, so the cash ledger is overstated by every non-cash sale — the accountant will see it. | Create a Bank account under the company's Chart of Accounts, then Mode of Payment → PickMe / Credit Card → Accounts row → point at it. Existing invoices keep their old posting; only new ones move. |
+| 7 | **Counter tablets still bookmark `/pos2`** (and the iMin app may open `/pos3`). Both are 301s to `/pos` for this release only. | The redirects go the release after next; a tablet still pointing at `/pos2` would then 404 mid-service. | Re-point every tablet's bookmark / home-screen icon to `/pos` during a close; check the iMin app's start URL. Then delete `www/pos2.*` and `www/pos3.*`. |
+| 8 | **Two item images 404** on the public pages: `/files/cat_biryani.jpg`, `/files/cat_cheesekottu.jpg`, `/files/cat_beverage.jpg`. | Broken pictures on `/home` and in the POS grid for those items. Pre-existing, not from the deploy. | Upload the files again (Item → image) or clear the `image` field on those Items. |
+| 9 | **`LuuvCRM Settings` is on defaults.** | The defaults *are* this restaurant's own values (name, Dambulla, phone, orange), so nothing looks wrong — but the moment anyone edits a page-level string expecting it to change, it will not; it lives in the Desk now. | Nothing to fix; tell the owner where the brand/phone/outlet line live (`/app/luuvcrm-settings`). `bench --site fryxo execute luuvcrm.settings.describe` prints them. |
+
+### 7c. The host
+
+| # | What | Why it matters | Fix |
+|---|---|---|---|
+| 10 | **`apps/` is not a Docker volume.** The backend's, the scheduler's and each queue worker's copy of every app lives in that container's writable layer. | `docker compose up --force-recreate`, an image pull or a rebuild **loses every deploy since the image was built** — for luuvcrm and for whatever the other tenants have had patched in the same way. `docker restart` is safe. | The real fix is in `frappe_docker`'s compose file (mount `apps` or bake them into the image) and belongs to whoever owns the VPS. Until then: keep `deploy-state/luuvcrm-<sha>.tar.gz` and the pre-deploy snapshots; re-running `deploy` (overlay only, migrate is a no-op) puts the code back. |
+| 11 | **The first deploy shipped CRLF line endings** (git archive on Windows honoured `core.autocrlf`); the second deploy shipped LF, so the host now has a mix. | Harmless to Python, HTML and JS. It broke the script's md5 comparisons until they were made line-ending-blind. | Nothing on the host. The script now archives with `-c core.autocrlf=false -c core.eol=lf`. |
+| 12 | **The moved-aside trees** `apps/luuvcrm.removed-20260910-092850/` and `…-101836/`, the 39 `.bak` files still in the package, and `/home/ubuntu/lf-deploy/*` (≈1.5 GB of tarballs, backups and logs). | Disk (103 GB free, so no rush) and confusion: a `.bak` next to a live file invites the wrong edit. | After a fortnight without a rollback: delete the `.removed-*` dirs and the `lf-deploy` run dirs older than the last deploy; move the `.bak` files out of the package. |
+| 13 | **The three queue/scheduler containers run from a different image than the backend** and the two queue workers carry no `luuvcrm` at all. | Any luuvcrm job that ever lands on a queue worker (an `enqueue` from the app, a scheduled job routed to `queue-long`) fails with an import error. Today nothing enqueues, so nothing is broken. | If the app ever enqueues, the workers need the app installed — same compose problem as #10. |
+
+### 7d. Before a second restaurant
+
+| # | What | Why it matters | Fix |
+|---|---|---|---|
+| 14 | **Every `POS Invoice` has an empty `cost_center`**, and `Restaurant.cost_center` / `warehouse` are NULL. | Historical revenue belongs to no branch. The report helpers degrade to unscoped, so nothing breaks today — but branch-scoped invoice reports cannot exist until this is filled. | Create a Cost Center per branch (leaf, under the company), set `Restaurant.cost_center` + `warehouse`, set `POS Profile.cost_center` on each till, then backfill `POS Invoice.cost_center` from the profile that raised it (its own day, its own backup). |
+| 15 | **`apply_strict_user_permissions` is off.** | With it off, a row with no `restaurant` stays visible to every branch. All history is backfilled now, and new rows stamp themselves, so the only unbranched rows left are an owner's writes made without choosing a branch (`branch.check` lists them). | Leave it off until `branch.check` has been empty for a while with two restaurants live; then decide. Turning it on with unbranched rows makes them vanish for every non-owner at once. |
+| 16 | **Each branch needs its own `Restaurant Menu`, `Restaurant Table`s and till.** | hospitality's menu and tables belong to one Restaurant. A second Restaurant record with no menu serves an empty POS. | Copy the menu (or share prices through the Price List), create tables per branch, set `POS Profile.restaurant`, assign staff (`branch.assign`), run `branch.check` until it is empty. |
+| 17 | **Staff who work two branches** (damindya and chandimal are on both the Dambulla and Kurunegala tills). | One User Permission pins a person to one branch; two pins show both. That is right for them, and wrong for a manager who should see only theirs. | Decide per person when the branches exist; `branch.assign(user, restaurant)` adds, `branch.unassign` removes. |
+
+### 7e. Repo
+
+| # | What | Fix |
+|---|---|---|
+| 18 | ~145 commits on `main` are not on `origin` (GitHub). | `git push origin main` from the owner's machine — the agent's push is blocked by policy. |
+| 19 | `docs/DEVELOPER_GUIDE.md` and `docs/ROADMAP.md` still describe the branch-picker as read-only ("choosing what to look at must not decide whose row it is"). | Since `fc19acd` an owner's explicit choice also stamps their rows; update the two paragraphs. |
 
 ## 8. The week after
 
