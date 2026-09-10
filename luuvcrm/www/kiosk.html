@@ -158,6 +158,8 @@
 {% include "templates/includes/brand.html" %}
 </head>
 <body>
+{%- if branch or not branch_choices %}
+
 
 <div class="k-container">
   <div class="k-header">
@@ -426,6 +428,9 @@ document.getElementById('cartDrawer').addEventListener('click', function(e) {
 
 render();
 </script>
+{%- else %}
+{% include "templates/includes/branch_choose.html" %}
+{%- endif %}
 </body>
 </html>
 

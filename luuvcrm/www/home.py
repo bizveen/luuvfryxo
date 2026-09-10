@@ -11,7 +11,7 @@ def get_context(context):
     context.no_header = True
     context.no_footer = True
 
-    restaurant_name = branch.viewing()
+    restaurant_name = branch.for_page(context)
     context.restaurant = None
     context.menu_groups = []
     context.opening_time = "11:00 AM"

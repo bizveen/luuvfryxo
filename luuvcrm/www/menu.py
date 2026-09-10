@@ -6,7 +6,7 @@ from luuvcrm.api import menu_items
 
 no_cache = 1
 
-def _whatsapp_number():
+def _whatsapp_number(name):
     """The restaurant's WhatsApp number, or "" when none is configured.
 
     The float button used to hard-code wa.me/9470XXXXXXX — a placeholder that has
@@ -14,7 +14,6 @@ def _whatsapp_number():
     Until there is a settings doctype (see docs/SEED_DATA.md B1) this reads the
     Restaurant record, and the button simply does not render without one.
     """
-    name = branch.viewing()
     if not name:
         return ""
     for field in ("whatsapp", "whatsapp_number", "phone_no", "phone"):
@@ -30,10 +29,13 @@ def get_context(context):
     context.no_sidebar = True
     context.no_header = True
     context.no_footer = True
-    context.whatsapp_number = _whatsapp_number()
+    restaurant_name = branch.for_page(context)
+    context.whatsapp_number = _whatsapp_number(restaurant_name)
 
-    restaurant_name = branch.viewing()
     if not restaurant_name:
+        # Two branches and nothing in the request to say which. The chooser is
+        # the page; serving one branch's prices to the other's customer is the
+        # thing this replaces.
         context.restaurant = None
         context.menu_items = []
         return

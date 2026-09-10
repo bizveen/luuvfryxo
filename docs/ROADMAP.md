@@ -183,8 +183,28 @@ first* above.
 - [x] **`branch.assign(user, restaurant)` / `unassign` / `assigned`.** A User Permission is the entire mechanism — Frappe applies it to every doctype with a Link to `Restaurant` on every `get_list`, so there is no filtering code in this app and there should not be. The Owner needs nothing: no User Permission means no restriction. `check()` now also reports a Restaurant Manager who has none, because that failure is silent — they quietly have Owner's reach.
 - [x] **Branch-aware reports.** `get_list` cannot reach them: they are made of raw `frappe.db.sql`, which no permission layer sees, and of ERPNext's `POS Invoice`, which has no `restaurant` field. It carries `cost_center` — put there by the POS Profile that raised it — which is the whole payoff of a branch being a Cost Center: the money separates itself in ERPNext's own ledger and the report only has to say which one it wants. `branch.sql_cost_center()` scopes the invoice aggregates, `branch.sql_restaurant()` the purchasing ones (Purchase Bill is ours and carries the branch directly). The Owner's roll-up needs no code — unrestricted sessions get an empty condition, which is every branch.
   **All three helpers degrade to nothing** when the session is unrestricted, when there is one branch, or when the branch has no cost centre. That last one matters now: every invoice on the live site has an empty cost centre, so a filter that did not degrade would turn every report to zero the day it shipped. `check()` reports the gap instead.
-- [ ] **Decide how a public page picks its branch.** *(Parked at the user's request — last thing in the phase.)* `/menu`, `/home`, `/order`, `/kiosk` and `/cus` have no session user, so `branch.current()` falls through to "the only restaurant" and returns `None` the day there are two — a blank menu rather than the wrong one, which is the right failure but not an answer. They need the branch in the URL (a per-branch link, or `/kiosk?table=` already implies one). Surfaced by the resolver; not a problem that existed while there was one restaurant.
-- [x] **The two-restaurant test exists and passes.** A manager of branch A sees no Purchase Bill, Expense, Wastage, POS Approval, POS Cash Movement, LF Activity Log or POS Order from branch B; the other manager sees the mirror image; the Owner sees both. No filtering code anywhere in the app — a User Permission and `get_list` are the whole of it. 46 tests in `test_branch.py`.
+- [x] **Decided (2026-09-10): the request says which branch, and when it cannot the page asks.**
+  `branch.public()` reads the evidence the request already carries, strongest first: the **table in
+  the URL** (`/order?table=T5` comes off a QR sticker glued to a physical table, and
+  `Restaurant Table.restaurant` says which building that is), then **`?r=` in the query** — the
+  branch's own link, on its stickers and in its WhatsApp replies — then a **cookie** set by either of
+  those on an earlier page, then `current()` for the staff who open these pages too, then the only
+  Restaurant. The table wins against an `?r=` that disagrees: a stale link in somebody's WhatsApp
+  thread must not send an order taken at a Kandy table to Colombo's kitchen.
+  **What it returns when it cannot tell is None, and None is a question.** The five pages render
+  `templates/includes/branch_choose.html` — the branches as tiles, each a link that adds `?r=` to the
+  URL the customer is already on, keeping `?promo=`, `?ref=` and `?phone=`, which come off stickers
+  and referral links and turn a personalised page into a generic one when dropped.
+  **The roadmap had this wrong: it said the page would go blank.** It would not have. `viewing()`
+  falls back to the first restaurant by name, so with two branches `/menu` would have served Kandy's
+  customer Colombo's menu, prices and service charge silently — worse than blank, because nothing
+  would have said so.
+  **And the write half was broken too.** `place_order` is `allow_guest`: there is no session for
+  `current()` to resolve, so every order taken off a QR code on a two-branch site would have gone in
+  with no branch at all — the same gap `05c1f73` closed for an owner on their phone. `stamp()` falls
+  through to `public()`, which is allowed to decide a row precisely because none of its steps is a
+  guess. `/order` and `/kiosk` also stopped listing every table on the site; a customer could put an
+  order on a table standing in the other branch.
 
 ### Migrating the live restaurant safely
 
@@ -425,10 +445,10 @@ This is Phase 2c's tail, and now it has a date on it: it is what the app is for.
 - [ ] **Backfill `cost_center` on the live `POS Invoice` rows** (§7d #14, and the open Phase 2c item
       above). Historical revenue belongs to no branch until this is done, and branch-scoped invoice
       reports cannot exist. Its own day, its own backup.
-- [ ] **Decide how a public page picks its branch** — still parked, and it is now the *only* thing
-      standing between here and a second restaurant serving a menu. `/menu`, `/home`, `/order`,
-      `/kiosk` and `/cus` have no session user, so `branch.current()` returns `None` the day there
-      are two and the page goes blank. Nothing else in 7c can be tested end to end without it.
+- [x] **How a public page picks its branch — done 2026-09-10.** `branch.public()`, the chooser, and
+      the guest write path; see the ticked item in Phase 2c for what was decided and what the
+      roadmap had wrong about it. This was the only thing standing between here and a second
+      restaurant serving its own menu.
 - [ ] **Then the sequence in §7d**: a Cost Center and Warehouse per branch → `POS Profile.restaurant`
       on each till → a menu and tables per branch → `branch.assign()` each manager → `branch.check`
       until it is empty → decide `apply_strict_user_permissions`.

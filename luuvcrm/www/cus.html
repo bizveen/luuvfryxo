@@ -155,6 +155,8 @@ input,button{font-family:inherit;}
 {% include "templates/includes/brand.html" %}
 </head>
 <body>
+{%- if branch or not branch_choices %}
+
 {% set emoji = {'Beverages':'🥤','Biryani & Naan Combos':'🍛','Cheese Kottu':'🧀','Coffee & Tea':'☕','Desserts':'🍨','European Dishes & Salads':'🥗','Fried Rice':'🍚','Grills':'🥩','Indian Cuisine':'🍛','Kottu':'🥘','North Asian':'🥟','Pizza':'🍕','Rice & Curry':'🍛','Seafood':'🦐','Sides & Accompaniments':'🧆','Signature Kottu':'⭐','Sizzler Platters':'🔥','Soups':'🥣','Sri Lankan Fusion':'🌴','Vegetarian':'🥦'} %}
 <div class="wrap"><div class="card">
 
@@ -764,5 +766,8 @@ profilePrompt();
 icons();
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('/cus_sw.js',{scope:'/cus'}).catch(()=>{}); }
 </script>
+{%- else %}
+{% include "templates/includes/branch_choose.html" %}
+{%- endif %}
 </body>
 </html>

@@ -275,6 +275,163 @@ def warehouse(restaurant=None):
     return frappe.db.get_value("Restaurant", restaurant, "warehouse")
 
 
+# ─── A page with no session behind it ────────────────────────────────────────
+# `/menu`, `/home`, `/order`, `/kiosk` and `/cus` are served to Guest. There is
+# no user for `current()` to resolve, so before this it fell all the way through
+# to `viewing()`'s last resort — the first restaurant by name. With one branch
+# that is right by accident. With two it serves Kandy's customer Colombo's menu
+# and prices, silently, which is the exact failure this module was written to
+# remove, on the pages the restaurant's customers actually see.
+#
+# The request itself carries the answer, and none of these steps is a guess:
+
+#: Where a guest's branch is remembered between pages. A cookie rather than a
+#: session value because there is no session: Frappe hands a Guest a fresh one
+#: per request. Deliberately not `HttpOnly` — nothing about it is a secret, and
+#: the page scripts read it when they build a link.
+COOKIE = "luuv_branch"
+
+#: How long a guest's choice is remembered. A meal, not a lifetime: somebody who
+#: ate in Kandy last month and is now in Colombo should be asked again.
+COOKIE_MAX_AGE = 30 * 24 * 3600
+
+
+def public(table=None, restaurant=None):
+    """The branch a guest-facing page is about, or None when it must ask.
+
+    In order, strongest evidence first:
+
+    1. **The table in the URL.** `/order?table=T5` comes off a QR sticker glued
+       to a physical table, and `Restaurant Table.restaurant` says which branch
+       that table is in. Nothing a customer could type outranks where they are
+       sitting, so this is first and it wins even against an `?r=` that
+       disagrees — a stale link in somebody's WhatsApp thread must not send a
+       Kandy order to Colombo's kitchen.
+    2. **`?r=` in the query.** The branch's own link: on its QR stickers, its
+       WhatsApp replies, its Google listing. Ignored, not obeyed, when it names
+       a restaurant that does not exist — a typo should ask rather than 404.
+    3. **The cookie**, set by 1 or 2 on an earlier page, so tapping "Order
+       Online" from a menu does not ask again.
+    4. **`current()`**, for the staff who open these pages too. A cashier on the
+       Kandy till looking at `/menu` means Kandy, and this is the same answer
+       every other screen would give them.
+    5. **The only Restaurant**, if there is exactly one. This is what makes the
+       whole thing a no-op on the site as it stands today.
+
+    Returns `None` only when there are two or more branches and the request says
+    nothing about which — and that is a question, not an error: the page renders
+    the chooser. Returning "the first one" here is precisely the bug.
+    """
+    form = getattr(frappe.local, "form_dict", None) or {}
+    table = table if table is not None else (form.get("table") or "")
+    asked = restaurant if restaurant is not None else (form.get("r") or form.get("restaurant") or "")
+
+    here = _restaurant_of_table(table)
+    if here:
+        return here
+
+    asked = (asked or "").strip()
+    if asked and frappe.db.exists("Restaurant", asked):
+        return asked
+
+    remembered = _cookie()
+    if remembered and frappe.db.exists("Restaurant", remembered):
+        return remembered
+
+    return current() or _the_only_restaurant()
+
+
+def _cookie():
+    """The remembered branch, or "". There is no request at all in a background
+    job or a test, and asking is cheaper than arranging one."""
+    try:
+        return frappe.request.cookies.get(COOKIE) or ""
+    except Exception:
+        return ""
+
+
+def remember(restaurant):
+    """Keep a guest's branch for the next page. Silent when there is nothing to
+    keep, or no response to set it on (a background job, a test)."""
+    if not restaurant:
+        return
+    try:
+        frappe.local.cookie_manager.set_cookie(COOKIE, restaurant, max_age=COOKIE_MAX_AGE)
+    except Exception:
+        pass
+
+
+def choices():
+    """What the chooser offers: every branch, and a line of address under it so
+    a customer can tell them apart. Empty while there is only one branch, which
+    is what keeps the chooser off every page on a one-restaurant site.
+
+    `Restaurant` is `autoname: prompt` — the record's name *is* the branch's
+    name, which is why there is nothing else to show — and `address` is a Link
+    to an `Address`, so the line has to be fetched rather than read off the row.
+    """
+    names = all_restaurants()
+    if len(names) < 2:
+        return []
+    out = []
+    for name in names:
+        address = frappe.db.get_value("Restaurant", name, "address")
+        line = ""
+        if address:
+            city, line1 = frappe.db.get_value("Address", address,
+                                              ["city", "address_line1"]) or ("", "")
+            line = ", ".join(part for part in (line1, city) if part)
+        out.append({"name": name, "address": line})
+    return out
+
+
+def for_page(context):
+    """Resolve the branch for a guest-facing page and set up its chooser.
+
+    One helper because all five public pages need the same four things and a
+    copy each is how one of them ends up different: the branch, the chooser's
+    tiles, a link builder that keeps the query string, and the cookie that stops
+    the question being asked twice.
+
+    Returns the branch name, or None — and on None the page renders
+    `templates/includes/branch_choose.html` instead of its own body. The caller
+    still decides what "instead" means, because `/order` and `/menu` are not the
+    same page.
+    """
+    here = public()
+    context.branch = here
+    context.branch_choices = [] if here else choices()
+    context.branch_choose_url = _choose_url
+    if here:
+        remember(here)
+    return here
+
+
+def _choose_url(restaurant):
+    """This page's own URL with `?r=<restaurant>` added, every other parameter
+    kept. `?promo=`, `?ref=` and `?phone=` come off stickers and WhatsApp links;
+    a chooser that dropped them would hand back a generic page."""
+    from urllib.parse import urlencode
+
+    try:
+        path = frappe.request.path or "/"
+    except Exception:
+        path = "/"
+    params = {k: v for k, v in (getattr(frappe.local, "form_dict", None) or {}).items()
+              if k not in ("r", "restaurant", "cmd") and isinstance(v, str)}
+    params["r"] = restaurant
+    return path + "?" + urlencode(params)
+
+
+def _restaurant_of_table(table):
+    """Which branch a table is in. `Restaurant Table` is hospitality's and has
+    carried a `restaurant` Link since long before this module."""
+    table = (table or "").strip()
+    if not table:
+        return None
+    return frappe.db.get_value("Restaurant Table", table, "restaurant") or None
+
+
 def _the_only_restaurant():
     names = frappe.get_all("Restaurant", pluck="name", limit_page_length=2)
     return names[0] if len(names) == 1 else None
@@ -378,13 +535,24 @@ def stamp(doc, method=None):
     Never a dropdown the cashier has to remember — a field somebody has to set
     is a field that ends up empty, and an empty branch is a row that stays
     visible to every branch (see the `ifnull` note in ROADMAP Phase 2c).
+
+    **A guest's order is stamped from the request**, because there is no user to
+    ask. `place_order` is `allow_guest`: a customer at table 5 has no session
+    for `current()` to resolve, so with two branches every order taken off a QR
+    code went in with no branch at all. `public()` reads the table out of the
+    same request that carried the order, and its steps are evidence rather than
+    guesses — which is the only reason it is allowed to decide a row.
     """
     try:
         if doc.doctype not in BRANCHED_DOCTYPES:
             return
         if not doc.meta.has_field(FIELD) or doc.get(FIELD):
             return
-        doc.set(FIELD, current())
+        here = current()
+        if not here:
+            table = doc.get("restaurant_table") if doc.meta.has_field("restaurant_table") else None
+            here = public(table=table)
+        doc.set(FIELD, here)
     except Exception:
         # A row that fails to get a branch is a reporting problem. A row that
         # fails to save is a cashier who cannot sell.

@@ -126,6 +126,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:#F8F9FA; color:#
 {% include "templates/includes/brand.html" %}
 </head>
 <body>
+{%- if branch or not branch_choices %}
+
 
 <!-- ═══ Hero ═══ -->
 <section class="hero">
@@ -221,5 +223,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:#F8F9FA; color:#
   <div class="copy">© 2026 {{ restaurant.name if restaurant else brand_name }}. All rights reserved.</div>
 </footer>
 
+{%- else %}
+{% include "templates/includes/branch_choose.html" %}
+{%- endif %}
 </body>
 </html>

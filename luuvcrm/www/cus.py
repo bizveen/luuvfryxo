@@ -42,7 +42,7 @@ def get_context(context):
     context.prefill_phone = (frappe.form_dict.get("phone", "") or "").strip()
     context.promo_code = (frappe.form_dict.get("promo", "") or "").strip().upper()
 
-    restaurant_name = branch.viewing()
+    restaurant_name = branch.for_page(context)
     context.restaurant_name = restaurant_name or settings.get("brand_name")
     context.menu_groups = []
 

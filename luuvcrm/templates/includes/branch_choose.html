@@ -1,0 +1,40 @@
+{#-
+  "Which one are you at?" — the whole page, when a public page cannot tell.
+
+  Rendered instead of the menu by `/menu`, `/home`, `/order`, `/kiosk` and
+  `/cus` when `branch.public()` returns None: two or more branches exist and the
+  request said nothing about which. It is a question, not an error — the
+  alternative was serving one branch's prices to the other's customer without
+  saying so.
+
+  A one-restaurant site never sees this: `branch.choices()` is empty below two,
+  and `public()` answers with the only one long before the page gets here.
+
+  Each tile is a plain link that adds `?r=` to the URL the customer is already
+  on, keeping every other parameter (`?promo=`, `?ref=`, `?phone=`) — those come
+  off QR stickers and WhatsApp threads, and dropping them turns a personalised
+  link into a generic one. The choice is remembered in a cookie by the page it
+  lands on, so this is asked once.
+-#}
+<div class="lf-branch-choose">
+  <h1>{{ _("Which one are you at?") }}</h1>
+  <p>{{ _("Pick a branch and we will remember it.") }}</p>
+  <ul>
+    {%- for choice in branch_choices %}
+    <li><a href="{{ branch_choose_url(choice.name) }}">
+      <span class="lf-branch-name">{{ choice.name }}</span>
+      {%- if choice.address %}<span class="lf-branch-address">{{ choice.address }}</span>{% endif %}
+    </a></li>
+    {%- endfor %}
+  </ul>
+</div>
+<style>
+.lf-branch-choose{max-width:32rem;margin:0 auto;padding:3rem 1rem;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center}
+.lf-branch-choose h1{font-size:1.5rem;margin:0 0 .5rem}
+.lf-branch-choose p{margin:0 0 2rem;opacity:.7}
+.lf-branch-choose ul{list-style:none;margin:0;padding:0;display:grid;gap:.75rem}
+.lf-branch-choose a{display:block;padding:1.25rem;border:2px solid var(--color-primary,#f97316);border-radius:.75rem;text-decoration:none;color:inherit}
+.lf-branch-choose a:hover,.lf-branch-choose a:focus{background:var(--color-primary,#f97316);color:#fff}
+.lf-branch-name{display:block;font-size:1.125rem;font-weight:600}
+.lf-branch-address{display:block;font-size:.875rem;opacity:.75;margin-top:.25rem}
+</style>

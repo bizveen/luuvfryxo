@@ -219,6 +219,8 @@ body { font-family:'Inter',-apple-system,sans-serif; background:#F5F5F5; color:#
 {% include "templates/includes/brand.html" %}
 </head>
 <body>
+{%- if branch or not branch_choices %}
+
 
 <!-- ═══ Header ═══ -->
 <header class="header">
@@ -490,5 +492,8 @@ function escapeHtml(s) { const d = document.createElement('div'); d.textContent 
 document.getElementById('mobileDrawer').addEventListener('click', function(e) { if (e.target === this) closeMobileCart(); });
 render();
 </script>
+{%- else %}
+{% include "templates/includes/branch_choose.html" %}
+{%- endif %}
 </body>
 </html>

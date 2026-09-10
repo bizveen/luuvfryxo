@@ -68,11 +68,25 @@ def _drop_test_restaurants():
 
 
 def _user(case, tag, role):
+    """A test user, and — the part that matters — one with no branch on it.
+
+    The accounts are reused across runs (the email is derived from the tag, not
+    random), and `branch.assign()` commits: a permission written by one test
+    outlives the rollback and is still on the account the next time the suite
+    runs. A user with two permissions is a user `current()` refuses to answer
+    for, so the tests that failed were the ones asserting it answers — reporting
+    a restaurant nobody in the file had created.
+
+    Unassign on the way in as well as out, because "on the way out" is no help
+    to a run that has already been poisoned by a previous one.
+    """
     email = f"lf-test-branch-{tag}@example.com"
     if not frappe.db.exists("User", email):
         frappe.get_doc({"doctype": "User", "email": email, "first_name": "Branch",
                         "send_welcome_email": 0, "roles": [{"role": role}]
                         }).insert(ignore_permissions=True)
+    branch.unassign(email)
+    case.addCleanup(branch.unassign, email)
     return email
 
 
@@ -293,6 +307,16 @@ class TestPinningTheStaff(FrappeTestCase):
 
     def setUp(self):
         super().setUp()
+        # `assign_staff` pins EVERY enabled System User on the site, and
+        # `assign()` commits — so this class's three tests leave a User
+        # Permission on every account the other suites created, and those
+        # survive the rollback. That is not hypothetical: it broke five tests in
+        # this file for weeks, each failing with a restaurant nobody recognised,
+        # because a user with two permissions is a user `current()` refuses to
+        # answer for. Take the roll before, and put the site back after.
+        self.addCleanup(self._unpin_everyone_this_test_pinned,
+                        set(frappe.get_all("User Permission",
+                                           filters={"allow": "Restaurant"}, pluck="name")))
         for email in (self.EMAIL, self.OWNER):
             if not frappe.db.exists("User", email):
                 frappe.get_doc({"doctype": "User", "email": email, "first_name": "LFT",
@@ -303,6 +327,13 @@ class TestPinningTheStaff(FrappeTestCase):
         self.restaurant = branch._the_only_restaurant()
         if not self.restaurant:
             self.skipTest("these tests describe a one-restaurant site")
+
+    @staticmethod
+    def _unpin_everyone_this_test_pinned(before):
+        after = frappe.get_all("User Permission", filters={"allow": "Restaurant"}, pluck="name")
+        for name in (n for n in after if n not in before):
+            frappe.delete_doc("User Permission", name, force=True, ignore_permissions=True)
+        frappe.db.commit()   # committed on the way in, so it takes a commit to undo
 
     def _drop(self, email):
         branch.unassign(email)
@@ -848,11 +879,136 @@ class TestWhichBranchAScreenShows(BranchTestCase):
 
     def test_a_row_is_still_stamped_from_current_not_from_the_view(self):
         """The one line that keeps the fallback honest. An unassigned cashier on
-        a two-branch site sees a menu and their order is stamped NULL — visible
-        to everyone and reported by branch.check(), rather than filed into a
-        branch they were never in."""
+        a two-branch site sees a menu, and their order — if it names no table —
+        is stamped NULL: visible to everyone and reported by branch.check(),
+        rather than filed into a branch they were never in.
+
+        `stamp()` may now fall through to `public()`, which is deliberate and is
+        not the fallback this guards. `public()`'s steps are evidence the request
+        carried — the table the order is on, the branch its link named — and
+        never "whichever restaurant sorts first". That last resort lives in
+        `viewing()` alone, and this asserts it has not leaked into the writes."""
         import inspect
 
         source = inspect.getsource(branch.stamp)
         self.assertIn("current()", source)
         self.assertNotIn("viewing()", source)
+
+class TestAPublicPageWithNoSessionBehindIt(BranchTestCase):
+    """`/menu`, `/home`, `/order`, `/kiosk` and `/cus` are served to Guest.
+
+    Before `branch.public()` they resolved through `viewing()`, whose last
+    resort is "the first restaurant by name" — right by accident on one branch,
+    and on two it served Kandy's customer Colombo's menu, Colombo's prices and
+    Colombo's service charge without a word. These tests pin the two halves of
+    the fix: the request's own evidence is used, and when there is none the
+    answer is a question rather than a guess.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._form = frappe.local.form_dict
+        self.addCleanup(self._restore_form)
+        frappe.local.form_dict = frappe._dict()
+
+    def _restore_form(self):
+        frappe.local.form_dict = self._form
+
+    def ask(self, **params):
+        frappe.local.form_dict = frappe._dict(**params)
+        return branch.public()
+
+    def table(self, restaurant, tag):
+        name = fx.PREFIX + tag
+        if frappe.db.exists("Restaurant Table", name):
+            frappe.delete_doc("Restaurant Table", name, force=True, ignore_permissions=True)
+        doc = frappe.get_doc({"doctype": "Restaurant Table", "__newname": name,
+                              "restaurant": restaurant, "no_of_seats": 4})
+        doc.insert(ignore_permissions=True, ignore_mandatory=True)
+        self.addCleanup(lambda: frappe.db.exists("Restaurant Table", doc.name) and
+                        frappe.delete_doc("Restaurant Table", doc.name, force=True,
+                                          ignore_permissions=True))
+        return doc.name
+
+    def test_with_one_restaurant_it_is_the_answer_and_nothing_is_asked(self):
+        """The whole feature must be invisible on the site as it stands. One
+        branch: no chooser, no cookie, the same page it has always served."""
+        if len(branch.all_restaurants()) != 1:
+            self.skipTest("this site has more than one Restaurant")
+        self.assertEqual(self.ask(), branch.all_restaurants()[0])
+        self.assertEqual(branch.choices(), [])
+
+    def test_the_table_in_the_url_names_the_branch(self):
+        """A QR sticker is glued to a table, and the table is in a building."""
+        other = _restaurant(self, "KANDY")
+        table = self.table(other, "T5")
+        self.assertEqual(self.ask(table=table), other)
+
+    def test_a_branch_can_be_named_in_the_query(self):
+        other = _restaurant(self, "KANDY")
+        self.assertEqual(self.ask(r=other), other)
+        self.assertEqual(self.ask(restaurant=other), other)
+
+    def test_the_table_outranks_a_link_that_disagrees(self):
+        """A stale `?r=` in somebody's WhatsApp thread must not send an order
+        taken at a Kandy table to Colombo's kitchen."""
+        here = _restaurant(self, "KANDY")
+        there = _restaurant(self, "COLOMBO")
+        table = self.table(here, "T5")
+        self.assertEqual(self.ask(table=table, r=there), here)
+
+    def test_a_branch_that_does_not_exist_is_ignored_rather_than_obeyed(self):
+        _restaurant(self, "KANDY")
+        _restaurant(self, "COLOMBO")
+        self.as_user("Guest")
+        self.assertIsNone(self.ask(r="_LFT-no-such-branch"),
+                          "a typo should ask, not answer")
+
+    def test_with_two_branches_and_nothing_to_go_on_it_asks(self):
+        """The regression this whole thing exists to stop. Returning the first
+        restaurant by name here is the bug, not the fallback."""
+        _restaurant(self, "KANDY")
+        _restaurant(self, "COLOMBO")
+        self.as_user("Guest")
+        self.assertIsNone(self.ask())
+        self.assertGreaterEqual(len(branch.choices()), 2,
+                                "if it cannot answer it has to be able to ask")
+
+    def test_a_guest_order_is_stamped_with_the_table_s_branch(self):
+        """The write half. `place_order` is allow_guest: there is no session for
+        `current()` to resolve, so before this every order taken off a QR code
+        on a two-branch site went in with no branch at all."""
+        here = _restaurant(self, "KANDY")
+        _restaurant(self, "COLOMBO")
+        table = self.table(here, "T5")
+        order = self.order(table=table)
+        self.assertEqual(order.get(branch.FIELD), here)
+
+    def test_the_chooser_link_keeps_the_rest_of_the_query(self):
+        """`?promo=` comes off a sticker and `?ref=` off a referral. A chooser
+        that dropped them would hand back a generic page."""
+        url = None
+        frappe.local.form_dict = frappe._dict(promo="ABC", ref="XYZ")
+        url = branch._choose_url("Kandy")
+        self.assertIn("promo=ABC", url)
+        self.assertIn("ref=XYZ", url)
+        self.assertIn("r=Kandy", url)
+
+    def test_the_public_pages_ask_the_public_resolver(self):
+        """A grep, in the spirit of the one that keeps `get_value("Restaurant")`
+        from coming back. `viewing()` on a guest page is the old bug."""
+        import pathlib
+
+        root = pathlib.Path(branch.__file__).parent / "www"
+        wrong = [p.name for p in (root / f"{n}.py" for n in
+                                  ("menu", "home", "order", "kiosk", "cus"))
+                 if "branch.viewing()" in p.read_text()]
+        self.assertEqual(wrong, [], "a guest page must not resolve through viewing()")
+
+    def test_the_pages_that_ask_can_also_render_the_question(self):
+        import pathlib
+
+        root = pathlib.Path(branch.__file__).parent / "www"
+        missing = [n for n in ("menu", "home", "order", "kiosk", "cus")
+                   if "branch_choose.html" not in (root / f"{n}.html").read_text()]
+        self.assertEqual(missing, [], "a page that can return None must be able to ask")
