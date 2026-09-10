@@ -41,7 +41,7 @@ REHEARSE_SITE=rehearse.localhost
 # profiles booked to the cash account and no cashier has ever seen it.
 DROP_MODES=${DROP_MODES:-"Bank Draft"}
 # `post` pins every staff account to the restaurant; the owner's account is not staff.
-OWNER_USER=${OWNER_USER:-praveen2too@gmail.com}
+OWNER_USER=${OWNER_USER:-praveen2too@gmail.com,kasungunarathna37@gmail.com}
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 STATE=${STATE:-$REPO/../../deploy-state}   # outside the repo: tarballs, backups, logs, markers
