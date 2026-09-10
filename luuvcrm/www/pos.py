@@ -16,7 +16,7 @@ import frappe
 from frappe import _
 
 from luuvcrm import branch, roles
-from luuvcrm.api import _get_pos_price_list, _resolve_item_rate, menu_items
+from luuvcrm.api import _get_pos_price_list, _resolve_item_rate, menu_items, tables
 
 no_cache = 1
 
@@ -182,7 +182,7 @@ def get_context(context):
             groups.append({"name": key, "items": list(group)})
         context.menu_groups = groups
 
-    _tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
+    _tables = tables.for_picker()
     for t in _tables:
         parts = t.name.split("-")
         t["short_name"] = parts[-1] if len(parts) > 1 else t.name

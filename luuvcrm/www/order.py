@@ -2,7 +2,7 @@
 import frappe
 
 from luuvcrm import branch, settings
-from luuvcrm.api import menu_groups
+from luuvcrm.api import menu_groups, tables
 
 no_cache = 1
 login_required = False
@@ -28,5 +28,4 @@ def get_context(context):
     context.menu_groups = menu_groups(restaurant_name)
     # This branch's tables only. Listing every table let a customer in one
     # branch put an order on a table standing in the other one.
-    context.tables = frappe.get_all("Restaurant Table", filters={"restaurant": restaurant_name},
-                                    fields=["name"], order_by="name asc")
+    context.tables = tables.for_picker(restaurant_name)

@@ -12,3 +12,4 @@ luuvcrm.patches.v1_0.sync_settings_fields
 luuvcrm.patches.v1_0.narrow_desk_access
 luuvcrm.patches.v1_0.sync_custom_fields
 luuvcrm.patches.v1_0.add_menu_available_field
+luuvcrm.patches.v1_0.add_table_enabled_field

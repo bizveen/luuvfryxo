@@ -13,6 +13,7 @@ from frappe import _
 import json
 from frappe.utils import now_datetime
 from luuvcrm import activity, roles
+from luuvcrm.api import tables
 
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
@@ -39,8 +40,8 @@ def get_pos_profiles():
 
 @frappe.whitelist()
 def get_tables():
-    tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
-    return {"tables": tables}
+    # One reader for every picker: this branch's tables, the ones in service.
+    return {"tables": tables.for_picker()}
 #: Ceilings for the polled screens. `get_all`/`get_list` without one reads the
 #: whole table, and every one of these filters on a *status* rather than a date —
 #: so one order stuck in Draft or unpaid is a row that is read again on every

@@ -2,7 +2,7 @@
 import frappe
 
 from luuvcrm import branch, roles
-from luuvcrm.api import menu_groups
+from luuvcrm.api import menu_groups, tables
 
 no_cache = 1
 
@@ -44,7 +44,7 @@ def get_context(context):
         context.service_charge_rate = float(restaurant.get("service_charge") or 0)
         context.menu_groups = menu_groups(restaurant_name)
 
-    _tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
+    _tables = tables.for_picker()
     for t in _tables:
         parts = t.name.split("-")
         t["short_name"] = parts[-1] if len(parts) > 1 else t.name   # "Luuv-Fryxo-15" -> "15"

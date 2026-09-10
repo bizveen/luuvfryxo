@@ -270,6 +270,7 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
       <span class="sec">What you sell</span>
       <a href="#menu"  data-panel="menu"><span class="ic">🍽️</span>Menu<span class="cnt" id="navMenu"></span></a>
       <a href="#items" data-panel="items"><span class="ic">📦</span>Items<span class="cnt" id="navItems"></span></a>
+      <a href="#tables" data-panel="tables"><span class="ic">🪑</span>Tables<span class="cnt" id="navTables"></span></a>
 
       <span class="sec">Everything else</span>
       <a href="#apps" data-panel="apps"><span class="ic">🧩</span>Apps<span class="dot" id="navDot"></span></a>
@@ -370,6 +371,28 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
       </div>
       <div class="card" id="itemList"><div class="empty">Loading…</div></div>
       <p class="hint">Retiring an item is how you stop using it: every past bill links to it by name, so nothing here deletes.</p>
+    </section>
+
+    <!-- ── Tables ───────────────────────────────────────────────────── -->
+    <section class="panel" id="p-tables">
+      <div class="phead"><h1>Tables</h1><span class="sub">Where people sit — and which of those you are still seating</span></div>
+      <div class="bar" style="margin-top:14px">
+        <div id="tBranchWrap" style="display:none"><label for="tBranch">Restaurant</label>
+          <select id="tBranch" onchange="setWorking(this.value)"></select></div>
+        <div class="grow"><label for="tSearch">Search</label>
+          <input type="text" id="tSearch" placeholder="Table name…" oninput="renderTables()"></div>
+      </div>
+      <div class="card" id="tableList"><div class="empty">Loading…</div></div>
+
+      <h2>Add a table</h2>
+      <div class="card" style="padding:15px">
+        <div class="row">
+          <div><label for="newSeats">Seats</label><input type="number" id="newSeats" min="0" placeholder="4"></div>
+          <button onclick="addTable()">Add table</button>
+        </div>
+        <p class="hint">The number is given out in order — the next one after the last table this branch has. Once it exists, print its sticker from <a href="/qrcodes" target="_blank">Table QR Codes</a>.</p>
+      </div>
+      <p class="hint"><strong>Turning a table off never deletes it.</strong> It comes off the POS grid, the waiter screen, the kiosk, the online order page and the QR sheet — and a bill already sitting on it still prices, prints and pays.</p>
     </section>
 
     <!-- ── Apps ─────────────────────────────────────────────────────── -->
@@ -589,7 +612,8 @@ async function call(method, data){
 const LOADED = {};
 const LOADERS = {
   overview: loadOverview, branches: loadBranches, staff: loadStaff,
-  menu: () => loadMenu(), items: loadItems, reports: () => {}, apps: () => {}
+  menu: () => loadMenu(), items: loadItems, tables: loadTables,
+  reports: () => {}, apps: () => {}
 };
 function show(name){
   if(!LOADERS[name]) name = 'overview';
@@ -852,30 +876,90 @@ async function setWorking(restaurant){
   if(restaurant === WORKING) return;
   WORKING = restaurant || null;
   // The choice sticks, and it is what every other screen resolves through
-  // afterwards — /pos, /kiosk, the public menu. Picking a branch here is
-  // "show me this one", never "file the next sale here": a row is still
-  // stamped with branch.current(), which refuses to guess.
+  // afterwards — /pos, /kiosk, the public menu. Since 05c1f73 it decides the
+  // owner's *rows* as well as their screen: an owner who has picked Kandy and
+  // then enters a bill from their phone meant Kandy, and before that the row
+  // went in with no branch and stayed visible to every branch. It is still not
+  // a guess — branch.current() reaches the choice only for somebody no till and
+  // no permission answers for, which is an owner or an admin.
   if(WORKING) call('set_branch_choice', {restaurant: WORKING});
-  ['mBranch', 'iBranch'].forEach(id => {
+  ['mBranch', 'iBranch', 'tBranch'].forEach(id => {
     const el = document.getElementById(id);
     if(el && WORKING) el.value = WORKING;
   });
-  // Reload whichever section is open; the other reloads when it is next opened.
-  LOADED.menu = false; LOADED.items = false;
+  // Reload whichever section is open; the others reload when next opened.
+  LOADED.menu = false; LOADED.items = false; LOADED.tables = false;
   const open = document.querySelector('.panel.on')?.id.replace('p-', '');
   if(open === 'menu'){ LOADED.menu = true; loadMenu(WORKING); }
   if(open === 'items'){ LOADED.items = true; loadItems(); }
+  if(open === 'tables'){ LOADED.tables = true; loadTables(); }
 }
 function fillBranchPickers(list, chosen){
   const html = (list || []).map(r => {
     const name = typeof r === 'string' ? r : r.name;
     return `<option value="${esc(name)}"${name === chosen ? ' selected' : ''}>${esc(name)}</option>`;
   }).join('');
-  ['mBranch', 'iBranch'].forEach(id => {
+  ['mBranch', 'iBranch', 'tBranch'].forEach(id => {
     const el = document.getElementById(id);
     if(el && el.innerHTML !== html) el.innerHTML = html;
     if(el && chosen) el.value = chosen;
   });
+}
+
+/* ── tables ────────────────────────────────────────────────────────────
+   A table could only be made in the Frappe Desk before this, and could not be
+   stopped at all: hospitality's doctype has no flag, so `enabled` is ours. It
+   hides a table from every picker and touches no bill — see api/tables.py. */
+let TABLES = null;
+async function loadTables(){
+  const d = await call('get_tables_setup' + (WORKING ? '?restaurant=' + encodeURIComponent(WORKING) : ''));
+  if(!d) return;
+  TABLES = d;
+  if(d.restaurant) WORKING = d.restaurant;
+  document.getElementById('tBranchWrap').style.display = d.can_choose ? '' : 'none';
+  if(d.can_choose) fillBranchPickers(d.restaurants, d.restaurant);
+  renderTables();
+}
+function renderTables(){
+  if(!TABLES) return;
+  const q = document.getElementById('tSearch').value.trim().toLowerCase();
+  const rows = TABLES.tables.filter(t => !q || t.name.toLowerCase().includes(q));
+  const live = TABLES.tables.filter(t => t.enabled).length;
+  document.getElementById('navTables').textContent = live || '';
+  document.getElementById('tableList').innerHTML = rows.length
+    ? rows.map(t => {
+        // The open-bill count is the one thing somebody needs before turning a
+        // table off, and the screen cannot work it out for itself.
+        const open = t.open_orders
+          ? `<span class="chip">${t.open_orders} open</span>` : '';
+        const seats = t.seats ? `<span class="chip">${t.seats} seats</span>` : '';
+        const off = t.enabled ? '' : ' style="opacity:.55"';
+        return `<div class="li"${off}><span></span>
+          <div class="nm">${esc(t.name)}</div>${seats}${open}
+          ${TABLES.can_toggle
+            ? `<button class="ghost sm" onclick="toggleTable('${esc(t.name)}', ${t.enabled ? 0 : 1})">${t.enabled ? 'Turn off' : 'Turn on'}</button>`
+            : '<span class="chip">migrate first</span>'}
+        </div>`;
+      }).join('')
+    : '<div class="empty">' + (q ? 'No table by that name' : 'No tables yet — add one below') + '</div>';
+}
+async function addTable(){
+  // No name field: hospitality derives it from the restaurant, so anything
+  // typed here would be thrown away silently.
+  const seats = parseInt(document.getElementById('newSeats').value, 10) || 0;
+  const r = await call('add_table', {seats, restaurant: WORKING || ''});
+  if(!r) return;
+  document.getElementById('newSeats').value = '';
+  toast(r.table + ' added');
+  loadTables();
+}
+async function toggleTable(table, enabled){
+  const r = await call('set_table_enabled', {table, enabled});
+  if(!r) return;
+  // Say what is sitting on it rather than leaving it to be found at closing.
+  toast(r.enabled ? table + ' is back in service'
+                  : table + ' is off' + (r.open_orders ? ' — ' + r.open_orders + ' open bill(s) still on it' : ''));
+  loadTables();
 }
 
 async function loadMenu(restaurant){

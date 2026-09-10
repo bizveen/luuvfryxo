@@ -1,6 +1,7 @@
 import frappe
 
 from luuvcrm import roles
+from luuvcrm.api import tables as api_tables
 
 no_cache = 1
 no_sitemap = 1
@@ -23,7 +24,9 @@ def get_context(context):
     context.no_footer = True
 
     base_url = frappe.utils.get_url()
-    tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
+    # A sticker for a table nobody sits at is a sticker somebody prints and
+    # glues to nothing.
+    tables = api_tables.for_picker()
     qr_list = []
     for t in tables:
         qr_list.append({

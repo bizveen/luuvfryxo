@@ -187,6 +187,15 @@ from luuvcrm.api.items import (
     set_item_enabled,
     update_item,
 )
+from luuvcrm.api.tables import (
+    _has_flag,
+    _scope,
+    add_table,
+    for_picker,
+    get_tables_setup,
+    in_service,
+    set_table_enabled,
+)
 from luuvcrm.api.staff import (
     _describe,
     _guard_write,

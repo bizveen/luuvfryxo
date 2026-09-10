@@ -232,6 +232,17 @@ CUSTOM_FIELDS = [
      "description": "Off = hidden from every ordering screen. The item, its price "
                     "and its history are untouched."},
 
+    # A table can be taken out of service without being deleted. Deleting one is
+    # not an option — every past bill links to it by name — and hospitality's
+    # doctype has no flag of its own, so this is ours. Default 1, so every table
+    # on every site stays exactly as it is; and like `available` above, the flag
+    # is read by the pickers only. A bill already open on a table that has just
+    # been turned off still prices, prints and pays.
+    {"dt": "Restaurant Table", "fieldname": "enabled", "label": "Enabled",
+     "fieldtype": "Check", "default": "1", "insert_after": "restaurant", "in_list_view": 1,
+     "description": "Off = hidden from every ordering screen and from the QR sheet. "
+                    "Orders already on this table are untouched."},
+
     # (The three z_* storefront attributes went with zeloura_api.py. Nothing
     # declares them now; a site that already has the columns keeps them, empty
     # and unread, until somebody drops them by hand.)

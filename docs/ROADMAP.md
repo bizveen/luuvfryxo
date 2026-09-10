@@ -464,6 +464,25 @@ This is Phase 2c's tail, and now it has a date on it: it is what the app is for.
 - [ ] **Run `scripts/acceptance.sh` at last.** Written, never run. `bench new-site` →
       `install-app luuvcrm` → a working sale. If it does not pass, "installable" is still a claim.
 
+- [x] **Tables are the owner's now, not the Desk's (2026-09-10).** `/admin` has a Tables section:
+      the branch's tables, what is open on each, add one, and turn one off. A table could only be
+      made in the Frappe Desk before this — a developer's tool the owner is deliberately not given —
+      and could not be stopped at all, so a corner that had become a service station stayed on the
+      POS grid, the waiter screen, the kiosk and the printed QR sheet for ever.
+      **`enabled` is ours** (`Restaurant Table` is hospitality's and carries no flag), default 1, and
+      it means what the menu's `available` means: hidden from every picker, and never allowed to
+      touch a bill. A table is turned off between services; a flag that could strand a party who
+      have eaten and want to pay would be worse than no flag.
+      **Seven screens were each building their own table list**, all of them unscoped — the POS, the
+      waiter screen, the kiosk, the online order page, the offline payload, the QR sheet and
+      `get_tables`. They read `tables.for_picker()` now, which applies the flag *and* the branch, and
+      a grep test keeps them from growing their own again. Unscoped was already a bug waiting for
+      the second restaurant: it let a customer in one branch put an order on a table standing in the
+      other.
+      **There is no name to give.** hospitality's `autoname` derives it from the restaurant
+      (`Luuv-Fryxo-15`) and the screens show the last segment, which is the number the floor already
+      uses — so the add form asks for seats and nothing else.
+
 ### 7e · Housekeeping
 
 - [ ] Move the demo menu to `luuvcrm/demo/` behind an explicit `bench execute`.

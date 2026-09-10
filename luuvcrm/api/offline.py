@@ -8,6 +8,7 @@ import frappe
 from frappe.utils import now_datetime
 
 from luuvcrm import activity, branch
+from luuvcrm.api import tables
 from luuvcrm.api.menu import menu_items
 
 from luuvcrm.api.pricing import (
@@ -35,8 +36,9 @@ def get_menu_data():
     # so it is the one read that must not be a document per row: it is fetched
     # on every POS load and again by the service worker.
     items = menu_items(branch.viewing())
-    tables = frappe.get_all("Restaurant Table", fields=["name"], order_by="name asc")
-    return {"items": items, "tables": tables}
+    # A till that goes offline with a disabled table in its cache would offer
+    # it until the next sync, so the flag has to be applied here too.
+    return {"items": items, "tables": tables.for_picker()}
 @frappe.whitelist(methods=["POST"])
 def sync_offline_orders():
     orders_raw = frappe.local.form_dict.get("orders")
