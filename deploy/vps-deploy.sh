@@ -7,6 +7,7 @@
 #   deploy/vps-deploy.sh rehearse    restore that backup into a throwaway site + container, migrate it there
 #   deploy/vps-deploy.sh deploy      the real thing: maintenance on → overlay → restart → migrate → assets → smoke
 #   deploy/vps-deploy.sh smoke       the checks alone (public URLs, the clothing site, drift, the menu)
+#   deploy/vps-deploy.sh deploy --from 6   resume a stopped deploy at step N (same run dir; 6 = migrate)
 #   deploy/vps-deploy.sh watch       re-attach to a deploy that is running on the host (it runs detached there)
 #   deploy/vps-deploy.sh post        after a verified deploy: branch.backfill + assign_staff + branch.check
 #   deploy/vps-deploy.sh rollback    put the pre-deploy app dir back; add --db to restore the database too
@@ -312,6 +313,14 @@ EOF
 
 # ─── deploy ──────────────────────────────────────────────────────────────────
 deploy() {
+  local from=0
+  if [ "${1:-}" = "--from" ]; then from=${2:?step}; fi
+  if [ "$from" -gt 0 ]; then
+    [ -f "$STATE/last-deploy-run" ] || die "nothing to resume"
+    RDIR=$(sed -n 's/^RDIR=//p' "$STATE/last-deploy-run"); TS=$(sed -n 's/^TS=//p' "$STATE/last-deploy-run")
+    [ "$(sed -n 's/^SHA=//p' "$STATE/last-deploy-run")" = "$SHA" ] || die "the run on the host is a different commit"
+    echo "resuming $SHA from step $from in $RDIR"
+  fi
   say "deploy $SHA → $SITE"
   [ -f "$STATE/luuvcrm-$SHA.tar.gz" ] || die "run preflight first"
   if [ -z "${FORCE:-}" ]; then
@@ -327,21 +336,25 @@ deploy() {
   # the deploy's own TS is the run's; the backup's TS came from last-backup
   local BTS; BTS=$(sed -n 's/^TS=//p' "$STATE/last-backup" 2>/dev/null || echo "none")
   echo "covered by backup $BTS ($STATE/backups/$BTS) — say so out loud before continuing"
-  $SSH "mkdir -p $RDIR"
-  upload "$STATE/luuvcrm-$SHA.tar.gz" "$RDIR/"
-  upload "$REPO/deploy/REMOVE.list" "$RDIR/"
+  if [ "$from" -eq 0 ]; then
+    $SSH "mkdir -p $RDIR"
+    upload "$STATE/luuvcrm-$SHA.tar.gz" "$RDIR/"
+    upload "$REPO/deploy/REMOVE.list" "$RDIR/"
+  fi
   local dlog="$STATE/deploy-$SHA-$TS.log"
   # The remote part runs DETACHED on the host: a deploy that dies with the
   # laptop's ssh session would leave the site in maintenance mode. `watch`
   # re-attaches to it from any shell.
   local rscript="$STATE/deploy-remote-$SHA-$TS.sh"
+  START_STEP=$from
   cat > "$rscript" <<EOF
 #!/usr/bin/env bash
 export TS=$TS SHA=$SHA BENCH=$BENCH APP=$APP BACKEND=$BACKEND SITE=$SITE OTHER_SITE=$OTHER_SITE RDIR=$RDIR
-export WORKERS="$WORKERS" DROP_MODES="$DROP_MODES"
+export WORKERS="$WORKERS" DROP_MODES="$DROP_MODES" START_STEP=${START_STEP:-0}
 $OVERLAY_FN
 set -e
 B="docker exec -w \$BENCH \$BACKEND"
+if [ "\$START_STEP" -le 5 ]; then
 echo "-- 0. \$OTHER_SITE stays a clothing shop: luuvcrm_passive"
 \$B bench --site "\$OTHER_SITE" set-config luuvcrm_passive 1
 docker exec "\$BACKEND" python3 -c "import json;assert json.load(open('\$BENCH/sites/\$OTHER_SITE/site_config.json'))['luuvcrm_passive']==1;print('   set')"
@@ -359,11 +372,12 @@ for w in \$WORKERS; do echo "   \$w"; overlay_into "\$w"; done
 echo "-- 5. restart the backend (gunicorn --preload; every tenant blips ~15 s)"
 docker restart "\$BACKEND" >/dev/null
 for i in \$(seq 1 40); do
-  code=\$(curl -s -o /dev/null -w '%{http_code}' -H "Host: \$OTHER_SITE" http://localhost:8084/api/method/ping || true)
+  code=\$(docker exec "\$BACKEND" curl -s -o /dev/null -w '%{http_code}' -H "Host: \$OTHER_SITE" http://localhost:8000/api/method/ping || true)
   [ "\$code" = 200 ] && break; sleep 2
 done
 [ "\$code" = 200 ] || { echo "backend did not come back (ping via \$OTHER_SITE = \$code)"; exit 1; }
 echo "   back after ~\$((i*2)) s"
+fi   # START_STEP
 echo "-- 6. migrate \$SITE"
 set +e
 \$B bash -c "bench --site \$SITE migrate" > "\$RDIR/migrate.log" 2>&1
@@ -392,7 +406,7 @@ echo "DEPLOY DONE \$SHA"
 EOF
   upload "$rscript" "$RDIR/deploy-remote.sh"
   printf 'SHA=%s\nTS=%s\nRDIR=%s\n' "$SHA" "$TS" "$RDIR" > "$STATE/last-deploy-run"
-  $SSH "cd $RDIR && nohup bash deploy-remote.sh > deploy.log 2>&1 < /dev/null & echo launched"
+  $SSH "cd $RDIR && mv -f deploy.log deploy.log.step$from 2>/dev/null; nohup bash deploy-remote.sh > deploy.log 2>&1 < /dev/null & echo launched"
   watch
 }
 
@@ -467,15 +481,16 @@ smoke() {
   echo "-- $OTHER_SITE (through the host, by Host header)"
   remote <<'EOF' || fail=1
 set -e
+C="docker exec $BACKEND curl -s -H Host:$OTHER_SITE"       # the backend itself: fryxo's nginx on 8084 answers for fryxo only
 for p in / /home /login /api/method/luuvcrm.zeloura_api.get_csrf; do
-  code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $OTHER_SITE" "http://localhost:8084$p")
+  code=$($C -o /dev/null -w '%{http_code}' "http://localhost:8000$p")
   printf '   %-40s %s\n' "$p" "$code"
   [ "$code" = 200 ] || exit 1
 done
-home=$(curl -s -H "Host: $OTHER_SITE" http://localhost:8084/)
+home=$($C http://localhost:8000/)
 echo "$home" | grep -q "Luuv Fryxo" && { echo "   the clothing site's front door says Luuv Fryxo"; exit 1; }
 echo "$home" | grep -qi "zeloura" || { echo "   the clothing site's front door is not Zeloura's"; exit 1; }
-login=$(curl -s -H "Host: $OTHER_SITE" http://localhost:8084/login)
+login=$($C http://localhost:8000/login)
 echo "$login" | grep -q "Luuv Fryxo" && { echo "   the clothing site's login page says Luuv Fryxo"; exit 1; }
 echo "   its own pages, its own name"
 echo "-- $SITE: drift, branch, menu"
@@ -533,7 +548,7 @@ case "${1:-}" in
   preflight) preflight ;;
   backup)    backup ;;
   rehearse)  rehearse ;;
-  deploy)    deploy ;;
+  deploy)    deploy "${2:-}" "${3:-}" ;;
   smoke)     smoke ;;
   watch)     watch ;;
   post)      post ;;
