@@ -36,6 +36,7 @@ package. Same reason `roles.py` is where it is.
 """
 
 import frappe
+from frappe import _
 
 #: The Link field this module adds and reads.
 FIELD = "restaurant"
@@ -301,6 +302,41 @@ def assign(user, restaurant):
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
     return {"created": True, "name": doc.name}
+
+
+def assign_staff(restaurant=None, skip=""):
+    """Pin every enabled system user to `restaurant` — the only one, unless
+    named. Idempotent; the owner's account(s) are passed in `skip`, comma
+    separated, and anyone holding Restaurant Owner is skipped as well.
+
+    On a one-restaurant site this changes nothing anyone can see: a User
+    Permission for the only value there is restricts nobody. It is done now
+    so that the day a second branch exists, today's staff are already on the
+    right side of it rather than seeing both.
+
+        bench --site <site> execute luuvcrm.branch.assign_staff \\
+              --kwargs "{'skip': 'owner@example.com'}"
+    """
+    from luuvcrm import roles
+
+    target = restaurant or _the_only_restaurant()
+    if not target:
+        frappe.throw(_("More than one Restaurant — say which one the staff belong to"))
+    if not frappe.db.exists("Restaurant", target):
+        frappe.throw(f"No such Restaurant: {target}")
+    skipped = {s.strip() for s in (skip or "").split(",") if s.strip()} | {"Administrator", "Guest"}
+    assigned_now, already, owners = [], [], []
+    for user in frappe.get_all("User", filters={"enabled": 1, "user_type": "System User"},
+                               pluck="name", order_by="name asc"):
+        if user in skipped:
+            continue
+        if roles.RESTAURANT_OWNER in frappe.get_roles(user):
+            owners.append(user)
+            continue
+        result = assign(user, target)
+        (assigned_now if result["created"] else already).append(user)
+    return {"restaurant": target, "assigned": assigned_now, "already": already,
+            "skipped": sorted(skipped - {"Administrator", "Guest"}), "owners": owners}
 
 
 def unassign(user, restaurant=None):

@@ -7,6 +7,8 @@
 #   deploy/vps-deploy.sh rehearse    restore that backup into a throwaway site + container, migrate it there
 #   deploy/vps-deploy.sh deploy      the real thing: maintenance on → overlay → restart → migrate → assets → smoke
 #   deploy/vps-deploy.sh smoke       the checks alone (public URLs, the clothing site, drift, the menu)
+#   deploy/vps-deploy.sh watch       re-attach to a deploy that is running on the host (it runs detached there)
+#   deploy/vps-deploy.sh post        after a verified deploy: branch.backfill + assign_staff + branch.check
 #   deploy/vps-deploy.sh rollback    put the pre-deploy app dir back; add --db to restore the database too
 #
 # Why this exists (docs/DEPLOY_RUNBOOK.md §4): the live app directory is not a
@@ -37,6 +39,8 @@ REHEARSE_SITE=rehearse.localhost
 # shows a button for every mode the profile lists; Bank Draft sits on two live
 # profiles booked to the cash account and no cashier has ever seen it.
 DROP_MODES=${DROP_MODES:-"Bank Draft"}
+# `post` pins every staff account to the restaurant; the owner's account is not staff.
+OWNER_USER=${OWNER_USER:-praveen2too@gmail.com}
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 STATE=${STATE:-$REPO/../../deploy-state}   # outside the repo: tarballs, backups, logs, markers
@@ -327,8 +331,14 @@ deploy() {
   upload "$STATE/luuvcrm-$SHA.tar.gz" "$RDIR/"
   upload "$REPO/deploy/REMOVE.list" "$RDIR/"
   local dlog="$STATE/deploy-$SHA-$TS.log"
-  set +e
-  remote <<EOF | tee "$dlog"
+  # The remote part runs DETACHED on the host: a deploy that dies with the
+  # laptop's ssh session would leave the site in maintenance mode. `watch`
+  # re-attaches to it from any shell.
+  local rscript="$STATE/deploy-remote-$SHA-$TS.sh"
+  cat > "$rscript" <<EOF
+#!/usr/bin/env bash
+export TS=$TS SHA=$SHA BENCH=$BENCH APP=$APP BACKEND=$BACKEND SITE=$SITE OTHER_SITE=$OTHER_SITE RDIR=$RDIR
+export WORKERS="$WORKERS" DROP_MODES="$DROP_MODES"
 $OVERLAY_FN
 set -e
 B="docker exec -w \$BENCH \$BACKEND"
@@ -380,12 +390,60 @@ echo "-- 9. restart the workers"
 for w in \$WORKERS; do docker restart "\$w" >/dev/null && echo "   \$w"; done
 echo "DEPLOY DONE \$SHA"
 EOF
-  set -e
-  download "$RDIR/migrate.log" "$STATE/migrate-$SHA-$TS.log" 2>/dev/null || true
-  grep -q "DEPLOY DONE $SHA" "$dlog" || die "deploy did not finish — read $dlog; the pre-deploy snapshot is $RDIR/luuvcrm-pre-deploy.tgz on the host"
-  printf 'SHA=%s\nTS=%s\nRDIR=%s\nSNAPSHOT=%s/luuvcrm-pre-deploy.tgz\n' "$SHA" "$TS" "$RDIR" "$RDIR" > "$STATE/last-deploy"
+  upload "$rscript" "$RDIR/deploy-remote.sh"
+  printf 'SHA=%s\nTS=%s\nRDIR=%s\n' "$SHA" "$TS" "$RDIR" > "$STATE/last-deploy-run"
+  $SSH "cd $RDIR && nohup bash deploy-remote.sh > deploy.log 2>&1 < /dev/null & echo launched"
+  watch
+}
+
+# ─── watch ───────────────────────────────────────────────────────────────────
+watch() {
+  [ -f "$STATE/last-deploy-run" ] || die "no deploy launched (no $STATE/last-deploy-run)"
+  local rsha rts rdir; rsha=$(sed -n 's/^SHA=//p' "$STATE/last-deploy-run"); rts=$(sed -n 's/^TS=//p' "$STATE/last-deploy-run"); rdir=$(sed -n 's/^RDIR=//p' "$STATE/last-deploy-run")
+  local dlog="$STATE/deploy-$rsha-$rts.log"
+  say "watching deploy $rsha on the host ($rdir/deploy.log)"
+  local seen=0
+  while :; do
+    $SSH "cat $rdir/deploy.log 2>/dev/null" > "$dlog.tmp" || true
+    local total; total=$(wc -l < "$dlog.tmp")
+    if [ "$total" -gt "$seen" ]; then tail -n +$((seen+1)) "$dlog.tmp"; seen=$total; fi
+    cp "$dlog.tmp" "$dlog"
+    if grep -q "DEPLOY DONE $rsha" "$dlog"; then break; fi
+    if grep -q "MIGRATE FAILED\|COMPILE FAILED\|backend did not come back" "$dlog"; then
+      die "deploy stopped on the host — read $dlog; the site may be in maintenance mode: deploy/vps-deploy.sh rollback [--db]"
+    fi
+    if ! $SSH "pgrep -f deploy-remote.sh >/dev/null"; then
+      # not running and no marker: it died between steps
+      grep -q "DEPLOY DONE $rsha" "$dlog" || die "the remote deploy is no longer running and did not finish — read $dlog"
+      break
+    fi
+    sleep 12
+  done
+  rm -f "$dlog.tmp"
+  download "$rdir/migrate.log" "$STATE/migrate-$rsha-$rts.log" 2>/dev/null || true
+  printf 'SHA=%s\nTS=%s\nRDIR=%s\nSNAPSHOT=%s/luuvcrm-pre-deploy.tgz\n' "$rsha" "$rts" "$rdir" "$rdir" > "$STATE/last-deploy"
   smoke
-  echo "deploy ok — log $dlog. Commit nothing: HEAD $SHA is what is live."
+  echo "deploy ok — log $dlog. HEAD $rsha is what is live. Next: the browser checks (§5), then deploy/vps-deploy.sh post."
+}
+
+# ─── post ────────────────────────────────────────────────────────────────────
+post() {
+  [ -f "$STATE/last-deploy" ] || die "no verified deploy in $STATE/last-deploy"
+  say "post-deploy: every row and every staff account carries the restaurant"
+  remote <<EOF
+set -e
+B="docker exec -w \$BENCH \$BACKEND"
+echo "-- rows: luuvcrm.branch.backfill (the only restaurant)"
+\$B bench --site "\$SITE" execute luuvcrm.branch.backfill
+echo "-- staff: luuvcrm.branch.assign_staff (skipping $OWNER_USER)"
+\$B bench --site "\$SITE" execute luuvcrm.branch.assign_staff --kwargs "{'skip': '$OWNER_USER'}"
+echo "-- left without a branch (expect {}):"
+\$B bench --site "\$SITE" execute luuvcrm.branch.unbranched
+echo "-- branch.check (expect []):"
+\$B bench --site "\$SITE" execute luuvcrm.branch.check
+\$B bench --site "\$SITE" clear-cache
+echo "POST DONE"
+EOF
 }
 
 # ─── smoke ───────────────────────────────────────────────────────────────────
@@ -477,6 +535,8 @@ case "${1:-}" in
   rehearse)  rehearse ;;
   deploy)    deploy ;;
   smoke)     smoke ;;
+  watch)     watch ;;
+  post)      post ;;
   rollback)  rollback "${2:-}" ;;
   *) sed -n '2,20p' "$0"; exit 2 ;;
 esac

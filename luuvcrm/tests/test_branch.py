@@ -284,6 +284,49 @@ class TestStampingItOnTheWayIn(BranchTestCase):
                                  "luuvcrm.branch.stamp")
 
 
+class TestPinningTheStaff(FrappeTestCase):
+    """`assign_staff` gives every enabled system user a User Permission for the
+    only restaurant — the day-one state a second branch will need."""
+
+    EMAIL = "_lft-staff@example.com"
+    OWNER = "_lft-owner@example.com"
+
+    def setUp(self):
+        super().setUp()
+        for email in (self.EMAIL, self.OWNER):
+            if not frappe.db.exists("User", email):
+                frappe.get_doc({"doctype": "User", "email": email, "first_name": "LFT",
+                                "send_welcome_email": 0}).insert(ignore_permissions=True)
+            self.addCleanup(self._drop, email)
+        self.restaurant = branch._the_only_restaurant()
+        if not self.restaurant:
+            self.skipTest("these tests describe a one-restaurant site")
+
+    def _drop(self, email):
+        branch.unassign(email)
+        frappe.delete_doc("User", email, force=True, ignore_permissions=True)
+
+    def test_everyone_enabled_is_pinned_and_the_owner_is_not(self):
+        out = branch.assign_staff(skip=self.OWNER)
+        self.assertEqual(out["restaurant"], self.restaurant)
+        self.assertIn(self.EMAIL, out["assigned"] + out["already"])
+        self.assertNotIn(self.OWNER, out["assigned"] + out["already"])
+        self.assertEqual(branch.assigned(self.EMAIL), [self.restaurant])
+        self.assertEqual(branch.assigned(self.OWNER), [])
+
+    def test_running_it_twice_adds_nothing(self):
+        branch.assign_staff(skip=self.OWNER)
+        again = branch.assign_staff(skip=self.OWNER)
+        self.assertNotIn(self.EMAIL, again["assigned"])
+        self.assertIn(self.EMAIL, again["already"])
+        self.assertEqual(branch.assigned(self.EMAIL), [self.restaurant])
+
+    def test_on_one_restaurant_nothing_visible_changes(self):
+        branch.assign_staff(skip=self.OWNER)
+        self.assertEqual(branch.current(self.EMAIL), self.restaurant)
+        self.assertEqual(branch.viewing(self.EMAIL), self.restaurant)
+
+
 class TestTheBackfill(BranchTestCase):
     """The step between adding the field and creating the second restaurant.
 
