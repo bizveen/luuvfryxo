@@ -69,7 +69,7 @@ input,button{font-family:inherit;}
         <div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);line-height:1.15;">Purchases &amp; expenses</div>
         <div style="font-size:12.5px;color:var(--text-muted);" id="subline">{{ current_user_full or "Staff" }}</div>
       </div>
-      <a href="/api/method/logout" onclick="return confirm('Sign out?')" title="Sign out" style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="log-out" style="width:17px;height:17px;"></i></a>
+      <a href="/api/method/luuvcrm.launcher.sign_out" onclick="return confirm('Sign out?')" title="Sign out" style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="log-out" style="width:17px;height:17px;"></i></a>
     </div>
     <div style="display:flex;gap:9px;margin-top:14px;">
       <div style="flex:1;background:var(--surface-sunken);border-radius:var(--radius-md);padding:9px 12px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;">Approved today</div><div class="mono" style="font-size:16px;color:var(--text-strong);margin-top:1px;">Rs <span id="stApproved">0</span></div></div>

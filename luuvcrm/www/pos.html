@@ -1688,7 +1688,7 @@ function lfPoll(fn, ms){
   // an open shift routes to the close-shift flow; after close the open-shift modal offers Log out.
   function doLogout(fromModal){
     if(!fromModal && shiftOpen){ toast('Close the shift to log out'); hide('shiftOpenModal'); openCloseModal(); return; }
-    if(confirm('Log out?')) location.href='/api/method/logout'; }
+    if(confirm('Log out?')) location.href='/api/method/luuvcrm.launcher.sign_out'; }
 
   function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
 

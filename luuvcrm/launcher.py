@@ -89,6 +89,29 @@ def chooses(user=None):
     return roles.is_manager(user or frappe.session.user)
 
 
+#: Where signing out leaves somebody: the login form, which sends the next person
+#: to `/staff` like any other sign-in.
+SIGNED_OUT = "/pos-login"
+
+
+@frappe.whitelist(allow_guest=True)
+def sign_out():
+    """Sign out and land on the login form.
+
+    Every staff app linked to Frappe's `/api/method/logout`. That ends the session
+    and then answers with JSON — no redirect, and it ignores `redirect-to` — so the
+    screen turned into `{"message":"No App",...}`. In a browser tab that looks
+    broken; in the installed app, which has no address bar, it is a dead end, and
+    it was reported as "the logout button does not work". GET, because it is a
+    link; allow_guest, because tapping it twice must not be a 403.
+    """
+    if frappe.session.user != "Guest":
+        frappe.local.login_manager.logout()
+        frappe.db.commit()
+    frappe.local.response["type"] = "redirect"
+    frappe.local.response["location"] = SIGNED_OUT
+
+
 def staff_apps(context=None):
     """Jinja global for `templates/includes/app_switch.html`. Guest gets nothing,
     so the switch never draws on a login form rendered in place."""

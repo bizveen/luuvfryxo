@@ -248,3 +248,45 @@ class TestWhereAPurchaserLands(LauncherTestCase):
 
     def test_a_cashier_is_not_offered_purchases(self):
         self.assertNotIn("purchases", self.keys(_user(self, "cash-nobuy", roles.CASHIER)))
+
+
+class TestSigningOut(LauncherTestCase):
+    """Frappe's /api/method/logout ends the session and answers with JSON, so the
+    installed app — no address bar — was left on `{"message":"No App"}` and the
+    button was reported as not working. sign_out lands on the login form."""
+
+    STAFF_PAGES = ("pos", "waiter", "manager", "purchases", "admin", "staff")
+
+    def sign_out(self, user):
+        from unittest.mock import MagicMock
+
+        self.as_user(user)
+        previous = getattr(frappe.local, "login_manager", None)
+        frappe.local.login_manager = MagicMock()
+        self.addCleanup(setattr, frappe.local, "login_manager", previous)
+        frappe.local.response = frappe._dict()
+        launcher.sign_out()
+        return frappe.local.login_manager.logout
+
+    def test_it_ends_the_session_and_lands_on_the_login_form(self):
+        logout = self.sign_out(_user(self, "out", roles.CASHIER))
+        logout.assert_called_once()
+        self.assertEqual(frappe.local.response["type"], "redirect")
+        self.assertEqual(frappe.local.response["location"], "/pos-login")
+
+    def test_tapping_it_again_is_not_an_error(self):
+        logout = self.sign_out("Guest")
+        logout.assert_not_called()
+        self.assertEqual(frappe.local.response["location"], "/pos-login")
+
+    def test_it_is_a_link_a_signed_out_browser_can_follow(self):
+        method = launcher.sign_out
+        self.assertIn(method, frappe.guest_methods)
+        self.assertIn("GET", frappe.allowed_http_methods_for_whitelisted_func[method])
+
+    def test_no_staff_page_links_to_the_json_logout_any_more(self):
+        for page in self.STAFF_PAGES:
+            html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", f"{page}.html"))
+            with self.subTest(page=page):
+                self.assertNotIn("/api/method/logout", html)
+                self.assertIn("/api/method/luuvcrm.launcher.sign_out", html)
