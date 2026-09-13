@@ -1085,11 +1085,28 @@ function lfPoll(fn, ms){
       if(!r) return; const d=await r.json();
       if(r.ok && d.message && d.message.ok){ toast('Edit sent to manager for approval 📱'); pollEdit(d.message.name, order, table); }
       else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
-  function pollEdit(name, order, table){ let tries=0; const iv=setInterval(async()=>{ tries++; if(tries>40){ clearInterval(iv); return; }
-    try{ const r=await _post('/api/method/luuvcrm.api.get_approval_status',{name:name}); if(!r) return; const d=await r.json(); const s=d.message&&d.message.status;
-      if(s==='approved'){ clearInterval(iv); toast('Edit approved ✓'); if(table){ await refreshTableTabs(table); const o=tableOrders.find(x=>x.name===order); if(o) selectOrderTab(order); } loadOpenOrders(); }
-      else if(s==='rejected'){ clearInterval(iv); toast('Edit rejected — restoring order'); cart={...editBaseline}; renderCart(); }
-    }catch(e){} }, 3000); }
+  // ── waiting for the manager ──
+  // Every approval used to be polled 40 times at 3s and then forgotten. A manager
+  // answering after two minutes (37 min on 2026-09-10, 47 min on 09-08) was never
+  // heard: the item stayed on screen, the cashier tapped again, another card.
+  // Now: 3s for two minutes, then every 10s for up to four hours. 'superseded'
+  // means a newer request replaced this one — that one has its own poller.
+  function pollDecision(name, handlers){ let tries=0; let iv=null;
+    const tick=async()=>{ tries++; if(tries>1480){ clearInterval(iv); return; }
+      if(tries===41){ clearInterval(iv); iv=setInterval(tick,10000); }
+      try{ const r=await _post('/api/method/luuvcrm.api.get_approval_status',{name:name}); if(!r) return; const d=await r.json(); const s=d.message&&d.message.status;
+        if(!s||s==='pending'||s==='unknown') return;
+        clearInterval(iv);
+        if(s==='approved'){ await handlers.approved(); }
+        else if(s==='rejected'){ await handlers.rejected(); }
+      }catch(e){} };
+    iv=setInterval(tick,3000); }
+  function pollEdit(name, order, table){ pollDecision(name,{
+    // The bill may have been voided by the approval (every item removed) — then
+    // it is no longer on the table and the ticket must clear, not reload.
+    approved:async()=>{ toast('Edit approved ✓'); if(currentOrder!==order){ loadOpenOrders(); return; }
+      if(table){ await refreshTableTabs(table); const o=tableOrders.find(x=>x.name===order); if(o) selectOrderTab(order); else clearTicket(); } else { await loadOpenOrders(); if(_openOrders.find(x=>x.name===order)) resumeTakeaway(order); else clearTicket(); } loadOpenOrders(); },
+    rejected:()=>{ toast('Edit rejected — restoring order'); if(currentOrder===order){ cart={...editBaseline}; renderCart(); } } }); }
   // clearTicket: reset the active ticket but keep the table selected (so its tabs stay)
   function clearTicket(){ currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; renderCart(); renderOrderTabs(); }
   function clearCart(){ currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; document.getElementById('tableSel').value=''; tableOrders=[]; updateTabsVisibility(); renderCart(); }
@@ -1512,11 +1529,9 @@ function lfPoll(fn, ms){
       if(!r) return; const d=await r.json();
       if(r.ok && d.message && d.message.ok){ toast('Void sent to manager 📱'); pollApproval(d.message.name); }
       else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
-  function pollApproval(name){ let tries=0; const iv=setInterval(async()=>{ tries++; if(tries>40){ clearInterval(iv); return; }
-    try{ const r=await _post('/api/method/luuvcrm.api.get_approval_status',{name:name}); if(!r) return; const d=await r.json(); const s=d.message&&d.message.status;
-      if(s==='approved'){ clearInterval(iv); toast('Void approved ✓'); const t=document.getElementById('tableSel').value; clearTicket(); if(t) await refreshTableTabs(t); loadOpenOrders(); }
-      else if(s==='rejected'){ clearInterval(iv); toast('Void rejected by manager'); }
-    }catch(e){} }, 3000); }
+  function pollApproval(name){ const order=currentOrder; pollDecision(name,{
+    approved:async()=>{ toast('Void approved ✓'); const t=document.getElementById('tableSel').value; if(currentOrder===order) clearTicket(); if(t) await refreshTableTabs(t); loadOpenOrders(); },
+    rejected:()=>{ toast('Void rejected by manager'); } }); }
 
   // ── discount (manager-approved) ──
   function drawerDiscount(){ closeDrawer(); if(!currentOrder){ toast('Send to kitchen first'); return; }
@@ -1538,12 +1553,10 @@ function lfPoll(fn, ms){
       if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ toast('Discount sent to manager 📱'); hide('discountModal'); pollDiscount(d.message.name); }
       else mErr('discErr',_smsg(d,'could not request')); }catch(e){ mErr('discErr','Connection error'); } btn.disabled=false; }
-  function pollDiscount(name){ let tries=0; const iv=setInterval(async()=>{ tries++; if(tries>40){ clearInterval(iv); return; }
-    try{ const r=await _post('/api/method/luuvcrm.api.get_approval_status',{name:name}); if(!r) return; const d=await r.json(); const s=d.message&&d.message.status;
-      if(s==='approved'){ clearInterval(iv); toast('Discount approved ✓'); const ord=currentOrder; const tbl=document.getElementById('tableSel').value;
-        if(orderType==='Take Away'){ await loadOpenOrders(); resumeTakeaway(ord); } else if(tbl){ await refreshTableTabs(tbl); selectOrderTab(ord); } }
-      else if(s==='rejected'){ clearInterval(iv); toast('Discount rejected by manager'); }
-    }catch(e){} }, 3000); }
+  function pollDiscount(name){ const order=currentOrder; pollDecision(name,{
+    approved:async()=>{ toast('Discount approved ✓'); if(currentOrder!==order){ loadOpenOrders(); return; } const tbl=document.getElementById('tableSel').value;
+      if(orderType==='Take Away'){ await loadOpenOrders(); resumeTakeaway(order); } else if(tbl){ await refreshTableTabs(tbl); selectOrderTab(order); } },
+    rejected:()=>{ toast('Discount rejected by manager'); } }); }
 
   // Guest check (pre-bill) print
   async function printGuestCheck(name,updated){ try{

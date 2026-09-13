@@ -81,6 +81,7 @@ def create_approval():
     })
     doc.flags.ignore_permissions = True
     doc.insert()
+    _supersede_older_edits(doc)
 
     # The action name matters: activity.duplicate_approval_flag() counts earlier
     # rows with exactly this action and this order to spot the cashier asking
@@ -97,6 +98,112 @@ def create_approval():
         detail={"approval": doc.name, "title": doc.title, "action": doc.action or None},
         flag_reason=flag, flag_note=note)
     return {"ok": True, "name": doc.name}
+# Statuses a card can end in besides the manager's two decisions. "superseded"
+# is written with db_set (no validation round-trip), so it works even before
+# the DocType JSON carrying the option has been migrated in.
+SUPERSEDED = "superseded"
+
+
+def _supersede_older_edits(doc):
+    """A newer "remove item" card for the same bill replaces every older one
+    still pending. Each card carries the *whole* item list the bill should end
+    up with, so two of them are not two changes - they are two snapshots, and
+    only the latest describes what the cashier now wants. Live (POS-03084,
+    2026-09-10): the newer card was approved first, then the older one, which
+    put the older list back and wiped an item added in between."""
+    if not doc.pos_order or (doc.action or "") != "update_items":
+        return []
+    older = frappe.get_all("POS Approval", filters={
+        "status": "pending", "action": "update_items", "pos_order": doc.pos_order,
+        "name": ["!=", doc.name],
+        "requested_at": ["<=", doc.requested_at],
+    }, pluck="name")
+    for name in older:
+        frappe.db.set_value("POS Approval", name, {
+            "status": SUPERSEDED,
+            "resolved_by": frappe.session.user,
+            "resolved_at": now_datetime(),
+        }, update_modified=True)
+    return older
+
+
+def _is_stale_edit(doc):
+    """True when a newer "remove item" card exists for the same bill - this one
+    describes an item list the cashier has since moved past."""
+    if not doc.pos_order or (doc.action or "") != "update_items":
+        return False
+    return bool(frappe.db.exists("POS Approval", {
+        "action": "update_items", "pos_order": doc.pos_order,
+        "name": ["!=", doc.name],
+        "requested_at": [">", doc.requested_at],
+    }))
+
+
+def _void_order(order_name):
+    """Cancel a draft, unpaid POS Order. Returns True when it did; False when the
+    bill is not there to void (already cancelled, or already paid)."""
+    po = frappe.get_doc("POS Order", order_name)
+    if po.docstatus != 0 or po.pos_invoice:
+        return False
+    old_status = po.kitchen_status
+    po.db_set("docstatus", 2)
+    po.db_set("kitchen_status", "Cancelled")
+    frappe.get_doc({
+        "doctype": "Version", "ref_doctype": "POS Order", "docname": order_name,
+        "data": frappe.as_json({"changed": [
+            ["docstatus", "0", "2"],
+            ["kitchen_status", old_status or "Pending", "Cancelled"]]}),
+        "owner": frappe.session.user, "modified_by": frappe.session.user,
+        "creation": now_datetime(),
+    }).insert(ignore_permissions=True)
+    return True
+
+
+def _order_is_moot(order_name):
+    """Why a bill change can no longer be applied, or None when it still can.
+    Approving a card whose bill has gone must not read as "done" - for weeks
+    the manager saw "Approved" while the till kept the item, because the
+    execution failed into Error Log and nobody was told (89 times, 27 Aug -
+    9 Sep 2026)."""
+    if not frappe.db.exists("POS Order", order_name):
+        return _("Bill no longer exists")
+    docstatus, invoice = frappe.db.get_value("POS Order", order_name, ["docstatus", "pos_invoice"])
+    if docstatus == 2:
+        return _("Bill was already voided")
+    if docstatus == 1 or invoice:
+        return _("Bill was already paid")
+    return None
+
+
+def _run_bill_action(doc):
+    """Apply an approved bill change. Returns (executed, note): `executed` names
+    what happened for the trail; `note` is a sentence for the manager when the
+    card could not be applied as asked (it is then closed as rejected)."""
+    action = doc.action or ""
+    reason = _order_is_moot(doc.pos_order)
+    if reason:
+        return None, reason
+    if action == "void":
+        return ("voided" if _void_order(doc.pos_order) else None), None
+    if action == "update_items":
+        if _is_stale_edit(doc):
+            return None, _("A newer change to this bill replaced this one")
+        payload = json.loads(doc.action_payload or "{}")
+        items = payload.get("items") or []
+        if not items:
+            # Every item taken off the bill. An order cannot be saved with no
+            # items (41 of the 89 silent failures), and a bill with nothing on
+            # it is a void - so that is what this is.
+            return ("voided" if _void_order(doc.pos_order) else None), None
+        _apply_order_items(doc.pos_order, items)
+        return "items_updated", None
+    if action == "discount":
+        payload = json.loads(doc.action_payload or "{}")
+        _apply_order_discount(doc.pos_order, payload)
+        return "discounted", None
+    return None, None
+
+
 def _pending_and_recent_approvals(action=None, include_recent=True):
     """Everything still pending, plus whatever was resolved today. `action` narrows
     it to one kind (the purchases page wants purchase bills only) — filtered in the
@@ -273,52 +380,38 @@ def resolve_approval():
         doc.db_set("manager_comment", comment[:500])
 
     executed = None
+    note = None
     action = (doc.action or "")
-    try:
-        if action == "purchase_bill":
-            payload = json.loads(doc.action_payload or "{}")
-            bill = payload.get("bill")
-            if bill and frappe.db.exists("Purchase Bill", bill):
-                # A purchase approval may carry a discount — what the vendor took
-                # off the whole bill. The manager is looking at the paper when
-                # they approve, which is the only moment anybody can read that
-                # figure off it.
-                _decide_purchase_bill(bill, decision, discount=data.get("discount"))
-                executed = "purchase_" + decision
-        elif action == "expense":
-            # Runs on reject too — that's what pulls the drawer pay-out back out.
-            payload = json.loads(doc.action_payload or "{}")
-            expense = payload.get("expense")
-            if expense and frappe.db.exists("Expense", expense):
-                _decide_expense(expense, decision)
-                executed = "expense_" + decision
-        elif decision == "approved" and doc.pos_order:
-            if action == "void":
-                po = frappe.get_doc("POS Order", doc.pos_order)
-                if po.docstatus == 0 and not po.pos_invoice:
-                    old_status = po.kitchen_status
-                    po.db_set("docstatus", 2)
-                    po.db_set("kitchen_status", "Cancelled")
-                    frappe.get_doc({
-                        "doctype": "Version", "ref_doctype": "POS Order", "docname": doc.pos_order,
-                        "data": frappe.as_json({"changed": [
-                            ["docstatus", "0", "2"],
-                            ["kitchen_status", old_status or "Pending", "Cancelled"]]}),
-                        "owner": frappe.session.user, "modified_by": frappe.session.user,
-                        "creation": now_datetime(),
-                    }).insert(ignore_permissions=True)
-                    executed = "voided"
-            elif action == "update_items":
-                payload = json.loads(doc.action_payload or "{}")
-                items = payload.get("items") or []
-                _apply_order_items(doc.pos_order, items)
-                executed = "items_updated"
-            elif action == "discount":
-                payload = json.loads(doc.action_payload or "{}")
-                _apply_order_discount(doc.pos_order, payload)
-                executed = "discounted"
-    except Exception:
-        frappe.log_error(frappe.get_traceback(), "resolve_approval action failed")
+    if action == "purchase_bill":
+        payload = json.loads(doc.action_payload or "{}")
+        bill = payload.get("bill")
+        if bill and frappe.db.exists("Purchase Bill", bill):
+            # A purchase approval may carry a discount - what the vendor took
+            # off the whole bill. The manager is looking at the paper when
+            # they approve, which is the only moment anybody can read that
+            # figure off it.
+            _decide_purchase_bill(bill, decision, discount=data.get("discount"))
+            executed = "purchase_" + decision
+    elif action == "expense":
+        # Runs on reject too - that's what pulls the drawer pay-out back out.
+        payload = json.loads(doc.action_payload or "{}")
+        expense = payload.get("expense")
+        if expense and frappe.db.exists("Expense", expense):
+            _decide_expense(expense, decision)
+            executed = "expense_" + decision
+    elif decision == "approved" and doc.pos_order:
+        # No try/except here any more. A failure used to be logged and the card
+        # still marked approved - the manager saw a green tick, the till saw
+        # "approved", and the bill was unchanged. Now an unexpected error rolls
+        # the decision back (the card stays pending) and reaches the manager.
+        executed, note = _run_bill_action(doc)
+        if note:
+            # Nothing to apply: the card is closed as rejected with the reason,
+            # so the queue clears and the manager reads why.
+            decision = "rejected"
+            doc.db_set("status", decision)
+            if frappe.db.has_column("POS Approval", "manager_comment"):
+                doc.db_set("manager_comment", (comment + " / " if comment else "") + note)
 
     discount = data.get("discount")
     activity.log_activity(
@@ -330,8 +423,8 @@ def resolve_approval():
         amount=float(discount) if discount else None,
         detail={"approval": doc.name, "decision": decision, "executed": executed,
                 "requested_by": doc.requested_by, "comment": comment or None,
-                "discount": discount or None})
-    return {"ok": True, "status": decision, "executed": executed}
+                "note": note, "discount": discount or None})
+    return {"ok": True, "status": decision, "executed": executed, "note": note}
 def _apply_order_discount(order_name, payload):
     """Apply a manager-approved discount to a draft POS Order. The discount comes off the
     items subtotal (before service charge); a percentage is converted to an amount here."""

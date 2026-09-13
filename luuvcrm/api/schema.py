@@ -237,7 +237,7 @@ def _install_pos_approval():
             {"fieldname": "action", "label": "Action", "fieldtype": "Data"},
             {"fieldname": "action_payload", "label": "Action Payload", "fieldtype": "Long Text"},
             {"fieldname": "status", "label": "Status", "fieldtype": "Select",
-             "options": "pending\napproved\nrejected", "default": "pending", "in_list_view": 1},
+             "options": "pending\napproved\nrejected\nsuperseded", "default": "pending", "in_list_view": 1},
             {"fieldname": "requested_by", "label": "Requested By", "fieldtype": "Link", "options": "User"},
             {"fieldname": "requested_at", "label": "Requested At", "fieldtype": "Datetime"},
             {"fieldname": "resolved_by", "label": "Resolved By", "fieldtype": "Link", "options": "User"},
