@@ -833,7 +833,9 @@ class TestPollingStopsWhenNobodyIsLooking(PageTestCase):
         import re
         allowed = {
             "pos.html": ["setInterval(tick,1000)",          # the on-screen clock
-                         "pollEdit", "pollApproval", "pollDiscount"],  # bounded, 40 tries
+                         # pollDecision: one approval's answer — 3 s, then 10 s,
+                         # stopped at 1480 tries (four hours) or the answer.
+                         "iv=setInterval(tick,3000)", "iv=setInterval(tick,10000)"],
             "kitchen.html": ["refreshInterval = setInterval"],         # the countdown label
         }
         for name in self.POLLERS:
