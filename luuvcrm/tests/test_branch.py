@@ -977,9 +977,15 @@ class TestAPublicPageWithNoSessionBehindIt(BranchTestCase):
     def test_a_guest_order_is_stamped_with_the_table_s_branch(self):
         """The write half. `place_order` is allow_guest: there is no session for
         `current()` to resolve, so before this every order taken off a QR code
-        on a two-branch site went in with no branch at all."""
+        on a two-branch site went in with no branch at all.
+
+        Placed by somebody `current()` cannot answer for — no shift, no till, no
+        pin, no choice — which is what a guest is. Not the running user: on a
+        restored copy of the live site Administrator holds an open shift, and
+        the shift rightly outranks the table (rehearsal, 2026-09-14)."""
         here = _restaurant(self, "KANDY")
         _restaurant(self, "COLOMBO")
+        self.as_user(_user(self, "no-session-order", roles.RESTAURANT_OWNER))
         table = self.table(here, "T5")
         order = self.order(table=table)
         self.assertEqual(order.get(branch.FIELD), here)
