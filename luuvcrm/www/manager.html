@@ -873,7 +873,10 @@ function lfPoll(fn, ms){
     const t=TONE[a.type]||TONE.item; const pending=a.status==='pending';
     const st=pending?(apprState[a.name]=apprState[a.name]||{ticks:{},comment:''}):{ticks:{},comment:''};
     const nLines=(a.lines||[]).length;
-    const locked=pending&&a.type==='bill'&&a.mine;
+    // Your own card is not yours to answer — except a bill edit, which a
+    // manager may. `self_ok` is the server's own answer to that question
+    // (roles.SELF_APPROVABLE_TYPES), so the lock and the 403 can't disagree.
+    const locked=pending&&a.mine&&!a.self_ok;
     const lines=(a.lines||[]).map((li,ix)=>{
       // Buying-price delta: the "was" is the previous UNIT price (last price paid).
       const op=+li.old_price||0, pr=+li.price||0;
@@ -886,9 +889,10 @@ function lfPoll(fn, ms){
     const flag=a.flag_text?`<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-pill);padding:6px 12px;">${a.flag_text}</div>`:'';
     const img=a.image?`<img src="${esc(a.image)}" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:11px;"><div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;text-align:center;">Tap the photo to inspect it full screen</div>`:'';
     let actions='';
-    // A purchase bill you raised is not yours to resolve — the server refuses it
-    // (_block_self_approval), so don't offer buttons that cannot work.
-    if(pending&&a.type==='bill'&&a.mine){
+    // A request you raised is not yours to resolve — the server refuses it
+    // (_block_self_approval), so don't offer buttons that cannot work. A bill
+    // edit is the exemption: there `self_ok` comes back true and the buttons stay.
+    if(locked){
       actions=`<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-md);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`; }
     else if(pending){ const ticked=Object.values(st.ticks).filter(Boolean).length; const ok=!nLines||ticked>=nLines;
       const discBox=a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;">

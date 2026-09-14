@@ -554,7 +554,20 @@ def ensure_pos_docperms(role=CASHIER):
 # putting it here is also what lets those three stop importing each other.
 
 
-def block_self_approval(requested_by):
+#: The one kind of request a manager may answer for themselves. A bill edit is
+#: an item coming off an open ticket — the guest is standing there, the change
+#: shows on the very next print, and the manager who took the item off is the
+#: authority the rule would otherwise send them looking for. Everything else
+#: (money out of the drawer, a discount, a void) still needs a second person:
+#: those move money and are not visible on the bill the guest reads.
+#:
+#: Type names, not action names, because that is what the card is filed under
+#: and what the manager app shows — "edit" covers both the remove-item card and
+#: the whole-bill edit card, which are the same change at different sizes.
+SELF_APPROVABLE_TYPES = frozenset({"edit"})
+
+
+def block_self_approval(requested_by, approval_type=None):
     """Separation of duties: whoever raised a request cannot be the one who
     answers it.
 
@@ -564,10 +577,17 @@ def block_self_approval(requested_by):
     manager one — so a cashier could grant their own discount, which is the one
     thing the approval flow exists to prevent. It now covers every kind.
 
-    No role is exempt: a manager who raises a request still needs a second pair
-    of eyes. Answering somebody else's request is unchanged, so a shift with two
-    people on it can still work without a manager present.
+    Answering somebody else's request is unchanged, so a shift with two people
+    on it can still work without a manager present.
+
+    One exemption, and only one: a manager or admin answering their own *edit*
+    (see SELF_APPROVABLE_TYPES). A cashier who raises an edit is still blocked —
+    the exemption is about who is answering, not what was asked.
     """
-    if requested_by and requested_by == frappe.session.user:
-        frappe.throw(_("You raised this request — someone else has to answer it"),
-                     frappe.PermissionError)
+    if not requested_by or requested_by != frappe.session.user:
+        return
+    if approval_type in SELF_APPROVABLE_TYPES and is_manager():
+        return
+    frappe.throw(_("You raised this request — someone else has to answer it"),
+                 frappe.PermissionError)
+

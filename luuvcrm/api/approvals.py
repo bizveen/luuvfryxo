@@ -244,6 +244,9 @@ def _format_approvals(rows):
         if u and u not in names:
             names[u] = frappe.get_value("User", u, "full_name") or u
     me = frappe.session.user
+    # Whether *this* viewer may answer their own card depends only on their
+    # roles, so ask once rather than per row — same reason as `names` above.
+    self_ok_types = roles.SELF_APPROVABLE_TYPES if roles.is_manager() else frozenset()
 
     # Purchase-bill cards show each line's price with a "was Rs X" delta when the
     # buying price moved — the one number that says whether a supplier put their
@@ -314,9 +317,13 @@ def _format_approvals(rows):
             "image": image,
             "manager_comment": r.get("manager_comment") or "",
             "by": names.get(r.get("requested_by"), ""),
-            # Whoever raised it cannot resolve it — the UI greys the buttons out,
-            # roles.block_self_approval() is what actually enforces it.
+            # Whoever raised it cannot resolve it — the UI locks the card,
+            # roles.block_self_approval() is what actually enforces it. Not a
+            # flat rule any more: a manager answers their own *edit* (the
+            # manager app is manager-gated, so an edit card there is never
+            # locked), while every other type stays two-handed.
             "mine": bool(r.get("requested_by")) and r.get("requested_by") == me,
+            "self_ok": (r.get("approval_type") or "") in self_ok_types,
         })
     return out
 @frappe.whitelist()
@@ -371,7 +378,9 @@ def resolve_approval():
         roles.require_pos()
     if doc.status != "pending":
         frappe.throw(_("Already resolved"))
-    roles.block_self_approval(doc.requested_by)
+    # The type goes in because one of them — a bill edit — a manager may
+    # answer for themselves. roles.SELF_APPROVABLE_TYPES says which.
+    roles.block_self_approval(doc.requested_by, doc.approval_type)
     doc.db_set("status", decision)
     doc.db_set("resolved_by", frappe.session.user)
     doc.db_set("resolved_at", now_datetime())

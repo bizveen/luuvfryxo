@@ -139,7 +139,8 @@ class TestAnsweringARequest(ApprovalTestCase):
 
 
 class TestSelfApproval(ApprovalTestCase):
-    """Separation of duties: nobody answers their own request, whatever it is."""
+    """Separation of duties: nobody answers their own request — with one
+    exemption, a manager's own bill edit, covered in TestSelfApprovedEdits."""
 
     def buyer(self):
         """Somebody who can both raise a purchase approval and decide one.
@@ -171,8 +172,10 @@ class TestSelfApproval(ApprovalTestCase):
         with self.assertRaises(frappe.PermissionError):
             self.call(api.resolve_approval, name=name, decision="rejected")
 
-    def test_no_role_is_exempt_from_that_rule(self):
-        """A manager who enters a bill still needs a second pair of eyes."""
+    def test_being_a_manager_does_not_exempt_a_purchase_bill(self):
+        """A manager who enters a bill still needs a second pair of eyes. The
+        exemption added for bill edits is scoped to that one type; money paid out
+        to a vendor is exactly what separation of duties is for."""
         manager = self.user_with(roles.RESTAURANT_MANAGER, "manager")
         self.as_user(manager)
         name = self.request(approval_type="bill", action="purchase_bill",
@@ -232,6 +235,74 @@ class TestSelfApproval(ApprovalTestCase):
         name = self.request(approval_type="void", title="Void table 2")
         with self.assertRaises(frappe.PermissionError):
             self.call(api.resolve_approval, name=name, decision="approved")
+
+
+class TestSelfApprovedEdits(ApprovalTestCase):
+    """The one exemption: a manager or admin answering their own bill edit.
+
+    Taking an item off an open ticket is the change a manager makes standing at
+    the table, and it shows on the next print in front of the guest. Sending
+    them to find a second pair of eyes costs the table and buys nothing — so for
+    approval_type "edit", and only there, they may answer themselves. The
+    exemption is about who answers, not what was asked: a cashier's own edit is
+    still blocked, and a manager's own void or discount still is too.
+    """
+
+    def edit(self, **kwargs):
+        kwargs.setdefault("approval_type", "edit")
+        kwargs.setdefault("title", "Remove item approval")
+        kwargs.setdefault("action", "update_items")
+        kwargs.setdefault("action_payload", json.dumps({"items": []}))
+        return self.request(**kwargs)
+
+    def test_a_manager_may_approve_their_own_bill_edit(self):
+        self.as_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
+        name = self.edit()
+        self.call(api.resolve_approval, name=name, decision="approved")
+        self.assertEqual(frappe.db.get_value("POS Approval", name, "status"), "approved")
+
+    def test_an_owner_may_too(self):
+        self.as_user(self.user_with(roles.RESTAURANT_OWNER, "owner"))
+        name = self.edit()
+        self.call(api.resolve_approval, name=name, decision="approved")
+        self.assertEqual(frappe.db.get_value("POS Approval", name, "status"), "approved")
+
+    def test_and_may_reject_it_as_well(self):
+        """Changing your mind about your own edit is the same permission."""
+        self.as_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
+        name = self.edit()
+        self.call(api.resolve_approval, name=name, decision="rejected")
+        self.assertEqual(frappe.db.get_value("POS Approval", name, "status"), "rejected")
+
+    def test_a_cashier_still_cannot_approve_their_own_edit(self):
+        """The point of the card in the first place: the till asks, somebody with
+        the authority answers. A cashier does not become that by asking."""
+        self.as_user(self.user_with(roles.CASHIER, "cashier"))
+        name = self.edit()
+        with self.assertRaises(frappe.PermissionError) as caught:
+            self.call(api.resolve_approval, name=name, decision="approved")
+        self.assertIn("someone else has to answer", str(caught.exception))
+        self.assertEqual(frappe.db.get_value("POS Approval", name, "status"), "pending")
+
+    def test_a_manager_s_own_void_is_still_blocked(self):
+        self.as_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
+        name = self.request(approval_type="void", title="Void table 2", action="void")
+        with self.assertRaises(frappe.PermissionError):
+            self.call(api.resolve_approval, name=name, decision="approved")
+
+    def test_a_manager_s_own_discount_is_still_blocked(self):
+        self.as_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
+        name = self.request(approval_type="discount", title="20% off table 4")
+        with self.assertRaises(frappe.PermissionError):
+            self.call(api.resolve_approval, name=name, decision="approved")
+
+    def test_a_manager_may_still_answer_a_cashier_s_edit(self):
+        """The ordinary path is untouched by the exemption."""
+        self.as_user(self.user_with(roles.CASHIER, "cashier"))
+        name = self.edit()
+        frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "manager"))
+        self.call(api.resolve_approval, name=name, decision="approved")
+        self.assertEqual(frappe.db.get_value("POS Approval", name, "status"), "approved")
 
 
 class TestPurchaseBillDecision(FrappeTestCase):
