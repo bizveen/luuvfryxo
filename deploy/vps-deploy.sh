@@ -21,7 +21,7 @@
 # and get the same overlay. Nothing here runs `git` on the host.
 #
 # Env you can set: HOST, KEY, DB_ROOT_PASSWORD (rehearse, rollback --db),
-# RUN_TESTS=1 (rehearse: run the suite on the throwaway site; TEST_MODULE=luuvcrm.tests.test_x for one module), FORCE=1 (deploy
+# RUN_TESTS=1 (rehearse: run the suite on the throwaway site; TEST_MODULE="luuvcrm.tests.test_x luuvcrm.tests.test_y" for chosen modules, TEST_TIMEOUT per run, default 1500 s), FORCE=1 (deploy
 # without a fresh backup / passed rehearsal — do not).
 set -euo pipefail
 
@@ -55,13 +55,13 @@ RDIR=/home/ubuntu/lf-deploy/$TS            # per-run scratch on the host
 # ─── plumbing ────────────────────────────────────────────────────────────────
 say()  { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 die()  { printf '\n\033[31mABORT: %s\033[0m\n' "$*" >&2; exit 1; }
-SSH="ssh -i $KEY -o StrictHostKeyChecking=no -o ConnectTimeout=20 $HOST"
+SSH="ssh -i $KEY -o StrictHostKeyChecking=no -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 $HOST"
 # Run a bash script on the host with the run's parameters in its environment.
 # Use a QUOTED heredoc (<<'EOF') so nothing expands locally.
 remote() {
   $SSH "TS=$TS SHA=$SHA BENCH=$BENCH APP=$APP BACKEND=$BACKEND SITE=$SITE OTHER_SITE=$OTHER_SITE \
         NET=$NET RDIR=$RDIR REHEARSE_SITE=$REHEARSE_SITE WORKERS='$WORKERS' \
-        DB_ROOT_PASSWORD='${DB_ROOT_PASSWORD:-}' RUN_TESTS='${RUN_TESTS:-}' TEST_MODULE='${TEST_MODULE:-}' bash -s"
+        DB_ROOT_PASSWORD='${DB_ROOT_PASSWORD:-}' RUN_TESTS='${RUN_TESTS:-}' TEST_MODULE='${TEST_MODULE:-}' TEST_TIMEOUT='${TEST_TIMEOUT:-}' bash -s"
 }
 upload() { scp -q -i "$KEY" -o StrictHostKeyChecking=no "$1" "$HOST:$2"; }
 download() { scp -q -i "$KEY" -o StrictHostKeyChecking=no "$HOST:$1" "$2"; }
@@ -293,11 +293,19 @@ echo "\$body" | grep -q "menu" || { echo "/home rendered without the menu"; exit
 if [ -n "\$RUN_TESTS" ]; then
   echo "-- test suite (allowed here: not a production site)"
   \$B bench --site "\$REHEARSE_SITE" set-config allow_tests true
-  if [ -n "\$TEST_MODULE" ]; then tsel="--module \$TEST_MODULE"; else tsel="--app luuvcrm"; fi
-  \$B bash -c "bench --site \$REHEARSE_SITE run-tests \$tsel" > "\$RDIR/rehearse-tests.log" 2>&1 || true
-  grep -E "^Ran |^OK|^FAILED" "\$RDIR/rehearse-tests.log"
-  # bench run-tests exits 0 whatever happened; the summary line is the verdict
-  grep -qE "^OK" "\$RDIR/rehearse-tests.log" || { grep -E "^(FAIL|ERROR): " "\$RDIR/rehearse-tests.log" | head -20; echo "TESTS FAILED"; exit 1; }
+  # TEST_MODULE may name several modules, space-separated; each is its own run
+  # with its own verdict. Every run is capped (TEST_TIMEOUT, default 25 min): on
+  # 2026-09-14 the whole-app run sat silent for two hours before ssh dropped.
+  : > "\$RDIR/rehearse-tests.log"
+  for tsel in \${TEST_MODULE:-__app__}; do
+    if [ "\$tsel" = __app__ ]; then targ="--app luuvcrm"; else targ="--module \$tsel"; fi
+    echo "   \$targ" | tee -a "\$RDIR/rehearse-tests.log"
+    \$B timeout "\${TEST_TIMEOUT:-1500}" bash -c "bench --site \$REHEARSE_SITE run-tests \$targ" > "\$RDIR/rehearse-tests.one.log" 2>&1 || true
+    cat "\$RDIR/rehearse-tests.one.log" >> "\$RDIR/rehearse-tests.log"
+    grep -E "^Ran |^OK|^FAILED" "\$RDIR/rehearse-tests.one.log" | sed 's/^/     /'
+    # bench run-tests exits 0 whatever happened; the summary line is the verdict
+    grep -qE "^OK" "\$RDIR/rehearse-tests.one.log" || { grep -E "^(FAIL|ERROR): " "\$RDIR/rehearse-tests.one.log" | head -20; tail -5 "\$RDIR/rehearse-tests.one.log"; echo "TESTS FAILED (\$targ)"; exit 1; }
+  done
 fi
 echo "-- clean up"
 \$B bench drop-site "\$REHEARSE_SITE" --db-root-password "\$DB_ROOT_PASSWORD" --force --no-backup
