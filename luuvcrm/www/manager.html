@@ -91,6 +91,13 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   .card{max-width:1560px;}
   #tabToday,#tabReports{column-count:3;}
 }
+/* Collapsible report cards — see foldCards() */
+.fold{position:relative;}
+.fold>.foldHead{cursor:pointer;padding-right:30px;-webkit-tap-highlight-color:transparent;user-select:none;}
+.fold>.foldBtn{position:absolute;top:16px;right:14px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text-faint);cursor:pointer;transition:transform var(--duration-base) var(--ease-out);}
+.fold.folded>.foldBtn{transform:rotate(-90deg);}
+.fold.folded>:not(.foldHead):not(.foldBtn){display:none!important;}
+.fold.folded>.foldHead{margin-bottom:0!important;}
 </style>
 {% include "templates/includes/brand.html" %}
 </head>
@@ -2079,6 +2086,40 @@ function lfPoll(fn, ms){
 
   const CAT_EMOJI={burger:'🍔',chicken:'🍗',fries:'🍟',side:'🍟',salad:'🥗',drink:'🥤',juice:'🧃',tea:'🍵',coffee:'☕',mojito:'🍹',dessert:'🍰',sweet:'🍦',ice:'🍦',biryani:'🍛',rice:'🍚',naan:'🫓',kottu:'🍜',noodle:'🍜',pizza:'🍕',shake:'🥤',cola:'🥤'};
   function emojiFor(name){ const n=(name||'').toLowerCase(); for(const k in CAT_EMOJI){ if(n.includes(k)) return CAT_EMOJI[k]; } return '🍽️'; }
+
+  // ── Collapsible report cards ──
+  // The Reports and Purchases tabs are a long scroll of cards. Tapping a
+  // card's title folds it to that one line (a total in the title row stays in
+  // view); tapping again opens it. Every card starts open, and each one
+  // remembers how it was left, on this phone only. Taps on the title row's own
+  // buttons — range tabs, "View all", the date picker — do their own job.
+  const FOLD_KEY='lf_mgr_folded';
+  function foldedSet(){ try{ return new Set(JSON.parse(localStorage.getItem(FOLD_KEY)||'[]')); }catch(e){ return new Set(); } }
+  function foldCards(){
+    const folded=foldedSet();
+    ['tabReports','tabPurchases'].forEach(tab=>{
+      const root=document.getElementById(tab); if(!root) return;
+      [...root.children].forEach(card=>{
+        if(!/surface-card/.test(card.getAttribute('style')||'')) return;   // the orange summary stays as it is
+        const head=card.firstElementChild; if(!head||card.classList.contains('fold')) return;
+        const title=card.querySelector('[style*="font-display"]');
+        const key=tab+':'+((title&&title.textContent)||'').trim().slice(0,40);
+        card.classList.add('fold'); head.classList.add('foldHead');
+        const btn=document.createElement('span'); btn.className='foldBtn';
+        btn.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+        card.appendChild(btn);
+        const toggle=e=>{ if(e&&e.target.closest('button,[onclick],select,input')&&!e.target.closest('.foldBtn')) return;
+          const now=card.classList.toggle('folded'); const f=foldedSet(); now?f.add(key):f.delete(key);
+          try{ localStorage.setItem(FOLD_KEY,JSON.stringify([...f])); }catch(err){}
+          // The moving-average line is placed from the bars' measured offsets,
+          // which are all zero while the card is folded — redraw on opening.
+          if(!now){ if(card.querySelector('#dailyChart')) renderDailyChart(); if(card.querySelector('#purchChart')) renderPurchaseChart(); } };
+        head.addEventListener('click',toggle); btn.addEventListener('click',toggle);
+        if(folded.has(key)) card.classList.add('folded');
+      });
+    });
+  }
+  foldCards();
 
   icons();
   bootManager();   // real Frappe session already authenticated → show dashboard
