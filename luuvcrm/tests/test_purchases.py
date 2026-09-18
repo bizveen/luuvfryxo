@@ -640,3 +640,79 @@ class TheWholePurchasesScreenOpensToAPurchaser(PurchaseTestCase):
             if not any(a in source for a in admits):
                 shut.append(name)
         self.assertEqual(shut, [], "the page calls these, and a Purchaser is refused by them")
+
+
+class TestThePurchaseDate(PurchaseTestCase):
+    """The day the goods were bought, entered with the bill and today unless the
+    buyer says otherwise. A bill for Saturday's market run typed in on Monday is
+    Saturday's buying, and every purchase report counts it there."""
+
+    def day(self, n):
+        return frappe.utils.getdate(frappe.utils.add_days(frappe.utils.today(), n))
+
+    def test_a_bill_with_no_date_is_dated_today(self):
+        doc = frappe.get_doc("Purchase Bill", self.enter())
+        self.assertEqual(doc.purchase_date, self.day(0))
+
+    def test_a_chosen_earlier_date_is_kept(self):
+        doc = frappe.get_doc("Purchase Bill", self.enter(purchase_date=str(self.day(-3))))
+        self.assertEqual(doc.purchase_date, self.day(-3))
+        self.assertEqual(frappe.utils.getdate(doc.requested_at), self.day(0),
+                         "when it was typed in is still recorded apart from when it was bought")
+
+    def test_a_date_in_the_future_is_refused(self):
+        with self.assertRaises(frappe.ValidationError) as caught:
+            self.enter(purchase_date=str(self.day(1)))
+        self.assertIn("future", str(caught.exception))
+
+    def test_something_that_is_not_a_date_is_refused(self):
+        with self.assertRaises(frappe.ValidationError):
+            self.enter(purchase_date="next tuesday")
+
+    def test_a_bill_saved_without_one_takes_the_day_it_was_entered(self):
+        """The desk, an old client, a fixture — anything that saves a bill with no
+        purchase_date would otherwise drop out of every report."""
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill", "vendor": "_LFT-Vendor", "status": "pending",
+            "requested_at": frappe.utils.add_days(frappe.utils.now_datetime(), -4),
+            "items": [{"item": self.tomato, "qty": 1, "price": 10}],
+        })
+        doc.insert(ignore_permissions=True)
+        self._bills.append(doc.name)
+        self.assertEqual(doc.purchase_date, self.day(-4))
+
+    def test_the_bill_carries_its_date_to_the_screens(self):
+        name = self.enter(purchase_date=str(self.day(-2)))
+        b = api.get_purchase_bill(name=name)
+        self.assertEqual(b["purchase_date"], str(self.day(-2)))
+        self.assertEqual(b["date"], frappe.utils.formatdate(self.day(-2), "d MMM yyyy"))
+
+    def test_the_day_card_counts_it_on_the_day_it_was_bought(self):
+        name = self.enter(purchase_date=str(self.day(-3)))
+        then = api.get_purchase_day_summary(date=str(self.day(-3)))
+        now = api.get_purchase_day_summary()
+        self.assertIn(name, [b["name"] for b in then["bills"]])
+        self.assertNotIn(name, [b["name"] for b in now["bills"]],
+                         "typed in today, bought three days ago — not today's buying")
+
+    def test_a_search_result_shows_the_day_it_was_bought(self):
+        self.enter(vendor="_LFT-Dated-Vendor", purchase_date=str(self.day(-5)))
+        hit = api.search_purchase_bills(q="_LFT-Dated-Vendor")["bills"][0]
+        self.assertEqual(hit["date"], frappe.utils.formatdate(self.day(-5), "d MMM yyyy"))
+
+    def test_the_approver_is_told_an_earlier_bill_is_not_today_s(self):
+        def subhead(bill):
+            for a in frappe.get_all("POS Approval", filters={"action": "purchase_bill"},
+                                    fields=["action_payload", "subhead"]):
+                if json.loads(a.action_payload or "{}").get("bill") == bill:
+                    return a.subhead
+        self.assertNotIn("bought", subhead(self.enter()))
+        self.assertIn(frappe.utils.formatdate(self.day(-2), "d MMM"),
+                      subhead(self.enter(purchase_date=str(self.day(-2)))))
+
+    def test_the_week_figure_counts_by_the_day_it_was_bought(self):
+        before = api.get_purchase_bills()["week"]
+        self.enter(lines=[{"item": self.tomato, "qty": 1, "price": 777}],
+                   purchase_date=str(self.day(-30)))
+        self.assertEqual(api.get_purchase_bills()["week"], before,
+                         "a month-old bill entered today is not this week's spend")

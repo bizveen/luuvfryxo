@@ -118,13 +118,14 @@ def get_food_cost_report(days=7, start=None, end=None):
     future, and a chosen month would have run to the end of time."""
     roles.require_manager()
     start, end, days = _report_range(days, start, end, cap=365)
-    # requested_at and creation are Datetimes; the upper bound is start-of-next-day.
+    # Wastage's creation is a Datetime; the upper bound is start-of-next-day.
+    # Purchases count on purchase_date, the day the goods were bought.
     dt_end = frappe.utils.add_days(end, 1)
     purchases = 0.0
     if frappe.db.exists("DocType", "Purchase Bill"):
         purchases = float(frappe.db.sql("""
             select coalesce(sum(total), 0) from `tabPurchase Bill`
-            where status = 'approved' and requested_at >= %s and requested_at < %s
+            where status = 'approved' and purchase_date >= %s and purchase_date < %s
         """, (start, dt_end))[0][0] or 0)
     wastage = 0.0
     if frappe.db.exists("DocType", "Wastage"):

@@ -1642,7 +1642,9 @@ function lfPoll(fn, ms){
   function showBill(b){
     if(!b) return; const t=BILL_TONE[b.status]||BILL_TONE.pending;
     document.getElementById('billTitle').textContent=b.vendor||'Purchase bill';
-    document.getElementById('billMeta').textContent=[b.by,b.time].filter(Boolean).join(' · ');
+    // The day it was bought first — the day every report counts it under — then
+    // who typed it in and when.
+    document.getElementById('billMeta').textContent=[b.date?('Bought '+b.date):'',b.by,b.time?('entered '+b.time):''].filter(Boolean).join(' · ');
     const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const changed=l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;
       return `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
         <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;">${emojiFor(l.name)}</span>

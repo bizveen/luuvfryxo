@@ -361,3 +361,80 @@ class TestWhoMayReadThem(FrappeTestCase):
             with self.subTest(endpoint=call.__name__):
                 with self.assertRaises(frappe.PermissionError):
                     call(days=7)
+
+
+class TestPurchaseReportsCountTheDayItWasBought(FrappeTestCase):
+    """Every purchase report windows on `purchase_date`, the day the buyer says
+    the goods were bought — not `requested_at`, the day the bill was typed in.
+    Each case enters a bill on one day for another and checks it lands on the
+    second."""
+
+    AMOUNT = 4321.0
+
+    def setUp(self):
+        super().setUp()
+        if not frappe.db.exists("DocType", "Purchase Bill"):
+            self.skipTest("no Purchase Bill on this site")
+        self.item = fx.item(self, "PURCH-DATE-DHAL")
+        self._bills = []
+        self.addCleanup(self._drop)
+
+    def _drop(self):
+        for name in self._bills:
+            if frappe.db.exists("Purchase Bill", name):
+                frappe.delete_doc("Purchase Bill", name, force=True, ignore_permissions=True)
+        frappe.db.commit()
+
+    def bill(self, bought, entered=0, vendor="Dated Vendor"):
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill", "vendor": vendor, "status": "approved",
+            "purchase_date": add_days(today(), bought),
+            "requested_at": add_days(frappe.utils.now_datetime(), entered),
+            "total": self.AMOUNT,
+            "items": [{"item": self.item, "item_name": "Dated Dhal", "uom": "Kg",
+                       "qty": 1, "price": self.AMOUNT}],
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        frappe.db.commit()
+        self._bills.append(doc.name)
+        return doc
+
+    def spend_on(self, report, day):
+        return next(d["spend"] for d in report["daily"] if d["date"] == str(getdate(day)))
+
+    def test_the_daily_chart_puts_it_on_the_day_it_was_bought(self):
+        before = api.get_manager_purchase_report(days=7)
+        self.bill(bought=-3)
+        after = api.get_manager_purchase_report(days=7)
+        self.assertAlmostEqual(self.spend_on(after, add_days(today(), -3))
+                               - self.spend_on(before, add_days(today(), -3)), self.AMOUNT, 2)
+        self.assertAlmostEqual(self.spend_on(after, today()),
+                               self.spend_on(before, today()), 2)
+
+    def test_a_bill_bought_before_the_window_stays_out_of_it(self):
+        before = api.get_manager_purchase_report(days=7)["total_spend"]
+        self.bill(bought=-30)
+        self.assertAlmostEqual(api.get_manager_purchase_report(days=7)["total_spend"], before, 2)
+
+    def test_a_bill_bought_inside_the_window_counts_however_late_it_was_typed(self):
+        """Entered a month later, dated inside the window: it is this window's."""
+        start, end = add_days(today(), -60), add_days(today(), -40)
+        before = api.get_manager_purchase_report(start=start, end=end)["total_spend"]
+        self.bill(bought=-50)
+        self.assertAlmostEqual(
+            api.get_manager_purchase_report(start=start, end=end)["total_spend"] - before,
+            self.AMOUNT, 2)
+
+    def test_what_is_owed_ages_from_the_day_it_was_bought(self):
+        self.bill(bought=-20, vendor="Aged Vendor")
+        row = next(r for r in api.get_manager_purchase_report(days=1)["owed"]
+                   if r["name"] == "Aged Vendor")
+        self.assertGreaterEqual(row["oldest_days"], 20)
+
+    def test_sales_vs_costs_counts_it_on_the_day_it_was_bought(self):
+        before = api.get_food_cost_report(days=7)["purchases"]
+        self.bill(bought=-30)              # typed in today, bought last month
+        self.bill(bought=-2, entered=-40)  # typed in long ago, bought this week
+        self.assertAlmostEqual(api.get_food_cost_report(days=7)["purchases"] - before,
+                               self.AMOUNT, 2)

@@ -46,6 +46,8 @@ def _install_purchase_bill():
         "custom": 1, "naming_rule": "Random", "autoname": "hash", "track_changes": 1,
         "fields": [
             {"fieldname": "vendor", "label": "Vendor", "fieldtype": "Data", "in_list_view": 1, "reqd": 1},
+            {"fieldname": "purchase_date", "label": "Purchase Date", "fieldtype": "Date",
+             "in_list_view": 1, "search_index": 1},
             {"fieldname": "note", "label": "Note", "fieldtype": "Small Text"},
             {"fieldname": "receipt_image", "label": "Receipt", "fieldtype": "Attach Image"},
             {"fieldname": "discount", "label": "Discount", "fieldtype": "Currency", "default": "0"},
@@ -232,6 +234,24 @@ def rename_purchase_item():
             "unit": unit or frappe.db.get_value("Item", item, "stock_uom")}
 
 
+def _purchase_date(value=None):
+    """The day the goods were bought, as the buyer entered it. Blank is today.
+
+    Not in the future: a bill from tomorrow has not happened, and a slip of the
+    date picker would otherwise park real spend in a week nobody is looking at.
+    Any day before today is fine — a bill found in a drawer is still owed."""
+    from frappe.utils import getdate, today
+    if not value:
+        return getdate(today())
+    try:
+        day = getdate(value)
+    except Exception:
+        frappe.throw(_("That is not a date: {0}").format(value))
+    if day > getdate(today()):
+        frappe.throw(_("The purchase date cannot be in the future"))
+    return day
+
+
 def _bill_dict(name):
     doc = frappe.get_doc("Purchase Bill", name)
     lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",
@@ -253,6 +273,11 @@ def _bill_dict(name):
         "receipt_image": doc.receipt_image or "", "status": doc.status or "pending",
         "by": frappe.get_value("User", doc.requested_by, "full_name") or doc.requested_by or "",
         "time": frappe.utils.pretty_date(doc.requested_at) if doc.requested_at else "",
+        # The day it was bought, which is what every report counts it under.
+        # `time` stays as when it was typed in.
+        "purchase_date": str(doc.get("purchase_date") or ""),
+        "date": (frappe.utils.formatdate(doc.purchase_date, "d MMM yyyy")
+                 if doc.get("purchase_date") else ""),
         # who settled it, for the grouped Bills list and the drill-down sheet
         "resolved_by": (frappe.get_value("User", doc.resolved_by, "full_name")
                         or doc.resolved_by or "") if doc.get("resolved_by") else "",
@@ -274,8 +299,10 @@ def create_purchase_bill():
     lines = frappe.parse_json(data.get("lines") or "[]")
     if not lines:
         frappe.throw(_("Add at least one item"))
+    day = _purchase_date(data.get("purchase_date"))
     doc = frappe.get_doc({
-        "doctype": "Purchase Bill", "vendor": vendor, "note": (data.get("note") or "").strip(),
+        "doctype": "Purchase Bill", "vendor": vendor, "purchase_date": day,
+        "note": (data.get("note") or "").strip(),
         "receipt_image": data.get("receipt_image") or "", "status": "pending",
         "requested_by": frappe.session.user, "requested_at": now_datetime(), "items": [],
     })
@@ -302,9 +329,13 @@ def create_purchase_bill():
     if not frappe.db.exists("DocType", "POS Approval"):
         _install_pos_approval()
     n = len(appr_lines)
+    # A bill for an earlier day says so on the card, or the approver reads it as
+    # today's buying.
+    dated = ("" if day == frappe.utils.getdate(frappe.utils.today())
+             else " · bought " + frappe.utils.formatdate(day, "d MMM"))
     frappe.get_doc({
         "doctype": "POS Approval", "approval_type": "bill", "title": vendor,
-        "subhead": f"{n} item{'' if n == 1 else 's'} · purchase bill",
+        "subhead": f"{n} item{'' if n == 1 else 's'} · purchase bill{dated}",
         "details_json": json.dumps({"lines": appr_lines, "footer_label": "Bill total",
                                     "footer_value": f"Rs {int(round(total)):,}"}),
         "flag_text": ((data.get("note") or "").strip()
@@ -318,16 +349,18 @@ def get_purchase_bills():
     roles.require_purchases()
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return {"bills": [], "approved_today": 0, "pending_amt": 0, "week": 0}
-    rows = frappe.get_list("Purchase Bill", filters={}, fields=["name", "status", "requested_at"],
+    # Listed in the order they were entered, so a bill typed in just now is at
+    # the top whatever day it is dated. The figures count by purchase_date.
+    rows = frappe.get_list("Purchase Bill", filters={}, fields=["name", "status", "purchase_date"],
                           order_by="requested_at desc", limit_page_length=60)
     bills = [_bill_dict(r.name) for r in rows]
     today = frappe.utils.today()
     wk = frappe.utils.add_days(today, -7)
     approved_today = sum(b["total"] for b, r in zip(bills, rows)
-                         if b["status"] == "approved" and str(r.requested_at) >= today)
+                         if b["status"] == "approved" and str(r.purchase_date or "") >= today)
     pending_amt = sum(b["total"] for b in bills if b["status"] == "pending")
     week = sum(b["total"] for b, r in zip(bills, rows)
-               if b["status"] != "rejected" and str(r.requested_at) >= wk)
+               if b["status"] != "rejected" and str(r.purchase_date or "") >= wk)
     # The Due badge has to count every approved-unpaid bill, not just the 60 newest
     # on this page — an older bill still owed was silently missing from the count.
     # One aggregate row straight from the DB: no documents built, nothing to page
@@ -357,14 +390,16 @@ def get_purchase_day_summary(date=None):
     stands, who was involved — and the day's bills themselves.
 
     Powers the day card above the Bills list in the Manager app, which lists the
-    bills grouped by status. The day owns a bill by `requested_at` (when it was
-    entered), so the numbers always add up to that day's entries no matter when a
-    manager got round to approving them; `approved_by` therefore names whoever
+    bills grouped by status. The day owns a bill by `purchase_date` (the day the
+    goods were bought, as the buyer entered it) — the same day every purchase
+    report counts it under — so a bill typed in on Monday for Saturday's market
+    run is Saturday's. The numbers add up to that day's buying no matter when a
+    manager got round to approving it; `approved_by` therefore names whoever
     resolved *those* bills, which may have happened later. Each bill carries its
     full line items, so tapping one opens the same breakdown sheet as the Bills
     list without a second call.
     """
-    from frappe.utils import add_days, formatdate, getdate, today as _today
+    from frappe.utils import formatdate, getdate, today as _today
 
     roles.require_purchases()
     day = getdate(date or _today())
@@ -376,10 +411,8 @@ def get_purchase_day_summary(date=None):
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return empty
 
-    # Half-open on a Datetime column, so midnight belongs to the next day only.
     names = frappe.get_all("Purchase Bill",
-                           filters=[["requested_at", ">=", str(day)],
-                                    ["requested_at", "<", str(add_days(day, 1))]],
+                           filters=[["purchase_date", "=", str(day)]],
                            fields=["name", "requested_by", "resolved_by"],
                            order_by="requested_at desc", limit_page_length=0)
     if not names:
@@ -451,7 +484,7 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
         where.append("b.status = %(status)s")
 
     rows = frappe.db.sql("""
-        SELECT b.name, b.vendor, b.total, b.status, b.requested_at,
+        SELECT b.name, b.vendor, b.total, b.status, b.requested_at, b.purchase_date,
                b.receipt_image, b.requested_by
         FROM `tabPurchase Bill` b
         WHERE {where}
@@ -472,7 +505,7 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
         "name": r.name, "vendor": r.vendor or "", "total": float(r.total or 0),
         "status": r.status or "pending", "receipt_image": r.receipt_image or "",
         "time": frappe.utils.pretty_date(r.requested_at) if r.requested_at else "",
-        "date": frappe.utils.formatdate(r.requested_at, "d MMM yyyy") if r.requested_at else "",
+        "date": frappe.utils.formatdate(r.purchase_date, "d MMM yyyy") if r.purchase_date else "",
         "by": names.get(r.requested_by, ""),
     } for r in rows], "more": more}
 @frappe.whitelist()
@@ -618,7 +651,7 @@ def get_due_bills():
     rows = frappe.db.sql("""
         SELECT name FROM `tabPurchase Bill`
         WHERE status = 'approved' AND IFNULL(payment_status, 'unpaid') != 'paid'
-        ORDER BY requested_at ASC LIMIT 2000
+        ORDER BY purchase_date ASC, requested_at ASC LIMIT 2000
     """, as_dict=True)
     # 2000, not 200: the live restaurant owes more than 200 bills (every bill
     # approved before payment_status existed reads as owed), and a cap below

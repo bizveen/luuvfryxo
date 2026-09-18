@@ -163,6 +163,7 @@ input,button{font-family:inherit;}
 
     <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px;">
       <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="e.g. Green Valley Farms" oninput="saveDraft()"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Purchase date</div><input id="fDate" class="inp" type="date" onchange="saveDraft()"></div>
       <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fNote" class="inp" placeholder="Anything the manager should know" oninput="saveDraft()"></div>
     </div>
     <div id="formErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="formErrMsg"></span></div>
@@ -253,6 +254,9 @@ function lfPoll(fn, ms){
   let expStats={}, billStats={}, newExpReceipt='', expCats=[];
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
+  // The phone's own calendar day. toISOString() is UTC, which in Sri Lanka is
+  // still yesterday until 5:30 in the morning.
+  function localToday(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
   function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2800); }
   async function _api(u,o){ o=o||{}; o.headers=o.headers||{}; o.headers['X-Frappe-CSRF-Token']=CSRF; o.credentials='include'; try{ const r=await fetch(u,o); if(r.status===403||r.status===401){ location.href='/login?redirect-to=/purchases'; return null;} return r;}catch(e){ return null; } }
@@ -299,7 +303,7 @@ function lfPoll(fn, ms){
       return `<div style="display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
         <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${b.receipt_image}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
         <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.vendor}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
-        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${b.time}</div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${esc(b.date||b.time)}</div>
         <span class="badge ${t[0]}">${t[1]}</span></div></div>`; }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No bills yet. Tap “Add bill / expense”.</div>';
     icons();
   }catch(e){} }
@@ -328,7 +332,7 @@ function lfPoll(fn, ms){
   function paintExpTotal(){ document.getElementById('expTotal').textContent=nfmt(parseFloat(document.getElementById('eAmount').value)||0); }
   async function openExp(){
     ['ePayee','eAmount','eBillRef','eNote'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('eDate').value=new Date().toISOString().slice(0,10);
+    document.getElementById('eDate').value=localToday();
     newExpReceipt=''; const img=document.getElementById('expPhotoImg'); img.style.display='none'; img.removeAttribute('src');
     const _eph=document.getElementById('expPhotoHint'); _eph.style.display='block'; _eph.textContent='📷 Tap to snap the bill';
     document.getElementById('expErr').style.display='none'; paintExpTotal();
@@ -378,7 +382,7 @@ function lfPoll(fn, ms){
         <div style="display:flex;gap:13px;">
           <div style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
           <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</span><span class="mono" style="font-size:16px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
-          <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${esc(b.time)}${b.by?(' · '+esc(b.by)):''}</div></div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${esc(b.date||b.time)}${b.by?(' · '+esc(b.by)):''}</div></div>
         </div>
         <button onclick="markPaid('${esc(b.name)}',this)" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid</button>
       </div>`).join(''):(dueQ
@@ -423,6 +427,7 @@ function lfPoll(fn, ms){
   // ── Add bill ──
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
   function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
+    const fd=document.getElementById('fDate'); fd.value=localToday(); fd.max=localToday();
     document.getElementById('photoImg').style.display='none'; const _ph=document.getElementById('photoHint'); _ph.style.display='block'; _ph.textContent='📷 Tap to snap receipt'; document.getElementById('formErr').style.display='none';
     if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
@@ -497,7 +502,8 @@ function lfPoll(fn, ms){
   function saveDraft(){ if(restoringDraft) return; try{
       let d=null;
       if(sheetOpen('addOverlay')) d={sheet:'bill',lines:formLines,receipt:newReceipt,
-        vendor:document.getElementById('fVendor').value,note:document.getElementById('fNote').value,at:Date.now()};
+        vendor:document.getElementById('fVendor').value,note:document.getElementById('fNote').value,
+        date:document.getElementById('fDate').value,at:Date.now()};
       else if(sheetOpen('expOverlay')) d={sheet:'exp',receipt:newExpReceipt,
         category:document.getElementById('eCategory').value,payee:document.getElementById('ePayee').value,
         amount:document.getElementById('eAmount').value,billref:document.getElementById('eBillRef').value,
@@ -514,6 +520,7 @@ function lfPoll(fn, ms){
         formLines=Array.isArray(d.lines)?d.lines:[]; newReceipt=d.receipt||'';
         document.getElementById('fVendor').value=d.vendor||'';
         document.getElementById('fNote').value=d.note||'';
+        if(d.date) document.getElementById('fDate').value=d.date;
         if(newReceipt){ const img=document.getElementById('photoImg'); img.src=newReceipt; img.style.display='block'; document.getElementById('photoHint').style.display='none'; }
         renderLines(); renderPicker();
       } else if(d.sheet==='exp'){
@@ -568,10 +575,12 @@ function lfPoll(fn, ms){
     const vendor=document.getElementById('fVendor').value.trim();
     if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
     if(!vendor){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
+    const pdate=document.getElementById('fDate').value||localToday();
+    if(pdate>localToday()){ em.textContent='The purchase date cannot be in the future.'; err.style.display='flex'; return; }
     if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
     const lines=formLines.map(l=>({item:l.item,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
     const btn=document.getElementById('submitBtn'); btn.disabled=true; err.style.display='none';
-    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:vendor,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:vendor,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); }
       else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
 

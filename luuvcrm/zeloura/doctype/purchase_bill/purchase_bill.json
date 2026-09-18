@@ -8,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "vendor",
+  "purchase_date",
   "note",
   "receipt_image",
   "discount",
@@ -26,6 +27,14 @@
    "in_list_view": 1,
    "label": "Vendor",
    "reqd": 1
+  },
+  {
+   "fieldname": "purchase_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Purchase Date",
+   "search_index": 1,
+   "description": "The day the goods were bought \u2014 the date on the vendor's bill, not the day it was typed in. Every purchase report windows on this. Filled from requested_at when left empty."
   },
   {
    "fieldname": "note",
@@ -91,7 +100,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-06 17:00:00.000000",
+ "modified": "2026-09-18 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Zeloura",
  "name": "Purchase Bill",

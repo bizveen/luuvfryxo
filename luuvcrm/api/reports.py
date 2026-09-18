@@ -602,8 +602,9 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     chart plus top-vendor and top-item breakdowns. The window is the last N days
     by default, or an explicit start/end — a whole calendar month picked in the
     UI. Purchase Bill is non-submittable, so we filter on status='approved'
-    (committed spend), not docstatus; the effective purchase date is
-    `requested_at`.
+    (committed spend), not docstatus; a bill counts on its `purchase_date` —
+    the day the goods were bought, as the buyer entered it — not the day it
+    was typed in, so Saturday's market run entered on Monday is Saturday's.
 
     **Spend is the bill's `total`, not the sum of its lines.** A discount
     entered at approval is written to `total` and not to any line, so summing
@@ -620,7 +621,7 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     from frappe.utils import getdate, add_days, formatdate, today as _today
 
     start, end, days = _report_range(days, start, end)
-    # requested_at is a Datetime; upper bound is exclusive start-of-next-day.
+    # purchase_date is a Date; the upper bound is the exclusive next day.
     range_start = str(start)
     range_end = str(add_days(end, 1))
     # Purchase Bill is ours, so it carries the branch itself — no cost centre
@@ -633,14 +634,14 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     # ── daily spend + bill count (one grouped query over the line items) ──
     rows = frappe.db.sql(
         """
-        SELECT DATE(pb.requested_at) AS d,
+        SELECT pb.purchase_date AS d,
                COALESCE(SUM(pb.total), 0) AS spend,
                COUNT(*) AS cnt
         FROM `tabPurchase Bill` pb
         WHERE pb.status = 'approved'
-          AND pb.requested_at >= %s AND pb.requested_at < %s
+          AND pb.purchase_date >= %s AND pb.purchase_date < %s
         """ + _pb_cond + """
-        GROUP BY DATE(pb.requested_at)
+        GROUP BY pb.purchase_date
         """,
         (range_start, range_end) + _pb_params, as_dict=True)
     by_date = {str(r.d): {"spend": float(r.spend or 0), "count": int(r.cnt or 0)} for r in rows}
@@ -662,13 +663,13 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     # ── weekly spend (ISO weeks, Monday-anchored) ──
     wrows = frappe.db.sql(
         """
-        SELECT YEARWEEK(pb.requested_at, 3) AS yw,
-               DATE(DATE_SUB(pb.requested_at, INTERVAL WEEKDAY(pb.requested_at) DAY)) AS wk_start,
+        SELECT YEARWEEK(pb.purchase_date, 3) AS yw,
+               DATE_SUB(pb.purchase_date, INTERVAL WEEKDAY(pb.purchase_date) DAY) AS wk_start,
                COALESCE(SUM(pb.total), 0) AS spend,
                COUNT(*) AS cnt
         FROM `tabPurchase Bill` pb
         WHERE pb.status = 'approved'
-          AND pb.requested_at >= %s AND pb.requested_at < %s
+          AND pb.purchase_date >= %s AND pb.purchase_date < %s
         """ + _pb_cond + """
         GROUP BY yw, wk_start
         ORDER BY wk_start
@@ -690,7 +691,7 @@ def get_manager_purchase_report(days=7, start=None, end=None):
                COUNT(*) AS cnt
         FROM `tabPurchase Bill` pb
         WHERE pb.status = 'approved'
-          AND pb.requested_at >= %s AND pb.requested_at < %s
+          AND pb.purchase_date >= %s AND pb.purchase_date < %s
         """ + _pb_cond + """
         GROUP BY pb.vendor
         ORDER BY spend DESC
@@ -715,7 +716,7 @@ def get_manager_purchase_report(days=7, start=None, end=None):
             FROM `tabPurchase Bill Item` GROUP BY parent
         ) sub ON sub.parent = pbi.parent
         WHERE pb.status = 'approved'
-          AND pb.requested_at >= %s AND pb.requested_at < %s
+          AND pb.purchase_date >= %s AND pb.purchase_date < %s
         """ + _pb_cond + """
         GROUP BY name, pbi.uom
         ORDER BY spend DESC
@@ -742,7 +743,7 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         FROM `tabPurchase Bill Item` pbi
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
         WHERE pb.status = 'approved' AND pbi.price > 0
-          AND pb.requested_at >= %s AND pb.requested_at < %s
+          AND pb.purchase_date >= %s AND pb.purchase_date < %s
         """ + _pb_cond + """
         GROUP BY name, pbi.uom
         HAVING COUNT(DISTINCT pb.vendor) > 1 AND MAX(pbi.price) > MIN(pbi.price)
@@ -770,14 +771,14 @@ def get_manager_purchase_report(days=7, start=None, end=None):
     move_rows = frappe.db.sql(
         """
         SELECT COALESCE(pbi.item_name, pbi.item) AS name, pbi.uom AS uom,
-               pbi.old_price AS was, pbi.price AS now_price, pb.requested_at AS at
+               pbi.old_price AS was, pbi.price AS now_price
         FROM `tabPurchase Bill Item` pbi
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
         WHERE pb.status = 'approved' AND pbi.old_price > 0 AND pbi.price > 0
           AND pbi.price <> pbi.old_price
-          AND pb.requested_at >= %s AND pb.requested_at < %s
+          AND pb.purchase_date >= %s AND pb.purchase_date < %s
         """ + _pb_cond + """
-        ORDER BY pb.requested_at ASC
+        ORDER BY pb.purchase_date ASC, pb.requested_at ASC
         """,
         (range_start, range_end) + _pb_params, as_dict=True)
     # One row per item: the first price it carried in the window against the
@@ -799,15 +800,15 @@ def get_manager_purchase_report(days=7, start=None, end=None):
 
     # ── what is still owed, and for how long ──────────────────────────────
     # Deliberately NOT windowed: a bill from March is owed today whatever range
-    # the screen is on. Ageing is from the request date, which is the closest
-    # thing this app has to an invoice date.
+    # the screen is on. Ageing is from the purchase date — the date on the
+    # vendor's bill, which is when the debt started.
     owed, owed_total = [], 0.0
     if frappe.db.has_column("Purchase Bill", "payment_status"):
         for r in frappe.db.sql(
             """
             SELECT pb.vendor AS name, COUNT(*) AS cnt,
                    COALESCE(SUM(pb.total), 0) AS amount,
-                   MIN(pb.requested_at) AS oldest
+                   MIN(pb.purchase_date) AS oldest
             FROM `tabPurchase Bill` pb
             WHERE pb.status = 'approved'
               AND IFNULL(pb.payment_status, 'unpaid') <> 'paid'
@@ -830,7 +831,7 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         SELECT pb.status AS status, COUNT(*) AS cnt, COALESCE(SUM(pb.total), 0) AS amount
         FROM `tabPurchase Bill` pb
         WHERE pb.status IN ('pending', 'rejected')
-          AND pb.requested_at >= %s AND pb.requested_at < %s
+          AND pb.purchase_date >= %s AND pb.purchase_date < %s
         """ + _pb_cond + """
         GROUP BY pb.status
         """, (range_start, range_end) + _pb_params, as_dict=True):
@@ -848,7 +849,7 @@ def get_manager_purchase_report(days=7, start=None, end=None):
             FROM `tabPurchase Bill` pb
             WHERE pb.status <> 'pending' AND pb.resolved_at IS NOT NULL
               AND pb.resolved_at >= pb.requested_at
-              AND pb.requested_at >= %s AND pb.requested_at < %s
+              AND pb.purchase_date >= %s AND pb.purchase_date < %s
             """ + _pb_cond + """
             """, (range_start, range_end) + _pb_params, as_dict=True)[0]
         if int(row.cnt or 0):
