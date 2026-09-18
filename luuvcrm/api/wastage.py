@@ -146,7 +146,10 @@ def get_food_cost_report(days=7, start=None, end=None):
     """, (start, end))[0][0] or 0)
     food_cost = round(purchases + wastage, 2)
     profit = round(revenue - food_cost - overhead, 2)
-    pct = lambda v: round(v * 100.0 / revenue, 1) if revenue > 0 else 0
+    # No sales, no percentage. It used to be 0, so a week with rent paid and
+    # nothing sold read "0% overheads · 0% margin" beside a loss — a card that
+    # looked broken. None says what is true: there is nothing to divide by.
+    pct = lambda v: round(v * 100.0 / revenue, 1) if revenue > 0 else None
     return {"days": days, "start": str(start), "end": str(end),
             "purchases": round(purchases, 2), "wastage": round(wastage, 2),
             "food_cost": food_cost, "overhead": round(overhead, 2),

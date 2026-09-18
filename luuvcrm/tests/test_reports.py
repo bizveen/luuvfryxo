@@ -540,3 +540,36 @@ class TestTheVendorSheet(FrappeTestCase):
         self.addCleanup(frappe.set_user, previous)
         with self.assertRaises(frappe.PermissionError):
             self.sheet(days=7)
+
+
+class TestSalesVsCostsWithNoSales(ReportWindowTestCase):
+    """A period with rent paid and nothing sold. The costs are real; a
+    percentage of no sales is not a number, and showing it as 0% made the card
+    read "0% overheads, 0% margin" beside a loss."""
+
+    DAY = "2019-02-10"
+
+    def setUp(self):
+        super().setUp()
+        if not frappe.db.exists("DocType", "Expense"):
+            self.skipTest("no Expense on this site")
+        category = frappe.db.get_value("Expense Category", {}, "name")
+        if not category:
+            self.skipTest("no Expense Category on this site")
+        doc = frappe.get_doc({"doctype": "Expense", "category": category, "payee": "_LFT Landlord",
+                              "amount": 1000, "expense_date": self.DAY, "status": "approved"})
+        doc.insert(ignore_permissions=True)
+        self.addCleanup(frappe.delete_doc, "Expense", doc.name, force=True, ignore_permissions=True)
+
+    def report(self):
+        return api.get_food_cost_report(start="2019-02-01", end="2019-02-28")
+
+    def test_the_expense_is_still_an_overhead(self):
+        r = self.report()
+        self.assertEqual(r["overhead"], 1000)
+        self.assertEqual(r["profit"], -1000)
+
+    def test_no_percentage_is_invented(self):
+        r = self.report()
+        for key in ("food_cost_pct", "overhead_pct", "profit_pct", "wastage_pct"):
+            self.assertIsNone(r[key], key)
