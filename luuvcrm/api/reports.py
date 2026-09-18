@@ -895,3 +895,91 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         "avg_bill": avg_bill,
         "best_day": best_day,
     }
+
+
+@frappe.whitelist()
+def get_manager_vendor_detail(vendor=None, days=7, start=None, end=None):
+    """One vendor, for the sheet behind a row of Owed to vendors or Top vendors.
+
+    Two windows, on purpose, the same two the cards they open from use: the
+    period's approved bills and the items in them follow the screen's range,
+    and what is still owed does not — a bill from March is owed today. Bills
+    come whole (`_bill_dict`), so tapping one opens the bill sheet without a
+    second call. The vendor is matched the way the report grouped it, so the
+    sheet always adds up to the row that was tapped.
+    """
+    roles.require_manager()
+    from frappe.utils import getdate, today as _today
+    from luuvcrm.api.purchases import _bill_dict
+
+    vendor = (vendor or "").strip()
+    if not vendor:
+        frappe.throw(_("Which vendor?"))
+    start, end, days = _report_range(days, start, end)
+    cond, params = branch.sql_restaurant("pb")
+    out = {"vendor": vendor, "start": str(start), "end": str(end),
+           "spend": 0.0, "count": 0, "bills": [], "items": [],
+           "owed": 0.0, "owed_count": 0, "unpaid": []}
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        return out
+
+    in_period = frappe.db.sql("""
+        SELECT pb.name FROM `tabPurchase Bill` pb
+        WHERE pb.vendor = %s AND pb.status = 'approved'
+          AND pb.purchase_date BETWEEN %s AND %s
+        """ + cond + """
+        ORDER BY pb.purchase_date DESC, pb.requested_at DESC
+    """, (vendor, start, end) + params, pluck=True)
+    # The totals count every bill; only the list is capped — a sheet of a
+    # hundred bills is already more than anybody scrolls.
+    out["bills"] = [_bill_dict(n) for n in in_period[:100]]
+    out["count"] = len(in_period)
+    out["spend"] = float(frappe.db.sql("""
+        SELECT COALESCE(SUM(pb.total), 0) FROM `tabPurchase Bill` pb
+        WHERE pb.vendor = %s AND pb.status = 'approved'
+          AND pb.purchase_date BETWEEN %s AND %s
+        """ + cond, (vendor, start, end) + params)[0][0] or 0)
+
+    # Pro-rated by the bill's discount, exactly as the report's item card is.
+    out["items"] = [{"name": r.name, "uom": r.uom or "", "qty": float(r.qty or 0),
+                     "bills": int(r.bills or 0), "spend": float(r.spend or 0)}
+                    for r in frappe.db.sql("""
+        SELECT COALESCE(pbi.item_name, pbi.item) AS name, pbi.uom AS uom,
+               SUM(pbi.qty) AS qty, COUNT(DISTINCT pb.name) AS bills,
+               COALESCE(SUM(pbi.qty * pbi.price * (
+                   CASE WHEN sub.subtotal > 0 THEN pb.total / sub.subtotal ELSE 1 END
+               )), 0) AS spend
+        FROM `tabPurchase Bill Item` pbi
+        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        INNER JOIN (
+            SELECT parent, SUM(qty * price) AS subtotal
+            FROM `tabPurchase Bill Item` GROUP BY parent
+        ) sub ON sub.parent = pbi.parent
+        WHERE pb.vendor = %s AND pb.status = 'approved'
+          AND pb.purchase_date BETWEEN %s AND %s
+        """ + cond + """
+        GROUP BY name, pbi.uom
+        ORDER BY spend DESC
+    """, (vendor, start, end) + params, as_dict=True) if r.name]
+
+    if frappe.db.has_column("Purchase Bill", "payment_status"):
+        unpaid = frappe.db.sql("""
+            SELECT pb.name FROM `tabPurchase Bill` pb
+            WHERE pb.vendor = %s AND pb.status = 'approved'
+              AND IFNULL(pb.payment_status, 'unpaid') <> 'paid'
+            """ + cond + """
+            ORDER BY pb.purchase_date ASC, pb.requested_at ASC
+        """, (vendor,) + params, pluck=True)
+        today = getdate(_today())
+        for n in unpaid[:100]:
+            b = _bill_dict(n)
+            b["age_days"] = max(0, (today - getdate(b["purchase_date"])).days) \
+                if b.get("purchase_date") else 0
+            out["unpaid"].append(b)
+        out["owed_count"] = len(unpaid)
+        out["owed"] = float(frappe.db.sql("""
+            SELECT COALESCE(SUM(pb.total), 0) FROM `tabPurchase Bill` pb
+            WHERE pb.vendor = %s AND pb.status = 'approved'
+              AND IFNULL(pb.payment_status, 'unpaid') <> 'paid'
+            """ + cond, (vendor,) + params)[0][0] or 0)
+    return out

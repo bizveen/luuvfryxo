@@ -342,6 +342,7 @@ from luuvcrm.api.reports import (
     get_manager_monthly_sales,
     get_manager_purchase_report,
     get_manager_sales_report,
+    get_manager_vendor_detail,
 )
 from luuvcrm.api.routing import (
     route_app_requests,

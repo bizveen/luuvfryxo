@@ -438,3 +438,105 @@ class TestPurchaseReportsCountTheDayItWasBought(FrappeTestCase):
         self.bill(bought=-2, entered=-40)  # typed in long ago, bought this week
         self.assertAlmostEqual(api.get_food_cost_report(days=7)["purchases"] - before,
                                self.AMOUNT, 2)
+
+
+class TestTheVendorSheet(FrappeTestCase):
+    """What opens behind a row of Owed to vendors or Top vendors. It has to add
+    up to the row that was tapped, so each case checks it against the report."""
+
+    VENDOR = "_LFT Sheet Vendor"
+
+    def setUp(self):
+        super().setUp()
+        if not frappe.db.exists("DocType", "Purchase Bill"):
+            self.skipTest("no Purchase Bill on this site")
+        self.item = fx.item(self, "PURCH-SHEET-OIL")
+        self._bills = []
+        self.addCleanup(self._drop)
+
+    def _drop(self):
+        for name in self._bills:
+            if frappe.db.exists("Purchase Bill", name):
+                frappe.delete_doc("Purchase Bill", name, force=True, ignore_permissions=True)
+        frappe.db.commit()
+
+    def bill(self, amount, bought=0, status="approved", paid=False, vendor=None):
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill", "vendor": vendor or self.VENDOR, "status": status,
+            "purchase_date": add_days(today(), bought),
+            "requested_at": frappe.utils.now_datetime(), "total": amount,
+            "payment_status": "paid" if paid else "unpaid",
+            "items": [{"item": self.item, "item_name": "Sheet Oil", "uom": "Litre",
+                       "qty": 1, "price": amount}],
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        frappe.db.commit()
+        self._bills.append(doc.name)
+        return doc.name
+
+    def sheet(self, **kw):
+        return api.get_manager_vendor_detail(vendor=self.VENDOR, **kw)
+
+    def test_it_adds_up_to_the_top_vendors_row(self):
+        self.bill(1000)
+        self.bill(500, bought=-2)
+        row = next(v for v in api.get_manager_purchase_report(days=7)["vendors"]
+                   if v["name"] == self.VENDOR)
+        sheet = self.sheet(days=7)
+        self.assertAlmostEqual(sheet["spend"], row["spend"], 2)
+        self.assertEqual(sheet["count"], row["count"])
+        self.assertEqual(len(sheet["bills"]), 2)
+
+    def test_it_adds_up_to_the_owed_row(self):
+        self.bill(700, bought=-100)
+        self.bill(300)
+        self.bill(900, paid=True)
+        row = next(v for v in api.get_manager_purchase_report(days=1)["owed"]
+                   if v["name"] == self.VENDOR)
+        sheet = self.sheet(days=1)
+        self.assertAlmostEqual(sheet["owed"], row["amount"], 2)
+        self.assertEqual(sheet["owed_count"], row["count"])
+
+    def test_what_is_owed_ignores_the_window_and_the_oldest_comes_first(self):
+        old = self.bill(700, bought=-100)
+        sheet = self.sheet(days=7)
+        self.assertEqual(sheet["unpaid"][0]["name"], old)
+        self.assertEqual(sheet["unpaid"][0]["age_days"], 100)
+        self.assertNotIn(old, [b["name"] for b in sheet["bills"]],
+                         "a bill from 100 days ago is not this week's buying")
+
+    def test_pending_and_rejected_are_not_bought_or_owed(self):
+        self.bill(400, status="pending")
+        self.bill(400, status="rejected")
+        sheet = self.sheet(days=7)
+        self.assertEqual((sheet["spend"], sheet["owed"]), (0, 0))
+
+    def test_the_items_carry_the_bill_s_discount(self):
+        name = self.bill(1000)
+        frappe.db.set_value("Purchase Bill", name, {"discount": 200, "total": 800})
+        frappe.db.commit()
+        item = next(i for i in self.sheet(days=1)["items"] if i["name"] == "Sheet Oil")
+        self.assertAlmostEqual(item["spend"], 800, 2)
+
+    def test_each_bill_is_whole_so_the_bill_sheet_needs_no_second_call(self):
+        self.bill(250)
+        b = self.sheet(days=1)["bills"][0]
+        self.assertEqual(b["lines"][0]["name"], "Sheet Oil")
+        self.assertIn("receipt_image", b)
+
+    def test_another_vendor_s_bills_stay_out(self):
+        self.bill(250, vendor="_LFT Other Vendor")
+        self.assertEqual(self.sheet(days=1)["count"], 0)
+
+    def test_it_is_for_managers(self):
+        email = "lf-test-sheet-kitchen@example.com"
+        if not frappe.db.exists("User", email):
+            frappe.get_doc({"doctype": "User", "email": email, "first_name": "Sheet",
+                            "send_welcome_email": 0,
+                            "roles": [{"role": roles.KITCHEN_STAFF}]}).insert(ignore_permissions=True)
+        previous = frappe.session.user
+        frappe.set_user(email)
+        self.addCleanup(frappe.set_user, previous)
+        with self.assertRaises(frappe.PermissionError):
+            self.sheet(days=7)
