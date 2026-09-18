@@ -162,7 +162,9 @@ input,button{font-family:inherit;}
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Bill total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="billTotal">0</span></span></div>
 
     <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px;">
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="e.g. Green Valley Farms" oninput="saveDraft()"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="Start typing — pick from the list" autocomplete="off" oninput="onVendorInput();saveDraft()" onfocus="onVendorInput()" onblur="setTimeout(hideVendorSug,150)">
+        <div id="vendorSug" style="display:none;margin-top:6px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden;background:var(--surface-card);box-shadow:var(--shadow-xs);"></div>
+        <div id="vendorHint" style="display:none;font-size:12.5px;margin-top:6px;"></div></div>
       <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Purchase date</div><input id="fDate" class="inp" type="date" onchange="saveDraft()"></div>
       <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fNote" class="inp" placeholder="Anything the manager should know" oninput="saveDraft()"></div>
     </div>
@@ -425,9 +427,44 @@ function lfPoll(fn, ms){
 
 
   // ── Add bill ──
+  // ── Vendor suggestions ──
+  // Vendor is typed, so one supplier used to turn up in the reports under
+  // several spellings. The sheet offers the names already used; a pick is the
+  // same vendor, anything else is saved as new (the server also folds a name
+  // that differs only in case or spacing into the existing one).
+  let vendors=[];
+  async function loadVendors(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_vendors',{}); if(!r) return; const d=await r.json(); vendors=(d.message&&d.message.vendors)||[]; }catch(e){} }
+  function vkey(s){ return (s||'').trim().replace(/\s+/g,' ').toLowerCase(); }
+  let vendorShown=[];
+  function vendorMatches(q){ const k=vkey(q); if(!k) return vendors.slice(0,6);
+    // Whole text first, then any typed word that starts a word of the name —
+    // "nuwara grens" still finds Nuwara Eliya Greens through "nuwara".
+    const words=k.split(' ').filter(w=>w.length>=2); const scored=[];
+    for(const v of vendors){ const n=vkey(v.name), vw=n.split(' ');
+      let sc=n.startsWith(k)?100:(k.length>=3&&n.includes(k)?50:0);
+      // A word typed right scores 10; one with a typo still scores 4 if its
+      // first three letters are right ("vally" → Valley). Matching the name's
+      // own first word counts double, so "green vally" puts Green Valley first.
+      words.forEach((w,i)=>{ const hit=x=>x.startsWith(w)?10:(w.length>=4&&x.slice(0,3)===w.slice(0,3)?4:0);
+        const best=Math.max(0,...vw.map(hit)); sc+=best; if(i===0&&best&&hit(vw[0])===best) sc+=best; });
+      if(sc) scored.push([sc,v]); }
+    return scored.sort((a,b)=>b[0]-a[0]||b[1].count-a[1].count).slice(0,6).map(x=>x[1]); }
+  function onVendorInput(){ const el=document.getElementById('fVendor'), box=document.getElementById('vendorSug'), hint=document.getElementById('vendorHint');
+    const k=vkey(el.value), exact=k&&vendors.find(v=>vkey(v.name)===k);
+    vendorShown=exact?[]:vendorMatches(el.value);
+    if(vendorShown.length&&document.activeElement===el){
+      box.innerHTML=vendorShown.map((v,i)=>`<div onpointerdown="event.preventDefault();pickVendor(${i})" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;"><span style="font-size:14.5px;font-weight:600;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(v.name)}</span><span style="font-size:11.5px;color:var(--text-faint);flex:none;">${v.count} bill${v.count===1?'':'s'}</span></div>`).join('');
+      box.style.display='block'; } else hideVendorSug();
+    if(exact){ hint.style.color='var(--green-500)'; hint.textContent='✓ '+exact.name; hint.style.display='block'; }
+    else if(k.length>=2){ hint.style.color='var(--text-muted)'; hint.textContent=vendorShown.length?'Same vendor as one above? Tap it. Otherwise this is saved as a new vendor.':'New vendor — it will be saved as “'+el.value.trim().replace(/\s+/g,' ')+'”.'; hint.style.display='block'; }
+    else hint.style.display='none'; }
+  function hideVendorSug(){ document.getElementById('vendorSug').style.display='none'; }
+  function pickVendor(i){ const v=vendorShown[i]; if(!v) return; const el=document.getElementById('fVendor'); el.value=v.name; hideVendorSug(); el.blur(); onVendorInput(); saveDraft(); }
+
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
   function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
     const fd=document.getElementById('fDate'); fd.value=localToday(); fd.max=localToday();
+    document.getElementById('vendorHint').style.display='none'; hideVendorSug(); loadVendors();
     document.getElementById('photoImg').style.display='none'; const _ph=document.getElementById('photoHint'); _ph.style.display='block'; _ph.textContent='📷 Tap to snap receipt'; document.getElementById('formErr').style.display='none';
     if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
@@ -581,7 +618,7 @@ function lfPoll(fn, ms){
     const lines=formLines.map(l=>({item:l.item,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
     const btn=document.getElementById('submitBtn'); btn.disabled=true; err.style.display='none';
     try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:vendor,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); }
+      if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); loadVendors(); }
       else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
 
   // ── Fullscreen receipt viewer (same behaviour as the manager app) ──

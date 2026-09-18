@@ -326,6 +326,7 @@ from luuvcrm.api.purchases import (
     get_purchase_bill,
     get_purchase_bills,
     get_purchase_catalog,
+    get_purchase_vendors,
     mark_bill_paid,
     resolve_purchase_bill,
     search_purchase_bills,

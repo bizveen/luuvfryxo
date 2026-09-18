@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import activity, roles
+from luuvcrm import activity, branch, roles
 
 from luuvcrm.api.schema import _install_pos_approval
 
@@ -252,6 +252,66 @@ def _purchase_date(value=None):
     return day
 
 
+# ─── Vendors ──────────────────────────────────────────────────────────────
+# Vendor is free text on the bill, so "Green Valley", "green valley " and
+# "Green  Valley" were three vendors in every report. The sheet now offers the
+# names already used as the buyer types, and a name that differs from one of
+# them only in case or spacing is saved as that one. A genuinely new name is
+# still just typed — there is no vendor master to maintain.
+
+def _vendor_key(name):
+    """What two spellings of one vendor have in common: spacing and case gone."""
+    return " ".join((name or "").split()).lower()
+
+
+def _known_vendors():
+    """Every vendor this restaurant has billed, most-used first, one row per
+    vendor however many ways it has been spelt (the commonest spelling wins)."""
+    cond, params = branch.sql_restaurant()
+    rows = frappe.db.sql("""
+        SELECT vendor, COUNT(*) AS n, MAX(purchase_date) AS last
+        FROM `tabPurchase Bill`
+        WHERE IFNULL(vendor, '') <> ''
+        """ + cond + """
+        GROUP BY BINARY vendor
+    """, params, as_dict=True)
+    merged = {}
+    for r in rows:
+        key = _vendor_key(r.vendor)
+        if not key:
+            continue
+        spelling = " ".join(r.vendor.split())
+        v = merged.setdefault(key, {"name": spelling, "count": 0, "last": None, "_best": 0})
+        v["count"] += int(r.n or 0)
+        if int(r.n or 0) > v["_best"]:
+            v["name"], v["_best"] = spelling, int(r.n or 0)
+        if r.last and (v["last"] is None or r.last > v["last"]):
+            v["last"] = r.last
+    out = [{"name": v["name"], "count": v["count"], "last": str(v["last"] or "")}
+           for v in merged.values()]
+    return sorted(out, key=lambda v: (-v["count"], v["name"].lower()))
+
+
+def _canonical_vendor(typed):
+    """The existing spelling of a vendor the buyer has typed, or the typed name
+    tidied of stray spaces if it is a new one."""
+    tidy = " ".join((typed or "").split())
+    key = _vendor_key(tidy)
+    for v in _known_vendors():
+        if _vendor_key(v["name"]) == key:
+            return v["name"]
+    return tidy
+
+
+@frappe.whitelist()
+def get_purchase_vendors():
+    """Vendors for the new-bill sheet's suggestions, most-used first."""
+    roles.require_purchases()
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        return {"vendors": []}
+    return {"vendors": _known_vendors()}
+
+
 def _bill_dict(name):
     doc = frappe.get_doc("Purchase Bill", name)
     lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",
@@ -293,7 +353,7 @@ def create_purchase_bill():
     if not frappe.db.exists("DocType", "Purchase Bill"):
         _install_purchase_bill()
     data = frappe.local.form_dict
-    vendor = (data.get("vendor") or "").strip()
+    vendor = _canonical_vendor(data.get("vendor"))
     if not vendor:
         frappe.throw(_("Vendor is required"))
     lines = frappe.parse_json(data.get("lines") or "[]")

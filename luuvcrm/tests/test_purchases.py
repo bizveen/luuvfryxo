@@ -716,3 +716,52 @@ class TestThePurchaseDate(PurchaseTestCase):
                    purchase_date=str(self.day(-30)))
         self.assertEqual(api.get_purchase_bills()["week"], before,
                          "a month-old bill entered today is not this week's spend")
+
+
+class TestOneVendorOneName(PurchaseTestCase):
+    """Vendor is typed, so one supplier used to reach the reports under several
+    spellings. The sheet suggests the names already used, and a name that differs
+    from one only in case or spacing is saved as that one."""
+
+    def names(self):
+        return [v["name"] for v in api.get_purchase_vendors()["vendors"]]
+
+    def test_a_vendor_already_used_is_offered(self):
+        self.enter(vendor="_LFT Spice House")
+        self.assertIn("_LFT Spice House", self.names())
+
+    def test_the_same_name_in_other_case_or_spacing_is_saved_as_the_first(self):
+        first = self.enter(vendor="_LFT Spice House")
+        again = self.enter(vendor="  _lft   SPICE house ")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", again, "vendor"),
+                         frappe.db.get_value("Purchase Bill", first, "vendor"))
+        self.assertEqual(self.names().count("_LFT Spice House"), 1)
+
+    def test_a_new_vendor_is_saved_tidied_of_stray_spaces(self):
+        name = self.enter(vendor="  _LFT   Brand  New Mart ")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", name, "vendor"),
+                         "_LFT Brand New Mart")
+
+    def test_old_spellings_collapse_into_the_commonest(self):
+        """Bills saved before this carry their spellings; the list shows one
+        vendor, under the spelling used most, with every bill counted."""
+        self.enter(vendor="_LFT Old Mill")
+        self.enter(vendor="_LFT Old Mill")
+        odd = self.enter(vendor="_LFT Old Mill")
+        frappe.db.set_value("Purchase Bill", odd, "vendor", "_lft  old mill")
+        rows = [v for v in api.get_purchase_vendors()["vendors"]
+                if v["name"].lower().replace(" ", "") == "_lftoldmill"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["name"], rows[0]["count"]), ("_LFT Old Mill", 3))
+
+    def test_the_most_used_come_first(self):
+        self.enter(vendor="_LFT Rare")
+        for _ in range(3):
+            self.enter(vendor="_LFT Regular")
+        names = self.names()
+        self.assertLess(names.index("_LFT Regular"), names.index("_LFT Rare"))
+
+    def test_kitchen_staff_cannot_list_vendors(self):
+        self.as_user(self.user_with(roles.KITCHEN_STAFF, "kitchen"))
+        with self.assertRaises(frappe.PermissionError):
+            api.get_purchase_vendors()
