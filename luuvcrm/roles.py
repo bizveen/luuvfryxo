@@ -313,6 +313,11 @@ APP_DOCPERMS = {
     "Tour Guide":         {"read": _TILL + _MANAGERS, "create": _MANAGERS,
                            "write": _MANAGERS},
     "Guide Cashback Txn": {"read": _TILL + _MANAGERS},
+    # The companies a rate card is made for — and, at the till, the ones a table
+    # can be booked under. The till reads them; only a manager makes or changes
+    # one. Nothing is deleted: a company with history is disabled.
+    "Tour Company":       {"read": _TILL + _MANAGERS, "create": _MANAGERS,
+                           "write": _MANAGERS},
     "Loyalty Customer":   {"read": _MANAGERS},
 }
 

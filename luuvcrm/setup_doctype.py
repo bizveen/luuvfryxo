@@ -108,6 +108,7 @@ EXPECTED_DOCTYPES = (
     "QR Promo Campaign",
     "QR Promo Code",
     "Tour Guide",
+    "Tour Company",
     "Guide Token",
     "Guide Cashback Txn",
     "Guide Invite Code",
