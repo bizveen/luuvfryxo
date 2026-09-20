@@ -398,6 +398,14 @@ class TestTheManagerPage(FrappeTestCase):
         body_end = sheet.index('id="rcBody"') + sheet[sheet.index('id="rcBody"'):].index('</div>\n    <div style="flex:none;display:flex;gap:10px;')
         self.assertGreater(sheet.index('id="rcSave"'), body_end)
 
+    def test_the_two_buttons_are_short_words_that_fit_side_by_side(self):
+        """"Save company" and "Preview without saving" wrapped onto two lines."""
+        sheet = self.html[self.html.index('id="rcOverlay"'):self.html.index("<!-- Wastage sheet")]
+        self.assertIn('onclick="rcSave()">Save</button>', sheet)
+        self.assertIn('>Preview</button>', sheet)
+        self.assertNotIn("Preview without saving", sheet)
+        self.assertEqual(sheet.count("white-space:nowrap;"), 2 + sheet.count("text-overflow:ellipsis;white-space:nowrap;"))
+
     def test_a_stray_tap_outside_does_not_throw_away_the_ticks(self):
         sheet = self.html[self.html.index('id="rcOverlay"'):self.html.index("<!-- Wastage sheet")]
         self.assertNotIn('onclick="rcClose()" style="position:fixed', sheet)

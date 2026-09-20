@@ -695,8 +695,8 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <div id="rcError" style="display:none;font-size:13px;color:var(--color-danger);"></div>
     </div>
     <div style="flex:none;display:flex;gap:10px;padding:12px 22px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--border-subtle);background:var(--surface-card);">
-      <button class="lf-btn" style="flex:2;" id="rcSave" onclick="rcSave()">Save company</button>
-      <button class="lf-btn" onclick="rcPreview()" style="height:auto;padding:13px;font-size:15px;background:var(--surface-card);color:var(--text-body);border:1.5px solid var(--border-default);box-shadow:none;">Preview without saving</button>
+      <button class="lf-btn" style="flex:1;min-width:0;white-space:nowrap;" id="rcSave" onclick="rcSave()">Save</button>
+      <button class="lf-btn" onclick="rcPreview()" title="See the card without saving it" style="flex:1;min-width:0;white-space:nowrap;height:52px;padding:0 12px;font-size:17px;background:var(--surface-card);color:var(--text-body);border:1.5px solid var(--border-default);box-shadow:none;">Preview</button>
     </div>
   </div>
 </div>
