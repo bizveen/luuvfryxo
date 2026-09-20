@@ -431,6 +431,36 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       </div>
 
       <!-- SETTINGS (menu items: add / rename / reprice — POS reads these on its next refresh) -->
+      <div id="tabRatecard" style="display:none;max-width:560px;animation:mgrFade var(--duration-base) var(--ease-out);">
+        <div style="margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Tour menu / rate card</div>
+          <div style="font-size:13.5px;color:var(--text-muted);">A priced menu for one tour or transport company. Nothing is saved.</div>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;display:flex;flex-direction:column;gap:14px;">
+          <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);">Company name
+            <input id="rcCompany" type="text" maxlength="80" autocomplete="off" placeholder="e.g. Blue Wave Tours" style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;font-size:15px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);">
+          </label>
+          <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);">Discount on menu prices (%)
+            <input id="rcDiscount" type="number" inputmode="decimal" min="0" max="50" step="0.5" value="10" style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;font-size:15px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);">
+            <span style="display:block;font-size:11.5px;font-weight:400;color:var(--text-faint);margin-top:4px;">0 to 50. Prices round up to the next Rs 10, never above the menu price.</span>
+          </label>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Items on the card</div>
+            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="rcCount"></span>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:10px;">Untick what should not be on this card.</div>
+          <div style="display:flex;gap:14px;margin-bottom:6px;">
+            <span onclick="rcAll(true)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select all</span>
+            <span onclick="rcAll(false)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select none</span>
+          </div>
+          <div id="rcItems" style="display:flex;flex-direction:column;"><div style="font-size:13px;color:var(--text-muted);padding:10px 0;">Loading the menu…</div></div>
+        </div>
+        <div id="rcError" style="display:none;font-size:13px;color:var(--color-danger);margin-bottom:10px;"></div>
+        <button class="lf-btn" id="rcGo" onclick="makeRatecard()">Generate rate card</button>
+      </div>
+
       <div id="tabSettings" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
         <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Menu settings</div>
         <div style="font-size:13.5px;color:var(--text-muted);margin-bottom:14px;" id="setSub">—</div>
@@ -624,6 +654,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);margin-bottom:12px;">More</div>
     <button onclick="moreGo('reports')" class="moreRow"><span class="moreIco"><i data-lucide="line-chart"></i></span><span style="flex:1;text-align:left;">Reports</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="moreGo('purchases')" class="moreRow"><span class="moreIco"><i data-lucide="shopping-cart"></i></span><span style="flex:1;text-align:left;">Purchases</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+    <button onclick="moreGo('ratecard')" class="moreRow"><span class="moreIco"><i data-lucide="file-text"></i></span><span style="flex:1;text-align:left;">Tour menu / rate card</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="moreGo('settings')" class="moreRow"><span class="moreIco"><i data-lucide="settings"></i></span><span style="flex:1;text-align:left;">Menu settings</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="hideMore();openGuides()" class="moreRow"><span class="moreIco">🧭</span><span style="flex:1;text-align:left;">Tour guides</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="hideMore();openWastage()" class="moreRow"><span class="moreIco">🗑️</span><span style="flex:1;text-align:left;">Wastage</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
@@ -761,7 +792,7 @@ function lfPoll(fn, ms){
       if(r.ok && d.message && d.message.ok){ toast((cashDir==='in'?'Cash in':'Cash out')+' recorded'); hideCash(); loadDashboard(); }
       else { err.textContent=(d.message&&d.message.message)||'Could not record'; err.style.display='block'; } }catch(e){ err.textContent='Connection error'; err.style.display='block'; } btn.disabled=false; }
 
-  function setTab(t){ tab=t; const bar=(t==='reports'||t==='purchases'||t==='settings')?'more':t;
+  function setTab(t){ tab=t; const bar=(t==='reports'||t==='purchases'||t==='settings'||t==='ratecard')?'more':t;
     document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===bar));
     document.getElementById('tabToday').style.display=t==='today'?'block':'none';
     document.getElementById('tabReports').style.display=t==='reports'?'block':'none';
@@ -769,9 +800,11 @@ function lfPoll(fn, ms){
     document.getElementById('tabApprovals').style.display=t==='approvals'?'block':'none';
     document.getElementById('tabPurchases').style.display=t==='purchases'?'block':'none';
     document.getElementById('tabSettings').style.display=t==='settings'?'block':'none';
+    document.getElementById('tabRatecard').style.display=t==='ratecard'?'block':'none';
     if(t==='purchases') loadPurchases();
     if(t==='approvals') loadApprovals();
     if(t==='settings') loadSettings();
+    if(t==='ratecard') loadRatecard();
     if(t==='reports') loadReports(); icons(); }
 
   function hourLabel(h){ const ap=h<12?'a':'p'; let hh=h%12; if(hh===0) hh=12; return hh+ap; }
@@ -1006,6 +1039,47 @@ function lfPoll(fn, ms){
     document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.remove('active')); loadReports(true); }
   // the range args every report call in this tab shares
   function repArgs(){ if(!repMonth) return {days:repDays}; const r=monthRange(repMonth); return {start:r.start,end:r.end}; }
+  // ── Tour menu / rate card ───────────────────────────────────────────────
+  // The form only collects: a company, a discount, and which items. The prices
+  // and the rounding are the server's, so the page cannot quote a number the
+  // card would not print. The result opens in a new tab through a real form
+  // POST — the item list does not fit in a URL — and closing it lands back here.
+  let rcLoaded=false, rcGroups=[];
+  async function loadRatecard(){
+    if(rcLoaded) return;
+    try{ const r=await _post('/api/method/luuvcrm.api.get_ratecard_menu',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      rcGroups=m.groups||[]; rcLoaded=true; renderRatecardItems();
+    }catch(e){ document.getElementById('rcItems').innerHTML='<div style="font-size:13px;color:var(--color-danger);padding:10px 0;">Could not load the menu. Pull to refresh.</div>'; }
+  }
+  function renderRatecardItems(){
+    const wrap=document.getElementById('rcItems');
+    if(!rcGroups.length){ wrap.innerHTML='<div style="font-size:13px;color:var(--text-muted);padding:10px 0;">No priced items on the menu.</div>'; rcCount(); return; }
+    wrap.innerHTML=rcGroups.map((g,gi)=>`<div style="padding:10px 0 4px;border-bottom:1px solid var(--border-subtle);"><label style="display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;color:var(--text-strong);text-transform:uppercase;letter-spacing:.04em;cursor:pointer;"><input type="checkbox" class="rcGroup" data-g="${gi}" checked onchange="rcToggleGroup(${gi},this.checked)" style="width:18px;height:18px;">${esc(g.group)}</label></div>`
+      +g.items.map(i=>`<label style="display:flex;align-items:center;gap:10px;padding:9px 0 9px 4px;border-bottom:1px solid var(--border-subtle);cursor:pointer;"><input type="checkbox" class="rcItem" data-g="${gi}" value="${esc(i.code)}" checked onchange="rcSync()" style="width:18px;height:18px;flex:none;"><span style="flex:1;font-size:14px;color:var(--text-strong);">${esc(i.name)}</span><span class="mono" style="font-size:12.5px;color:var(--text-faint);flex:none;">Rs ${nfmt(i.rate)}</span></label>`).join('')).join('');
+    rcCount();
+  }
+  function rcBoxes(){ return Array.from(document.querySelectorAll('#rcItems .rcItem')); }
+  function rcToggleGroup(gi,on){ rcBoxes().filter(b=>+b.dataset.g===gi).forEach(b=>b.checked=on); rcCount(); }
+  function rcAll(on){ rcBoxes().forEach(b=>b.checked=on); document.querySelectorAll('#rcItems .rcGroup').forEach(b=>{b.checked=on; b.indeterminate=false;}); rcCount(); }
+  // A group's own box follows its items: all, none, or somewhere between.
+  function rcSync(){ document.querySelectorAll('#rcItems .rcGroup').forEach(gb=>{
+      const mine=rcBoxes().filter(b=>b.dataset.g===gb.dataset.g), on=mine.filter(b=>b.checked).length;
+      gb.checked=on===mine.length; gb.indeterminate=on>0&&on<mine.length; }); rcCount(); }
+  function rcCount(){ const n=rcBoxes().filter(b=>b.checked).length; document.getElementById('rcCount').textContent=n+' of '+rcBoxes().length+' selected'; }
+  function makeRatecard(){
+    const err=document.getElementById('rcError'), fail=t=>{ err.textContent=t; err.style.display='block'; };
+    err.style.display='none';
+    const company=document.getElementById('rcCompany').value.trim();
+    const discount=parseFloat(document.getElementById('rcDiscount').value);
+    const items=rcBoxes().filter(b=>b.checked).map(b=>b.value);
+    if(!company) return fail('Enter the company name.');
+    if(!(discount>=0&&discount<=50)) return fail('The discount must be between 0 and 50.');
+    if(!items.length) return fail('Tick at least one item.');
+    const f=document.createElement('form'); f.method='POST'; f.target='_blank'; f.action='/api/method/luuvcrm.api.print_ratecard'; f.style.display='none';
+    [['csrf_token',CSRF],['company',company],['discount',discount],['items',JSON.stringify(items)]].forEach(([k,v])=>{ const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; f.appendChild(i); });
+    document.body.appendChild(f); f.submit(); f.remove();
+  }
+
   // The profit-and-loss statement for whatever range this tab is on, as a page
   // to print or save as a PDF. A new tab: it is a document, not a screen of the
   // app, and closing it lands back here.

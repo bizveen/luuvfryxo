@@ -186,3 +186,39 @@ class TestTheDownload(RateCardTestCase):
         made_from = pdf.call_args[0][0]
         self.assertNotIn("Download PDF", made_from)
         self.assertIn("Special Rates for Acme Tours", made_from)
+
+
+class TestTheManagerPage(FrappeTestCase):
+    """The tab is strings in a page nobody re-reads: a renamed endpoint fails as
+    a dead button on the manager's phone, not as an error."""
+
+    def setUp(self):
+        super().setUp()
+        self.html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "manager.html"))
+
+    def test_the_tab_the_menu_row_and_the_switch_are_all_there(self):
+        self.assertIn('id="tabRatecard"', self.html)
+        self.assertIn("moreGo('ratecard')", self.html)
+        self.assertIn("t==='ratecard'?'block':'none'", self.html)
+        self.assertIn("t==='ratecard') loadRatecard()", self.html)
+
+    def test_the_more_menu_still_lights_up_for_it(self):
+        """The bottom bar has no button of its own for the tab; without this it
+        would leave nothing highlighted."""
+        self.assertIn("t==='ratecard')?'more':t", self.html)
+
+    def test_it_talks_to_endpoints_that_exist(self):
+        for name in ("get_ratecard_menu", "print_ratecard"):
+            self.assertIn(f"luuvcrm.api.{name}", self.html)
+            frappe.is_whitelisted(frappe.get_attr(f"luuvcrm.api.{name}"))
+
+    def test_the_result_opens_in_a_new_tab_through_a_post_with_the_token(self):
+        self.assertIn("f.method='POST'; f.target='_blank'", self.html)
+        self.assertIn("['csrf_token',CSRF]", self.html)
+
+    def test_the_form_asks_for_exactly_what_the_endpoint_takes(self):
+        import inspect
+        for field in inspect.signature(ratecard.print_ratecard).parameters:
+            if field == "format":
+                continue
+            self.assertIn(f"['{field}'," if field != "company" else "['company'", self.html)
