@@ -258,6 +258,8 @@ from luuvcrm.api.owner import (
 )
 from luuvcrm.api.payments import (
     _set_cash_tender,
+    _tour_stamp,
+    get_tour_company_options,
     pay_split,
     place_order,
     process_payment,

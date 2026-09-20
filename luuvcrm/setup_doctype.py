@@ -212,6 +212,17 @@ CUSTOM_FIELDS = [
     {"dt": "Sales Invoice", "fieldname": "pos_order", "label": "POS Order", "fieldtype": "Link",
      "options": "POS Order", "read_only": 1, "insert_after": "remarks"},
 
+    # The tour or transport company a bill was booked under. The guest pays the
+    # full price; the company's discount is tracked as a commission, worked out
+    # from these when the statement is made. `tour_discount` is the company's
+    # percent *as it was on the day*, so raising it later does not restate old
+    # sales. Only POS Invoice: every sale here becomes one (_invoice_doctype_for).
+    {"dt": "POS Invoice", "fieldname": "tour_company", "label": "Tour Company", "fieldtype": "Link",
+     "options": "Tour Company", "read_only": 1, "no_copy": 1, "insert_after": "remarks"},
+    {"dt": "POS Invoice", "fieldname": "tour_discount", "label": "Tour Discount %", "fieldtype": "Float",
+     "read_only": 1, "no_copy": 1, "insert_after": "tour_company",
+     "description": "The company's discount when this bill was raised"},
+
     # Invoice lines carry the takeaway flag through to the printed bill
     {"dt": "POS Invoice Item", "fieldname": "takeaway", "label": "Takeaway", "fieldtype": "Check",
      "default": "0", "insert_after": "rate", "in_list_view": 1},

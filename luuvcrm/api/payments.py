@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
-from luuvcrm import activity
+from luuvcrm import activity, roles
 from luuvcrm.api.guides import (
     GUIDE_CASHBACK_INCLUDES_SERVICE_CHARGE,
     _credit_guide_cashback,
@@ -47,6 +47,37 @@ def _set_cash_tender(invoice, payment_mode, tendered, grand_total):
     if payment_mode == "Cash" and t > (grand_total or 0):
         invoice.custom_tendered_amount = t
         invoice.custom_change_returned = round(t - grand_total, 2)
+def _tour_stamp(raw):
+    """The fields that book an invoice under a Tour Company, or {} for none.
+
+    Validated before anything is created, so a company that was removed while
+    the payment dialog was open fails the payment loudly rather than billing a
+    sale nobody can find in the company's statement. The discount is copied, not
+    linked: what the company was on the day is what the statement must say.
+    No money changes here — the guest pays the full price either way.
+    """
+    name = " ".join(str(raw or "").split())
+    if not name:
+        return {}
+    row = frappe.db.get_value("Tour Company", name, ["name", "discount_percent", "disabled"], as_dict=True) \
+        if frappe.db.exists("DocType", "Tour Company") else None
+    if not row or row.disabled:
+        frappe.throw(_("{0} is not an active tour company").format(name))
+    return {"tour_company": row.name, "tour_discount": float(row.discount_percent or 0)}
+
+
+@frappe.whitelist()
+def get_tour_company_options():
+    """The companies the till can book a bill under: names only. The discount is
+    the manager's business — a cashier picks a company, not a price."""
+    roles.require_pos()
+    if not frappe.db.exists("DocType", "Tour Company"):
+        return {"companies": []}
+    return {"companies": frappe.get_all("Tour Company", filters={"disabled": 0},
+                                        order_by="company_name asc", pluck="name",
+                                        limit_page_length=0)}
+
+
 @frappe.whitelist(methods=["POST"])
 def place_order():
     data = frappe.local.form_dict
@@ -107,7 +138,9 @@ def place_order():
     else:
         payments.append({"mode_of_payment": payment_mode, "amount": net_due})
 
+    tour = _tour_stamp(data.get("tour_company"))
     invoice = frappe.get_doc({
+        **tour,
         "doctype": _invoice_doctype_for(pos_profile_name),
         "is_pos": 1,
         "pos_profile": pos_profile_name,
@@ -197,7 +230,8 @@ def place_order():
         detail={"payment_mode": payment_mode, "cash": cash_amount, "card": card_amount,
                 "subtotal": subtotal, "service_charge": sc_amount,
                 "guide_redeem": redeem_amt, "items": len(pos_items),
-                "order_type": order_type, "source": order_source})
+                "order_type": order_type, "source": order_source,
+                "tour_company": tour.get("tour_company")})
 
     return {
         "name": pos_order.name,
@@ -251,7 +285,9 @@ def process_payment():
     else:
         payments.append({"mode_of_payment": payment_mode, "amount": net_due})
 
+    tour = _tour_stamp(data.get("tour_company"))
     invoice = frappe.get_doc({
+        **tour,
         "doctype": _invoice_doctype_for(pos_profile_name),
         "is_pos": 1,
         "pos_profile": pos_profile_name,
@@ -302,7 +338,8 @@ def process_payment():
         flag_reason=flag, flag_note=note,
         detail={"payment_mode": payment_mode, "cash": cash_amount, "card": card_amount,
                 "discount": float(pos_order.get("discount_amount") or 0),
-                "guide_redeem": redeem_amt, "items": len(pos_order.items)})
+                "guide_redeem": redeem_amt, "items": len(pos_order.items),
+                "tour_company": tour.get("tour_company")})
 
     return {
         "name": order_name,
@@ -380,7 +417,9 @@ def pay_split():
     else:
         payments.append({"mode_of_payment": payment_mode, "amount": net_due})
 
+    tour = _tour_stamp(data.get("tour_company"))
     invoice = frappe.get_doc({
+        **tour,
         "doctype": _invoice_doctype_for(pos_profile_name),
         "is_pos": 1,
         "pos_profile": pos_profile_name,
@@ -435,7 +474,8 @@ def pay_split():
         amount=net_due, total_before=grand_total, total_after=net_due,
         flag_reason=flag, flag_note=note,
         detail={"payment_mode": payment_mode, "lines": len(invoice_items),
-                "guide_redeem": redeem_amt, "fully_paid": bool(fully_paid)})
+                "guide_redeem": redeem_amt, "fully_paid": bool(fully_paid),
+                "tour_company": tour.get("tour_company")})
 
     return {
         "name": order_name,
