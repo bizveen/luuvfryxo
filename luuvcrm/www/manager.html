@@ -208,6 +208,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Sales report</div>
             <div style="font-size:13.5px;color:var(--text-muted);" id="reportSub">—</div>
           </div>
+          <button class="monthBtn" id="pnlBtn" onclick="openPnl()" style="flex:none;"><i data-lucide="file-text"></i><span>P&amp;L statement</span></button>
         </div>
         <!-- range toggle + month picker -->
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;">
@@ -1005,6 +1006,13 @@ function lfPoll(fn, ms){
     document.querySelectorAll('#rangeToggle .rangeBtn').forEach(b=>b.classList.remove('active')); loadReports(true); }
   // the range args every report call in this tab shares
   function repArgs(){ if(!repMonth) return {days:repDays}; const r=monthRange(repMonth); return {start:r.start,end:r.end}; }
+  // The profit-and-loss statement for whatever range this tab is on, as a page
+  // to print or save as a PDF. A new tab: it is a document, not a screen of the
+  // app, and closing it lands back here.
+  function openPnl(){
+    const q=new URLSearchParams(repArgs()).toString();
+    window.open('/api/method/luuvcrm.api.print_manager_pnl?'+q,'_blank');
+  }
   async function loadReports(force){
     if(repLoaded && !force) return; repLoaded=true;
     loadFoodCost();

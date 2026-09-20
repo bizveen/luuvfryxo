@@ -334,6 +334,17 @@ from luuvcrm.api.purchases import (
     setup_purchase_payment_fields,
     setup_raw_materials,
 )
+from luuvcrm.api.pnl import (
+    _food_cost,
+    _money,
+    _period_label,
+    _row,
+    _sales,
+    _sum_expenses,
+    get_manager_pnl,
+    pnl_html,
+    print_manager_pnl,
+)
 from luuvcrm.api.reports import (
     _report_range,
     get_manager_bill_detail,
