@@ -247,7 +247,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <div style="font-size:12px;color:var(--text-faint);margin-bottom:14px;">Seats, packaging and staffing follow this split · this period</div>
           <div id="repOrderTypes" style="display:flex;flex-direction:column;gap:14px;"></div>
         </div>
-        <!-- food cost vs sales (approved purchases + wastage over the range) -->
+        <!-- food cost vs sales (approved purchases over the range) -->
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
           <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Sales vs costs</div>
           <div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">Food cost · overheads · profit — this period</div>
@@ -1052,7 +1052,7 @@ function lfPoll(fn, ms){
         </div>`
         +(noSales?`<div style="font-size:12.5px;color:var(--text-muted);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:9px 12px;">No sales in this period, so there is nothing to work a percentage out of. The costs below are still real — pick a longer range to see them against sales.</div>`:'')
         +bar('Total sales',m.revenue,noSales?null:100,'var(--color-primary)')
-        +bar('Food cost',m.food_cost,m.food_cost_pct,'var(--color-warning)','Purchases Rs '+nfmt(m.purchases)+' · Wastage Rs '+nfmt(m.wastage))
+        +bar('Food cost',m.food_cost,m.food_cost_pct,'var(--color-warning)','Approved purchase bills'+(m.wastage>0?' · Rs '+nfmt(m.wastage)+' wastage recorded, not added':''))
         +bar('Overheads',m.overhead,m.overhead_pct,'var(--color-info)','Approved expenses — rent, salaries, utilities…')
         +bar('Profit',Math.abs(m.profit),m.profit_pct==null?null:Math.abs(m.profit_pct),pTone,((m.profit||0)<0?'LOSS — costs exceeded sales this period':''));
     }catch(e){}

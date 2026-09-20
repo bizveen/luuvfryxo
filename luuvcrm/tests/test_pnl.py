@@ -293,3 +293,31 @@ class TestTheManagerPage(FrappeTestCase):
         the response under '/manager' — the app's offline fallback."""
         body = "\n".join(l.split("//")[0] for l in self.page("manager_sw.js").splitlines())
         self.assertIn("pathname !== '/manager'", body)
+
+
+class TestTheCardAndTheStatementAgree(PnlTestCase):
+    """Sales vs costs used to add wastage to food cost and the statement did not,
+    so two screens gave two profits for one month."""
+
+    def test_wastage_is_reported_but_not_added_to_food_cost(self):
+        if not frappe.db.exists("DocType", "Wastage"):
+            self.skipTest("no Wastage on this site")
+        self.bill(500)
+        doc = frappe.get_doc({"doctype": "Wastage", "cost": 77})
+        doc.insert(ignore_permissions=True, ignore_mandatory=True)
+        frappe.db.set_value("Wastage", doc.name, "creation", "2019-03-10 12:00:00",
+                            update_modified=False)
+        self.addCleanup(frappe.delete_doc, "Wastage", doc.name, force=True, ignore_permissions=True)
+        card = api.get_food_cost_report(**MONTH)
+        self.assertEqual(card["food_cost"], 500)
+        self.assertEqual(card["wastage"], 77)
+
+    def test_the_profit_is_the_same_on_both(self):
+        self.bill(500)
+        self.expense("Rent", 1000)
+        self.expense("Other", 40)
+        card = api.get_food_cost_report(**MONTH)
+        statement = self.report()
+        self.assertEqual(card["profit"], statement["profit"])
+        self.assertEqual(card["food_cost"], _line(statement, "costs", "Food cost"))
+        self.assertEqual(card["overhead"], statement["total_cost"] - card["food_cost"])

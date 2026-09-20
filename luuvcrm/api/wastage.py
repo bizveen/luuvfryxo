@@ -15,7 +15,7 @@ from luuvcrm.api.purchases import _buying_price_list
 # ─── Wastage log + food-cost report + approval comments ─────────────────────
 # Wastage = spoiled/discarded raw materials, costed from the buying price book
 # (same source as /purchases). No recipe/BOM data exists, so "meal cost" is a
-# period-level food-cost-% (purchases + wastage vs POS revenue), not per-dish.
+# period-level food-cost-% (purchases vs POS revenue; wastage is a memo), not per-dish.
 
 def _install_wastage():
     """One-time: Wastage DocType + POS Approval.manager_comment field.
@@ -107,8 +107,8 @@ def get_wastage(days=7):
     return {"rows": rows, "total": round(total, 2), "days": days}
 @frappe.whitelist()
 def get_food_cost_report(days=7, start=None, end=None):
-    """Sales vs costs for the range: food cost (approved purchase bills +
-    wastage), overheads (approved Expenses — rent/salaries/utilities etc.) and
+    """Sales vs costs for the range: food cost (approved purchase bills;
+    wastage is reported but not added), overheads (approved Expenses — rent/salaries/utilities etc.) and
     the resulting profit, all against POS revenue. Period-level (no recipes/BOM
     → no per-dish costing). The window is the last N days by default, or an
     explicit start/end — a whole calendar month picked in the UI.
@@ -150,7 +150,11 @@ def get_food_cost_report(days=7, start=None, end=None):
         select coalesce(sum(grand_total), 0) from `tabPOS Invoice`
         where docstatus = 1 and posting_date between %s and %s
     """ + inv_cond, (start, end) + inv_params)[0][0] or 0)
-    food_cost = round(purchases + wastage, 2)
+    # Food cost is what was bought. Wastage was bought on a bill already counted
+    # in `purchases`, so adding it counted the same money twice; it is still
+    # reported, as a memo. Same rule as the P&L statement (api/pnl.py), so the
+    # card and the statement agree on profit.
+    food_cost = round(purchases, 2)
     profit = round(revenue - food_cost - overhead, 2)
     # No sales, no percentage. It used to be 0, so a week with rent paid and
     # nothing sold read "0% overheads · 0% margin" beside a loss — a card that
