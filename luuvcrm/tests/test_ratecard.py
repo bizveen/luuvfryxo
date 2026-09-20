@@ -367,6 +367,42 @@ class TestTheManagerPage(FrappeTestCase):
         self.assertIn("f.method='POST'; f.target='_blank'", self.html)
         self.assertIn("['csrf_token',CSRF]", self.html)
 
+    def test_the_form_is_a_sheet_not_a_block_under_the_list(self):
+        """A long list pushed the form off the bottom of the screen."""
+        self.assertIn('id="rcOverlay"', self.html)
+        self.assertNotIn('id="rcForm"', self.html)
+        i, j = self.html.index('id="tcList"'), self.html.index('id="tcSales"')
+        for field in ('id="rcCompany"', 'id="rcDiscount"', 'id="rcItems"'):
+            self.assertNotIn(field, self.html[i:j], "the form is still inside the list view")
+            self.assertIn(field, self.html[self.html.index('id="rcOverlay"'):])
+
+    def test_new_and_edit_open_it_and_the_x_closes_it(self):
+        self.assertIn('onclick="rcNew()"', self.html)
+        self.assertIn('onclick="rcClose()"', self.html)
+        self.assertIn("function rcOpen()", self.html)
+        edit = self.html[self.html.index("async function rcEdit("):self.html.index("async function rcRemove(")]
+        self.assertIn("rcOpen();", edit)
+
+    def test_save_and_the_x_both_close_and_clear_it(self):
+        self.assertIn("toast('Saved '+v.company); rcClose();", self.html)
+        self.assertIn("function rcClose(){ document.getElementById('rcOverlay').style.display='none'; "
+                      "document.body.style.overflow=''; rcReset(); }", self.html)
+
+    def test_the_buttons_stay_in_view_and_only_the_middle_scrolls(self):
+        sheet = self.html[self.html.index('id="rcOverlay"'):self.html.index("<!-- Wastage sheet")]
+        self.assertIn('id="rcBody" style="flex:1;min-height:0;overflow-y:auto;', sheet)
+        self.assertIn("max-height:92vh;display:flex;flex-direction:column", sheet)
+        self.assertLess(sheet.index('id="rcBody"'), sheet.index('id="rcSave"'))
+        self.assertLess(sheet.index('id="rcSave"'), sheet.index("rcPreview()"))
+        # Save is outside the scrolling body
+        body_end = sheet.index('id="rcBody"') + sheet[sheet.index('id="rcBody"'):].index('</div>\n    <div style="flex:none;display:flex;gap:10px;')
+        self.assertGreater(sheet.index('id="rcSave"'), body_end)
+
+    def test_a_stray_tap_outside_does_not_throw_away_the_ticks(self):
+        sheet = self.html[self.html.index('id="rcOverlay"'):self.html.index("<!-- Wastage sheet")]
+        self.assertNotIn('onclick="rcClose()" style="position:fixed', sheet)
+        self.assertEqual(sheet.split(">", 1)[0].count("onclick"), 0)
+
     def test_a_saved_companys_button_prints_it_by_name(self):
         self.assertIn("print_ratecard?name='+encodeURIComponent(", self.html)
 

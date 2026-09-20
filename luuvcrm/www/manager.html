@@ -433,41 +433,16 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       <!-- SETTINGS (menu items: add / rename / reprice — POS reads these on its next refresh) -->
       <div id="tabRatecard" style="display:none;max-width:560px;animation:mgrFade var(--duration-base) var(--ease-out);">
         <div id="tcList">
-        <div style="margin-bottom:14px;">
-          <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Tour companies</div>
-          <div style="font-size:13.5px;color:var(--text-muted);">The tour and transport companies you serve. Tap one to see its sales and commission.</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px;">
+          <div>
+            <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Tour companies</div>
+            <div style="font-size:13.5px;color:var(--text-muted);">The tour and transport companies you serve. Tap one to see its sales and commission.</div>
+          </div>
+          <button class="monthBtn" onclick="rcNew()" style="flex:none;background:var(--color-primary);border-color:var(--color-primary);color:#fff;"><i data-lucide="plus"></i><span>New</span></button>
         </div>
         <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
           <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:8px;">Saved companies</div>
           <div id="rcSaved"><div style="font-size:13px;color:var(--text-muted);padding:6px 0;">Loading…</div></div>
-        </div>
-        <div id="rcForm" style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;display:flex;flex-direction:column;gap:14px;">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
-            <div id="rcFormTitle" style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">New company</div>
-            <span id="rcCancel" onclick="rcReset()" style="display:none;font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Cancel</span>
-          </div>
-          <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);">Company name
-            <input id="rcCompany" type="text" maxlength="80" autocomplete="off" placeholder="e.g. Blue Wave Tours" style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;font-size:15px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);">
-          </label>
-          <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);">Discount on menu prices (%)
-            <input id="rcDiscount" type="number" inputmode="decimal" min="0" max="50" step="0.5" value="10" style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;font-size:15px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);">
-            <span style="display:block;font-size:11.5px;font-weight:400;color:var(--text-faint);margin-top:4px;">0 to 50. Prices round up to the next Rs 10, never above the menu price.</span>
-          </label>
-          <div>
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px;">
-              <div style="font-size:13px;font-weight:700;color:var(--text-strong);">Items on the card</div>
-              <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="rcCount"></span>
-            </div>
-            <div style="font-size:12px;color:var(--text-faint);margin-bottom:8px;">Untick what should not be on this company's card.</div>
-            <div style="display:flex;gap:14px;margin-bottom:6px;">
-              <span onclick="rcAll(true)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select all</span>
-              <span onclick="rcAll(false)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select none</span>
-            </div>
-            <div id="rcItems" style="display:flex;flex-direction:column;"><div style="font-size:13px;color:var(--text-muted);padding:10px 0;">Loading the menu…</div></div>
-          </div>
-          <div id="rcError" style="display:none;font-size:13px;color:var(--color-danger);"></div>
-          <button class="lf-btn" id="rcSave" onclick="rcSave()">Save company</button>
-          <button class="lf-btn" onclick="rcPreview()" style="height:auto;padding:13px;font-size:15px;background:var(--surface-card);color:var(--text-body);border:1.5px solid var(--border-default);box-shadow:none;">Preview without saving</button>
         </div>
         </div>
         <div id="tcSales" style="display:none;">
@@ -684,6 +659,45 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <button onclick="hideMore();openGuides()" class="moreRow"><span class="moreIco">🧭</span><span style="flex:1;text-align:left;">Tour guides</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="hideMore();openWastage()" class="moreRow"><span class="moreIco">🗑️</span><span style="flex:1;text-align:left;">Wastage</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="location.href='/activity'" class="moreRow"><span class="moreIco">👀</span><span style="flex:1;text-align:left;">Staff activity</span><span id="actFlagPill" style="display:none;font-family:var(--font-mono);font-size:11.5px;font-weight:700;color:#fff;background:var(--color-danger);border-radius:var(--radius-pill);padding:3px 9px;margin-right:6px;"></span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+  </div>
+</div>
+
+<!-- Tour company sheet: add or edit a company. The header and the buttons stay put and only the middle scrolls, so a long menu never pushes Save out of reach. Closed by the X, not by a tap outside: half a menu of ticks is not worth losing to a stray touch. -->
+<div id="rcOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;">
+  <div style="width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);">
+    <div style="padding:12px 22px 10px;flex:none;">
+      <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 12px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div id="rcFormTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">New company</div>
+        <button onclick="rcClose()" aria-label="Close" style="flex:none;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      </div>
+    </div>
+    <div id="rcBody" style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 22px 14px;display:flex;flex-direction:column;gap:14px;">
+          <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);">Company name
+            <input id="rcCompany" type="text" maxlength="80" autocomplete="off" placeholder="e.g. Blue Wave Tours" style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;font-size:15px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);">
+          </label>
+          <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);">Discount on menu prices (%)
+            <input id="rcDiscount" type="number" inputmode="decimal" min="0" max="50" step="0.5" value="10" style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;font-size:15px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);">
+            <span style="display:block;font-size:11.5px;font-weight:400;color:var(--text-faint);margin-top:4px;">0 to 50. Prices round up to the next Rs 10, never above the menu price.</span>
+          </label>
+          <div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px;">
+              <div style="font-size:13px;font-weight:700;color:var(--text-strong);">Items on the card</div>
+              <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="rcCount"></span>
+            </div>
+            <div style="font-size:12px;color:var(--text-faint);margin-bottom:8px;">Untick what should not be on this company's card.</div>
+            <div style="display:flex;gap:14px;margin-bottom:6px;">
+              <span onclick="rcAll(true)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select all</span>
+              <span onclick="rcAll(false)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select none</span>
+            </div>
+            <div id="rcItems" style="display:flex;flex-direction:column;"><div style="font-size:13px;color:var(--text-muted);padding:10px 0;">Loading the menu…</div></div>
+          </div>
+          <div id="rcError" style="display:none;font-size:13px;color:var(--color-danger);"></div>
+    </div>
+    <div style="flex:none;display:flex;gap:10px;padding:12px 22px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--border-subtle);background:var(--surface-card);">
+      <button class="lf-btn" style="flex:2;" id="rcSave" onclick="rcSave()">Save company</button>
+      <button class="lf-btn" onclick="rcPreview()" style="height:auto;padding:13px;font-size:15px;background:var(--surface-card);color:var(--text-body);border:1.5px solid var(--border-default);box-shadow:none;">Preview without saving</button>
+    </div>
   </div>
 </div>
 
@@ -1088,7 +1102,7 @@ function lfPoll(fn, ms){
   async function rcReloadSaved(){ try{ const c=await rcCall('get_tour_companies'); rcSaved=c.companies||[]; renderRcSaved(); }catch(e){} }
   function renderRcSaved(){
     const wrap=document.getElementById('rcSaved');
-    if(!rcSaved.length){ wrap.innerHTML='<div style="font-size:13px;color:var(--text-muted);padding:6px 0;">No companies saved yet. Fill in the form below and press Save.</div>'; return; }
+    if(!rcSaved.length){ wrap.innerHTML='<div style="font-size:13px;color:var(--text-muted);padding:6px 0;">No companies saved yet. Tap New to add one.</div>'; return; }
     const pill='border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:7px 12px;font-family:var(--font-display);font-weight:700;font-size:12.5px;cursor:pointer;';
     wrap.innerHTML=rcSaved.map((c,i)=>{
       const gone=c.items-c.on_menu;
@@ -1102,10 +1116,9 @@ function lfPoll(fn, ms){
     const err=document.getElementById('rcError'); err.style.display='none';
     try{ const c=await rcCall('get_tour_company',{name:rcSaved[i].name});
       rcEditing=c.name; document.getElementById('rcFormTitle').textContent='Editing '+c.name;
-      document.getElementById('rcCancel').style.display='inline';
       document.getElementById('rcCompany').value=c.name; document.getElementById('rcDiscount').value=c.discount;
       const keep=new Set(c.items); rcBoxes().forEach(b=>b.checked=keep.has(b.value)); rcSync();
-      document.getElementById('rcForm').scrollIntoView({behavior:'smooth',block:'start'});
+      rcOpen();
     }catch(e){ toast(typeof e==='string'?e:'Could not open it'); rcReloadSaved(); }
   }
   async function rcRemove(i){
@@ -1114,10 +1127,16 @@ function lfPoll(fn, ms){
     try{ await rcCall('archive_tour_company',{name:name}); toast('Removed '+name); if(rcEditing===name) rcReset(); rcReloadSaved(); }
     catch(e){ toast(typeof e==='string'?e:'Could not remove it'); rcReloadSaved(); }
   }
+  // The sheet: New opens it blank, Edit opens it filled, the X closes and clears it.
+  function rcOpen(){ document.getElementById('rcOverlay').style.display='flex'; document.body.style.overflow='hidden';
+    document.getElementById('rcBody').scrollTop=0; icons(); }
+  function rcClose(){ document.getElementById('rcOverlay').style.display='none'; document.body.style.overflow=''; rcReset(); }
+  function rcNew(){ rcReset(); rcOpen(); setTimeout(()=>document.getElementById('rcCompany').focus(),50); }
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.getElementById('rcOverlay').style.display==='flex') rcClose(); });
   // Back to a blank form: nothing being edited, every item ticked.
   function rcReset(){
     rcEditing=null; document.getElementById('rcFormTitle').textContent='New company';
-    document.getElementById('rcCancel').style.display='none'; document.getElementById('rcError').style.display='none';
+    document.getElementById('rcError').style.display='none';
     document.getElementById('rcCompany').value=''; document.getElementById('rcDiscount').value='10'; rcAll(true);
   }
   function renderRatecardItems(){
@@ -1151,7 +1170,7 @@ function lfPoll(fn, ms){
     const v=rcRead(); if(!v) return;
     const btn=document.getElementById('rcSave'), err=document.getElementById('rcError'); btn.disabled=true;
     try{ await rcCall('save_tour_company',{company:v.company,discount:v.discount,items:JSON.stringify(v.items),original:rcEditing||''});
-      toast('Saved '+v.company); rcReset(); rcReloadSaved();
+      toast('Saved '+v.company); rcClose(); rcReloadSaved();
     }catch(e){ err.textContent=typeof e==='string'?e:'Connection error'; err.style.display='block'; }
     btn.disabled=false;
   }
