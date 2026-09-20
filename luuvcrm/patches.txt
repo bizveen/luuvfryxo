@@ -15,3 +15,4 @@ luuvcrm.patches.v1_0.add_menu_available_field
 luuvcrm.patches.v1_0.add_table_enabled_field
 luuvcrm.patches.v1_0.add_purchaser_role
 luuvcrm.patches.v1_0.backfill_purchase_date
+luuvcrm.patches.v1_0.add_pnl_expense_categories

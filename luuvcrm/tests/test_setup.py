@@ -382,3 +382,58 @@ class TestTheShapeIsDeclaredInOnePlace(FrappeTestCase):
         import inspect
         src = inspect.getsource(setup.ensure_doctypes)
         self.assertNotIn("insert(", src)
+
+
+class TestThePnlExpenseCategories(FrappeTestCase):
+    """The profit-and-loss statement has a line for each of these. A live site's
+    Expense Category table is not empty, so the seed never runs there — the patch
+    is the only way they arrive."""
+
+    def setUp(self):
+        from luuvcrm.api.expenses import PNL_EXPENSE_CATEGORIES
+        if not frappe.db.exists("DocType", "Expense Category"):
+            self.skipTest("no Expense Category on this site")
+        self.wanted = PNL_EXPENSE_CATEGORIES
+
+    def _drop(self):
+        for name in self.wanted:
+            frappe.db.delete("Expense Category", {"name": name})
+
+    def _run(self):
+        from luuvcrm.patches.v1_0 import add_pnl_expense_categories
+        add_pnl_expense_categories.execute()
+
+    def test_there_are_eight_and_a_fresh_site_seeds_them_too(self):
+        from luuvcrm.api.expenses import EXPENSE_CATEGORIES
+        self.assertEqual(len(self.wanted), 8)
+        self.assertTrue(set(self.wanted) <= set(EXPENSE_CATEGORIES))
+        self.assertEqual(len(EXPENSE_CATEGORIES), len(set(EXPENSE_CATEGORIES)))
+
+    def test_a_live_site_is_topped_up(self):
+        if not frappe.db.count("Expense Category"):
+            self.skipTest("no category to make the site look live")
+        self._drop()
+        frappe.get_doc({"doctype": "Expense Category", "category_name": "_LFT Rent"}).insert(
+            ignore_permissions=True)
+        self._run()
+        for name in self.wanted:
+            self.assertTrue(frappe.db.exists("Expense Category", name), name)
+
+    def test_running_it_twice_changes_nothing(self):
+        self._run()
+        before = frappe.db.count("Expense Category")
+        self._run()
+        self.assertEqual(frappe.db.count("Expense Category"), before)
+
+    def test_a_category_the_manager_disabled_is_left_disabled(self):
+        self._run()
+        frappe.db.set_value("Expense Category", self.wanted[0], "disabled", 1)
+        self._run()
+        self.assertEqual(frappe.db.get_value("Expense Category", self.wanted[0], "disabled"), 1)
+
+    def test_an_empty_table_is_not_refilled(self):
+        """Empty means a manager cleared it on purpose, or a fresh site whose
+        seed has it covered."""
+        frappe.db.delete("Expense Category")
+        self._run()
+        self.assertEqual(frappe.db.count("Expense Category"), 0)

@@ -22,7 +22,15 @@ from luuvcrm.api.shifts import _open_shift_name, _resolve_pos_profile_name
 EXPENSE_CATEGORIES = [
     "Electricity", "Water", "Gas (LP)", "Rent", "Internet/Phone", "Salaries/Wages",
     "Repairs & Maintenance", "Transport/Fuel", "Cleaning & Consumables", "Licences/Fees", "Other",
+    # The lines of the printed profit-and-loss statement that had no category.
+    # A live site gets these from patches.v1_0.add_pnl_expense_categories; a
+    # fresh one from this list (its patches are marked done without running).
+    "Advertising", "Office Supplies", "Employee Houses Rent", "Staff Meals", "Staff Medical",
+    "Municipal Council", "Taxes", "Charities",
 ]
+# The eight above, for the patch: a site that already has categories is topped up
+# with these and nothing else.
+PNL_EXPENSE_CATEGORIES = EXPENSE_CATEGORIES[11:]
 def _ensure_select_option(doctype, fieldname, option):
     """Append an option to a Select on an existing custom DocType — Frappe rejects a value that
     isn't in `options`, so a new approval_type has to be registered before it can be used."""
