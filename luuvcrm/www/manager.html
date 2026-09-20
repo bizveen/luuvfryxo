@@ -434,9 +434,17 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       <div id="tabRatecard" style="display:none;max-width:560px;animation:mgrFade var(--duration-base) var(--ease-out);">
         <div style="margin-bottom:14px;">
           <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Tour menu / rate card</div>
-          <div style="font-size:13.5px;color:var(--text-muted);">A priced menu for one tour or transport company. Nothing is saved.</div>
+          <div style="font-size:13.5px;color:var(--text-muted);">The tour and transport companies you serve. Each has its own discount and its own items.</div>
         </div>
-        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;display:flex;flex-direction:column;gap:14px;">
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:8px;">Saved companies</div>
+          <div id="rcSaved"><div style="font-size:13px;color:var(--text-muted);padding:6px 0;">Loading…</div></div>
+        </div>
+        <div id="rcForm" style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+            <div id="rcFormTitle" style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">New company</div>
+            <span id="rcCancel" onclick="rcReset()" style="display:none;font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Cancel</span>
+          </div>
           <label style="display:block;font-size:13px;font-weight:700;color:var(--text-strong);">Company name
             <input id="rcCompany" type="text" maxlength="80" autocomplete="off" placeholder="e.g. Blue Wave Tours" style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;font-size:15px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);">
           </label>
@@ -444,21 +452,22 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <input id="rcDiscount" type="number" inputmode="decimal" min="0" max="50" step="0.5" value="10" style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;font-size:15px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);">
             <span style="display:block;font-size:11.5px;font-weight:400;color:var(--text-faint);margin-top:4px;">0 to 50. Prices round up to the next Rs 10, never above the menu price.</span>
           </label>
-        </div>
-        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px;">
-            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Items on the card</div>
-            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="rcCount"></span>
+          <div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px;">
+              <div style="font-size:13px;font-weight:700;color:var(--text-strong);">Items on the card</div>
+              <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="rcCount"></span>
+            </div>
+            <div style="font-size:12px;color:var(--text-faint);margin-bottom:8px;">Untick what should not be on this company's card.</div>
+            <div style="display:flex;gap:14px;margin-bottom:6px;">
+              <span onclick="rcAll(true)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select all</span>
+              <span onclick="rcAll(false)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select none</span>
+            </div>
+            <div id="rcItems" style="display:flex;flex-direction:column;"><div style="font-size:13px;color:var(--text-muted);padding:10px 0;">Loading the menu…</div></div>
           </div>
-          <div style="font-size:12px;color:var(--text-faint);margin-bottom:10px;">Untick what should not be on this card.</div>
-          <div style="display:flex;gap:14px;margin-bottom:6px;">
-            <span onclick="rcAll(true)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select all</span>
-            <span onclick="rcAll(false)" style="font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;">Select none</span>
-          </div>
-          <div id="rcItems" style="display:flex;flex-direction:column;"><div style="font-size:13px;color:var(--text-muted);padding:10px 0;">Loading the menu…</div></div>
+          <div id="rcError" style="display:none;font-size:13px;color:var(--color-danger);"></div>
+          <button class="lf-btn" id="rcSave" onclick="rcSave()">Save company</button>
+          <button class="lf-btn" onclick="rcPreview()" style="height:auto;padding:13px;font-size:15px;background:var(--surface-card);color:var(--text-body);border:1.5px solid var(--border-default);box-shadow:none;">Preview without saving</button>
         </div>
-        <div id="rcError" style="display:none;font-size:13px;color:var(--color-danger);margin-bottom:10px;"></div>
-        <button class="lf-btn" id="rcGo" onclick="makeRatecard()">Generate rate card</button>
       </div>
 
       <div id="tabSettings" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
@@ -1040,16 +1049,59 @@ function lfPoll(fn, ms){
   // the range args every report call in this tab shares
   function repArgs(){ if(!repMonth) return {days:repDays}; const r=monthRange(repMonth); return {start:r.start,end:r.end}; }
   // ── Tour menu / rate card ───────────────────────────────────────────────
-  // The form only collects: a company, a discount, and which items. The prices
-  // and the rounding are the server's, so the page cannot quote a number the
-  // card would not print. The result opens in a new tab through a real form
-  // POST — the item list does not fit in a URL — and closing it lands back here.
-  let rcLoaded=false, rcGroups=[];
+  // A saved company is a name, a discount and a list of item codes. The form only
+  // collects them; the prices and the rounding are the server's, so this page can
+  // never show a number the printed card would not. A card opens in a new tab: it
+  // is a document, not a screen of the app, and closing it lands back here. A saved
+  // company's card is a plain GET by name; only the unsaved preview needs a POST,
+  // because its item list does not fit in a URL.
+  let rcLoaded=false, rcGroups=[], rcSaved=[], rcEditing=null;
+  async function rcCall(method,data){
+    const r=await _post('/api/method/luuvcrm.api.'+method,data||{}); if(!r) throw 'Signed out';
+    const d=await r.json(); if(!r.ok) throw (srvErr(d)||'Something went wrong'); return d.message;
+  }
   async function loadRatecard(){
     if(rcLoaded) return;
-    try{ const r=await _post('/api/method/luuvcrm.api.get_ratecard_menu',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
-      rcGroups=m.groups||[]; rcLoaded=true; renderRatecardItems();
-    }catch(e){ document.getElementById('rcItems').innerHTML='<div style="font-size:13px;color:var(--color-danger);padding:10px 0;">Could not load the menu. Pull to refresh.</div>'; }
+    try{
+      const [m,c]=await Promise.all([rcCall('get_ratecard_menu'),rcCall('get_tour_companies')]);
+      rcGroups=(m&&m.groups)||[]; rcSaved=(c&&c.companies)||[]; rcLoaded=true;
+      renderRatecardItems(); renderRcSaved();
+    }catch(e){ document.getElementById('rcItems').innerHTML='<div style="font-size:13px;color:var(--color-danger);padding:10px 0;">Could not load the menu.</div>';
+      document.getElementById('rcSaved').innerHTML=''; }
+  }
+  async function rcReloadSaved(){ try{ const c=await rcCall('get_tour_companies'); rcSaved=c.companies||[]; renderRcSaved(); }catch(e){} }
+  function renderRcSaved(){
+    const wrap=document.getElementById('rcSaved');
+    if(!rcSaved.length){ wrap.innerHTML='<div style="font-size:13px;color:var(--text-muted);padding:6px 0;">No companies saved yet. Fill in the form below and press Save.</div>'; return; }
+    const pill='border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:7px 12px;font-family:var(--font-display);font-weight:700;font-size:12.5px;cursor:pointer;';
+    wrap.innerHTML=rcSaved.map((c,i)=>{
+      const gone=c.items-c.on_menu;
+      const sub=nfmt(c.discount)+'% off · '+c.on_menu+' item'+(c.on_menu===1?'':'s')+(gone>0?' · <span style="color:var(--color-warning);font-weight:700;">'+gone+' no longer on the menu</span>':'');
+      return `<div style="padding:12px 0;border-bottom:1px solid var(--border-subtle);"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:12.5px;color:var(--text-muted);margin:2px 0 9px;">${sub}</div><div style="display:flex;gap:8px;flex-wrap:wrap;"><button onclick="rcPrint(${i})" style="${pill}background:var(--color-primary);border-color:var(--color-primary);color:#fff;">Print / PDF</button><button onclick="rcEdit(${i})" style="${pill}">Edit</button><button onclick="rcRemove(${i})" style="${pill}color:var(--color-danger);">Remove</button></div></div>`;
+    }).join('');
+  }
+  function rcPrint(i){ window.open('/api/method/luuvcrm.api.print_ratecard?name='+encodeURIComponent(rcSaved[i].name),'_blank'); }
+  async function rcEdit(i){
+    const err=document.getElementById('rcError'); err.style.display='none';
+    try{ const c=await rcCall('get_tour_company',{name:rcSaved[i].name});
+      rcEditing=c.name; document.getElementById('rcFormTitle').textContent='Editing '+c.name;
+      document.getElementById('rcCancel').style.display='inline';
+      document.getElementById('rcCompany').value=c.name; document.getElementById('rcDiscount').value=c.discount;
+      const keep=new Set(c.items); rcBoxes().forEach(b=>b.checked=keep.has(b.value)); rcSync();
+      document.getElementById('rcForm').scrollIntoView({behavior:'smooth',block:'start'});
+    }catch(e){ toast(typeof e==='string'?e:'Could not open it'); rcReloadSaved(); }
+  }
+  async function rcRemove(i){
+    const name=rcSaved[i].name;
+    if(!confirm('Remove '+name+' from the list? Its rate card will no longer be available.')) return;
+    try{ await rcCall('archive_tour_company',{name:name}); toast('Removed '+name); if(rcEditing===name) rcReset(); rcReloadSaved(); }
+    catch(e){ toast(typeof e==='string'?e:'Could not remove it'); rcReloadSaved(); }
+  }
+  // Back to a blank form: nothing being edited, every item ticked.
+  function rcReset(){
+    rcEditing=null; document.getElementById('rcFormTitle').textContent='New company';
+    document.getElementById('rcCancel').style.display='none'; document.getElementById('rcError').style.display='none';
+    document.getElementById('rcCompany').value=''; document.getElementById('rcDiscount').value='10'; rcAll(true);
   }
   function renderRatecardItems(){
     const wrap=document.getElementById('rcItems');
@@ -1066,8 +1118,9 @@ function lfPoll(fn, ms){
       const mine=rcBoxes().filter(b=>b.dataset.g===gb.dataset.g), on=mine.filter(b=>b.checked).length;
       gb.checked=on===mine.length; gb.indeterminate=on>0&&on<mine.length; }); rcCount(); }
   function rcCount(){ const n=rcBoxes().filter(b=>b.checked).length; document.getElementById('rcCount').textContent=n+' of '+rcBoxes().length+' selected'; }
-  function makeRatecard(){
-    const err=document.getElementById('rcError'), fail=t=>{ err.textContent=t; err.style.display='block'; };
+  // What the form holds, or null after saying what is wrong with it.
+  function rcRead(){
+    const err=document.getElementById('rcError'), fail=t=>{ err.textContent=t; err.style.display='block'; return null; };
     err.style.display='none';
     const company=document.getElementById('rcCompany').value.trim();
     const discount=parseFloat(document.getElementById('rcDiscount').value);
@@ -1075,8 +1128,21 @@ function lfPoll(fn, ms){
     if(!company) return fail('Enter the company name.');
     if(!(discount>=0&&discount<=50)) return fail('The discount must be between 0 and 50.');
     if(!items.length) return fail('Tick at least one item.');
+    return {company,discount,items};
+  }
+  async function rcSave(){
+    const v=rcRead(); if(!v) return;
+    const btn=document.getElementById('rcSave'), err=document.getElementById('rcError'); btn.disabled=true;
+    try{ await rcCall('save_tour_company',{company:v.company,discount:v.discount,items:JSON.stringify(v.items),original:rcEditing||''});
+      toast('Saved '+v.company); rcReset(); rcReloadSaved();
+    }catch(e){ err.textContent=typeof e==='string'?e:'Connection error'; err.style.display='block'; }
+    btn.disabled=false;
+  }
+  // The card as it would print, without keeping it.
+  function rcPreview(){
+    const v=rcRead(); if(!v) return;
     const f=document.createElement('form'); f.method='POST'; f.target='_blank'; f.action='/api/method/luuvcrm.api.print_ratecard'; f.style.display='none';
-    [['csrf_token',CSRF],['company',company],['discount',discount],['items',JSON.stringify(items)]].forEach(([k,v])=>{ const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; f.appendChild(i); });
+    [['csrf_token',CSRF],['company',v.company],['discount',v.discount],['items',JSON.stringify(v.items)]].forEach(([k,x])=>{ const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=x; f.appendChild(i); });
     document.body.appendChild(f); f.submit(); f.remove();
   }
 

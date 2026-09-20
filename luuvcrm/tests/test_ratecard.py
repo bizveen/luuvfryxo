@@ -355,13 +355,26 @@ class TestTheManagerPage(FrappeTestCase):
         self.assertIn("t==='ratecard')?'more':t", self.html)
 
     def test_it_talks_to_endpoints_that_exist(self):
-        for name in ("get_ratecard_menu", "print_ratecard"):
-            self.assertIn(f"luuvcrm.api.{name}", self.html)
+        for name in ("get_ratecard_menu", "print_ratecard", "get_tour_companies", "get_tour_company",
+                     "save_tour_company", "archive_tour_company"):
+            # Reached by its full path, or through rcCall('<name>'), which adds the prefix.
+            self.assertTrue(f"luuvcrm.api.{name}" in self.html or f"rcCall('{name}'" in self.html, name)
             frappe.is_whitelisted(frappe.get_attr(f"luuvcrm.api.{name}"))
 
     def test_the_result_opens_in_a_new_tab_through_a_post_with_the_token(self):
         self.assertIn("f.method='POST'; f.target='_blank'", self.html)
         self.assertIn("['csrf_token',CSRF]", self.html)
+
+    def test_a_saved_companys_button_prints_it_by_name(self):
+        self.assertIn("print_ratecard?name='+encodeURIComponent(", self.html)
+
+    def test_the_list_offers_print_edit_and_remove(self):
+        for text in ("Print / PDF", "rcEdit(", "rcRemove(", 'id="rcSaved"'):
+            self.assertIn(text, self.html)
+
+    def test_saving_sends_what_the_endpoint_takes_and_the_name_it_was_opened_under(self):
+        self.assertIn("rcCall('save_tour_company',{company:v.company,discount:v.discount,"
+                      "items:JSON.stringify(v.items),original:rcEditing||''})", self.html)
 
     def test_the_form_asks_for_exactly_what_the_endpoint_takes(self):
         import inspect
