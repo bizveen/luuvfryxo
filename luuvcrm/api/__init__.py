@@ -380,6 +380,18 @@ from luuvcrm.api.reports import (
     get_manager_sales_report,
     get_manager_vendor_detail,
 )
+from luuvcrm.api.tour_report import (
+    _blank,
+    _m,
+    _pct_label,
+    _period,
+    _tidy,
+    _window,
+    build_report,
+    get_tour_report,
+    print_tour_statement,
+    statement_html,
+)
 from luuvcrm.api.routing import (
     route_app_requests,
 )
