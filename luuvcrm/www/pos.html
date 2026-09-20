@@ -392,8 +392,6 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     <div class="msum"><div class="r"><span>Items</span><span id="pmItems">0</span></div><div class="r"><span id="pmCtx">Table</span><span id="pmTable">—</span></div><div class="r tot"><span>Total</span><span class="mono" id="pmTotal">0</span></div></div>
     <!-- filled by renderPayModes() from the till's POS Profile -->
     <div class="pmodes" id="pmodes"></div>
-    <!-- Booked under a tour or transport company: a record only, the bill is the full price. Hidden while no company is saved. -->
-    <div class="field" id="pmTourField" style="display:none;"><label>Tour company <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label><select id="pmTour" style="width:100%;padding:11px 12px;border:1px solid var(--border-default);border-radius:var(--radius-md);font-size:15px;background:var(--surface-card);color:var(--text-strong);"></select></div>
     <div class="field" id="tenderField"><label>Amount tendered</label><input type="number" id="tendered" value="0" oninput="calcChange()"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:10px 14px;background:var(--orange-50);border-radius:var(--radius-md);"><span style="font-size:15px;font-weight:700;color:var(--text-body);">Return / Change</span><span class="mono" id="changeDue" style="font-size:28px;font-weight:900;line-height:1;color:var(--color-primary);">0</span></div></div>
     <div id="ccFields" style="display:none;"><div class="field"><label>Cash</label><input type="number" id="ccCash" value="0"></div><div class="field"><label>Card</label><input type="number" id="ccCard" value="0"></div></div>
     <div id="gdWrap" style="margin-top:10px;border-top:1px dashed var(--border-default);padding-top:8px;">
@@ -416,6 +414,11 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         </div>
         <div id="gdMsg" style="font-size:12px;color:var(--text-muted);margin-top:4px;"></div>
       </div>
+    </div>
+    <!-- Booked under a tour or transport company: a record only, the bill is the full price. Folded like the guide block, and hidden while no company is saved. -->
+    <div id="pmTourField" style="display:none;margin-top:10px;border-top:1px dashed var(--border-default);padding-top:8px;">
+      <button type="button" onclick="tourToggle()" style="background:none;border:none;cursor:pointer;font-size:13px;font-weight:700;color:var(--text-muted);padding:0;">🏢 Tour company <span id="pmTourLabel" style="font-weight:600;color:var(--color-primary);"></span></button>
+      <div id="pmTourBody" style="display:none;margin-top:8px;"><select id="pmTour" onchange="tourLabel()" style="width:100%;padding:11px 12px;border:1px solid var(--border-default);border-radius:var(--radius-md);font-size:15px;background:var(--surface-card);color:var(--text-strong);"></select></div>
     </div>
     <div class="merr" id="payErr"></div>
   </div>
@@ -1235,7 +1238,9 @@ function lfPoll(fn, ms){
   // the field stays hidden on a till with no company saved — nothing to pick, so
   // nothing to ask.
   async function refreshTour(ids){
-    ids.forEach(id=>{ const sel=document.getElementById(id); if(sel) sel.value=''; });
+    ids.forEach(id=>{ const sel=document.getElementById(id); if(sel) sel.value='';
+      const body=document.getElementById(id+'Body'), lab=document.getElementById(id+'Label');   // the pay dialog folds it; the split dialog shows it flat
+      if(body) body.style.display='none'; if(lab) lab.textContent=''; });
     try{ const r=await _post('/api/method/luuvcrm.api.get_tour_company_options',{}); if(!r) return; const d=await r.json();
       const names=(d.message&&d.message.companies)||[];
       ids.forEach(id=>{ const sel=document.getElementById(id), wrap=document.getElementById(id+'Field'); if(!sel||!wrap) return;
@@ -1244,6 +1249,9 @@ function lfPoll(fn, ms){
         wrap.style.display=names.length?'block':'none'; });
     }catch(e){ /* no list, no field — the till still takes the payment */ }
   }
+  function tourToggle(){ const b=document.getElementById('pmTourBody'); b.style.display=(b.style.display==='none'?'block':'none'); }
+  // The choice stays visible on the folded row, so a cashier can see it is set without opening it.
+  function tourLabel(){ const v=tourPicked('pmTour'); document.getElementById('pmTourLabel').textContent=v?'· '+v:''; }
   function tourPicked(id){ const sel=document.getElementById(id); return sel?sel.value:''; }
 
   // ── payment ──

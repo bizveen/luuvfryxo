@@ -170,6 +170,19 @@ class TestThePosPage(TourBillingTestCase):
         self.assertIn("luuvcrm.api.get_tour_company_options", self.html)
         frappe.is_whitelisted(frappe.get_attr("luuvcrm.api.get_tour_company_options"))
 
+    def test_the_pay_dialogs_choice_is_folded_like_the_guide_block_and_below_it(self):
+        self.assertIn('onclick="tourToggle()"', self.html)
+        self.assertIn('id="pmTourBody" style="display:none;', self.html)
+        self.assertLess(self.html.index('id="gdWrap"'), self.html.index('id="pmTourField"'))
+        self.assertLess(self.html.index('id="pmTourField"'), self.html.index('id="payErr"'))
+
+    def test_the_folded_row_shows_what_was_picked(self):
+        self.assertIn('onchange="tourLabel()"', self.html)
+        self.assertIn("'· '+v", self.html)
+
+    def test_a_new_dialog_starts_folded_and_empty(self):
+        self.assertIn("if(body) body.style.display='none'; if(lab) lab.textContent='';", self.html)
+
     def test_a_till_with_no_company_is_not_asked(self):
         self.assertIn("wrap.style.display=names.length?'block':'none'", self.html)
 
