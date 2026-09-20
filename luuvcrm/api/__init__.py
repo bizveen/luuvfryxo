@@ -354,6 +354,15 @@ from luuvcrm.api.pnl import (
     pnl_html,
     print_manager_pnl,
 )
+from luuvcrm.api.ratecard import (
+    _grouped,
+    _parse,
+    _priced_menu,
+    card_rate,
+    get_ratecard_menu,
+    print_ratecard,
+    ratecard_html,
+)
 from luuvcrm.api.reports import (
     _report_range,
     get_manager_bill_detail,
