@@ -253,23 +253,33 @@ class TestTheManagerPage(TourBillingTestCase):
         super().setUp()
         self.html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "manager.html"))
 
-    def test_the_tab_the_menu_row_and_the_switch_are_all_there(self):
-        self.assertIn('id="tabTourReport"', self.html)
-        self.assertIn("moreGo('tourreport')", self.html)
-        self.assertIn("t==='tourreport'?'block':'none'", self.html)
-        self.assertIn("t==='tourreport') loadTourReport()", self.html)
-        self.assertIn("t==='tourreport')?'more':t", self.html, "the More button must stay lit")
+    def test_the_report_is_not_a_tab_of_its_own(self):
+        """One link, one tab: the sales open from the company's row."""
+        self.assertNotIn('id="tabTourReport"', self.html)
+        self.assertNotIn("moreGo('tourreport')", self.html)
+        self.assertEqual(self.html.count("moreGo('ratecard')"), 1)
+        self.assertIn("Tour companies</span>", self.html)
 
-    def test_it_has_a_date_range_and_a_company_filter_that_reload_the_report(self):
-        for field in ('id="trStart"', 'id="trEnd"', 'id="trCompany"'):
+    def test_a_company_row_opens_its_sales_and_back_returns_to_the_list(self):
+        for text in ('id="tcList"', 'id="tcSales"', "onclick=\"tcOpen(${i})\"", 'onclick="tcBack()"',
+                     "function tcOpen(", "function tcBack("):
+            self.assertIn(text, self.html)
+
+    def test_it_has_a_date_range_that_reloads_the_report_and_no_company_picker(self):
+        for field in ('id="trStart"', 'id="trEnd"'):
             self.assertIn(field, self.html)
-        self.assertEqual(self.html.count("onchange=\"loadTourReport(true)\""), 3)
+        self.assertEqual(self.html.count('onchange="loadTourReport(true)"'), 2)
+        self.assertNotIn('id="trCompany"', self.html, "the company is the one that was tapped")
 
-    def test_it_asks_for_the_report_and_opens_the_statement_by_company_and_dates(self):
+    def test_it_asks_for_the_report_of_the_company_that_was_opened(self):
         self.assertIn("rcCall('get_tour_report',{start:start,end:end,company:company})", self.html)
+        self.assertIn("company=asked", self.html)
         self.assertIn("/api/method/luuvcrm.api.print_tour_statement?", self.html)
         for name in ("get_tour_report", "print_tour_statement"):
             frappe.is_whitelisted(frappe.get_attr(f"luuvcrm.api.{name}"))
+
+    def test_a_slow_answer_for_the_last_company_cannot_paint_over_the_next(self):
+        self.assertIn("if(asked!==tcCompany) return;", self.html)
 
     def test_the_statement_button_is_on_every_company_card(self):
         self.assertIn("Statement · Print / PDF", self.html)

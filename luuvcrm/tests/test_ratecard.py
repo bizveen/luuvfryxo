@@ -370,8 +370,8 @@ class TestTheManagerPage(FrappeTestCase):
     def test_a_saved_companys_button_prints_it_by_name(self):
         self.assertIn("print_ratecard?name='+encodeURIComponent(", self.html)
 
-    def test_the_list_offers_print_edit_and_remove(self):
-        for text in ("Print / PDF", "rcEdit(", "rcRemove(", 'id="rcSaved"'):
+    def test_the_list_offers_the_rate_card_edit_and_remove(self):
+        for text in ("Rate card</button>", "rcEdit(", "rcRemove(", 'id="rcSaved"'):
             self.assertIn(text, self.html)
 
     def test_saving_sends_what_the_endpoint_takes_and_the_name_it_was_opened_under(self):
