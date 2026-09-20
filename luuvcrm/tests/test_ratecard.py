@@ -352,7 +352,9 @@ class TestTheManagerPage(FrappeTestCase):
     def test_the_more_menu_still_lights_up_for_it(self):
         """The bottom bar has no button of its own for the tab; without this it
         would leave nothing highlighted."""
-        self.assertIn("t==='ratecard')?'more':t", self.html)
+        import re
+        lit = re.search(r"const bar=\(([^)]*)\)\?'more':t", self.html)
+        self.assertTrue(lit and "t==='ratecard'" in lit.group(1))
 
     def test_it_talks_to_endpoints_that_exist(self):
         for name in ("get_ratecard_menu", "print_ratecard", "get_tour_companies", "get_tour_company",

@@ -243,3 +243,38 @@ class TestTheDefaultWindow(TourReportTestCase):
     def test_a_reversed_range_is_put_right(self):
         r = api.get_tour_report(start=today(), end=add_days(today(), -3))
         self.assertEqual((r["start"], r["end"]), (str(add_days(today(), -3)), str(today())))
+
+
+class TestTheManagerPage(TourBillingTestCase):
+    """Strings in a page nobody re-reads: a renamed endpoint is a dead button on the
+    manager's phone, not an error."""
+
+    def setUp(self):
+        super().setUp()
+        self.html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "manager.html"))
+
+    def test_the_tab_the_menu_row_and_the_switch_are_all_there(self):
+        self.assertIn('id="tabTourReport"', self.html)
+        self.assertIn("moreGo('tourreport')", self.html)
+        self.assertIn("t==='tourreport'?'block':'none'", self.html)
+        self.assertIn("t==='tourreport') loadTourReport()", self.html)
+        self.assertIn("t==='tourreport')?'more':t", self.html, "the More button must stay lit")
+
+    def test_it_has_a_date_range_and_a_company_filter_that_reload_the_report(self):
+        for field in ('id="trStart"', 'id="trEnd"', 'id="trCompany"'):
+            self.assertIn(field, self.html)
+        self.assertEqual(self.html.count("onchange=\"loadTourReport(true)\""), 3)
+
+    def test_it_asks_for_the_report_and_opens_the_statement_by_company_and_dates(self):
+        self.assertIn("rcCall('get_tour_report',{start:start,end:end,company:company})", self.html)
+        self.assertIn("/api/method/luuvcrm.api.print_tour_statement?", self.html)
+        for name in ("get_tour_report", "print_tour_statement"):
+            frappe.is_whitelisted(frappe.get_attr(f"luuvcrm.api.{name}"))
+
+    def test_the_statement_button_is_on_every_company_card(self):
+        self.assertIn("Statement · Print / PDF", self.html)
+        self.assertIn("tourStatement(", self.html)
+
+    def test_the_boxes_offer_what_the_report_sums(self):
+        for text in ("Commission owed", "Sales at menu price", "Discounted price", "Day by day", "Items taken"):
+            self.assertIn(text, self.html)

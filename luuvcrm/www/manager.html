@@ -470,6 +470,23 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
         </div>
       </div>
 
+      <div id="tabTourReport" style="display:none;max-width:640px;animation:mgrFade var(--duration-base) var(--ease-out);">
+        <div style="margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Tour company sales</div>
+          <div style="font-size:13.5px;color:var(--text-muted);" id="trSub">Bills booked under a tour or transport company, and the commission each is owed.</div>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <label style="flex:1;min-width:130px;font-size:12.5px;font-weight:700;color:var(--text-strong);">From<input id="trStart" type="date" onchange="loadTourReport(true)" style="width:100%;box-sizing:border-box;margin-top:6px;padding:10px 11px;font-size:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);"></label>
+            <label style="flex:1;min-width:130px;font-size:12.5px;font-weight:700;color:var(--text-strong);">To<input id="trEnd" type="date" onchange="loadTourReport(true)" style="width:100%;box-sizing:border-box;margin-top:6px;padding:10px 11px;font-size:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);"></label>
+          </div>
+          <label style="display:block;margin-top:12px;font-size:12.5px;font-weight:700;color:var(--text-strong);">Company
+            <select id="trCompany" onchange="loadTourReport(true)" style="width:100%;box-sizing:border-box;margin-top:6px;padding:10px 11px;font-size:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);color:var(--text-strong);"><option value="">All companies</option></select>
+          </label>
+        </div>
+        <div id="trBody"><div style="font-size:13px;color:var(--text-muted);padding:10px 0;">Loading…</div></div>
+      </div>
+
       <div id="tabSettings" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
         <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Menu settings</div>
         <div style="font-size:13.5px;color:var(--text-muted);margin-bottom:14px;" id="setSub">—</div>
@@ -664,6 +681,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <button onclick="moreGo('reports')" class="moreRow"><span class="moreIco"><i data-lucide="line-chart"></i></span><span style="flex:1;text-align:left;">Reports</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="moreGo('purchases')" class="moreRow"><span class="moreIco"><i data-lucide="shopping-cart"></i></span><span style="flex:1;text-align:left;">Purchases</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="moreGo('ratecard')" class="moreRow"><span class="moreIco"><i data-lucide="file-text"></i></span><span style="flex:1;text-align:left;">Tour menu / rate card</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
+    <button onclick="moreGo('tourreport')" class="moreRow"><span class="moreIco"><i data-lucide="bar-chart-3"></i></span><span style="flex:1;text-align:left;">Tour company sales</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="moreGo('settings')" class="moreRow"><span class="moreIco"><i data-lucide="settings"></i></span><span style="flex:1;text-align:left;">Menu settings</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="hideMore();openGuides()" class="moreRow"><span class="moreIco">🧭</span><span style="flex:1;text-align:left;">Tour guides</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="hideMore();openWastage()" class="moreRow"><span class="moreIco">🗑️</span><span style="flex:1;text-align:left;">Wastage</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
@@ -801,7 +819,7 @@ function lfPoll(fn, ms){
       if(r.ok && d.message && d.message.ok){ toast((cashDir==='in'?'Cash in':'Cash out')+' recorded'); hideCash(); loadDashboard(); }
       else { err.textContent=(d.message&&d.message.message)||'Could not record'; err.style.display='block'; } }catch(e){ err.textContent='Connection error'; err.style.display='block'; } btn.disabled=false; }
 
-  function setTab(t){ tab=t; const bar=(t==='reports'||t==='purchases'||t==='settings'||t==='ratecard')?'more':t;
+  function setTab(t){ tab=t; const bar=(t==='reports'||t==='purchases'||t==='settings'||t==='ratecard'||t==='tourreport')?'more':t;
     document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===bar));
     document.getElementById('tabToday').style.display=t==='today'?'block':'none';
     document.getElementById('tabReports').style.display=t==='reports'?'block':'none';
@@ -810,10 +828,12 @@ function lfPoll(fn, ms){
     document.getElementById('tabPurchases').style.display=t==='purchases'?'block':'none';
     document.getElementById('tabSettings').style.display=t==='settings'?'block':'none';
     document.getElementById('tabRatecard').style.display=t==='ratecard'?'block':'none';
+    document.getElementById('tabTourReport').style.display=t==='tourreport'?'block':'none';
     if(t==='purchases') loadPurchases();
     if(t==='approvals') loadApprovals();
     if(t==='settings') loadSettings();
     if(t==='ratecard') loadRatecard();
+    if(t==='tourreport') loadTourReport();
     if(t==='reports') loadReports(); icons(); }
 
   function hourLabel(h){ const ap=h<12?'a':'p'; let hh=h%12; if(hh===0) hh=12; return hh+ap; }
@@ -1144,6 +1164,44 @@ function lfPoll(fn, ms){
     const f=document.createElement('form'); f.method='POST'; f.target='_blank'; f.action='/api/method/luuvcrm.api.print_ratecard'; f.style.display='none';
     [['csrf_token',CSRF],['company',v.company],['discount',v.discount],['items',JSON.stringify(v.items)]].forEach(([k,x])=>{ const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=x; f.appendChild(i); });
     document.body.appendChild(f); f.submit(); f.remove();
+  }
+
+  // ── Tour company sales ──────────────────────────────────────────────────
+  // The bills the till booked under each company over a range, and the commission
+  // each is owed. Everything is worked out on the server, from the invoices, the
+  // way the printed statement is — so the screen and the statement cannot differ.
+  // First open asks for no dates and the server answers with this month so far,
+  // which fills the two boxes; after that the boxes drive it.
+  let trLoaded=false;
+  const tm=v=>(+v||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2});
+  async function loadTourReport(force){
+    if(trLoaded && !force) return;
+    const body=document.getElementById('trBody'), start=document.getElementById('trStart').value, end=document.getElementById('trEnd').value, company=document.getElementById('trCompany').value;
+    if(start&&end&&start>end){ body.innerHTML='<div style="font-size:13px;color:var(--color-danger);padding:10px 0;">The start date is after the end date.</div>'; return; }
+    try{ const m=await rcCall('get_tour_report',{start:start,end:end,company:company}); trLoaded=true;
+      document.getElementById('trStart').value=m.start; document.getElementById('trEnd').value=m.end;
+      const sel=document.getElementById('trCompany'), keep=sel.value;
+      sel.innerHTML='<option value="">All companies</option>'+m.names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join(''); sel.value=keep;
+      renderTourReport(m);
+    }catch(e){ body.innerHTML='<div style="font-size:13px;color:var(--color-danger);padding:10px 0;">'+esc(typeof e==='string'?e:'Could not load the report.')+'</div>'; }
+  }
+  function tourStatement(company,start,end){
+    window.open('/api/method/luuvcrm.api.print_tour_statement?'+new URLSearchParams({company:company,start:start,end:end}).toString(),'_blank');
+  }
+  function renderTourReport(m){
+    const body=document.getElementById('trBody');
+    document.getElementById('trSub').textContent=m.period+' · bills booked under a tour or transport company';
+    const box=(label,val,tone)=>`<div style="flex:1;min-width:110px;"><div style="font-size:11.5px;color:var(--text-faint);">${label}</div><div class="mono" style="font-weight:600;font-size:17px;color:${tone||'var(--text-strong)'};">${val}</div></div>`;
+    if(!m.companies.length){ body.innerHTML='<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:22px;text-align:center;font-size:13.5px;color:var(--text-muted);">No bills were booked under '+(m.company?esc(m.company):'a tour company')+' in this period.</div>'; return; }
+    const t=m.totals, sec='font-size:12.5px;font-weight:700;color:var(--color-primary);cursor:pointer;padding:6px 0;';
+    let html=`<div style="background:var(--surface-brand);color:#fff;border-radius:var(--radius-xl);padding:18px 20px;box-shadow:var(--shadow-brand);margin-bottom:14px;"><div style="font-size:13px;font-weight:600;opacity:.85;letter-spacing:.04em;">Commission owed</div><div class="mono" style="font-weight:500;font-size:30px;letter-spacing:-.02em;margin-top:2px;">Rs ${tm(t.commission)}</div><div style="display:flex;gap:18px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.22);"><div><div style="font-size:12px;opacity:.82;">Bills</div><div class="mono" style="font-size:16px;">${t.bills}</div></div><div><div style="font-size:12px;opacity:.82;">Sales at menu price</div><div class="mono" style="font-size:16px;">Rs ${tm(t.menu)}</div></div><div><div style="font-size:12px;opacity:.82;">Discounted price</div><div class="mono" style="font-size:16px;">Rs ${tm(t.discounted)}</div></div></div></div>`;
+    html+=m.companies.map(c=>{
+      const days=c.days.map(d=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border-subtle);font-size:13px;"><span style="flex:1;color:var(--text-body);">${esc(d.date)} <span style="color:var(--text-faint);">· ${d.bills} bill${d.bills===1?'':'s'}</span></span><span class="mono" style="color:var(--text-muted);">${tm(d.menu)}</span><span class="mono" style="width:78px;text-align:right;color:var(--text-strong);">${tm(d.commission)}</span></div>`).join('');
+      const items=c.items.map(i=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border-subtle);font-size:13px;"><span style="flex:1;color:var(--text-body);">${esc(i.name)} <span style="color:var(--text-faint);">× ${tm(i.qty)}</span></span><span class="mono" style="color:var(--text-muted);">${tm(i.menu)}</span><span class="mono" style="width:78px;text-align:right;color:var(--text-strong);">${tm(i.commission)}</span></div>`).join('');
+      const legend='<div style="display:flex;gap:8px;font-size:11px;color:var(--text-faint);padding-bottom:2px;"><span style="flex:1;"></span><span>Sales</span><span style="width:78px;text-align:right;">Commission</span></div>';
+      return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;"><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">${esc(c.company)}</div><span style="font-size:12px;color:var(--text-faint);">${esc(c.discount_label)} discount</span></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">${box('Bills',c.bills)}${box('Sales',tm(c.menu))}${box('Discounted',tm(c.discounted))}${box('Commission',tm(c.commission),'var(--color-success)')}</div><details style="margin-bottom:4px;"><summary style="${sec}">Day by day</summary>${legend}${days}</details><details style="margin-bottom:12px;"><summary style="${sec}">Items taken</summary>${legend}${items}</details><button class="lf-btn" onclick="tourStatement(${esc(JSON.stringify(c.company)).replace(/'/g,'&#39;')},'${m.start}','${m.end}')" style="height:auto;padding:12px;font-size:14.5px;">Statement · Print / PDF</button></div>`;
+    }).join('');
+    body.innerHTML=html;
   }
 
   // The profit-and-loss statement for whatever range this tab is on, as a page
