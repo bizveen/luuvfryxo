@@ -1,8 +1,12 @@
 """The rate card: a priced menu, made for one tour or transport company.
 
-The manager types the company's name, a discount, and unticks what does not
-belong on this card; out comes a clean page to print or keep as a PDF, with the
-company's name at the top. Nothing is saved — the form is the whole of it.
+The manager saves a Tour Company — its name, a discount, and the items that
+belong on its card — and prints the card whenever one is wanted; out comes a
+clean page to print or keep as a PDF with the company's name at the top. A card
+can also be made without saving, as a preview.
+
+"Company" here is the tour or transport company that buys service from the
+restaurant, never the ERPNext Company (which is the restaurant itself).
 
 Decisions worth knowing before changing anything:
 
@@ -15,6 +19,12 @@ Decisions worth knowing before changing anything:
   keeps a 0% card, or an item whose menu price is not a multiple of ten, from
   quoting *more* than the menu — a "special rate" dearer than the menu is not
   one.
+* **A saved company keeps item codes, not prices.** Prices are read from the menu
+  each time a card is printed, so a menu price change reaches every card without
+  anyone re-saving it. An item added to the menu later is not on an existing
+  card until it is ticked: what a client is handed should not change unseen.
+* **Nothing is deleted**, only disabled — Phase 2 books tables under a company,
+  and a company with history has to stay resolvable.
 * **The service charge is a footnote, not arithmetic.** Prices are before it.
 """
 
@@ -26,8 +36,9 @@ from frappe import _
 from frappe.sessions import get_csrf_token
 from luuvcrm import roles, settings
 from luuvcrm.api import menu
+from luuvcrm.zeloura.doctype.tour_company.tour_company import MAX_DISCOUNT, parse_items
 
-MAX_DISCOUNT = 50.0
+DT = "Tour Company"
 ROUND_TO = 10
 SERVICE_NOTE = "+ 10% Service Charge will be added"
 
@@ -79,24 +90,19 @@ def _parse(company, discount, items):
         frappe.throw(_("The discount must be a number"))
     if not 0 <= discount <= MAX_DISCOUNT:
         frappe.throw(_("The discount must be between 0 and {0}%").format(int(MAX_DISCOUNT)))
-    if isinstance(items, str):
-        try:
-            items = json.loads(items or "[]")
-        except ValueError:
-            items = []
-    wanted = {str(c) for c in (items or [])}
+    wanted = set(parse_items(items))
     chosen = [e for e in _priced_menu() if e["code"] in wanted]
     if not chosen:
         frappe.throw(_("Pick at least one item for the rate card"))
     return company, discount, chosen
 
 
-def ratecard_html(company, discount, entries, toolbar=False, form=None):
+def ratecard_html(company, discount, entries, toolbar=False, form=None, pdf_url=None):
     """The card as one self-contained page.
 
     `toolbar` adds the Print and Download PDF buttons — for the manager's screen
-    only. `form` is the fields to send back for the PDF, which has to be a POST
-    because the item list does not fit in a URL.
+    only. A saved company's PDF is a link (`pdf_url`); an unsaved card's is a POST
+    of `form`, because its item list does not fit in a URL.
     """
     esc = frappe.utils.escape_html
     body = []
@@ -106,13 +112,17 @@ def ratecard_html(company, discount, entries, toolbar=False, form=None):
             for e in items)
         body.append(f'<h3>{esc(group)}</h3><table>{rows}</table>')
     bar = ""
-    if toolbar and form:
-        hidden = "".join(f'<input type="hidden" name="{esc(k)}" value="{esc(str(v))}">'
-                         for k, v in form.items())
+    if toolbar and (pdf_url or form):
+        if pdf_url:
+            pdf = f'<a class="alt" href="{esc(pdf_url)}">Download PDF</a>'
+        else:
+            hidden = "".join(f'<input type="hidden" name="{esc(k)}" value="{esc(str(v))}">'
+                             for k, v in form.items())
+            pdf = (f'<form method="POST" action="/api/method/luuvcrm.api.print_ratecard">{hidden}'
+                   '<input type="hidden" name="format" value="pdf">'
+                   '<button class="alt" type="submit">Download PDF</button></form>')
         bar = ('<div class="bar no-print"><button onclick="window.print()">Print / Save as PDF</button>'
-               f'<form method="POST" action="/api/method/luuvcrm.api.print_ratecard">{hidden}'
-               '<input type="hidden" name="format" value="pdf">'
-               '<button class="alt" type="submit">Download PDF</button></form></div>')
+               f'{pdf}</div>')
     brand = f'{esc(settings.get("brand_name") or "")} {esc(settings.get("outlet_line") or "")}'.strip()
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -125,7 +135,8 @@ td{{padding:6px 4px;border-bottom:1px solid #e7e5e4}} td.n{{text-align:right;whi
 .foot{{margin-top:26px;font-size:12px;color:#57534e;text-align:center}}
 .bar{{display:flex;gap:12px;align-items:center;margin-bottom:16px}} .bar form{{margin:0}}
 .bar button{{padding:9px 16px;font-size:14px;font-weight:700;border:0;border-radius:8px;background:#F15207;color:#fff}}
-.bar button.alt{{background:#44403c}}
+.bar button.alt,.bar a.alt{{background:#44403c}}
+.bar a.alt{{color:#fff;text-decoration:none;padding:9px 16px;font-size:14px;font-weight:700;border-radius:8px}}
 @media print{{.no-print{{display:none}} body{{padding:0}}}}
 </style></head><body>{bar}
 <h1>Special Rates for {esc(company)}</h1><div class="brand">{brand}</div>
@@ -134,13 +145,106 @@ td{{padding:6px 4px;border-bottom:1px solid #e7e5e4}} td.n{{text-align:right;whi
 </body></html>"""
 
 
+def _company(name):
+    """A saved, enabled Tour Company — or an error a manager can read."""
+    name = " ".join((name or "").split())
+    if not name or not frappe.db.exists(DT, name):
+        frappe.throw(_("That company is not saved"), frappe.DoesNotExistError)
+    doc = frappe.get_doc(DT, name)
+    if doc.disabled:
+        frappe.throw(_("{0} has been removed").format(doc.company_name), frappe.DoesNotExistError)
+    return doc
+
+
 @frappe.whitelist()
-def print_ratecard(company=None, discount=0, items=None, format="html"):
-    """The rate card as a page to print (`html`) or a file to keep (`pdf`)."""
+def get_tour_companies():
+    """The saved companies, for the list beside the form."""
+    roles.require_manager()
+    on_menu = {e["code"] for e in _priced_menu()}
+    rows = frappe.get_all(DT, filters={"disabled": 0}, order_by="company_name asc",
+                          fields=["name", "discount_percent", "items"], limit_page_length=0)
+    out = []
+    for r in rows:
+        # r["items"], not r.items: on a row that is a dict, `.items` is the method.
+        codes = parse_items(r["items"])
+        out.append({"name": r.name, "discount": float(r.discount_percent or 0),
+                    "items": len(codes), "on_menu": len(set(codes) & on_menu)})
+    return {"companies": out}
+
+
+@frappe.whitelist()
+def get_tour_company(name=None):
+    """One saved company, for the form to edit."""
+    roles.require_manager()
+    doc = _company(name)
+    return {"name": doc.name, "discount": float(doc.discount_percent or 0),
+            "items": parse_items(doc.items)}
+
+
+@frappe.whitelist()
+def save_tour_company(company=None, discount=0, items=None, original=None):
+    """Add a company, or update one (`original` is the name it was opened under, so
+    a changed name is a rename and not a second company). Saving a company that
+    was removed brings it back rather than refusing its name."""
     roles.require_manager()
     company, discount, entries = _parse(company, discount, items)
+    codes = [e["code"] for e in entries]
+
+    if original:
+        doc = _company(original)
+        if company.lower() == doc.name.lower():
+            company = doc.name              # a change of case only is not a rename
+        elif frappe.db.exists(DT, company):
+            frappe.throw(_("{0} is already saved").format(company))
+        elif company != doc.name:
+            from frappe.model.rename_doc import rename_doc
+            rename_doc(DT, doc.name, company, force=True, ignore_permissions=True)
+            doc = frappe.get_doc(DT, company)
+    elif frappe.db.exists(DT, company):
+        doc = frappe.get_doc(DT, company)
+        if not doc.disabled:
+            frappe.throw(_("{0} is already saved. Open it from the list to change it.").format(doc.name))
+        doc.disabled = 0
+    else:
+        doc = frappe.new_doc(DT)
+
+    doc.company_name = company
+    doc.discount_percent = discount
+    doc.items = json.dumps(codes)
+    doc.flags.ignore_permissions = True     # the role check above is the gate
+    doc.save()
+    return {"ok": True, "name": doc.name, "discount": doc.discount_percent, "items": len(codes)}
+
+
+@frappe.whitelist()
+def archive_tour_company(name=None):
+    """Take a company off the list. Disabled, not deleted: a company with history
+    has to stay resolvable."""
+    roles.require_manager()
+    doc = _company(name)
+    doc.db_set("disabled", 1)
+    return {"ok": True, "name": doc.name}
+
+
+@frappe.whitelist()
+def print_ratecard(company=None, discount=0, items=None, format="html", name=None):
+    """The rate card as a page to print (`html`) or a file to keep (`pdf`).
+
+    `name` prints a saved company's card; without it, the card is made from the
+    company, discount and items given, and nothing is stored."""
+    roles.require_manager()
+    saved = bool(name)
+    if saved:
+        doc = _company(name)
+        company, discount, items = doc.company_name, doc.discount_percent, doc.items
+        try:
+            company, discount, entries = _parse(company, discount, items)
+        except frappe.ValidationError:
+            frappe.throw(_("None of {0}'s items are on the menu any more. Open the company and pick items.").format(company))
+    else:
+        company, discount, entries = _parse(company, discount, items)
     slug = "".join(ch if ch.isalnum() else "-" for ch in company.lower()).strip("-") or "company"
-    name = f"rate-card-{slug}"
+    file = f"rate-card-{slug}"
     if format == "pdf":
         from frappe.utils.pdf import get_pdf
         try:
@@ -149,12 +253,18 @@ def print_ratecard(company=None, discount=0, items=None, format="html"):
             # wkhtmltopdf is not on every server; the page still prints.
             frappe.throw(_("PDF files are not available on this server. Open the rate card and use Print → Save as PDF."))
         frappe.local.response.update({
-            "type": "download", "filename": name + ".pdf", "filecontent": pdf,
+            "type": "download", "filename": file + ".pdf", "filecontent": pdf,
             "content_type": "application/pdf", "display_content_as": "attachment"})
         return
-    form = {"csrf_token": get_csrf_token(), "company": company,
-            "discount": discount, "items": json.dumps([e["code"] for e in entries])}
+    if saved:
+        from urllib.parse import quote
+        page = ratecard_html(company, discount, entries, toolbar=True, pdf_url=(
+            "/api/method/luuvcrm.api.print_ratecard?format=pdf&name=" + quote(doc.name)))
+    else:
+        form = {"csrf_token": get_csrf_token(), "company": company,
+                "discount": discount, "items": json.dumps([e["code"] for e in entries])}
+        page = ratecard_html(company, discount, entries, toolbar=True, form=form)
     frappe.local.response.update({
-        "type": "download", "filename": name + ".html",
-        "filecontent": ratecard_html(company, discount, entries, toolbar=True, form=form),
+        "type": "download", "filename": file + ".html",
+        "filecontent": page,
         "content_type": "text/html", "display_content_as": "inline"})

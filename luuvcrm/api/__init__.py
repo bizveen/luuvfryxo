@@ -357,11 +357,16 @@ from luuvcrm.api.pnl import (
 from luuvcrm.api.ratecard import (
     _grouped,
     _parse,
+    _company,
     _priced_menu,
+    archive_tour_company,
     card_rate,
     get_ratecard_menu,
+    get_tour_companies,
+    get_tour_company,
     print_ratecard,
     ratecard_html,
+    save_tour_company,
 )
 from luuvcrm.api.reports import (
     _report_range,

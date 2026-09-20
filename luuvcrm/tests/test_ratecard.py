@@ -157,7 +157,8 @@ class TestWhatIsRefused(RateCardTestCase):
         previous = frappe.session.user
         frappe.set_user(email)
         self.addCleanup(frappe.set_user, previous)
-        for call in (api.get_ratecard_menu, api.print_ratecard):
+        for call in (api.get_ratecard_menu, api.print_ratecard, api.get_tour_companies,
+                     api.get_tour_company, api.save_tour_company, api.archive_tour_company):
             with self.subTest(endpoint=call.__name__):
                 with self.assertRaises(frappe.PermissionError):
                     call()
@@ -186,6 +187,152 @@ class TestTheDownload(RateCardTestCase):
         made_from = pdf.call_args[0][0]
         self.assertNotIn("Download PDF", made_from)
         self.assertIn("Special Rates for Acme Tours", made_from)
+
+
+class SavedCompanyTestCase(RateCardTestCase):
+    def save(self, company="_LFT Blue Wave", discount=10, items=("K1", "K2"), **kw):
+        out = api.save_tour_company(company=company, discount=discount,
+                                    items=json.dumps(list(items)), **kw)
+        self.addCleanup(lambda: [frappe.delete_doc("Tour Company", n, force=True, ignore_permissions=True)
+                                 for n in (out["name"], company) if frappe.db.exists("Tour Company", n)])
+        return out
+
+    def listed(self):
+        return {c["name"]: c for c in api.get_tour_companies()["companies"]}
+
+
+class TestSavingACompany(SavedCompanyTestCase):
+    def test_a_saved_company_is_listed_with_its_discount_and_items(self):
+        self.save(discount=12.5, items=("K1", "K2", "B1"))
+        c = self.listed()["_LFT Blue Wave"]
+        self.assertEqual((c["discount"], c["items"], c["on_menu"]), (12.5, 3, 3))
+
+    def test_it_can_be_read_back_for_editing(self):
+        self.save(items=("K1", "B1"))
+        self.assertEqual(api.get_tour_company(name="_LFT Blue Wave"),
+                         {"name": "_LFT Blue Wave", "discount": 10.0, "items": ["K1", "B1"]})
+
+    def test_an_item_that_is_not_on_the_menu_is_not_kept(self):
+        self.save(items=("K1", "NOPE", "X0"))          # X0 has no price
+        self.assertEqual(api.get_tour_company(name="_LFT Blue Wave")["items"], ["K1"])
+
+    def test_the_same_name_cannot_be_saved_twice(self):
+        self.save()
+        with self.assertRaises(frappe.ValidationError):
+            self.save()
+
+    def test_bad_input_is_refused_and_nothing_is_saved(self):
+        for kw in ({"discount": 51}, {"discount": -1}, {"items": ()}, {"items": ("NOPE",)},
+                   {"company": "  "}):
+            with self.subTest(kw=kw):
+                with self.assertRaises(frappe.ValidationError):
+                    self.save(**{"company": "_LFT Bad", **kw})
+        self.assertFalse(frappe.db.exists("Tour Company", "_LFT Bad"))
+
+    def test_a_company_can_be_updated(self):
+        self.save(discount=10, items=("K1",))
+        self.save(discount=20, items=("K1", "B1"), original="_LFT Blue Wave")
+        self.assertEqual(self.listed()["_LFT Blue Wave"]["discount"], 20)
+        self.assertEqual(api.get_tour_company(name="_LFT Blue Wave")["items"], ["K1", "B1"])
+        self.assertEqual(len([n for n in self.listed() if n.startswith("_LFT")]), 1)
+
+    def test_a_changed_name_is_a_rename_not_a_second_company(self):
+        self.save()
+        out = self.save(company="_LFT Green Wave", original="_LFT Blue Wave")
+        self.assertEqual(out["name"], "_LFT Green Wave")
+        self.assertFalse(frappe.db.exists("Tour Company", "_LFT Blue Wave"))
+        self.assertEqual(frappe.db.get_value("Tour Company", "_LFT Green Wave", "company_name"),
+                         "_LFT Green Wave")
+
+    def test_a_rename_onto_another_company_is_refused(self):
+        self.save("_LFT One")
+        self.save("_LFT Two")
+        with self.assertRaises(frappe.ValidationError):
+            self.save("_LFT Two", original="_LFT One")
+        self.assertTrue(frappe.db.exists("Tour Company", "_LFT One"))
+
+    def test_a_change_of_case_alone_keeps_the_name(self):
+        self.save("_LFT Blue Wave")
+        out = self.save("_LFT BLUE WAVE", discount=15, original="_LFT Blue Wave")
+        self.assertEqual(out["name"], "_LFT Blue Wave")
+        self.assertEqual(self.listed()["_LFT Blue Wave"]["discount"], 15)
+
+
+class TestRemovingACompany(SavedCompanyTestCase):
+    def test_it_leaves_the_list_but_the_record_stays(self):
+        self.save()
+        api.archive_tour_company(name="_LFT Blue Wave")
+        self.assertNotIn("_LFT Blue Wave", self.listed())
+        self.assertEqual(frappe.db.get_value("Tour Company", "_LFT Blue Wave", "disabled"), 1)
+
+    def test_a_removed_company_cannot_be_printed_or_opened(self):
+        self.save()
+        api.archive_tour_company(name="_LFT Blue Wave")
+        for call in (api.print_ratecard, api.get_tour_company, api.archive_tour_company):
+            with self.subTest(endpoint=call.__name__):
+                with self.assertRaises(frappe.DoesNotExistError):
+                    call(name="_LFT Blue Wave")
+
+    def test_saving_the_name_again_brings_it_back(self):
+        self.save(discount=10)
+        api.archive_tour_company(name="_LFT Blue Wave")
+        self.save(discount=25)
+        self.assertEqual(self.listed()["_LFT Blue Wave"]["discount"], 25)
+
+    def test_an_unknown_company_is_an_error_not_a_crash(self):
+        with self.assertRaises(frappe.DoesNotExistError):
+            api.archive_tour_company(name="_LFT Nobody")
+
+
+class TestPrintingASavedCompany(SavedCompanyTestCase):
+    def page(self, **kw):
+        api.print_ratecard(name="_LFT Blue Wave", **kw)
+        return frappe.local.response["filecontent"]
+
+    def test_the_card_is_the_companys_with_its_discount(self):
+        self.save(discount=10, items=("K1", "B1"))
+        html = self.page()
+        self.assertIn("<h1>Special Rates for _LFT Blue Wave</h1>", html)
+        self.assertIn(">900<", html)          # 1000 less 10%
+        self.assertIn(">410<", html)          # 455 less 10%, rounded up
+        self.assertNotIn("Cheese Kottu", html)
+        self.assertIn("+ 10% Service Charge will be added", html)
+        self.assertEqual(frappe.local.response["filename"], "rate-card-lft-blue-wave.html")
+
+    def test_the_pdf_link_names_the_company_and_needs_no_post(self):
+        self.save()
+        html = self.page()
+        self.assertIn("print_ratecard?format=pdf&amp;name=_LFT%20Blue%20Wave", html)
+        self.assertNotIn('name="csrf_token"', html)
+
+    def test_the_pdf_is_the_printed_page(self):
+        self.save()
+        with mock.patch("frappe.utils.pdf.get_pdf", return_value=b"%PDF-x") as pdf:
+            self.page(format="pdf")
+        self.assertIn("Special Rates for _LFT Blue Wave", pdf.call_args[0][0])
+        self.assertNotIn("Download PDF", pdf.call_args[0][0])
+        self.assertTrue(frappe.local.response["filename"].endswith(".pdf"))
+
+    def test_a_menu_price_change_reaches_the_saved_card(self):
+        self.save(items=("K1",))
+        self.assertIn(">900<", self.page())
+        repriced = [dict(e, rate=2000) if e["code"] == "K1" else dict(e) for e in MENU]
+        with mock.patch("luuvcrm.api.ratecard.menu.menu_items", return_value=repriced):
+            self.assertIn(">1,800<", self.page())
+
+    def test_an_item_added_to_the_menu_later_is_not_on_the_card_until_ticked(self):
+        self.save(items=("K1",))
+        grown = [dict(e) for e in MENU] + [{"code": "N1", "name": "Brand New Dish", "rate": 500, "group": "Kottu"}]
+        with mock.patch("luuvcrm.api.ratecard.menu.menu_items", return_value=grown):
+            self.assertNotIn("Brand New Dish", self.page())
+
+    def test_a_company_whose_items_have_all_left_the_menu_says_so(self):
+        self.save(items=("K1",))
+        with mock.patch("luuvcrm.api.ratecard.menu.menu_items", return_value=[dict(MENU[2])]):
+            with self.assertRaises(frappe.ValidationError) as ctx:
+                self.page()
+            self.assertIn("none of", str(ctx.exception).lower())
+            self.assertEqual(self.listed()["_LFT Blue Wave"]["on_menu"], 0)
 
 
 class TestTheManagerPage(FrappeTestCase):
@@ -218,7 +365,8 @@ class TestTheManagerPage(FrappeTestCase):
 
     def test_the_form_asks_for_exactly_what_the_endpoint_takes(self):
         import inspect
+        # `format` and `name` are the saved-card options; the preview form sends the rest.
         for field in inspect.signature(ratecard.print_ratecard).parameters:
-            if field == "format":
+            if field in ("format", "name"):
                 continue
             self.assertIn(f"['{field}'," if field != "company" else "['company'", self.html)
