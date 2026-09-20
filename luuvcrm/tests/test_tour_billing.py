@@ -148,3 +148,34 @@ class TestWhatTheTillIsOffered(TourBillingTestCase):
         self.as_role(roles.WAITER, "waiter")
         with self.assertRaises(frappe.PermissionError):
             api.get_tour_company_options()
+
+
+class TestThePosPage(TourBillingTestCase):
+    """Strings in a page nobody re-reads: a renamed field is a company that is
+    picked at the till and quietly never reaches the invoice."""
+
+    def setUp(self):
+        super().setUp()
+        self.html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos.html"))
+
+    def test_both_payment_dialogs_offer_the_dropdown(self):
+        for select in ('id="pmTour"', 'id="splitTour"', 'id="pmTourField"', 'id="splitTourField"'):
+            self.assertIn(select, self.html)
+
+    def test_the_choice_is_sent_with_the_payment_and_with_the_split(self):
+        self.assertIn("body.tour_company=tourPicked('pmTour')", self.html)
+        self.assertIn("tour_company:tourPicked('splitTour')", self.html)
+
+    def test_it_is_fed_by_the_names_only_endpoint(self):
+        self.assertIn("luuvcrm.api.get_tour_company_options", self.html)
+        frappe.is_whitelisted(frappe.get_attr("luuvcrm.api.get_tour_company_options"))
+
+    def test_a_till_with_no_company_is_not_asked(self):
+        self.assertIn("wrap.style.display=names.length?'block':'none'", self.html)
+
+    def test_a_company_name_is_set_as_text_never_as_markup(self):
+        self.assertIn("o.textContent=n", self.html)
+
+    def test_it_is_cleared_each_time_a_dialog_opens(self):
+        """Or the last table's company is the next table's default."""
+        self.assertEqual(self.html.count("refreshTour(["), 3)   # two pay openers, one split

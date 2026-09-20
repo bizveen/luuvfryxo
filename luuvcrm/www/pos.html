@@ -392,6 +392,8 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     <div class="msum"><div class="r"><span>Items</span><span id="pmItems">0</span></div><div class="r"><span id="pmCtx">Table</span><span id="pmTable">—</span></div><div class="r tot"><span>Total</span><span class="mono" id="pmTotal">0</span></div></div>
     <!-- filled by renderPayModes() from the till's POS Profile -->
     <div class="pmodes" id="pmodes"></div>
+    <!-- Booked under a tour or transport company: a record only, the bill is the full price. Hidden while no company is saved. -->
+    <div class="field" id="pmTourField" style="display:none;"><label>Tour company <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label><select id="pmTour" style="width:100%;padding:11px 12px;border:1px solid var(--border-default);border-radius:var(--radius-md);font-size:15px;background:var(--surface-card);color:var(--text-strong);"></select></div>
     <div class="field" id="tenderField"><label>Amount tendered</label><input type="number" id="tendered" value="0" oninput="calcChange()"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:10px 14px;background:var(--orange-50);border-radius:var(--radius-md);"><span style="font-size:15px;font-weight:700;color:var(--text-body);">Return / Change</span><span class="mono" id="changeDue" style="font-size:28px;font-weight:900;line-height:1;color:var(--color-primary);">0</span></div></div>
     <div id="ccFields" style="display:none;"><div class="field"><label>Cash</label><input type="number" id="ccCash" value="0"></div><div class="field"><label>Card</label><input type="number" id="ccCard" value="0"></div></div>
     <div id="gdWrap" style="margin-top:10px;border-top:1px dashed var(--border-default);padding-top:8px;">
@@ -460,6 +462,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     <div class="msum" style="margin-top:14px;"><div class="r tot"><span>This bill</span><span class="mono" id="splitTotal">0</span></div></div>
     <!-- filled by renderSplitModes() from the till's POS Profile -->
     <div class="pmodes" id="splitModes"></div>
+    <div class="field" id="splitTourField" style="display:none;"><label>Tour company <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label><select id="splitTour" style="width:100%;padding:11px 12px;border:1px solid var(--border-default);border-radius:var(--radius-md);font-size:15px;background:var(--surface-card);color:var(--text-strong);"></select></div>
     <div class="merr" id="splitErr"></div>
   </div>
   <div class="lf-dialog__foot"><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="hide('splitModal')">Cancel</button><button class="lf-btn lf-btn--primary lf-btn--md" id="splitConfirm" onclick="confirmSplit()">Charge selected</button></div>
@@ -1225,17 +1228,35 @@ function lfPoll(fn, ms){
   function payExistingBill(i){ const o=_dupeList[i]; if(!o) return; hide('dupeModal');
     openPayForOrder(o.name,o.grand_total||0,(o.items||[]).length,document.getElementById('tableSel').value); }
 
+  // ── tour company on a bill ──
+  // A record only: the guest pays the full price and the company's commission is
+  // worked out later, from the invoices, by the manager's statement. The list is
+  // fetched each time a dialog opens so a company added meanwhile is offered, and
+  // the field stays hidden on a till with no company saved — nothing to pick, so
+  // nothing to ask.
+  async function refreshTour(ids){
+    ids.forEach(id=>{ const sel=document.getElementById(id); if(sel) sel.value=''; });
+    try{ const r=await _post('/api/method/luuvcrm.api.get_tour_company_options',{}); if(!r) return; const d=await r.json();
+      const names=(d.message&&d.message.companies)||[];
+      ids.forEach(id=>{ const sel=document.getElementById(id), wrap=document.getElementById(id+'Field'); if(!sel||!wrap) return;
+        sel.innerHTML=''; const none=document.createElement('option'); none.value=''; none.textContent='— None —'; sel.appendChild(none);
+        names.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });   // text, not markup: a name is data
+        wrap.style.display=names.length?'block':'none'; });
+    }catch(e){ /* no list, no field — the till still takes the payment */ }
+  }
+  function tourPicked(id){ const sel=document.getElementById(id); return sel?sel.value:''; }
+
   // ── payment ──
   function openPayForCart(){ const t=cartTotals(); const table=document.getElementById('tableSel').value;
     payCtx={ kind:'new', total:t.gt, table:table };
     document.getElementById('pmItems').textContent=Object.values(cart).reduce((a,b)=>a+b,0);
     document.getElementById('pmCtx').textContent=orderType==='Take Away'?'Order':'Table';
     document.getElementById('pmTable').textContent=orderType==='Take Away'?'Take Away':(table||'—');
-    document.getElementById('pmTotal').textContent=fmt(t.gt); renderPayModes(); mErr('payErr',''); gdReset(); show('payModal'); }
+    document.getElementById('pmTotal').textContent=fmt(t.gt); renderPayModes(); mErr('payErr',''); gdReset(); refreshTour(['pmTour']); show('payModal'); }
   function openPayForOrder(name,total,itemsCount,table){ payCtx={ kind:'existing', orderName:name, total:total, table:table };
     document.getElementById('pmItems').textContent=itemsCount; document.getElementById('pmCtx').textContent='Table';
     document.getElementById('pmTable').textContent=table||'—'; document.getElementById('pmTotal').textContent=fmt(total);
-    renderPayModes(); mErr('payErr',''); gdReset(); show('payModal'); }
+    renderPayModes(); mErr('payErr',''); gdReset(); refreshTour(['pmTour']); show('payModal'); }
   // ── payment buttons ──────────────────────────────────────
   // An aggregator (PickMe, Uber Eats) is added once in ERPNext —
   // luuvcrm.setup_doctype.add_payment_mode — and appears here, in the split
@@ -1273,6 +1294,7 @@ function lfPoll(fn, ms){
     const body={ payment_mode:payMode };
     if(payGuides.length) body.guides=JSON.stringify(payGuides.map(g=>g.name));
     if(payRedeem&&payRedeem.amount>0) body.guide_redeem=JSON.stringify({guide:payRedeem.name,amount:payRedeem.amount});
+    if(tourPicked('pmTour')) body.tour_company=tourPicked('pmTour');
     if(payMode==='Cash'){ body.tendered=parseFloat(document.getElementById('tendered').value)||0; }
     if(payMode==='Cash+Card'){ const c=parseFloat(document.getElementById('ccCash').value)||0, k=parseFloat(document.getElementById('ccCard').value)||0;
       if(Math.abs((c+k)-effTotal())>1){ mErr('payErr','Cash + Card must equal '+fmt(effTotal())); return; } body.cash_amount=c; body.card_amount=k; }
@@ -1582,7 +1604,7 @@ function lfPoll(fn, ms){
     if(!splitData.length){ toast(splitFilter==='takeaway'?'No takeaway items on this order':'Nothing left to split'); return; }
     document.getElementById('splitTitle').textContent=splitFilter==='takeaway'?'Split takeaway':'Split bill';
     document.getElementById('splitDesc').textContent=splitFilter==='takeaway'?'Takeaway items billed on their own — no service charge. Dine-in keeps the service charge.':'Pick the items (and how many) for this bill. The rest stays on the order.';
-    renderSplitModes(); mErr('splitErr',''); renderSplit(); show('splitModal'); }catch(e){ toast('Connection error'); } }
+    renderSplitModes(); mErr('splitErr',''); renderSplit(); refreshTour(['splitTour']); show('splitModal'); }catch(e){ toast('Connection error'); } }
   function renderSplit(){ const wrap=document.getElementById('splitItems');
     wrap.innerHTML=splitData.map((l,idx)=>`<div class="spl-row"><div style="flex:1;min-width:0;"><div style="font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--text-strong);">${l.name} ${l.takeaway?'<span style="font-size:11px;font-weight:700;color:#9a6207;background:var(--color-warning-subtle);padding:1px 7px;border-radius:var(--radius-pill);">🛍️ TA</span>':''}</div><div style="font-size:12px;color:var(--text-muted);">${nfmt(l.rate)} · ${l.remaining} left</div></div>
       <div class="lf-qty lf-qty--sm"><button class="lf-qty__btn" onclick="splitStep(${idx},-1)">−</button><span class="lf-qty__val">${l.sel}</span><button class="lf-qty__btn" onclick="splitStep(${idx},1)">+</button></div></div>`).join('');
@@ -1592,7 +1614,7 @@ function lfPoll(fn, ms){
   async function confirmSplit(){ const lines=splitData.filter(l=>l.sel>0).map(l=>({item:l.item,qty:l.sel}));
     if(!lines.length){ mErr('splitErr','Select at least one item'); return; }
     const btn=document.getElementById('splitConfirm'); btn.disabled=true; mErr('splitErr','');
-    try{ const r=await _post('/api/method/luuvcrm.api.pay_split',{order_name:currentOrder,lines:JSON.stringify(lines),payment_mode:splitMode}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+    try{ const r=await _post('/api/method/luuvcrm.api.pay_split',{order_name:currentOrder,lines:JSON.stringify(lines),payment_mode:splitMode,tour_company:tourPicked('splitTour')}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.name){ toast('Split charged #'+d.message.name); printReceipt(d.message.name); hide('splitModal');
         const t=document.getElementById('tableSel').value;
         if(d.message.fully_paid){ clearTicket(); if(t) await refreshTableTabs(t); } else { await openSplit(); }
