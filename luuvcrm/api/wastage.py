@@ -6,7 +6,7 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 from frappe import _
-from luuvcrm import activity, roles
+from luuvcrm import activity, branch, roles
 from luuvcrm.api.reports import _report_range
 
 from luuvcrm.api.purchases import _buying_price_list
@@ -121,29 +121,35 @@ def get_food_cost_report(days=7, start=None, end=None):
     # Wastage's creation is a Datetime; the upper bound is start-of-next-day.
     # Purchases count on purchase_date, the day the goods were bought.
     dt_end = frappe.utils.add_days(end, 1)
+    # Raw SQL sees no permission layer, so the branch has to be said out loud —
+    # every other manager report does. Empty for an Owner, and on a site with
+    # one branch. Purchase Bill, Wastage and Expense carry the branch themselves;
+    # the invoice carries it as its cost centre.
+    rest_cond, rest_params = branch.sql_restaurant()
+    inv_cond, inv_params = branch.sql_cost_center()
     purchases = 0.0
     if frappe.db.exists("DocType", "Purchase Bill"):
         purchases = float(frappe.db.sql("""
             select coalesce(sum(total), 0) from `tabPurchase Bill`
             where status = 'approved' and purchase_date >= %s and purchase_date < %s
-        """, (start, dt_end))[0][0] or 0)
+        """ + rest_cond, (start, dt_end) + rest_params)[0][0] or 0)
     wastage = 0.0
     if frappe.db.exists("DocType", "Wastage"):
         wastage = float(frappe.db.sql("""
             select coalesce(sum(cost), 0) from `tabWastage`
             where creation >= %s and creation < %s
-        """, (start, dt_end))[0][0] or 0)
+        """ + rest_cond, (start, dt_end) + rest_params)[0][0] or 0)
     overhead = 0.0
     if frappe.db.exists("DocType", "Expense"):
         overhead = float(frappe.db.sql("""
             select coalesce(sum(amount), 0) from `tabExpense`
             where status = 'approved'
               and coalesce(expense_date, date(creation)) between %s and %s
-        """, (start, end))[0][0] or 0)
+        """ + rest_cond, (start, end) + rest_params)[0][0] or 0)
     revenue = float(frappe.db.sql("""
         select coalesce(sum(grand_total), 0) from `tabPOS Invoice`
         where docstatus = 1 and posting_date between %s and %s
-    """, (start, end))[0][0] or 0)
+    """ + inv_cond, (start, end) + inv_params)[0][0] or 0)
     food_cost = round(purchases + wastage, 2)
     profit = round(revenue - food_cost - overhead, 2)
     # No sales, no percentage. It used to be 0, so a week with rent paid and

@@ -755,6 +755,62 @@ class TestTheReportsAreBranchAware(BranchTestCase):
                 self.assertIsInstance(fn(**kwargs), dict)
 
 
+class TestSalesVsCostsStaysInItsBranch(BranchTestCase):
+    """`get_food_cost_report` was the one manager report with no branch in its
+    SQL: a manager of branch A read purchases, wastage, expenses and revenue
+    summed across every branch. Each figure is made in each branch on a day no
+    real trade falls on, so what a manager reads is theirs alone."""
+
+    DAY = "2019-03-10"
+    WINDOW = {"start": "2019-03-01", "end": "2019-03-31"}
+
+    def setUp(self):
+        super().setUp()
+        for dt in ("Purchase Bill", "Expense", "Wastage"):
+            if not frappe.db.exists("DocType", dt):
+                self.skipTest(f"no {dt} on this site")
+        category = frappe.db.get_value("Expense Category", {}, "name")
+        if not category:
+            self.skipTest("no Expense Category on this site")
+        _drop_test_restaurants()
+        self.a = frappe.get_all("Restaurant", pluck="name")[0]
+        self.b = _restaurant(self, "Branch-FC")
+        self.mgr_a = _user(self, "fc-mgr-a", roles.RESTAURANT_MANAGER)
+        self.owner = _user(self, "fc-owner", roles.RESTAURANT_OWNER)
+        branch.assign(self.mgr_a, self.a)
+        branch.unassign(self.owner)
+        for user in (self.mgr_a, self.owner):
+            self.addCleanup(branch.unassign, user)
+
+        for restaurant, bill, expense, waste in ((self.a, 700, 200, 40), (self.b, 300, 50, 10)):
+            self._make({"doctype": "Purchase Bill", "vendor": "_LFT-FC-Vendor",
+                        "status": "approved", "purchase_date": self.DAY, "total": bill,
+                        branch.FIELD: restaurant})
+            self._make({"doctype": "Expense", "category": category, "payee": "_LFT",
+                        "amount": expense, "expense_date": self.DAY, "status": "approved",
+                        branch.FIELD: restaurant})
+            doc = self._make({"doctype": "Wastage", "cost": waste, branch.FIELD: restaurant})
+            frappe.db.set_value("Wastage", doc.name, "creation", self.DAY + " 12:00:00",
+                                update_modified=False)
+
+    def _make(self, values):
+        doc = frappe.get_doc(values)
+        doc.insert(ignore_permissions=True, ignore_mandatory=True)
+        self.addCleanup(lambda d=doc.doctype, n=doc.name: frappe.db.exists(d, n) and
+                        frappe.delete_doc(d, n, force=True, ignore_permissions=True))
+        return doc
+
+    def test_a_manager_reads_only_their_own_branch(self):
+        self.as_user(self.mgr_a)
+        r = api.get_food_cost_report(**self.WINDOW)
+        self.assertEqual((r["purchases"], r["wastage"], r["overhead"]), (700, 40, 200))
+
+    def test_the_owner_reads_both(self):
+        self.as_user(self.owner)
+        r = api.get_food_cost_report(**self.WINDOW)
+        self.assertEqual((r["purchases"], r["wastage"], r["overhead"]), (1000, 50, 250))
+
+
 class TestWhichBranchAScreenShows(BranchTestCase):
     """`current()` and `viewing()` answer two different questions, and keeping
     them apart is what makes the owner's "just show me the first one" safe.
