@@ -234,13 +234,19 @@ def rename_purchase_item():
             "unit": unit or frappe.db.get_value("Item", item, "stock_uom")}
 
 
+#: How far back a bill may be dated. A month covers a bill found in a drawer;
+#: anything older is far likelier a slip of the date picker (last year for this
+#: year), and it would quietly rewrite a month whose P&L has already been handed on.
+MAX_BACKDATE_DAYS = 30
+
+
 def _purchase_date(value=None):
     """The day the goods were bought, as the buyer entered it. Blank is today.
 
     Not in the future: a bill from tomorrow has not happened, and a slip of the
     date picker would otherwise park real spend in a week nobody is looking at.
-    Any day before today is fine — a bill found in a drawer is still owed."""
-    from frappe.utils import getdate, today
+    Not more than MAX_BACKDATE_DAYS back either, for the same reason."""
+    from frappe.utils import add_days, getdate, today
     if not value:
         return getdate(today())
     try:
@@ -249,6 +255,8 @@ def _purchase_date(value=None):
         frappe.throw(_("That is not a date: {0}").format(value))
     if day > getdate(today()):
         frappe.throw(_("The purchase date cannot be in the future"))
+    if day < getdate(add_days(today(), -MAX_BACKDATE_DAYS)):
+        frappe.throw(_("The purchase date cannot be more than {0} days ago").format(MAX_BACKDATE_DAYS))
     return day
 
 

@@ -665,6 +665,17 @@ class TestThePurchaseDate(PurchaseTestCase):
             self.enter(purchase_date=str(self.day(1)))
         self.assertIn("future", str(caught.exception))
 
+    def test_a_date_thirty_days_back_is_kept(self):
+        doc = frappe.get_doc("Purchase Bill", self.enter(purchase_date=str(self.day(-30))))
+        self.assertEqual(doc.purchase_date, self.day(-30))
+
+    def test_a_date_more_than_thirty_days_back_is_refused(self):
+        """A month closed and handed on is not rewritten by a bill dated into it
+        later — and last year picked for this year is caught at the till."""
+        with self.assertRaises(frappe.ValidationError) as caught:
+            self.enter(purchase_date=str(self.day(-31)))
+        self.assertIn("30 days", str(caught.exception))
+
     def test_something_that_is_not_a_date_is_refused(self):
         with self.assertRaises(frappe.ValidationError):
             self.enter(purchase_date="next tuesday")

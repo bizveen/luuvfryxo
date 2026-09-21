@@ -259,6 +259,9 @@ function lfPoll(fn, ms){
   // The phone's own calendar day. toISOString() is UTC, which in Sri Lanka is
   // still yesterday until 5:30 in the morning.
   function localToday(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  // The earliest purchase date the server takes (purchases.MAX_BACKDATE_DAYS).
+  const MAX_BACKDATE_DAYS=30;
+  function localDaysAgo(n){ const d=new Date(); d.setDate(d.getDate()-n); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
   function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2800); }
   async function _api(u,o){ o=o||{}; o.headers=o.headers||{}; o.headers['X-Frappe-CSRF-Token']=CSRF; o.credentials='include'; try{ const r=await fetch(u,o); if(r.status===403||r.status===401){ location.href='/login?redirect-to=/purchases'; return null;} return r;}catch(e){ return null; } }
@@ -463,7 +466,7 @@ function lfPoll(fn, ms){
 
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
   function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
-    const fd=document.getElementById('fDate'); fd.value=localToday(); fd.max=localToday();
+    const fd=document.getElementById('fDate'); fd.value=localToday(); fd.max=localToday(); fd.min=localDaysAgo(MAX_BACKDATE_DAYS);
     document.getElementById('vendorHint').style.display='none'; hideVendorSug(); loadVendors();
     document.getElementById('photoImg').style.display='none'; const _ph=document.getElementById('photoHint'); _ph.style.display='block'; _ph.textContent='📷 Tap to snap receipt'; document.getElementById('formErr').style.display='none';
     if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
@@ -614,6 +617,7 @@ function lfPoll(fn, ms){
     if(!vendor){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
     const pdate=document.getElementById('fDate').value||localToday();
     if(pdate>localToday()){ em.textContent='The purchase date cannot be in the future.'; err.style.display='flex'; return; }
+    if(pdate<localDaysAgo(MAX_BACKDATE_DAYS)){ em.textContent='The purchase date cannot be more than '+MAX_BACKDATE_DAYS+' days ago.'; err.style.display='flex'; return; }
     if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
     const lines=formLines.map(l=>({item:l.item,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
     const btn=document.getElementById('submitBtn'); btn.disabled=true; err.style.display='none';
