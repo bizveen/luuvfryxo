@@ -37,6 +37,7 @@ COST_LINES = [
     ("Internet and phone", ("Internet/Phone",)),
     ("Repairs and maintenance", ("Repairs & Maintenance",)),
     ("Office supplies", ("Office Supplies",)),
+    ("Packaging", ("Packaging",)),
     ("Transport", ("Transport/Fuel",)),
     ("Employee houses rent", ("Employee Houses Rent",)),
     ("Staff meals", ("Staff Meals",)),

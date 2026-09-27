@@ -99,6 +99,8 @@ from luuvcrm.api.expenses import (
     create_expense,
     get_expense_categories,
     get_expenses,
+    PACKAGING_CATEGORY,
+    PNL_EXPENSE_CATEGORIES,
     setup_expenses,
     update_expense,
 )

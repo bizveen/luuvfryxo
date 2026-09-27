@@ -384,6 +384,35 @@ class TestTheShapeIsDeclaredInOnePlace(FrappeTestCase):
         self.assertNotIn("insert(", src)
 
 
+class TestThePackagingCategory(FrappeTestCase):
+    """Packaging arrived after the P&L categories, so it has its own patch."""
+
+    def setUp(self):
+        if not frappe.db.exists("DocType", "Expense Category"):
+            self.skipTest("no Expense Category on this site")
+        if not frappe.db.count("Expense Category"):
+            self.skipTest("no category to make the site look live")
+
+    def _run(self):
+        from luuvcrm.patches.v1_0 import add_packaging_expense_category
+        add_packaging_expense_category.execute()
+
+    def test_a_fresh_site_seeds_it(self):
+        from luuvcrm.api.expenses import EXPENSE_CATEGORIES
+        self.assertIn("Packaging", EXPENSE_CATEGORIES)
+
+    def test_a_live_site_is_topped_up(self):
+        frappe.db.delete("Expense Category", {"name": "Packaging"})
+        self._run()
+        self.assertTrue(frappe.db.exists("Expense Category", "Packaging"))
+
+    def test_a_disabled_one_stays_disabled(self):
+        self._run()
+        frappe.db.set_value("Expense Category", "Packaging", "disabled", 1)
+        self._run()
+        self.assertEqual(frappe.db.get_value("Expense Category", "Packaging", "disabled"), 1)
+
+
 class TestThePnlExpenseCategories(FrappeTestCase):
     """The profit-and-loss statement has a line for each of these. A live site's
     Expense Category table is not empty, so the seed never runs there — the patch
