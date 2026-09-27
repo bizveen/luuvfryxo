@@ -337,6 +337,15 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
             <div><div style="font-size:12px;opacity:.82;">Of sales</div><div class="mono" style="font-weight:500;font-size:18px;" id="purchPct">—</div></div>
           </div>
         </div>
+        <!-- spend by category: purchase bills and each expense category -->
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px;">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">By category</div>
+            <span class="mono" style="font-size:12.5px;color:var(--text-faint);" id="purchCatTotal"></span>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-bottom:8px;">Approved bills and expenses · this period · tap one to see its bills</div>
+          <div id="purchCats" style="display:flex;flex-direction:column;"></div>
+        </div>
         <!-- what is waiting on a decision, and what was refused -->
         <div id="purchWaitingCard" style="display:none;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
           <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:2px;">Not in the chart</div>
@@ -629,6 +638,21 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       <button onclick="hideVendor()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
     <div id="vendorBody" style="overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Category drill-down sheet (Purchases → By category) -->
+<div id="catOverlay" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideCategory()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;max-height:86vh;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:22px 22px 28px;display:flex;flex-direction:column;">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;flex:none;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex:none;">
+      <div style="flex:1;min-width:0;">
+        <div id="catTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</div>
+        <div id="catMeta" style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">—</div>
+      </div>
+      <button onclick="hideCategory()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div id="catBody" style="overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -1698,7 +1722,7 @@ function lfPoll(fn, ms){
     renderPurchaseChart(); }
   async function loadPurchases(force){
     if(pLoaded && !force) return; pLoaded=true;
-    loadPurchaseBills(); loadPurchaseDay();
+    loadPurchaseBills(); loadPurchaseDay(); loadCategorySpend();
     try{ const r=await _post('/api/method/luuvcrm.api.get_manager_purchase_report',pArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       pData=m;
       document.getElementById('purchSub').textContent=(pMonth?monthRange(pMonth).label:'Last '+m.days+' days')+' · '+(m.start||'')+' → '+(m.end||'');
@@ -1927,7 +1951,76 @@ function lfPoll(fn, ms){
   // The same bill object sits in whichever list it was opened from, so it is
   // updated in place and those lists are simply reloaded behind the sheet.
   function editShownBill(){ const b=billShown; if(!b) return;
-    openBillEdit('bill',b,fresh=>{ Object.assign(b,fresh); showBill(b); loadPurchaseBills(); loadPurchaseDay(); }); }
+    openBillEdit('bill',b,fresh=>{ Object.assign(b,fresh); showBill(b); loadPurchaseBills(); loadPurchaseDay(); refreshCategories(); }); }
+
+  // ── By category: one row per category, a sheet of its bills, then the bill ──
+  let catRows=[], catSheet=null, catSheetKind='bill', catSheetRows=[];
+  function catEmoji(c){ if(c==='Purchase Bill') return '🧾'; const n=(c||'').toLowerCase();
+    const M={electric:'⚡',water:'💧',gas:'🔥',rent:'🏠',internet:'📶',phone:'📶',salar:'👥',wage:'👥',repair:'🔧',mainten:'🔧',transport:'🚚',fuel:'⛽',clean:'🧽',licen:'📄',fee:'📄',advert:'📣',office:'🗂️',meal:'🍛',medical:'💊',tax:'🏛️',municipal:'🏛️',charit:'🤝'};
+    for(const k in M){ if(n.includes(k)) return M[k]; } return '💸'; }
+  function catLabel(c){ return c==='Purchase Bill'?'Purchase bills (stock)':c; }
+  async function loadCategorySpend(){
+    try{ const r=await _post('/api/method/luuvcrm.api.get_category_spend',pArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
+      catRows=m.categories||[]; const tot=m.total||0;
+      document.getElementById('purchCatTotal').textContent=catRows.length?('Rs '+nfmt(tot)):'';
+      document.getElementById('purchCats').innerHTML=catRows.length?catRows.map((c,i)=>{ const pct=tot>0?Math.round(c.total/tot*100):0;
+        return `<div onclick="openCategory(${i})" style="padding:11px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;"><div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;"><span style="width:38px;height:38px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex:none;">${catEmoji(c.category)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(catLabel(c.category))}</div><div style="font-size:12.5px;color:var(--text-muted);">${c.count} bill${c.count===1?'':'s'} · ${pct}%</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(c.total)}</span><i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-faint);flex:none;"></i></div><div style="height:6px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--orange-300);border-radius:var(--radius-pill);"></div></div></div>`; }).join('')
+        :'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">Nothing approved in this period.</div>';
+      icons();
+    }catch(e){}
+  }
+  function openCategory(i){ const c=catRows[i]; if(c) loadCategorySheet(c.category); }
+  async function loadCategorySheet(category){
+    catSheet=category;
+    document.getElementById('catTitle').textContent=catEmoji(category)+' '+catLabel(category);
+    document.getElementById('catMeta').textContent=pMonth?monthRange(pMonth).label:('Last '+pDays+' days');
+    document.getElementById('catBody').innerHTML='<div style="padding:36px 0;text-align:center;color:var(--text-faint);font-size:13px;">Loading…</div>';
+    document.getElementById('catOverlay').style.display='flex'; icons();
+    try{ const r=await _post('/api/method/luuvcrm.api.get_category_bills',Object.assign({category:category},pArgs())); if(!r) return;
+      const d=await r.json(); const m=d.message;
+      if(!m){ document.getElementById('catBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Could not load this category.</div>'; return; }
+      renderCategorySheet(m);
+    }catch(e){ document.getElementById('catBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Connection error.</div>'; }
+  }
+  function renderCategorySheet(m){
+    const exp=m.kind==='expense'; catSheetRows=m.rows||[];
+    document.getElementById('catMeta').textContent=(pMonth?monthRange(pMonth).label:('Last '+pDays+' days'))+' · '+m.count+' bill'+(m.count===1?'':'s')+' · Rs '+nfmt(m.total);
+    const when=iso=>iso?new Date(iso+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}):'';
+    document.getElementById('catBody').innerHTML=catSheetRows.length?catSheetRows.map((b,i)=>{
+      const title=exp?(b.payee||b.category):b.vendor;
+      const sub=exp?[when(b.date),b.bill_ref?('#'+b.bill_ref):'',b.by].filter(Boolean).join(' · ')
+                   :[b.date,(b.lines||[]).length+' item'+((b.lines||[]).length===1?'':'s'),b.by].filter(Boolean).join(' · ');
+      return `<div onclick="openCategoryRow(${i})" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:catEmoji(m.category)}</span>
+        <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(title)||'—'}</div><div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(sub)}</div></div>
+        <span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(exp?b.amount:b.total)}</span></div>`; }).join('')
+      +(m.count>catSheetRows.length?`<div style="font-size:12px;color:var(--text-faint);padding:8px 0;">Showing ${catSheetRows.length} of ${m.count}.</div>`:'')
+      :'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No approved bills in this category this period.</div>';
+    catSheet=m.category; catSheetKind=m.kind; icons();
+  }
+  function openCategoryRow(i){ const b=catSheetRows[i]; if(!b) return; if(catSheetKind==='expense') showExpense(b); else showBill(b); }
+  function hideCategory(){ document.getElementById('catOverlay').style.display='none'; catSheet=null; }
+  // After an edit: the card's totals and, if it is open, the sheet behind the bill.
+  function refreshCategories(){ loadCategorySpend(); if(catSheet&&document.getElementById('catOverlay').style.display==='flex') loadCategorySheet(catSheet); }
+
+  // An expense in the same sheet a bill opens in — no items, one amount.
+  let expShown=null;
+  function showExpense(e){ if(!e) return; expShown=e; billShown=null; const t=BILL_TONE[e.status]||BILL_TONE.pending;
+    document.getElementById('billTitle').textContent=e.category||'Expense';
+    const day=e.date?new Date(e.date+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'';
+    document.getElementById('billMeta').textContent=[day?('Paid '+day):'',e.by,e.when?('entered '+e.when):''].filter(Boolean).join(' · ');
+    const row=(k,v)=>v?`<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:13.5px;"><span style="color:var(--text-muted);flex:none;">${k}</span><span style="color:var(--text-strong);font-weight:600;text-align:right;overflow-wrap:anywhere;">${esc(v)}</span></div>`:'';
+    document.getElementById('billBody').innerHTML=`
+      <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-pill);padding:6px 13px;margin-bottom:12px;">${t[2]==='Pending'?'Waiting for approval':t[2]}</div>
+      ${e.receipt_image?`<img src="${esc(e.receipt_image)}" onclick="viewImg('${esc(e.receipt_image)}')" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:6px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:12px;text-align:center;">Tap the photo to open it full size</div>`:''}
+      ${row('Category',e.category)}${row('Paid to',e.payee)}${row('Date',day)}${row('Bill / account no',e.bill_ref)}${row('Outlet',e.outlet)}
+      ${e.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-top:12px;">📝 ${esc(e.note)}</div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:13px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(e.amount)}</span></div>
+      <button onclick="editShownExpense()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit category, payee, date, photo or note</button>`;
+    document.getElementById('billOverlay').style.display='flex'; icons();
+  }
+  function editShownExpense(){ const e=expShown; if(!e) return;
+    openBillEdit('expense',e,fresh=>{ Object.assign(e,fresh); showExpense(e); refreshCategories(); }); }
 
   // ── Vendor drill-down: tap a row of Owed to vendors or Top vendors ──
   // Opened from Owed, what is unpaid leads; opened from Top vendors, the

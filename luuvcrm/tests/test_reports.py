@@ -573,3 +573,109 @@ class TestSalesVsCostsWithNoSales(ReportWindowTestCase):
         r = self.report()
         for key in ("food_cost_pct", "overhead_pct", "profit_pct", "wastage_pct"):
             self.assertIsNone(r[key], key)
+
+
+class TestSpendByCategory(FrappeTestCase):
+    """The Purchases tab's By category card and the sheet behind each row.
+    A row has to add up to the bills its sheet lists."""
+
+    def setUp(self):
+        super().setUp()
+        if not frappe.db.exists("DocType", "Purchase Bill"):
+            self.skipTest("no Purchase Bill on this site")
+        api._install_expenses()
+        self.item = fx.item(self, "PURCH-CAT-RICE")
+        self.cat = frappe.get_all("Expense Category", filters={"disabled": 0},
+                                  pluck="name", order_by="name", limit=1)[0]
+        self.before = {r["category"]: r for r in self.spend()["categories"]}
+        self._docs = []
+        self.addCleanup(self._drop)
+
+    def _drop(self):
+        for doctype, name in self._docs:
+            if frappe.db.exists(doctype, name):
+                frappe.delete_doc(doctype, name, force=True, ignore_permissions=True)
+
+    def spend(self, **kw):
+        return api.get_category_spend(days=kw.pop("days", 7), **kw)
+
+    def bill(self, amount, bought=0, status="approved"):
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill", "vendor": "_LFT Cat Vendor", "status": status,
+            "purchase_date": add_days(today(), bought),
+            "requested_at": frappe.utils.now_datetime(), "total": amount,
+            "items": [{"item": self.item, "item_name": "Cat Rice", "uom": "Kg",
+                       "qty": 1, "price": amount}]})
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        self._docs.append(("Purchase Bill", doc.name))
+        return doc.name
+
+    def expense(self, amount, dated=0, status="approved"):
+        doc = frappe.get_doc({
+            "doctype": "Expense", "category": self.cat, "amount": amount, "status": status,
+            "payee": "_LFT Cat Payee", "expense_date": add_days(today(), dated),
+            "requested_at": frappe.utils.now_datetime()})
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        self._docs.append(("Expense", doc.name))
+        return doc.name
+
+    def grew(self, category):
+        now = {r["category"]: r for r in self.spend()["categories"]}.get(category)
+        was = self.before.get(category) or {"count": 0, "total": 0}
+        return ((now or {}).get("count", 0) - was["count"],
+                round((now or {}).get("total", 0) - was["total"], 2))
+
+    def test_purchase_bills_are_one_row(self):
+        self.bill(1000)
+        self.bill(250)
+        self.assertEqual(self.grew(api.PURCHASE_CATEGORY), (2, 1250))
+
+    def test_each_expense_category_is_its_own_row(self):
+        self.expense(400)
+        self.assertEqual(self.grew(self.cat), (1, 400))
+
+    def test_only_approved_spend_counts(self):
+        self.bill(900, status="pending")
+        self.expense(300, status="rejected")
+        self.assertEqual(self.grew(api.PURCHASE_CATEGORY), (0, 0))
+        self.assertEqual(self.grew(self.cat), (0, 0))
+
+    def test_outside_the_window_stays_out(self):
+        self.bill(700, bought=-20)
+        self.expense(700, dated=-20)
+        self.assertEqual(self.grew(api.PURCHASE_CATEGORY), (0, 0))
+        self.assertEqual(self.grew(self.cat), (0, 0))
+
+    def test_the_sheet_adds_up_to_its_row(self):
+        name = self.bill(640)
+        exp = self.expense(210)
+        rows = {r["category"]: r for r in self.spend()["categories"]}
+        for category, doc in ((api.PURCHASE_CATEGORY, name), (self.cat, exp)):
+            sheet = api.get_category_bills(category=category, days=7)
+            self.assertEqual((sheet["count"], sheet["total"]),
+                             (rows[category]["count"], rows[category]["total"]))
+            self.assertIn(doc, [r["name"] for r in sheet["rows"]])
+
+    def test_an_expense_sheet_holds_only_that_category(self):
+        self.expense(210)
+        sheet = api.get_category_bills(category=self.cat, days=7)
+        self.assertEqual(sheet["kind"], "expense")
+        self.assertEqual({r["category"] for r in sheet["rows"]}, {self.cat})
+
+    def test_the_rows_come_whole_so_the_bill_opens_without_another_call(self):
+        self.bill(333)
+        sheet = api.get_category_bills(category=api.PURCHASE_CATEGORY, days=7)
+        self.assertIn("lines", sheet["rows"][0])
+
+    def test_a_purchaser_cannot_read_it(self):
+        email = "lf-test-cat-purchaser@example.com"
+        if not frappe.db.exists("User", email):
+            frappe.get_doc({"doctype": "User", "email": email, "first_name": "Cat",
+                            "send_welcome_email": 0,
+                            "roles": [{"role": roles.PURCHASER}]}).insert(ignore_permissions=True)
+        frappe.set_user(email)
+        self.addCleanup(frappe.set_user, "Administrator")
+        with self.assertRaises(frappe.PermissionError):
+            api.get_category_spend()
