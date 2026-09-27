@@ -198,6 +198,64 @@ def create_expense():
         "status": "pending", "requested_by": frappe.session.user, "requested_at": now_datetime(),
     }).insert(ignore_permissions=True)
     return {"ok": True, "name": doc.name, "amount": amount}
+@frappe.whitelist(methods=["POST"])
+def update_expense(name=None, category=None, payee=None, expense_date=None,
+                   receipt_image=None, note=None):
+    """Correct an expense's category, payee, date, photo or note. Manager,
+    owner or admin, at any stage. The amount is what was approved, so it is not
+    editable here — see purchases.update_purchase_bill for the same rule.
+
+    A field left out of the request is left alone; an empty payee, photo or
+    note clears it."""
+    from frappe.utils import getdate, today
+    from luuvcrm import activity
+    from luuvcrm.api.purchases import _find_pending_card, _visible
+
+    roles.require_manager()
+    doc = _visible("Expense", name)
+    before = {"category": doc.category, "payee": doc.payee or "",
+              "expense_date": str(doc.expense_date or ""),
+              "receipt_image": doc.receipt_image or "", "note": doc.note or ""}
+    after = dict(before)
+    if category is not None:
+        category = category.strip()
+        if not category or not frappe.db.exists("Expense Category", category):
+            frappe.throw(_("Pick a category"))
+        after["category"] = category
+    if payee is not None:
+        after["payee"] = payee.strip()
+    if expense_date is not None and str(expense_date) != before["expense_date"]:
+        try:
+            day = getdate(expense_date)
+        except Exception:
+            frappe.throw(_("That is not a date: {0}").format(expense_date))
+        if day > getdate(today()):
+            frappe.throw(_("The date cannot be in the future"))
+        after["expense_date"] = str(day)
+    if receipt_image is not None:
+        after["receipt_image"] = receipt_image.strip()
+    if note is not None:
+        after["note"] = note.strip()
+
+    changed = {k: v for k, v in after.items() if v != before[k]}
+    if not changed:
+        return {"ok": True, "changed": [], "expense": _expense_dict(doc.name)}
+    for field, value in changed.items():
+        doc.db_set(field, value or None, update_modified=True)
+
+    card = _find_pending_card("expense", "expense", doc.name)
+    if card and ("category" in changed or "payee" in changed):
+        frappe.db.set_value("POS Approval", card, {
+            "title": after["category"],
+            "subhead": (after["payee"] + " · " if after["payee"] else "") + "expense"})
+
+    activity.log_activity(
+        "expense.edit", label="Expense corrected: %s" % after["category"],
+        ref_doctype="Expense", ref_name=doc.name, amount=doc.amount,
+        detail={"from": {k: before[k] for k in changed}, "to": changed})
+    return {"ok": True, "changed": sorted(changed), "expense": _expense_dict(doc.name)}
+
+
 def _decide_expense(name, decision):
     """Approve/reject an expense. Nothing to execute beyond the status — an expense has no side
     effect to undo (no price book, no drawer movement, no GL)."""

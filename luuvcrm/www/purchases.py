@@ -22,4 +22,7 @@ def get_context(context):
     user = frappe.session.user
     context.current_user = user
     context.current_user_full = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()
+    # Correcting a bill after it was entered is for a manager, owner or admin —
+    # the page only offers the button; update_purchase_bill enforces it.
+    context.can_edit_bills = roles.is_manager()
     return context

@@ -1897,8 +1897,9 @@ function lfPoll(fn, ms){
       icons();
   }
   function openBill(i){ showBill(purchBills[i]); }
+  let billShown=null;
   function showBill(b){
-    if(!b) return; const t=BILL_TONE[b.status]||BILL_TONE.pending;
+    if(!b) return; billShown=b; const t=BILL_TONE[b.status]||BILL_TONE.pending;
     document.getElementById('billTitle').textContent=b.vendor||'Purchase bill';
     // The day it was bought first — the day every report counts it under — then
     // who typed it in and when.
@@ -1918,10 +1919,15 @@ function lfPoll(fn, ms){
       ${b.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;">📝 ${esc(b.note)}</div>`:''}
       <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:2px;">Items</div>
       ${linesHtml}
-      <div style="display:flex;justify-content:space-between;padding:13px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(b.total)}</span></div>`;
+      <div style="display:flex;justify-content:space-between;padding:13px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(b.total)}</span></div>
+      ${b.name?`<button onclick="editShownBill()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit vendor, date, photo or note</button>`:''}`;
     document.getElementById('billOverlay').style.display='flex'; icons();
   }
   function hideBill(){ document.getElementById('billOverlay').style.display='none'; }
+  // The same bill object sits in whichever list it was opened from, so it is
+  // updated in place and those lists are simply reloaded behind the sheet.
+  function editShownBill(){ const b=billShown; if(!b) return;
+    openBillEdit('bill',b,fresh=>{ Object.assign(b,fresh); showBill(b); loadPurchaseBills(); loadPurchaseDay(); }); }
 
   // ── Vendor drill-down: tap a row of Owed to vendors or Top vendors ──
   // Opened from Owed, what is unpaid leads; opened from Top vendors, the
@@ -2359,6 +2365,7 @@ function lfPoll(fn, ms){
   bootManager();   // real Frappe session already authenticated → show dashboard
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/manager_sw.js',{scope:'/manager'}).catch(()=>{}); }
 </script>
+{% include "templates/includes/bill_edit.html" %}
 {% include "templates/includes/app_switch.html" %}
 </body>
 </html>

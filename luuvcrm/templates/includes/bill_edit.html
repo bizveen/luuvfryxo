@@ -1,0 +1,130 @@
+{#- Correcting a purchase bill or an expense after it was entered: the vendor
+    (or who was paid), the date, the category, the photo and the note.
+    Shared by /manager and /purchases; the server allows it to managers,
+    owners and admins only (update_purchase_bill / update_expense).
+
+    Uses the page's own CSRF, _post, esc and toast. Open it with
+    openBillEdit('bill'|'expense', record, onSaved) — `record` is the dict the
+    list already holds, and onSaved gets the fresh one back. -#}
+<style>
+.be-lbl{font-size:13px;font-weight:700;color:var(--text-strong);margin:0 0 7px;}
+.be-inp{width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-md);padding:12px 14px;font-family:var(--font-body);font-size:15px;color:var(--text-strong);margin-bottom:16px;}
+.be-inp:focus{border-color:var(--color-primary);}
+.be-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--color-primary);cursor:pointer;background:none;border:none;padding:0;font-family:inherit;}
+</style>
+<div id="beOverlay" style="position:fixed;inset:0;z-index:1100;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeBillEdit()">
+  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;">
+    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
+    <div id="beTitle" style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">Edit bill</div>
+    <div id="beSub" style="font-size:13px;color:var(--text-muted);margin-bottom:18px;"></div>
+
+    <div class="be-lbl">Category</div>
+    <div id="beCatFixed" class="be-inp" style="color:var(--text-muted);">🧾 Purchase Bill (stock items)</div>
+    <select id="beCat" class="be-inp"></select>
+
+    <div class="be-lbl" id="beNameLbl">Vendor</div>
+    <input id="beName" class="be-inp" autocomplete="off">
+
+    <div class="be-lbl">Date</div>
+    <input id="beDate" type="date" class="be-inp">
+
+    <div class="be-lbl">Photo</div>
+    <div id="bePhotoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);overflow:hidden;color:var(--text-faint);font-size:13.5px;margin-bottom:9px;">
+      <span id="bePhotoHint">No photo</span>
+      <img id="bePhotoImg" style="display:none;width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="if(typeof viewImg==='function') viewImg(this.src)">
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:18px;">
+      <label class="be-link"><i data-lucide="camera" style="width:15px;height:15px;"></i> <span id="bePhotoAct">Add photo</span>
+        <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="beUpload(this)"></label>
+      <label class="be-link"><i data-lucide="image" style="width:15px;height:15px;"></i> From gallery
+        <input type="file" accept="image/*" style="display:none;" onchange="beUpload(this)"></label>
+      <button id="beRemove" class="be-link" style="color:var(--color-danger);" onclick="beSetPhoto('')"><i data-lucide="trash-2" style="width:15px;height:15px;"></i> Remove</button>
+    </div>
+
+    <div class="be-lbl">Description</div>
+    <textarea id="beNote" class="be-inp" rows="3" style="resize:vertical;" placeholder="What this bill was for"></textarea>
+
+    <div id="beErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin:-4px 0 12px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeBillEdit()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
+      <button id="beSave" onclick="beSave()" style="flex:1;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);padding:14px;cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Save changes</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const S={kind:null,name:null,photo:'',onSaved:null,cats:null,busy:false};
+  function el(id){ return document.getElementById(id); }
+  function today(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  function err(m){ const e=el('beErr'); e.textContent=m||''; e.style.display=m?'block':'none'; }
+  function msg(d,fallback){ try{
+      if(d&&d._server_messages){ const a=JSON.parse(d._server_messages); if(a.length){ const t=(JSON.parse(a[0]).message||'').replace(/<[^>]*>/g,' ').trim(); if(t) return t; } }
+      if(d&&d.exception){ const t=String(d.exception); const i=t.indexOf(':'); return (i>-1?t.slice(i+1):t).trim().slice(0,160)||fallback; }
+    }catch(e){} return fallback; }
+
+  async function loadCats(current){
+    if(!S.cats){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); const d=r&&await r.json(); S.cats=(d&&d.message&&d.message.categories)||[]; }catch(e){ S.cats=[]; } }
+    const list=S.cats.slice(); if(current&&!list.includes(current)) list.unshift(current);   // a since-disabled category still shows
+    el('beCat').innerHTML=list.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    el('beCat').value=current||'';
+  }
+
+  window.beSetPhoto=function(url){ S.photo=url||''; const img=el('bePhotoImg');
+    img.style.display=S.photo?'block':'none'; if(S.photo) img.src=S.photo;
+    el('bePhotoHint').style.display=S.photo?'none':'block';
+    el('bePhotoAct').textContent=S.photo?'Replace photo':'Add photo';
+    el('beRemove').style.display=S.photo?'inline-flex':'none'; };
+
+  window.openBillEdit=function(kind,rec,onSaved){ if(!rec||!rec.name) return;
+    S.kind=kind; S.name=rec.name; S.onSaved=onSaved||null; err('');
+    const exp=kind==='expense';
+    el('beTitle').textContent=exp?'Edit expense':'Edit bill';
+    el('beSub').textContent=exp?'The amount stays as entered — to change it, reject this and add it again.'
+                               :'The items and prices stay as entered — to change those, reject this bill and add it again.';
+    el('beCatFixed').style.display=exp?'none':'block';
+    el('beCat').style.display=exp?'block':'none';
+    if(exp) loadCats(rec.category);
+    el('beNameLbl').textContent=exp?'Paid to':'Vendor';
+    el('beName').placeholder=exp?'e.g. CEB, landlord':'Vendor name';
+    el('beName').value=(exp?rec.payee:rec.vendor)||'';
+    el('beDate').value=(exp?rec.date:rec.purchase_date)||'';
+    el('beDate').max=today();
+    el('beNote').value=rec.note||'';
+    beSetPhoto(rec.receipt_image||'');
+    el('beSave').disabled=false; el('beSave').textContent='Save changes';
+    el('beOverlay').style.display='flex';
+    try{ window.lucide&&window.lucide.createIcons(); }catch(e){} };
+
+  window.closeBillEdit=function(){ el('beOverlay').style.display='none'; };
+
+  window.beUpload=async function(input){ let f=input.files&&input.files[0]; input.value=''; if(!f) return;
+    el('bePhotoHint').style.display='block'; el('bePhotoHint').textContent='⏳ Uploading…'; el('bePhotoImg').style.display='none';
+    if(typeof shrinkPhoto==='function') f=await shrinkPhoto(f);
+    const fd=new FormData(); fd.append('file',f,f.name||'receipt.jpg'); fd.append('is_private',0); fd.append('csrf_token',CSRF);
+    try{ const r=await fetch('/api/method/upload_file',{method:'POST',body:fd,credentials:'include',headers:{'X-Frappe-CSRF-Token':CSRF}});
+      const d=await r.json(); const url=d.message&&(d.message.file_url||d.message.file_name);
+      el('bePhotoHint').textContent='No photo';
+      if(!url){ beSetPhoto(S.photo); toast('Upload failed — try again'); return; }
+      beSetPhoto(url);
+    }catch(e){ el('bePhotoHint').textContent='No photo'; beSetPhoto(S.photo); toast('Upload failed'); } };
+
+  window.beSave=async function(){ if(S.busy) return;
+    const exp=S.kind==='expense', name=el('beName').value.trim(), date=el('beDate').value;
+    if(!exp&&!name){ err('The vendor cannot be empty.'); return; }
+    if(exp&&!el('beCat').value){ err('Pick a category.'); return; }
+    if(!date){ err('Pick a date.'); return; }
+    if(date>today()){ err('The date cannot be in the future.'); return; }
+    const body=exp
+      ?{name:S.name,category:el('beCat').value,payee:name,expense_date:date,receipt_image:S.photo,note:el('beNote').value.trim()}
+      :{name:S.name,vendor:name,purchase_date:date,receipt_image:S.photo,note:el('beNote').value.trim()};
+    S.busy=true; err(''); const btn=el('beSave'); btn.disabled=true; btn.textContent='Saving…';
+    try{ const r=await _post('/api/method/luuvcrm.api.'+(exp?'update_expense':'update_purchase_bill'),body);
+      const d=r&&await r.json();
+      if(r&&r.ok&&d&&d.message&&d.message.ok){
+        closeBillEdit(); toast(d.message.changed.length?'Saved ✓':'Nothing changed');
+        if(S.onSaved) S.onSaved(exp?d.message.expense:d.message.bill);
+      } else err(msg(d,'Could not save'));
+    }catch(e){ err('Connection error'); }
+    S.busy=false; btn.disabled=false; btn.textContent='Save changes'; };
+})();
+</script>

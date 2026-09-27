@@ -580,10 +580,91 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
 def get_purchase_bill(name=None):
     """One bill in full. Search results carry no lines — a tapped card fetches them."""
     roles.require_purchases()
-    roles.require_purchases()
     if not name or not frappe.db.exists("Purchase Bill", name):
         frappe.throw(_("Bill not found"))
     return _bill_dict(name)
+# ─── Correcting a bill after the fact ─────────────────────────────────────
+# A bill typed in a hurry at the market comes back with the vendor misspelt,
+# the wrong day, or the photo of a different receipt. A manager (or owner, or
+# admin) can put the heading right at any stage — pending, approved or paid.
+# The items and the total are not editable here: they are what the price book
+# and the approval were decided on, and changing them would rewrite a decision
+# after it was made. That is what rejecting and re-entering the bill is for.
+
+def _find_pending_card(action, key, name):
+    """The still-pending POS Approval raised for this document, if any."""
+    if not frappe.db.exists("DocType", "POS Approval"):
+        return None
+    for card in frappe.get_all("POS Approval", fields=["name", "action_payload"],
+                               filters={"status": "pending", "action": action}):
+        try:
+            if json.loads(card.action_payload or "{}").get(key) == name:
+                return card.name
+        except ValueError:
+            continue
+    return None
+
+
+def _visible(doctype, name):
+    """The document, if this user's branch can see it. A manager pinned to one
+    restaurant must not reach another's bills by guessing a name."""
+    if not name or not frappe.db.exists(doctype, name):
+        frappe.throw(_("Bill not found"))
+    if not frappe.get_list(doctype, filters={"name": name}, pluck="name", limit_page_length=1):
+        frappe.throw(_("Bill not found"))
+    return frappe.get_doc(doctype, name)
+
+
+@frappe.whitelist(methods=["POST"])
+def update_purchase_bill(name=None, vendor=None, purchase_date=None, receipt_image=None,
+                         note=None):
+    """Correct a bill's vendor, date, photo or note. Manager, owner or admin.
+
+    A field left out of the request is left alone; an empty `receipt_image` or
+    `note` clears it. A changed date is held to the same window a new bill is
+    (_purchase_date), an unchanged one is not — an old bill must still be
+    correctable in every other respect."""
+    roles.require_manager()
+    doc = _visible("Purchase Bill", name)
+    before = {"vendor": doc.vendor, "purchase_date": str(doc.get("purchase_date") or ""),
+              "receipt_image": doc.receipt_image or "", "note": doc.note or ""}
+    after = dict(before)
+    if vendor is not None:
+        after["vendor"] = _canonical_vendor(vendor)
+        if not after["vendor"]:
+            frappe.throw(_("Vendor is required"))
+    if purchase_date is not None and str(purchase_date) != before["purchase_date"]:
+        after["purchase_date"] = str(_purchase_date(purchase_date))
+    if receipt_image is not None:
+        after["receipt_image"] = receipt_image.strip()
+    if note is not None:
+        after["note"] = note.strip()
+
+    changed = {k: v for k, v in after.items() if v != before[k]}
+    if not changed:
+        return {"ok": True, "changed": [], "bill": _bill_dict(doc.name)}
+    for field, value in changed.items():
+        doc.db_set(field, value or None, update_modified=True)
+
+    # A card still waiting in Approvals shows the vendor and the day — keep it
+    # telling the approver the same thing the bill now says.
+    card = _find_pending_card("purchase_bill", "bill", doc.name)
+    if card and ("vendor" in changed or "purchase_date" in changed):
+        n = len(doc.get("items") or [])
+        day = frappe.utils.getdate(after["purchase_date"]) if after["purchase_date"] else None
+        dated = ("" if not day or day == frappe.utils.getdate(frappe.utils.today())
+                 else " · bought " + frappe.utils.formatdate(day, "d MMM"))
+        frappe.db.set_value("POS Approval", card, {
+            "title": after["vendor"],
+            "subhead": f"{n} item{'' if n == 1 else 's'} · purchase bill{dated}"})
+
+    activity.log_activity(
+        "purchase_bill.edit", label="Bill corrected: %s" % after["vendor"],
+        ref_doctype="Purchase Bill", ref_name=doc.name, amount=doc.total,
+        detail={"from": {k: before[k] for k in changed}, "to": changed})
+    return {"ok": True, "changed": sorted(changed), "bill": _bill_dict(doc.name)}
+
+
 @frappe.whitelist()
 def get_price_book():
     roles.require_purchases()

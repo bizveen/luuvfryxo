@@ -13,6 +13,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from luuvcrm import api, roles
+from luuvcrm.api.purchases import _find_pending_card
 from luuvcrm.tests import fixtures as fx
 
 
@@ -776,3 +777,144 @@ class TestOneVendorOneName(PurchaseTestCase):
         self.as_user(self.user_with(roles.KITCHEN_STAFF, "kitchen"))
         with self.assertRaises(frappe.PermissionError):
             api.get_purchase_vendors()
+
+
+class TestCorrectingABill(PurchaseTestCase):
+    """A manager fixes the heading of a bill — vendor, date, photo, note — at
+    any stage. The items and total are what was approved and stay put."""
+
+    def edit(self, name, **kwargs):
+        return api.update_purchase_bill(name=name, **kwargs)
+
+    def test_the_vendor_date_photo_and_note_change(self):
+        name = self.enter(vendor="_LFT Wrong Mart")
+        day = frappe.utils.add_days(frappe.utils.today(), -2)
+        out = self.edit(name, vendor="_LFT Right Mart", purchase_date=day,
+                        receipt_image="/files/_lft-receipt.jpg", note="fixed")
+        doc = frappe.get_doc("Purchase Bill", name)
+        self.assertEqual((doc.vendor, str(doc.purchase_date), doc.receipt_image, doc.note),
+                         ("_LFT Right Mart", day, "/files/_lft-receipt.jpg", "fixed"))
+        self.assertEqual(out["changed"], ["note", "purchase_date", "receipt_image", "vendor"])
+        self.assertEqual(out["bill"]["vendor"], "_LFT Right Mart")
+
+    def test_the_items_and_total_are_left_alone(self):
+        name = self.enter()
+        self.edit(name, vendor="_LFT Other")
+        doc = frappe.get_doc("Purchase Bill", name)
+        self.assertEqual(doc.total, 1500)
+        self.assertEqual(len(doc.items), 1)
+
+    def test_an_approved_bill_can_still_be_corrected(self):
+        name = self.enter()
+        api._decide_purchase_bill(name, "approved")
+        self.edit(name, note="late fix")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", name, "note"), "late fix")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", name, "status"), "approved")
+
+    def test_a_field_left_out_is_left_alone(self):
+        name = self.enter(note="keep me")
+        self.edit(name, vendor="_LFT Only Vendor")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", name, "note"), "keep me")
+
+    def test_the_photo_can_be_removed(self):
+        name = self.enter(receipt_image="/files/_lft-old.jpg")
+        self.edit(name, receipt_image="")
+        self.assertFalse(frappe.db.get_value("Purchase Bill", name, "receipt_image"))
+
+    def test_an_empty_vendor_is_refused(self):
+        name = self.enter()
+        with self.assertRaises(frappe.ValidationError):
+            self.edit(name, vendor="   ")
+
+    def test_a_future_date_is_refused(self):
+        name = self.enter()
+        with self.assertRaises(frappe.ValidationError):
+            self.edit(name, purchase_date=frappe.utils.add_days(frappe.utils.today(), 1))
+
+    def test_an_unchanged_old_date_does_not_block_the_edit(self):
+        """A bill older than the entry window must still take a vendor fix."""
+        name = self.enter()
+        old = frappe.utils.add_days(frappe.utils.today(), -90)
+        frappe.db.set_value("Purchase Bill", name, "purchase_date", old)
+        self.edit(name, vendor="_LFT Old Fix", purchase_date=old)
+        self.assertEqual(frappe.db.get_value("Purchase Bill", name, "vendor"), "_LFT Old Fix")
+
+    def test_the_pending_approval_card_follows_the_vendor(self):
+        name = self.enter(vendor="_LFT Before")
+        self.edit(name, vendor="_LFT After")
+        card = _find_pending_card("purchase_bill", "bill", name)
+        self.assertEqual(frappe.db.get_value("POS Approval", card, "title"), "_LFT After")
+
+    def test_a_missing_bill_is_refused(self):
+        with self.assertRaises(frappe.ValidationError):
+            self.edit("no-such-bill", vendor="x")
+
+    def test_an_owner_may_correct_one(self):
+        name = self.enter()
+        self.as_user(self.user_with(roles.RESTAURANT_OWNER, "owner"))
+        self.edit(name, note="owner fix")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", name, "note"), "owner fix")
+
+    def test_a_purchaser_cannot_correct_one(self):
+        """Entering bills is the purchaser's job; rewriting them afterwards is not."""
+        name = self.enter()
+        self.as_user(self.user_with(roles.PURCHASER, "purchaser"))
+        with self.assertRaises(frappe.PermissionError):
+            self.edit(name, vendor="_LFT Sneaky")
+
+    def test_a_cashier_cannot_correct_one(self):
+        name = self.enter()
+        self.as_user(self.user_with(roles.CASHIER, "cashier"))
+        with self.assertRaises(frappe.PermissionError):
+            self.edit(name, vendor="_LFT Sneaky")
+
+
+class TestCorrectingAnExpense(PurchaseTestCase):
+    def setUp(self):
+        super().setUp()
+        api._install_expenses()
+        self.cat = frappe.get_all("Expense Category", filters={"disabled": 0},
+                                  pluck="name", order_by="name", limit=2)
+        out = self.call(api.create_expense, category=self.cat[0], amount=750,
+                        payee="_LFT CEB", note="march")
+        self.expense = out["name"]
+        self.addCleanup(self._drop_expense)
+
+    def _drop_expense(self):
+        user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            card = _find_pending_card("expense", "expense", self.expense)
+            if card:
+                frappe.delete_doc("POS Approval", card, force=True, ignore_permissions=True)
+            frappe.delete_doc("Expense", self.expense, force=True, ignore_permissions=True)
+        finally:
+            frappe.set_user(user)
+
+    def test_the_category_payee_date_photo_and_note_change(self):
+        day = frappe.utils.add_days(frappe.utils.today(), -40)
+        api.update_expense(name=self.expense, category=self.cat[1], payee="_LFT Water Board",
+                           expense_date=day, receipt_image="/files/_lft-e.jpg", note="april")
+        d = frappe.get_doc("Expense", self.expense)
+        self.assertEqual((d.category, d.payee, str(d.expense_date), d.receipt_image, d.note),
+                         (self.cat[1], "_LFT Water Board", day, "/files/_lft-e.jpg", "april"))
+        self.assertEqual(d.amount, 750)
+
+    def test_the_pending_card_follows_the_category(self):
+        api.update_expense(name=self.expense, category=self.cat[1])
+        card = _find_pending_card("expense", "expense", self.expense)
+        self.assertEqual(frappe.db.get_value("POS Approval", card, "title"), self.cat[1])
+
+    def test_an_unknown_category_is_refused(self):
+        with self.assertRaises(frappe.ValidationError):
+            api.update_expense(name=self.expense, category="_LFT No Such Category")
+
+    def test_a_future_date_is_refused(self):
+        with self.assertRaises(frappe.ValidationError):
+            api.update_expense(name=self.expense,
+                               expense_date=frappe.utils.add_days(frappe.utils.today(), 1))
+
+    def test_a_purchaser_cannot_correct_one(self):
+        self.as_user(self.user_with(roles.PURCHASER, "purchaser"))
+        with self.assertRaises(frappe.PermissionError):
+            api.update_expense(name=self.expense, payee="_LFT Sneaky")

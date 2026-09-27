@@ -92,6 +92,7 @@ from luuvcrm.api.expenses import (
     get_expense_categories,
     get_expenses,
     setup_expenses,
+    update_expense,
 )
 from luuvcrm.api.guides import (
     guide_app_url,
@@ -324,6 +325,7 @@ from luuvcrm.api.purchases import (
     create_purchase_bill,
     create_purchase_item,
     _decide_purchase_bill,
+    _find_pending_card,
     get_due_bills,
     get_price_book,
     get_purchase_bill,
@@ -343,7 +345,9 @@ from luuvcrm.api.purchases import (
     setup_purchase_bill,
     setup_purchase_payment_fields,
     setup_raw_materials,
+    update_purchase_bill,
     _vendor_key,
+    _visible,
 )
 from luuvcrm.api.pnl import (
     _food_cost,
