@@ -1311,7 +1311,9 @@ function lfPoll(fn, ms){
       if(payCtx.kind==='new'){ Object.assign(body,{ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':payCtx.table), order_type:orderType, order_source:'Walk-in', customer_name:'' }); res=await _post('/api/method/luuvcrm.api.place_order',body); }
       else { body.order_name=payCtx.orderName; res=await _post('/api/method/luuvcrm.api.process_payment',body); }
       if(!res){ btn.disabled=false; return; } const data=await res.json();
-      if(res.ok && data.message && data.message.name){ toast('Charged #'+data.message.name); printReceipt(data.message.name); hide('payModal');
+      if(res.ok && data.message && data.message.name){ toast('Charged #'+data.message.name);
+        if(payMode==='Cash'||payMode==='Cash+Card') LFPrint.openDrawer();
+        printReceipt(data.message.name); hide('payModal');
         const tbl=payCtx.table; const paidCodes=Object.keys(cart);
         if(payCtx.kind==='new') clearCart(); else { clearTicket(); }
         if(tbl){ await refreshTableTabs(tbl); maybeWarnZombies(tbl,paidCodes); } loadOpenOrders(); loadShift(); }
@@ -1623,7 +1625,9 @@ function lfPoll(fn, ms){
     if(!lines.length){ mErr('splitErr','Select at least one item'); return; }
     const btn=document.getElementById('splitConfirm'); btn.disabled=true; mErr('splitErr','');
     try{ const r=await _post('/api/method/luuvcrm.api.pay_split',{order_name:currentOrder,lines:JSON.stringify(lines),payment_mode:splitMode,tour_company:tourPicked('splitTour')}); if(!r){ btn.disabled=false; return; } const d=await r.json();
-      if(r.ok && d.message && d.message.name){ toast('Split charged #'+d.message.name); printReceipt(d.message.name); hide('splitModal');
+      if(r.ok && d.message && d.message.name){ toast('Split charged #'+d.message.name);
+        if(splitMode==='Cash'||splitMode==='Cash+Card') LFPrint.openDrawer();
+        printReceipt(d.message.name); hide('splitModal');
         const t=document.getElementById('tableSel').value;
         if(d.message.fully_paid){ clearTicket(); if(t) await refreshTableTabs(t); } else { await openSplit(); }
         loadOpenOrders(); loadShift(); }
@@ -1844,6 +1848,16 @@ function lfPoll(fn, ms){
       catch(e){ return 'NOT_CONNECTED'; }
     }
 
+    // Fire-and-forget: a missing drawer or a desktop browser must never block
+    // the sale finishing — this only ever logs, it never toasts or throws.
+    function openDrawer(){
+      if(!window.iMinPOS || !window.iMinPOS.openCashDrawer) return;
+      try{
+        var res=JSON.parse(window.iMinPOS.openCashDrawer());
+        if(!res.success) console.warn('drawer: not opened —',res.message);
+      }catch(e){ console.error('drawer: bridge threw',e); }
+    }
+
     // WEB_INTEGRATION.md §6 — map the stable codes to something a cashier can act on.
     function errText(code,fallback){
       switch(code){
@@ -1958,7 +1972,7 @@ function lfPoll(fn, ms){
       return false;
     }
 
-    return { has:has, status:status, send:send, err:errText, payload:payload };
+    return { has:has, status:status, send:send, err:errText, payload:payload, openDrawer:openDrawer };
   })();
 
   // ══════════════════════════════════════════════════════════════════════
