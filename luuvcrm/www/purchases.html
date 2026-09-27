@@ -136,80 +136,57 @@ input,button{font-family:inherit;}
   </div>
 </div></div>
 
-<!-- Add sheet -->
+<!-- Add sheet — Category decides whether this becomes a Purchase Bill or an Expense -->
 <div id="addOverlay" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeAdd()">
   <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
     <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
-    <div style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New bill</div>
-    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Add each item and its purchase price — it goes to the manager for approval.</div>
+    <div id="addTitle" style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New bill</div>
+    <div id="addSubtitle" style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Add each item and its purchase price — it goes to the manager for approval.</div>
 
-    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">1 · Receipt photo <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Category</div>
+    <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()" style="margin-bottom:20px;"></select>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;"><span id="photoStepLabel">1 · Receipt photo</span> <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
     <label id="photoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:8px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
       <span id="photoHint">📷 Tap to snap receipt</span>
       <img id="photoImg" style="display:none;width:100%;height:100%;object-fit:cover;">
-      <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" onchange="uploadReceipt(this,'bill')">
+      <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" onchange="uploadReceipt(this)">
     </label>
     <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--color-primary);cursor:pointer;margin-bottom:20px;"><i data-lucide="image" style="width:15px;height:15px;"></i> Choose from gallery instead
-      <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this,'bill')">
+      <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this)">
     </label>
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">2 · Items &amp; purchase prices</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
-    <div id="lineRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
+    <div id="billModeFields">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">2 · Items &amp; purchase prices</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
+      <div id="lineRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
 
-    <button onclick="togglePicker()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="plus" id="pickerIcon" style="width:17px;height:17px;"></i> <span id="pickerLabel">Add item from list</span></button>
-    <div id="pickerWrap" style="display:none;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:10px;overflow:hidden;"></div>
+      <button onclick="togglePicker()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="plus" id="pickerIcon" style="width:17px;height:17px;"></i> <span id="pickerLabel">Add item from list</span></button>
+      <div id="pickerWrap" style="display:none;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:10px;overflow:hidden;"></div>
 
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Bill total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="billTotal">0</span></span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Bill total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="billTotal">0</span></span></div>
+    </div>
+
+    <div id="expModeFields" style="display:none;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">2 · Amount</div>
+      <div style="display:flex;align-items:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-sunken);border-radius:var(--radius-md);padding:13px 15px;margin-bottom:14px;">
+        <span class="mono" style="font-size:14px;color:var(--text-muted);">Rs</span>
+        <input id="fAmount" type="number" inputmode="decimal" placeholder="0" oninput="saveDraft()" style="flex:1;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:16px;color:var(--text-strong);">
+      </div>
+      <div style="margin-bottom:6px;"><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Bill / account no <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fBillRef" class="inp" placeholder="e.g. 0412345678" oninput="saveDraft()"></div>
+      <div style="margin-top:10px;display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text-muted);background:var(--surface-sunken);border-radius:var(--radius-md);padding:10px 12px;line-height:1.5;"><i data-lucide="info" style="width:14px;height:14px;flex:none;margin-top:2px;"></i> <span>This is a record for the manager — it does not change the cash drawer count. If you paid out of the till, still count the drawer as you always have.</span></div>
+    </div>
 
     <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px;">
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="Start typing — pick from the list" autocomplete="off" oninput="onVendorInput();saveDraft()" onfocus="onVendorInput()" onblur="setTimeout(hideVendorSug,150)">
+      <div><div id="fVendorLabel" style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="Start typing — pick from the list" autocomplete="off" oninput="onVendorInput();saveDraft()" onfocus="onVendorInput()" onblur="setTimeout(hideVendorSug,150)">
         <div id="vendorSug" style="display:none;margin-top:6px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden;background:var(--surface-card);box-shadow:var(--shadow-xs);"></div>
         <div id="vendorHint" style="display:none;font-size:12.5px;margin-top:6px;"></div></div>
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Purchase date</div><input id="fDate" class="inp" type="date" onchange="saveDraft()"></div>
+      <div><div id="fDateLabel" style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Purchase date</div><input id="fDate" class="inp" type="date" onchange="saveDraft()"></div>
       <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fNote" class="inp" placeholder="Anything the manager should know" oninput="saveDraft()"></div>
     </div>
     <div id="formErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="formErrMsg"></span></div>
     <div style="display:flex;gap:10px;margin-top:20px;">
       <button onclick="closeAdd()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
       <div style="flex:1;"><button class="lf-btn" id="submitBtn" onclick="submitBill()">Send for approval</button></div>
-    </div>
-  </div>
-</div>
-
-<!-- Add expense sheet -->
-<div id="expOverlay" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeExp()">
-  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
-    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
-    <div style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New expense</div>
-    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">A utility bill, gas, rent — anything that isn't a stock purchase. It goes to the manager for approval.</div>
-
-    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">1 · Bill photo <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
-    <label id="expPhotoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:8px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
-      <span id="expPhotoHint">📷 Tap to snap the bill</span>
-      <img id="expPhotoImg" style="display:none;width:100%;height:100%;object-fit:cover;">
-      <input id="expPhotoInput" type="file" accept="image/*" capture="environment" style="display:none;" onchange="uploadReceipt(this,'exp')">
-    </label>
-    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--color-primary);cursor:pointer;margin-bottom:20px;"><i data-lucide="image" style="width:15px;height:15px;"></i> Choose from gallery instead
-      <input id="expPhotoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this,'exp')">
-    </label>
-
-    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">2 · What was it for?</div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Category</div><select id="eCategory" class="inp" onchange="saveDraft()"></select></div>
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Paid to</div><input id="ePayee" class="inp" placeholder="e.g. CEB, Water Board" oninput="saveDraft()"></div>
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Amount</div><input id="eAmount" class="inp mono" type="number" inputmode="decimal" placeholder="0" oninput="paintExpTotal();saveDraft()"></div>
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Bill / account no <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="eBillRef" class="inp" placeholder="e.g. 0412345678" oninput="saveDraft()"></div>
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Date</div><input id="eDate" class="inp" type="date" onchange="saveDraft()"></div>
-      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="eNote" class="inp" placeholder="Anything the manager should know" oninput="saveDraft()"></div>
-    </div>
-
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Expense total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="expTotal">0</span></span></div>
-    <div style="margin-top:10px;display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text-muted);background:var(--surface-sunken);border-radius:var(--radius-md);padding:10px 12px;line-height:1.5;"><i data-lucide="info" style="width:14px;height:14px;flex:none;margin-top:2px;"></i> <span>This is a record for the manager — it does not change the cash drawer count. If you paid out of the till, still count the drawer as you always have.</span></div>
-
-    <div id="expErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="expErrMsg"></span></div>
-    <div style="display:flex;gap:10px;margin-top:20px;">
-      <button onclick="closeExp()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
-      <div style="flex:1;"><button class="lf-btn" id="expSubmitBtn" onclick="submitExpense()">Send for approval</button></div>
     </div>
   </div>
 </div>
@@ -253,7 +230,7 @@ function lfPoll(fn, ms){
 }
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='', priceItems=[];
-  let expStats={}, billStats={}, newExpReceipt='', expCats=[];
+  let expStats={}, billStats={}, expCats=[];
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
   // The phone's own calendar day. toISOString() is UTC, which in Sri Lanka is
@@ -288,7 +265,8 @@ function lfPoll(fn, ms){
     if(t==='due') loadDue();
     if(t==='appr') loadApprovals();
     paintStats(); icons(); }
-  function fabClick(){ if(tab==='expenses') openExp(); else openAdd(); }
+  // One popup handles both — which tab you were on just picks its starting category.
+  function fabClick(){ openAdd(); }
 
   // The three header tiles describe whichever list is on screen — bills and expenses are
   // separate pots of money and summing them into one figure would mean nothing.
@@ -331,41 +309,38 @@ function lfPoll(fn, ms){
 
   async function loadExpCats(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); if(!r) return; const d=await r.json();
     expCats=(d.message&&d.message.categories)||[];
-    document.getElementById('eCategory').innerHTML=expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    renderCategoryOptions();
   }catch(e){} }
 
-  function paintExpTotal(){ document.getElementById('expTotal').textContent=nfmt(parseFloat(document.getElementById('eAmount').value)||0); }
-  async function openExp(){
-    ['ePayee','eAmount','eBillRef','eNote'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('eDate').value=localToday();
-    newExpReceipt=''; const img=document.getElementById('expPhotoImg'); img.style.display='none'; img.removeAttribute('src');
-    const _eph=document.getElementById('expPhotoHint'); _eph.style.display='block'; _eph.textContent='📷 Tap to snap the bill';
-    document.getElementById('expErr').style.display='none'; paintExpTotal();
-    document.getElementById('expOverlay').style.display='flex'; icons(); saveDraft();
-    // Tapping the FAB right after load can beat the initial category fetch — await it here rather
-    // than hand the staffer an empty dropdown.
-    const sel=document.getElementById('eCategory');
-    if(!expCats.length){ sel.innerHTML='<option value="">Loading…</option>'; await loadExpCats(); }
-    if(!expCats.length){ sel.innerHTML='<option value="">No categories</option>';
-      expErrMsg2('Could not load categories — check your connection and reopen.'); } }
-  function expErrMsg2(t){ const e=document.getElementById('expErr'); document.getElementById('expErrMsg').textContent=t; e.style.display='flex'; icons(); }
-  function closeExp(){ document.getElementById('expOverlay').style.display='none'; clearDraft(); }
+  // First option ("") means "this is a stock Purchase Bill" — everything else is
+  // one of the manager's Expense Categories. Keeps the selection across a
+  // background refresh of the category list.
+  function renderCategoryOptions(){ const sel=document.getElementById('fCategory'); if(!sel) return;
+    const cur=sel.value;
+    sel.innerHTML='<option value="">🧾 Purchase Bill (stock items)</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if(cur && expCats.includes(cur)) sel.value=cur; }
 
-  async function submitExpense(){ const err=document.getElementById('expErr'), em=document.getElementById('expErrMsg');
-    const category=document.getElementById('eCategory').value;
-    const amount=parseFloat(document.getElementById('eAmount').value)||0;
-    if(!category){ em.textContent='Pick a category.'; err.style.display='flex'; return; }
-    if(amount<=0){ em.textContent='Enter how much was paid.'; err.style.display='flex'; return; }
-    const btn=document.getElementById('expSubmitBtn'); btn.disabled=true; err.style.display='none';
-    try{ const r=await _post('/api/method/luuvcrm.api.create_expense',{category:category,amount:amount,
-        payee:document.getElementById('ePayee').value.trim(),
-        bill_ref:document.getElementById('eBillRef').value.trim(),
-        expense_date:document.getElementById('eDate').value,
-        note:document.getElementById('eNote').value.trim(), receipt_image:newExpReceipt}); if(!r){ btn.disabled=false; return; }
-      const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeExp(); loadExpenses(); }
-      else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; }
-    }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
+  // Swaps the sheet between Bill mode (items + vendor) and Expense mode
+  // (amount + payee) — the photo, date and note fields stay put either way.
+  function onCategoryChange(){
+    const isExp=document.getElementById('fCategory').value!=='';
+    document.getElementById('billModeFields').style.display=isExp?'none':'block';
+    document.getElementById('expModeFields').style.display=isExp?'block':'none';
+    document.getElementById('fVendorLabel').textContent=isExp?'Paid to':'Vendor / paid to';
+    document.getElementById('fVendor').placeholder=isExp?'e.g. CEB, Water Board':'Start typing — pick from the list';
+    document.getElementById('fDateLabel').textContent=isExp?'Date':'Purchase date';
+    document.getElementById('addTitle').textContent=isExp?'New expense':'New bill';
+    document.getElementById('addSubtitle').textContent=isExp
+      ?'A utility bill, gas, rent — anything that isn’t a stock purchase. It goes to the manager for approval.'
+      :'Add each item and its purchase price — it goes to the manager for approval.';
+    document.getElementById('photoStepLabel').textContent=isExp?'1 · Bill photo':'1 · Receipt photo';
+    if(document.getElementById('photoImg').style.display==='none'){
+      document.getElementById('photoHint').textContent=isExp?'📷 Tap to snap the bill':'📷 Tap to snap receipt'; }
+    const fd=document.getElementById('fDate');
+    if(isExp){ fd.removeAttribute('min'); fd.removeAttribute('max'); }
+    else { fd.max=localToday(); fd.min=localDaysAgo(MAX_BACKDATE_DAYS); }
+    if(isExp){ hideVendorSug(); document.getElementById('vendorHint').style.display='none'; }
+    icons(); }
 
   // ── Due bills (approved, not yet paid to the vendor) ──
   // Filtering happens here, not at the server: the whole owed list is already in hand.
@@ -453,6 +428,7 @@ function lfPoll(fn, ms){
       if(sc) scored.push([sc,v]); }
     return scored.sort((a,b)=>b[0]-a[0]||b[1].count-a[1].count).slice(0,6).map(x=>x[1]); }
   function onVendorInput(){ const el=document.getElementById('fVendor'), box=document.getElementById('vendorSug'), hint=document.getElementById('vendorHint');
+    if(document.getElementById('fCategory').value!==''){ box.style.display='none'; hint.style.display='none'; return; }
     const k=vkey(el.value), exact=k&&vendors.find(v=>vkey(v.name)===k);
     vendorShown=exact?[]:vendorMatches(el.value);
     if(vendorShown.length&&document.activeElement===el){
@@ -466,9 +442,17 @@ function lfPoll(fn, ms){
 
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
   function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
-    const fd=document.getElementById('fDate'); fd.value=localToday(); fd.max=localToday(); fd.min=localDaysAgo(MAX_BACKDATE_DAYS);
+    document.getElementById('fAmount').value=''; document.getElementById('fBillRef').value='';
+    document.getElementById('fDate').value=localToday();
     document.getElementById('vendorHint').style.display='none'; hideVendorSug(); loadVendors();
     document.getElementById('photoImg').style.display='none'; const _ph=document.getElementById('photoHint'); _ph.style.display='block'; _ph.textContent='📷 Tap to snap receipt'; document.getElementById('formErr').style.display='none';
+    // Tapping the FAB right after load can beat the initial category fetch; harmless
+    // here since the sheet still opens with just the Purchase Bill option and fills
+    // in the rest the moment the list arrives.
+    if(!expCats.length) loadExpCats();
+    renderCategoryOptions();
+    document.getElementById('fCategory').value=(tab==='expenses'?(expCats[0]||''):'');
+    onCategoryChange();
     if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
   function closeAdd(){ document.getElementById('addOverlay').style.display='none'; clearDraft(); }
@@ -541,41 +525,30 @@ function lfPoll(fn, ms){
   function sheetOpen(id){ return document.getElementById(id).style.display==='flex'; }
   function saveDraft(){ if(restoringDraft) return; try{
       let d=null;
-      if(sheetOpen('addOverlay')) d={sheet:'bill',lines:formLines,receipt:newReceipt,
+      if(sheetOpen('addOverlay')) d={sheet:'bill',
+        category:document.getElementById('fCategory').value,
+        lines:formLines,receipt:newReceipt,
         vendor:document.getElementById('fVendor').value,note:document.getElementById('fNote').value,
-        date:document.getElementById('fDate').value,at:Date.now()};
-      else if(sheetOpen('expOverlay')) d={sheet:'exp',receipt:newExpReceipt,
-        category:document.getElementById('eCategory').value,payee:document.getElementById('ePayee').value,
-        amount:document.getElementById('eAmount').value,billref:document.getElementById('eBillRef').value,
-        date:document.getElementById('eDate').value,note:document.getElementById('eNote').value,at:Date.now()};
+        date:document.getElementById('fDate').value,
+        amount:document.getElementById('fAmount').value,billref:document.getElementById('fBillRef').value,
+        at:Date.now()};
       if(d) localStorage.setItem(DRAFT_KEY,JSON.stringify(d));
     }catch(e){} }
   function clearDraft(){ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} }
   async function restoreDraft(){ let d=null; try{ d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null'); }catch(e){}
-    if(!d||!d.at||Date.now()-d.at>12*3600*1000){ if(d) clearDraft(); return; }
+    if(!d||!d.at||Date.now()-d.at>12*3600*1000||d.sheet!=='bill'){ if(d) clearDraft(); return; }
     restoringDraft=true;
     try{
-      if(d.sheet==='bill'){
-        openAdd();
-        formLines=Array.isArray(d.lines)?d.lines:[]; newReceipt=d.receipt||'';
-        document.getElementById('fVendor').value=d.vendor||'';
-        document.getElementById('fNote').value=d.note||'';
-        if(d.date) document.getElementById('fDate').value=d.date;
-        if(newReceipt){ const img=document.getElementById('photoImg'); img.src=newReceipt; img.style.display='block'; document.getElementById('photoHint').style.display='none'; }
-        renderLines(); renderPicker();
-      } else if(d.sheet==='exp'){
-        setTab('expenses');
-        await openExp();
-        newExpReceipt=d.receipt||'';
-        document.getElementById('eCategory').value=d.category||'';
-        document.getElementById('ePayee').value=d.payee||'';
-        document.getElementById('eAmount').value=d.amount||'';
-        document.getElementById('eBillRef').value=d.billref||'';
-        if(d.date) document.getElementById('eDate').value=d.date;
-        document.getElementById('eNote').value=d.note||'';
-        if(newExpReceipt){ const img=document.getElementById('expPhotoImg'); img.src=newExpReceipt; img.style.display='block'; document.getElementById('expPhotoHint').style.display='none'; }
-        paintExpTotal();
-      }
+      openAdd();
+      document.getElementById('fCategory').value=d.category||''; onCategoryChange();
+      formLines=Array.isArray(d.lines)?d.lines:[]; newReceipt=d.receipt||'';
+      document.getElementById('fVendor').value=d.vendor||'';
+      document.getElementById('fNote').value=d.note||'';
+      if(d.date) document.getElementById('fDate').value=d.date;
+      document.getElementById('fAmount').value=d.amount||'';
+      document.getElementById('fBillRef').value=d.billref||'';
+      if(newReceipt){ const img=document.getElementById('photoImg'); img.src=newReceipt; img.style.display='block'; document.getElementById('photoHint').style.display='none'; }
+      renderLines(); renderPicker();
     }catch(e){}
     restoringDraft=false; saveDraft();
     toast('Draft restored — continue where you left off');
@@ -598,32 +571,55 @@ function lfPoll(fn, ms){
     return f;
   }
 
-  // Shared by both sheets — `which` says whether the upload belongs to the bill or the expense.
-  async function uploadReceipt(input,which){ let f=input.files&&input.files[0]; input.value=''; if(!f) return;
-    const exp=which==='exp';
-    const hint=document.getElementById(exp?'expPhotoHint':'photoHint'); const hintIdle=exp?'📷 Tap to snap the bill':'📷 Tap to snap receipt'; hint.textContent='⏳ Uploading…';
+  async function uploadReceipt(input){ let f=input.files&&input.files[0]; input.value=''; if(!f) return;
+    const hint=document.getElementById('photoHint');
+    const hintIdle=document.getElementById('fCategory').value!==''?'📷 Tap to snap the bill':'📷 Tap to snap receipt';
+    hint.textContent='⏳ Uploading…';
     f=await shrinkPhoto(f);
     const fd=new FormData(); fd.append('file',f,f.name); fd.append('is_private',0); fd.append('csrf_token',CSRF);
     try{ const r=await _api('/api/method/upload_file',{method:'POST',body:fd}); if(!r){ hint.textContent=hintIdle; return; }
       const d=await r.json(); const url=d.message&&(d.message.file_url||d.message.file_name);
       if(!url){ hint.textContent=hintIdle; toast('Upload failed — try again'); return; }
-      if(exp) newExpReceipt=url; else newReceipt=url;
-      const img=document.getElementById(exp?'expPhotoImg':'photoImg'); img.src=url; img.style.display='block';
+      newReceipt=url;
+      const img=document.getElementById('photoImg'); img.src=url; img.style.display='block';
       hint.style.display='none'; toast('Receipt added'); saveDraft();
     }catch(e){ hint.textContent=hintIdle; toast('Upload failed'); } }
+
+  // Category "" (Purchase Bill) posts to create_purchase_bill; any Expense
+  // Category posts to create_expense instead. Photo, date and note are shared.
   async function submitBill(){ const err=document.getElementById('formErr'); const em=document.getElementById('formErrMsg');
-    const vendor=document.getElementById('fVendor').value.trim();
-    if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
-    if(!vendor){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
+    const category=document.getElementById('fCategory').value;
+    const isExp=category!=='';
+    const paidTo=document.getElementById('fVendor').value.trim();
     const pdate=document.getElementById('fDate').value||localToday();
-    if(pdate>localToday()){ em.textContent='The purchase date cannot be in the future.'; err.style.display='flex'; return; }
-    if(pdate<localDaysAgo(MAX_BACKDATE_DAYS)){ em.textContent='The purchase date cannot be more than '+MAX_BACKDATE_DAYS+' days ago.'; err.style.display='flex'; return; }
-    if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
-    const lines=formLines.map(l=>({item:l.item,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
-    const btn=document.getElementById('submitBtn'); btn.disabled=true; err.style.display='none';
-    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:vendor,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); loadVendors(); }
-      else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
+    const btn=document.getElementById('submitBtn');
+
+    if(!isExp){
+      if(pdate>localToday()){ em.textContent='The purchase date cannot be in the future.'; err.style.display='flex'; return; }
+      if(pdate<localDaysAgo(MAX_BACKDATE_DAYS)){ em.textContent='The purchase date cannot be more than '+MAX_BACKDATE_DAYS+' days ago.'; err.style.display='flex'; return; }
+      if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
+      if(!paidTo){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
+      if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
+      const lines=formLines.map(l=>({item:l.item,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
+      btn.disabled=true; err.style.display='none';
+      try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:paidTo,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+        if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); loadVendors(); }
+        else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false;
+      return;
+    }
+
+    const amount=parseFloat(document.getElementById('fAmount').value)||0;
+    if(amount<=0){ em.textContent='Enter how much was paid.'; err.style.display='flex'; return; }
+    btn.disabled=true; err.style.display='none';
+    try{ const r=await _post('/api/method/luuvcrm.api.create_expense',{category:category,amount:amount,
+        payee:paidTo,
+        bill_ref:document.getElementById('fBillRef').value.trim(),
+        expense_date:pdate,
+        note:document.getElementById('fNote').value.trim(), receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; }
+      const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadExpenses(); }
+      else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; }
+    }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
 
   // ── Fullscreen receipt viewer (same behaviour as the manager app) ──
   // Zoomable image viewer: pinch / double-tap / wheel to zoom, drag to pan.
@@ -802,7 +798,7 @@ function lfPoll(fn, ms){
   icons();
   document.getElementById('subline').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · {{ current_user_full or "Staff" }}';
   loadBills(); loadCatalog(); loadExpCats(); restoreDraft();
-  lfPoll(()=>{ if(sheetOpen('addOverlay')||sheetOpen('expOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
+  lfPoll(()=>{ if(sheetOpen('addOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
 </script>
 {% include "templates/includes/app_switch.html" %}
