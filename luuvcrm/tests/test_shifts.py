@@ -21,6 +21,26 @@ from luuvcrm.tests import fixtures as fx
 CASHIER_EMAIL = "lf-test-shift-cashier@example.com"
 
 
+class TestShiftScreen(FrappeTestCase):
+    def _html(self):
+        return frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos.html"))
+
+    def test_opening_a_shift_reloads_the_branch_context(self):
+        """A newly opened POS Profile may belong to another restaurant.
+
+        The menu, tables and service charge are server-rendered, so updating the
+        shift badge alone leaves the previous branch visible until somebody
+        refreshes by hand.
+        """
+        self.assertIn("window.location.reload();", self._html())
+
+    def test_the_active_restaurant_is_named_in_the_pos_header(self):
+        """A till must say which outlet it is about to put the sale into."""
+        html = self._html()
+        self.assertIn('id="branchName"', html)
+        self.assertIn('restaurant.name if restaurant else "No restaurant selected"', html)
+
+
 class ShiftTestCase(FrappeTestCase):
     def setUp(self):
         super().setUp()

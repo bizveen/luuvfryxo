@@ -1074,3 +1074,43 @@ class TestAPublicPageWithNoSessionBehindIt(BranchTestCase):
         missing = [n for n in ("menu", "home", "order", "kiosk", "cus")
                    if "branch_choose.html" not in (root / f"{n}.html").read_text()]
         self.assertEqual(missing, [], "a page that can return None must be able to ask")
+
+
+class TestStaffScreensNameTheActiveRestaurant(FrappeTestCase):
+    """Branch-sensitive staff apps must say which outlet they are operating."""
+
+    PAGES = ("waiter", "kitchen", "manager", "purchases")
+
+    def test_each_page_receives_the_same_active_restaurant(self):
+        from luuvcrm.www import kitchen, manager, purchases, waiter
+
+        previous = frappe.session.user
+        frappe.set_user("Administrator")
+        self.addCleanup(frappe.set_user, previous)
+        expected = branch.viewing()
+
+        for page in (waiter, kitchen, manager, purchases):
+            with self.subTest(page=page.__name__):
+                context = frappe._dict()
+                page.get_context(context)
+                self.assertEqual(context.restaurant_name, expected)
+
+    def test_each_context_resolves_the_restaurant_being_viewed(self):
+        import pathlib
+
+        root = pathlib.Path(branch.__file__).parent / "www"
+        for page in self.PAGES:
+            with self.subTest(page=page):
+                source = (root / f"{page}.py").read_text()
+                self.assertIn("context.restaurant_name =", source)
+                self.assertIn("branch.viewing()", source)
+
+    def test_each_header_visibly_names_that_restaurant(self):
+        import pathlib
+
+        root = pathlib.Path(branch.__file__).parent / "www"
+        for page in self.PAGES:
+            with self.subTest(page=page):
+                template = (root / f"{page}.html").read_text()
+                self.assertIn("data-active-restaurant", template)
+                self.assertIn("{{ restaurant_name", template)

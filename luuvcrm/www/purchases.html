@@ -68,6 +68,7 @@ input,button{font-family:inherit;}
       <div style="flex:1;min-width:0;">
         <div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);line-height:1.15;">Purchases &amp; expenses</div>
         <div style="font-size:12.5px;color:var(--text-muted);" id="subline">{{ current_user_full or "Staff" }}</div>
+        <div data-active-restaurant title="Active restaurant" style="display:inline-flex;align-items:center;max-width:100%;margin-top:4px;padding:3px 8px;border-radius:999px;background:var(--orange-50);color:var(--orange-700);font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🏪 {{ restaurant_name or "No restaurant selected" }}</div>
       </div>
       <a href="/api/method/luuvcrm.launcher.sign_out" onclick="return confirm('Sign out?')" title="Sign out" style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="log-out" style="width:17px;height:17px;"></i></a>
     </div>

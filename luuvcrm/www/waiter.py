@@ -35,6 +35,7 @@ def get_context(context):
     context.current_user_full = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()
 
     restaurant_name = branch.viewing()
+    context.restaurant_name = restaurant_name or ""
     context.menu_groups = []
     context.tables = []
     context.service_charge_rate = 0

@@ -1,0 +1,136 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:BKR-{YYYY}-{#####}",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "requesting_restaurant",
+  "supplying_restaurant",
+  "status",
+  "priority",
+  "required_by",
+  "notes",
+  "items",
+  "requested_by",
+  "requested_at",
+  "last_updated_by",
+  "last_updated_at",
+  "status_history"
+ ],
+ "fields": [
+  {
+   "fieldname": "requesting_restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Requesting Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "supplying_restaurant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supplying Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Requested",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Requested\nAccepted\nPreparing\nReady\nDispatched\nReceived\nRejected\nCancelled",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Normal",
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Priority",
+   "options": "Normal\nUrgent"
+  },
+  {
+   "fieldname": "required_by",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Required By"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Branch Kitchen Request Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "label": "Requested By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_at",
+   "fieldtype": "Datetime",
+   "label": "Requested At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_updated_by",
+   "fieldtype": "Link",
+   "label": "Last Updated By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_updated_at",
+   "fieldtype": "Datetime",
+   "label": "Last Updated At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status_history",
+   "fieldtype": "Table",
+   "label": "Status History",
+   "options": "Branch Kitchen Request Status",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "module": "Zeloura",
+ "name": "Branch Kitchen Request",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
