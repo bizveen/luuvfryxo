@@ -906,7 +906,9 @@ function lfPoll(fn, ms){
       document.getElementById('topItems').innerHTML=(m.top_items||[]).length?(m.top_items||[]).map(t=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);"><span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${t.name}</div><div style="font-size:12.5px;color:var(--text-muted);">${t.qty} sold</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);">Rs ${nfmt(t.revenue)}</span></div>`).join(''):'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No sales yet.</div>';
       // cash
       const c=m.cash||{};
-      document.getElementById('cashSub').textContent=(c.cashier?('Cashier '+c.cashier):'No open shift');
+      document.getElementById('cashSub').textContent=(c.cashier?
+        ((c.open_count||0)>1?((c.open_count||0)+' open tills · '+c.cashier):('Cashier '+c.cashier)):
+        'No open shift');
       document.getElementById('drawerExpected').textContent=nfmt(c.expected||0);
       document.getElementById('cashFloat').textContent=nfmt(c.float||0);
       document.getElementById('cashSales').textContent=nfmt(c.cash_sales||0);

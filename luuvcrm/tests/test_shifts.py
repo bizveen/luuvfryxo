@@ -15,7 +15,7 @@ import json
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from luuvcrm import api, roles
+from luuvcrm import api, branch, roles
 from luuvcrm.tests import fixtures as fx
 
 CASHIER_EMAIL = "lf-test-shift-cashier@example.com"
@@ -45,9 +45,12 @@ class ShiftTestCase(FrappeTestCase):
     def setUp(self):
         super().setUp()
         roles.ensure_pos_docperms()
-        self.profile = frappe.db.get_value("POS Profile", {}, "name")
         self.cashier = self._cashier()
         self._as_cashier()
+        profiles = branch.accessible_pos_profiles(self.cashier)
+        if not profiles:
+            self.skipTest("no POS Profile available to the test cashier's branch")
+        self.profile = profiles[0]
         self.addCleanup(self._close_any_open_shift)
 
     def _cashier(self):

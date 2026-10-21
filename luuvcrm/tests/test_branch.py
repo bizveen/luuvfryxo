@@ -612,6 +612,43 @@ class TestTwoBranchesActuallyStayApart(BranchTestCase):
         finally:
             frappe.set_user(previous)
 
+    def _call(self, endpoint, **kwargs):
+        previous = frappe.local.form_dict
+        frappe.local.form_dict = frappe._dict(kwargs)
+        try:
+            return endpoint()
+        finally:
+            frappe.local.form_dict = previous
+
+    def _purchase_bill(self, restaurant, tag, total):
+        values = {
+            "doctype": "Purchase Bill", "vendor": f"_LFT-{tag}",
+            "status": "approved", "purchase_date": "2019-03-10",
+            "requested_at": "2019-03-10 12:00:00", "total": total,
+            branch.FIELD: restaurant,
+        }
+        if frappe.db.has_column("Purchase Bill", "payment_status"):
+            values["payment_status"] = "unpaid"
+        doc = frappe.get_doc(values)
+        doc.insert(ignore_permissions=True, ignore_mandatory=True)
+        self.addCleanup(lambda: frappe.db.exists("Purchase Bill", doc.name) and
+                        frappe.delete_doc("Purchase Bill", doc.name, force=True,
+                                          ignore_permissions=True))
+        return doc.name
+
+    def _purchase_approval(self, restaurant, tag):
+        doc = frappe.get_doc({
+            "doctype": "POS Approval", "approval_type": "bill",
+            "title": tag, "action": "purchase_bill", "status": "pending",
+            "requested_by": "Administrator", "requested_at": "2019-03-10 12:00:00",
+            branch.FIELD: restaurant,
+        })
+        doc.insert(ignore_permissions=True, ignore_mandatory=True)
+        self.addCleanup(lambda: frappe.db.exists("POS Approval", doc.name) and
+                        frappe.delete_doc("POS Approval", doc.name, force=True,
+                                          ignore_permissions=True))
+        return doc.name
+
     def test_a_manager_sees_their_own_branch_and_not_the_other(self):
         for doctype, made in self.rows.items():
             with self.subTest(doctype=doctype):
@@ -648,6 +685,65 @@ class TestTwoBranchesActuallyStayApart(BranchTestCase):
         frappe.db.set_value("POS Order", order_a.name, branch.FIELD, self.a,
                             update_modified=False)
         self.assertIn(order_a.name, self._visible(self.mgr_a, "POS Order"))
+
+    def test_a_direct_order_id_cannot_cross_the_branch_boundary(self):
+        """A filtered queue is not enough: print/status endpoints receive a
+        name and used to call get_doc/db.set_value without User Permissions."""
+        order_b = self.order()
+        frappe.db.set_value("POS Order", order_b.name, branch.FIELD, self.b,
+                            update_modified=False)
+        self.as_user(self.mgr_a)
+        with self.assertRaises(frappe.PermissionError):
+            api.get_kot_print_data(order_b.name)
+        with self.assertRaises(frappe.PermissionError):
+            self._call(api.mark_kitchen_processing, order_name=order_b.name)
+        self.assertNotEqual(frappe.db.get_value("POS Order", order_b.name,
+                                                "kitchen_status"), "Processing")
+
+    def test_an_owner_can_still_open_orders_from_both_branches(self):
+        order = self.order()
+        frappe.db.set_value("POS Order", order.name, branch.FIELD, self.b,
+                            update_modified=False)
+        self.as_user(self.owner)
+        self.assertEqual(api.get_kot_print_data(order.name)["order_name"], order.name)
+
+    def test_a_cashier_cannot_select_another_branch_s_pos_profile(self):
+        profile = frappe.db.get_value("POS Profile", {}, "name")
+        if not profile or not frappe.db.has_column("POS Profile", branch.FIELD):
+            self.skipTest("no branch-aware POS Profile on this site")
+        previous = frappe.db.get_value("POS Profile", profile, branch.FIELD)
+        frappe.db.set_value("POS Profile", profile, branch.FIELD, self.b)
+        self.addCleanup(frappe.db.set_value, "POS Profile", profile, branch.FIELD, previous)
+
+        self.as_user(self.mgr_a)
+        with self.assertRaises(frappe.PermissionError):
+            api._resolve_pos_profile_name(profile)
+        self.assertNotIn(profile, [p["name"] for p in api.get_pos_profiles()["profiles"]])
+
+    def test_purchase_day_due_and_approval_totals_use_the_same_scope_as_the_lists(self):
+        bill_a = self._purchase_bill(self.a, "A", 101)
+        bill_b = self._purchase_bill(self.b, "B", 202)
+        approval_a = self._purchase_approval(self.a, "A")
+        approval_b = self._purchase_approval(self.b, "B")
+
+        self.as_user(self.mgr_a)
+        day = api.get_purchase_day_summary("2019-03-10")
+        self.assertIn(bill_a, [b["name"] for b in day["bills"]])
+        self.assertNotIn(bill_b, [b["name"] for b in day["bills"]])
+        due = api.get_due_bills()
+        self.assertIn(bill_a, [b["name"] for b in due["bills"]])
+        self.assertNotIn(bill_b, [b["name"] for b in due["bills"]])
+        cards = api.get_purchase_approvals()
+        self.assertIn(approval_a, [a["name"] for a in cards["approvals"]])
+        self.assertNotIn(approval_b, [a["name"] for a in cards["approvals"]])
+        badges = api.get_purchase_bills()
+        self.assertEqual(badges["due_count"], due["count"])
+        self.assertEqual(badges["appr_count"], cards["pending"])
+
+        self.as_user(self.owner)
+        owner_day = api.get_purchase_day_summary("2019-03-10")
+        self.assertTrue({bill_a, bill_b}.issubset(
+            {b["name"] for b in owner_day["bills"]}))
 
     def test_a_manager_with_no_branch_is_reported_rather_than_left_wide_open(self):
         """The quiet failure: forget the User Permission and the manager
@@ -739,6 +835,24 @@ class TestTheReportsAreBranchAware(BranchTestCase):
                            (api.get_manager_purchase_report, {"days": 7})):
             with self.subTest(report=fn.__name__):
                 self.assertIsInstance(fn(**kwargs), dict)
+
+    def test_the_owner_cash_card_aggregates_every_open_till(self):
+        """The dashboard used to take one arbitrary open shift. Even without
+        manufacturing accounting rows here, the current set proves that its
+        summary count and float are the sum of every open entry."""
+        owner = _user(self, "cash-owner", roles.RESTAURANT_OWNER)
+        branch.unassign(owner)
+        self.as_user(owner)
+        openings = frappe.get_all("POS Opening Entry",
+            filters={"docstatus": 1, "status": "Open"}, pluck="name")
+        expected_float = 0
+        for name in openings:
+            doc = frappe.get_doc("POS Opening Entry", name)
+            expected_float += sum(float(r.opening_amount or 0)
+                                  for r in (doc.balance_details or []))
+        cash = api.get_manager_dashboard()["cash"]
+        self.assertEqual(cash["open_count"], len(openings))
+        self.assertEqual(cash["float"], expected_float)
 
     def test_and_still_answers_when_it_is_scoped(self):
         other = _restaurant(self, "Branch-REP5")

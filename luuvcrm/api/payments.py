@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
-from luuvcrm import activity, roles
+from luuvcrm import activity, branch, roles
 from luuvcrm.api.guides import (
     GUIDE_CASHBACK_INCLUDES_SERVICE_CHARGE,
     _credit_guide_cashback,
@@ -80,6 +80,7 @@ def get_tour_company_options():
 
 @frappe.whitelist(methods=["POST"])
 def place_order():
+    roles.require_pos()
     data = frappe.local.form_dict
 
     items_raw = data.get("items")
@@ -91,6 +92,8 @@ def place_order():
     customer_name = data.get("customer_name", "").strip() or "Walk-in"
     mobile = data.get("mobile", "").strip() or ""
     table = data.get("table", "")
+    if table:
+        branch.require_access("Restaurant Table", table)
     notes = data.get("notes", "").strip()
     order_source = data.get("order_source", "Walk-in")
     order_type = data.get("order_type", "")
@@ -250,12 +253,14 @@ def place_order():
 
 @frappe.whitelist(methods=["POST"])
 def process_payment():
+    roles.require_pos()
     data = frappe.local.form_dict
     order_name = data.get("order_name")
 
     if not order_name:
         frappe.throw(_("Order name is required"))
 
+    branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Order is not in draft state"))
@@ -353,6 +358,7 @@ def process_payment():
 
 @frappe.whitelist(methods=["POST"])
 def pay_split():
+    roles.require_pos()
     data = frappe.local.form_dict
     order_name = data.get("order_name")
     if not order_name:
@@ -360,6 +366,7 @@ def pay_split():
     lines_raw = data.get("lines")
     lines = frappe.parse_json(lines_raw) if isinstance(lines_raw, str) else (lines_raw or [])
 
+    branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Order is not open"))
