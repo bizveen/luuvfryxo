@@ -124,7 +124,7 @@ def get_context(context):
     ][:5]
     context.featured_items = (
         [frappe._dict(item) for item in KURUNEGALA_SHOWCASE]
-        if primary and primary.casefold() == "kurunegala"
+        if primary and primary.casefold() in {"kurunegala", "luuv fryxo"}
         else menu_preview
     )
     context.opening_time = "11:00 AM"
