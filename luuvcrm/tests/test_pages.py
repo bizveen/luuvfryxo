@@ -12,6 +12,8 @@ before the decision just gets rewritten.
 
 import importlib
 import pathlib
+from urllib.parse import urlencode
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -565,9 +567,118 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
         page = importlib.import_module("luuvcrm.www.home")
         ctx = frappe._dict()
         self.as_user("Guest")
-        page.get_context(ctx)
+        previous = frappe.local.form_dict
+        frappe.local.form_dict = frappe._dict()
+        try:
+            page.get_context(ctx)
+        finally:
+            frappe.local.form_dict = previous
         self.assertIn("menu_groups", ctx,
                       "the landing page shows the menu; erpnext's does not")
+
+    def test_the_landing_page_prioritises_kurunegala_and_keeps_branch_links_safe(self):
+        """The front page shows both branches, but every CTA carries the
+        branch explicitly so a Dambulla order cannot reach Kurunegala."""
+        from luuvcrm import branch
+
+        names = branch.all_restaurants()
+        if not names:
+            self.skipTest("no restaurants configured")
+
+        page = importlib.import_module("luuvcrm.www.home")
+        ctx = frappe._dict()
+        self.as_user("Guest")
+        page.get_context(ctx)
+
+        expected = "Kurunegala" if "Kurunegala" in names else names[0]
+        self.assertEqual(ctx.primary_location.name, expected)
+        self.assertEqual({row.name for row in ctx.locations}, set(names))
+        for row in ctx.locations:
+            with self.subTest(restaurant=row.name):
+                query = urlencode({"r": row.name})
+                self.assertEqual(row.order_url, f"/cus?{query}")
+                self.assertEqual(row.menu_url, f"/menu?{query}")
+        self.assertEqual(
+            ctx.primary_location.rewards_url,
+            "/cus?" + urlencode({"r": expected, "tab": "rewards"}),
+        )
+        if expected == "Kurunegala":
+            self.assertEqual(
+                [item.name for item in ctx.featured_items],
+                [
+                    "Chicken Pot Biryani (Single)",
+                    "Vegetable Cheese Kottu (Regular)",
+                    "Hyderabadi Style Chicken Biryani",
+                ],
+            )
+            public = pathlib.Path(frappe.get_app_path("luuvcrm", "public"))
+            for item in ctx.featured_items:
+                asset = item.image.removeprefix("/assets/luuvcrm/")
+                self.assertTrue((public / asset).is_file(), item.image)
+
+    def test_the_landing_page_carries_customer_deep_links_into_every_cta(self):
+        page = importlib.import_module("luuvcrm.www.home")
+        previous = frappe.local.form_dict
+        try:
+            self.as_user("Guest")
+            frappe.local.form_dict = frappe._dict(
+                ref="LVAB12", promo="LFCD34", phone="0770000123"
+            )
+            ctx = frappe._dict()
+            page.get_context(ctx)
+        finally:
+            frappe.local.form_dict = previous
+
+        for row in ctx.locations:
+            for url in (row.order_url, row.menu_url, row.rewards_url):
+                with self.subTest(restaurant=row.name, url=url):
+                    self.assertIn("ref=LVAB12", url)
+                    self.assertIn("promo=LFCD34", url)
+                    self.assertIn("phone=0770000123", url)
+            self.assertTrue(row.order_url.startswith("/cus?"))
+
+    def test_referral_share_and_qr_stay_on_the_direct_customer_app(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
+        self.assertIn("window.location.origin+'/cus?ref='", html)
+        self.assertNotIn("chart.googleapis.com", html)
+        self.assertIn("/assets/luuvcrm/js/qrcode.js", html)
+
+    def test_referral_qr_forces_the_branch_cards_before_the_menu(self):
+        page = importlib.import_module("luuvcrm.www.cus")
+        previous = frappe.local.form_dict
+        try:
+            frappe.local.form_dict = frappe._dict(ref="LVAB12")
+            with patch.object(page.branch, "for_page", return_value=None) as resolver:
+                page.get_context(frappe._dict())
+        finally:
+            frappe.local.form_dict = previous
+        resolver.assert_called_once()
+        self.assertTrue(resolver.call_args.kwargs["force_choose"])
+
+    def test_branch_chooser_is_mobile_stacked_and_marks_the_default(self):
+        template = frappe.read_file(frappe.get_app_path(
+            "luuvcrm", "templates", "includes", "branch_choose.html"
+        ))
+        self.assertIn("lf-branch-card{% if choice.is_default %} is-default", template)
+        self.assertIn("grid-template-columns:1fr", template)
+        self.assertIn("aspect-ratio:1.12/1", template)
+        self.assertIn("referral deal saved", template)
+
+    def test_customer_app_accepts_only_known_deep_link_tabs(self):
+        page = importlib.import_module("luuvcrm.www.cus")
+        previous = frappe.local.form_dict
+        try:
+            frappe.local.form_dict = frappe._dict(tab="rewards")
+            rewards = frappe._dict()
+            page.get_context(rewards)
+            self.assertEqual(rewards.initial_tab, "rewards")
+
+            frappe.local.form_dict = frappe._dict(tab="not-a-real-tab")
+            fallback = frappe._dict()
+            page.get_context(fallback)
+            self.assertEqual(fallback.initial_tab, "order")
+        finally:
+            frappe.local.form_dict = previous
 
 
 class TestTheAdminPortal(PageTestCase):

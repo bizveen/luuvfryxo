@@ -373,6 +373,18 @@ def choices():
     names = all_restaurants()
     if len(names) < 2:
         return []
+
+    # Kurunegala is the main/default customer branch.  Keep it first even
+    # though the underlying query is alphabetical (which would otherwise put
+    # Dambulla first), while leaving every additional branch deterministic.
+    default_name = next(
+        (name for name in names if name.casefold() == "kurunegala"),
+        names[0],
+    )
+    names = sorted(
+        names,
+        key=lambda name: (name != default_name, name.casefold()),
+    )
     out = []
     for name in names:
         address = frappe.db.get_value("Restaurant", name, "address")
@@ -381,26 +393,38 @@ def choices():
             city, line1 = frappe.db.get_value("Address", address,
                                               ["city", "address_line1"]) or ("", "")
             line = ", ".join(part for part in (line1, city) if part)
-        out.append({"name": name, "address": line})
+        out.append({
+            "name": name,
+            "address": line,
+            "is_default": name == default_name,
+        })
     return out
 
 
-def for_page(context):
+def for_page(context, force_choose=False):
     """Resolve the branch for a guest-facing page and set up its chooser.
 
-    One helper because all five public pages need the same four things and a
+    One helper because all five public pages need the same branch state and a
     copy each is how one of them ends up different: the branch, the chooser's
     tiles, a link builder that keeps the query string, and the cookie that stops
-    the question being asked twice.
+    the question being asked twice. `/home` presents those choices as its full
+    location section; the four transactional pages use the compact chooser.
 
     Returns the branch name, or None — and on None the page renders
     `templates/includes/branch_choose.html` instead of its own body. The caller
     still decides what "instead" means, because `/order` and `/menu` are not the
     same page.
     """
+    # Referral QR visitors must actively choose the receiving kitchen even if
+    # this browser remembers an older branch.  An explicit branch/table still
+    # wins at the caller, so ``force_choose`` is only used for bare /cus?ref=…
+    # links.  On a one-restaurant site the chooser remains invisible.
     here = public()
+    available_choices = choices() if force_choose else None
+    if force_choose and available_choices:
+        here = None
     context.branch = here
-    context.branch_choices = [] if here else choices()
+    context.branch_choices = [] if here else (available_choices or choices())
     context.branch_choose_url = _choose_url
     if here:
         remember(here)

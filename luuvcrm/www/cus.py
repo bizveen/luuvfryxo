@@ -41,8 +41,22 @@ def get_context(context):
     context.ref_code = (frappe.form_dict.get("ref", "") or "").strip().upper()
     context.prefill_phone = (frappe.form_dict.get("phone", "") or "").strip()
     context.promo_code = (frappe.form_dict.get("promo", "") or "").strip().upper()
+    requested_tab = (frappe.form_dict.get("tab", "") or "").strip().lower()
+    context.initial_tab = requested_tab if requested_tab in {
+        "order", "orders", "rewards", "account"
+    } else "order"
 
-    restaurant_name = branch.for_page(context)
+    # A referral QR is deliberately branch-neutral. Always show its two branch
+    # cards before ordering, even when this phone has an older branch cookie.
+    # Once a card adds ?r=, the explicit choice is respected and remembered.
+    form = frappe.form_dict
+    force_branch_choice = bool(
+        context.ref_code
+        and not (form.get("r") or form.get("restaurant") or form.get("table"))
+    )
+    restaurant_name = branch.for_page(
+        context, force_choose=force_branch_choice
+    )
     context.restaurant_name = restaurant_name or settings.get("brand_name")
     context.menu_groups = []
 

@@ -10,7 +10,11 @@ from luuvcrm import settings
 from frappe import _
 from frappe.utils import now_datetime
 
-from luuvcrm.api.loyalty import _process_cashback
+from luuvcrm.api.loyalty import (
+    _apply_referral_for_mobile,
+    _claim_first_order_referral_discount,
+    _process_cashback,
+)
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
     _is_takeaway,
@@ -36,6 +40,7 @@ def kiosk_place_order():
 
     customer_name = data.get("customer_name", "").strip() or "Online Guest"
     mobile = data.get("mobile", "").strip() or ""
+    ref_code = data.get("ref_code", "").strip().upper()
     table = data.get("table", "")
     order_type = data.get("order_type", "")
     wa_confirm = str(data.get("wa_confirm") or "") in ("1", "true", "True")
@@ -74,6 +79,13 @@ def kiosk_place_order():
 
     order_source = "Online"
     waiter_name = "Kiosk"
+
+    # Attach the referral before the order is inserted.  The order endpoint is
+    # the authority for this path; the client cannot grant itself a discount by
+    # merely posting an amount or percentage.
+    referral_link = {"success": False}
+    if mobile and ref_code:
+        referral_link = _apply_referral_for_mobile(mobile, ref_code)
 
     pos_order = frappe.get_doc({
         "doctype": "POS Order",
@@ -119,6 +131,18 @@ def kiosk_place_order():
     pos_order.flags.ignore_permissions = True
     pos_order.flags.ignore_links = True
     pos_order.insert()
+
+    referral_discount = {"applied": False, "amount": 0, "percent": 0}
+    if referral_link.get("success"):
+        referral_discount = _claim_first_order_referral_discount(
+            mobile, ref_code, pos_order.name, subtotal
+        )
+        if referral_discount.get("applied"):
+            pos_order.db_set("discount_amount", referral_discount["amount"])
+            pos_order.db_set(
+                "discount_note",
+                f"Referral {referral_discount['percent']:g}% · {ref_code}",
+            )
     _apply_takeaway_service_charge(pos_order)
     if scheduled_dt and frappe.db.has_column("POS Order", "scheduled_time"):
         pos_order.db_set("scheduled_time", scheduled_dt)
@@ -164,8 +188,12 @@ def kiosk_place_order():
         "name": pos_order.name,
         "grand_total": pos_order.grand_total,
         "subtotal": subtotal,
-        "service_charge_rate": sc_rate,
-        "service_charge_amount": sc_amount,
+        "service_charge_rate": pos_order.service_charge_rate or 0,
+        "service_charge_amount": pos_order.service_charge_amount or 0,
+        "referral_code": ref_code if referral_link.get("success") else "",
+        "referral_discount_applied": bool(referral_discount.get("applied")),
+        "referral_discount_percent": referral_discount.get("percent") or 0,
+        "referral_discount_amount": referral_discount.get("amount") or 0,
         "table": table,
         "customer_name": customer_name,
         "mobile": mobile,

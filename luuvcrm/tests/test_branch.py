@@ -1144,6 +1144,22 @@ class TestAPublicPageWithNoSessionBehindIt(BranchTestCase):
         self.assertGreaterEqual(len(branch.choices()), 2,
                                 "if it cannot answer it has to be able to ask")
 
+    def test_kurunegala_is_the_default_chooser_card(self):
+        choices = branch.choices()
+        if len(choices) < 2 or not frappe.db.exists("Restaurant", "Kurunegala"):
+            self.skipTest("the Kurunegala two-branch customer site is not configured")
+        self.assertEqual(choices[0]["name"], "Kurunegala")
+        self.assertTrue(choices[0]["is_default"])
+        self.assertFalse(any(row["is_default"] for row in choices[1:]))
+
+    def test_a_referral_qr_can_force_a_fresh_branch_choice(self):
+        if len(branch.all_restaurants()) < 2:
+            self.skipTest("a single-branch site has nothing to choose")
+        context = frappe._dict()
+        selected = branch.for_page(context, force_choose=True)
+        self.assertIsNone(selected)
+        self.assertGreaterEqual(len(context.branch_choices), 2)
+
     def test_a_guest_order_is_stamped_with_the_table_s_branch(self):
         """The write half. `place_order` is allow_guest: there is no session for
         `current()` to resolve, so before this every order taken off a QR code
@@ -1185,7 +1201,9 @@ class TestAPublicPageWithNoSessionBehindIt(BranchTestCase):
         import pathlib
 
         root = pathlib.Path(branch.__file__).parent / "www"
-        missing = [n for n in ("menu", "home", "order", "kiosk", "cus")
+        # `/home` is now the full location chooser itself; transactional pages
+        # retain the compact chooser include.
+        missing = [n for n in ("menu", "order", "kiosk", "cus")
                    if "branch_choose.html" not in (root / f"{n}.html").read_text()]
         self.assertEqual(missing, [], "a page that can return None must be able to ask")
 
