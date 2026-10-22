@@ -136,11 +136,6 @@ input,select,button{font-family:inherit;}
 html{-webkit-tap-highlight-color:transparent;}
 button:focus,a:focus{outline:none;}
 button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
-.pos-menu-thumb{
-  width:var(--tile-img,40px);height:var(--tile-img,40px);overflow:hidden;
-  border-radius:10px;background:var(--orange-50);flex:none;
-}
-.pos-menu-thumb img{display:block;width:100%;height:100%;object-fit:cover;}
 
 /* ── flexbox gap fallback ────────────────────────────────────────────────
    The till's System WebView is Chromium 83 (Android 11, rk3566). Flexbox
@@ -229,7 +224,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         <div class="tb-logo" style="width:46px;height:46px;border-radius:var(--radius-md);background:var(--color-primary);color:#fff;font-family:var(--font-display);font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-brand);">LF</div>
         <div>
           <div class="tb-title" style="font-family:var(--font-display);font-weight:800;font-size:var(--tb-title,22px);letter-spacing:-.01em;color:var(--text-strong);line-height:1.12;">New order</div>
-          <div class="tb-sub" style="font-size:14px;color:var(--text-muted);"><strong id="branchName" style="color:var(--color-primary);">🏪 {{ restaurant.name if restaurant else "No restaurant selected" }}</strong> · Counter · dine-in &amp; takeaway</div>
+          <div class="tb-sub" style="font-size:14px;color:var(--text-muted);">Counter · dine-in &amp; takeaway</div>
         </div>
       </div>
       <nav class="tb-nav" style="display:flex;align-items:center;gap:4px;background:var(--gray-100);border-radius:var(--radius-pill);padding:4px;flex:none;margin-left:var(--tb-nav-ml,0);">
@@ -290,7 +285,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
             {% for g in menu_groups %}{% for it in g['items'] %}
             <button class="mcard" data-code="{{ it.code }}" data-name="{{ it.name }}" data-rate="{{ it.rate }}" data-group="{{ g.name }}" data-addons="{{ it.addons }}" onclick="addToCart('{{ it.code }}')"
               style="position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:var(--tile-pad,16px);min-height:var(--tile-h,134px);background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);cursor:pointer;text-align:left;box-shadow:var(--shadow-xs);">
-              <div class="pos-menu-thumb"><img src="{{ it.image or '/assets/luuvcrm/app/menu-placeholder.svg' }}" alt="{{ it.name }}" loading="lazy" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg'"></div>
+              <div style="font-size:var(--tile-emoji,38px);line-height:1;">{% if it.image %}<img src="{{ it.image }}" style="width:var(--tile-img,40px);height:var(--tile-img,40px);object-fit:cover;border-radius:8px;" loading="lazy">{% else %}🍽️{% endif %}</div>
               <div style="font-family:var(--font-display);font-weight:700;font-size:var(--tile-name,17px);color:var(--text-strong);line-height:1.2;margin-top:auto;">{{ it.name }}</div>
               <div class="mono" style="font-weight:500;font-size:var(--tile-price,17px);color:var(--color-primary);">{{ "{:,.0f}".format(it.rate) }}</div>
             </button>
@@ -1681,16 +1676,7 @@ function lfPoll(fn, ms){
     const details=[...document.querySelectorAll('.opening-amt')].map(i=>({mode_of_payment:i.dataset.mode,opening_amount:parseFloat(i.value)||0}));
     const btn=document.getElementById('openBtn'); btn.disabled=true; mErr('openErr','');
     try{ const res=await _post('/api/method/luuvcrm.api.pos_open_shift',{pos_profile:prof,balance_details:JSON.stringify(details)}); if(!res){ btn.disabled=false; return; } const d=await res.json();
-      if(res.ok && d.message && d.message.shift){
-        toast('Shift opened'); hide('shiftOpenModal');
-        // The new profile can belong to another restaurant. Menu and table data
-        // are rendered into this page on the server, so refreshing individual
-        // shift/order widgets would leave the old branch on screen. A full
-        // reload resolves the open profile through branch.current() and gives
-        // the till the new branch's menu, tables and service charge immediately.
-        window.location.reload();
-        return;
-      } else mErr('openErr', _smsg(d,'could not open shift'));
+      if(res.ok && d.message && d.message.shift){ toast('Shift opened'); hide('shiftOpenModal'); await loadShift(); loadOpenOrders(); } else mErr('openErr', _smsg(d,'could not open shift'));
     }catch(e){ mErr('openErr','Connection error'); } btn.disabled=false; }
   async function openCloseModal(){ const s=await loadShift(); if(!s){ toast('No open shift'); return; }
     document.getElementById('csOrders').textContent=s.order_count||0; document.getElementById('csSales').textContent=fmt(s.total_sales||0);

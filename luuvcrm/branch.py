@@ -373,18 +373,6 @@ def choices():
     names = all_restaurants()
     if len(names) < 2:
         return []
-
-    # Kurunegala is the main/default customer branch.  Keep it first even
-    # though the underlying query is alphabetical (which would otherwise put
-    # Dambulla first), while leaving every additional branch deterministic.
-    default_name = next(
-        (name for name in names if name.casefold() == "kurunegala"),
-        names[0],
-    )
-    names = sorted(
-        names,
-        key=lambda name: (name != default_name, name.casefold()),
-    )
     out = []
     for name in names:
         address = frappe.db.get_value("Restaurant", name, "address")
@@ -393,38 +381,26 @@ def choices():
             city, line1 = frappe.db.get_value("Address", address,
                                               ["city", "address_line1"]) or ("", "")
             line = ", ".join(part for part in (line1, city) if part)
-        out.append({
-            "name": name,
-            "address": line,
-            "is_default": name == default_name,
-        })
+        out.append({"name": name, "address": line})
     return out
 
 
-def for_page(context, force_choose=False):
+def for_page(context):
     """Resolve the branch for a guest-facing page and set up its chooser.
 
-    One helper because all five public pages need the same branch state and a
+    One helper because all five public pages need the same four things and a
     copy each is how one of them ends up different: the branch, the chooser's
     tiles, a link builder that keeps the query string, and the cookie that stops
-    the question being asked twice. `/home` presents those choices as its full
-    location section; the four transactional pages use the compact chooser.
+    the question being asked twice.
 
     Returns the branch name, or None — and on None the page renders
     `templates/includes/branch_choose.html` instead of its own body. The caller
     still decides what "instead" means, because `/order` and `/menu` are not the
     same page.
     """
-    # Referral QR visitors must actively choose the receiving kitchen even if
-    # this browser remembers an older branch.  An explicit branch/table still
-    # wins at the caller, so ``force_choose`` is only used for bare /cus?ref=…
-    # links.  On a one-restaurant site the chooser remains invisible.
     here = public()
-    available_choices = choices() if force_choose else None
-    if force_choose and available_choices:
-        here = None
     context.branch = here
-    context.branch_choices = [] if here else (available_choices or choices())
+    context.branch_choices = [] if here else choices()
     context.branch_choose_url = _choose_url
     if here:
         remember(here)
@@ -549,51 +525,6 @@ def unassign(user, restaurant=None):
 def assigned(user):
     """The branches a user is restricted to. Empty means every branch."""
     return _permitted_restaurants(user)
-
-
-def require_access(doctype, name, user=None):
-    """Refuse a direct document lookup outside this user's branch.
-
-    ``get_list`` applies Restaurant User Permissions, but ``get_doc`` and
-    ``db.set_value`` do not.  Endpoints which receive a document name therefore
-    need this small second gate before reading or changing the row.  An empty
-    Restaurant is left visible for backwards compatibility; ``check()`` already
-    reports those legacy rows and they must be backfilled before strict branch
-    isolation is enabled.
-
-    Returns the row's Restaurant so callers may also use it when needed.
-    """
-    user = user or frappe.session.user
-    if user == "Guest":
-        frappe.throw(_("You are not permitted to access this record"),
-                     frappe.PermissionError)
-    if not name or not frappe.db.exists(doctype, name):
-        frappe.throw(_("Record not found"), frappe.DoesNotExistError)
-    restaurant = (frappe.db.get_value(doctype, name, FIELD)
-                  if frappe.db.has_column(doctype, FIELD) else None)
-    allowed = _permitted_restaurants(user)
-    if restaurant and allowed and restaurant not in allowed:
-        # Do not reveal which other branch owns a guessed sequential name.
-        frappe.throw(_("You are not permitted to access this record"),
-                     frappe.PermissionError)
-    return restaurant
-
-
-def accessible_pos_profiles(user=None):
-    """POS Profiles this user may operate, in deterministic order.
-
-    POS Profile is an ERPNext doctype, so it is not covered by this app's
-    Restaurant User Permission query conditions. Its custom ``restaurant``
-    link is nevertheless authoritative: a branch-pinned cashier must never be
-    offered (or be allowed to POST) another branch's till.
-    """
-    user = user or frappe.session.user
-    profiles = frappe.get_all("POS Profile", pluck="name", order_by="name asc")
-    allowed = _permitted_restaurants(user)
-    if not allowed:
-        return profiles
-    return [profile for profile in profiles
-            if _restaurant_for_profile(profile) in allowed]
 
 
 # ─── Stamping it on a row ────────────────────────────────────────────────────

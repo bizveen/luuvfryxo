@@ -51,57 +51,12 @@
 
     .container { max-width: 720px; margin: -40px auto 0; padding: 0 16px 80px; position: relative; z-index: 1; }
 
-    .category-nav-wrap {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      margin: 0 0 16px;
-      padding: 8px;
-      background: rgba(255,255,255,0.96);
-      border: 1px solid #FFE4D5;
-      border-radius: 16px;
-      box-shadow: 0 6px 22px rgba(204,74,32,0.12);
-      backdrop-filter: blur(10px);
-    }
-    .category-nav {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 8px;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-      scroll-snap-type: x proximity;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-    }
-    .category-nav::-webkit-scrollbar { display: none; }
-    .category-chip {
-      flex: 0 0 auto;
-      scroll-snap-align: start;
-      padding: 9px 15px;
-      border: 0;
-      border-radius: 999px;
-      background: #FFF0E8;
-      color: #B8461E;
-      font: inherit;
-      font-size: 0.86rem;
-      font-weight: 700;
-      line-height: 1;
-      text-decoration: none;
-      white-space: nowrap;
-      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
-    }
-    .category-chip:hover { background: #FFE2D2; }
-    .category-chip:active { transform: scale(0.96); }
-    .category-chip.active { background: #FF6B35; color: #fff; }
-    .category-chip:focus-visible { outline: 3px solid rgba(255,107,53,0.25); outline-offset: 2px; }
-
     .category {
       background: #fff;
       border-radius: 20px;
       box-shadow: 0 4px 20px rgba(255,107,53,0.1);
       margin-bottom: 20px;
       overflow: hidden;
-      scroll-margin-top: 70px;
     }
     .category-header {
       padding: 18px 20px 14px;
@@ -192,7 +147,7 @@
       border-radius: 20px;
       box-shadow: 0 4px 20px rgba(255,107,53,0.1);
     }
-    .empty-state .icon { display:block;width:68px;height:68px;margin:0 auto 16px;border-radius:20px; }
+    .empty-state .icon { font-size: 4rem; margin-bottom: 16px; }
 
     .footer {
       text-align: center;
@@ -208,8 +163,7 @@
       .menu-item { padding: 14px 16px; gap: 12px; }
       .menu-item .thumb { width: 52px; height: 52px; font-size: 1.4rem; border-radius: 12px; }
       .menu-item .rate { font-size: 0.95rem; padding: 4px 12px; }
-      .container { padding: 0 12px 60px; }
-      .category-nav-wrap { margin-left: 4px; margin-right: 4px; }
+      .container { padding: -30px 12px 60px; }
     }
 
     @media (min-width: 768px) {
@@ -232,20 +186,22 @@
   <div class="container">
     {% if menu_items %}
       {% set groups = menu_items | groupby('group') %}
-      <nav class="category-nav-wrap" aria-label="Menu categories">
-        <div class="category-nav">
-          {% for group in groups %}
-            <a class="category-chip{% if loop.first %} active{% endif %}" href="#menu-category-{{ loop.index }}" data-category-link="menu-category-{{ loop.index }}">{{ group.grouper }}</a>
-          {% endfor %}
-        </div>
-      </nav>
       {% for group in groups %}
-        <section class="category" id="menu-category-{{ loop.index }}" data-category-section>
+        <div class="category">
           <div class="category-header"><h2>{{ group.grouper }}</h2></div>
           {% for item in group.list %}
             <div class="menu-item">
               <div class="thumb">
-                <img src="{{ item.image or '/assets/luuvcrm/app/menu-placeholder.svg' }}" alt="{{ item.name }}" loading="lazy" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg'">
+                {% if item.image %}
+                  <img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">
+                {% else %}
+                  {% set emoji_map = {
+                    'SPC-RICE': 'ðŸš', 'KOTTU': 'ðŸ¥˜', 'CHK-FRICE': 'ðŸ—',
+                    'DEV-CHK': 'ðŸ›', 'MIX-SEAFOOD': 'ðŸ¦', 'BEV': 'ðŸ¥¤',
+                    'F-JUICE': 'ðŸ§ƒ', 'ICE-CRM': 'ðŸ¨'
+                  } %}
+                  <span>{{ emoji_map.get(item.code, 'ðŸ½ï¸') }}</span>
+                {% endif %}
               </div>
               <div class="info">
                 <div class="name">{{ item.name }}</div>
@@ -256,11 +212,11 @@
               <div class="rate">{{ '%.0f' % item.rate }}</div>
             </div>
           {% endfor %}
-        </section>
+        </div>
       {% endfor %}
     {% else %}
       <div class="empty-state">
-        <img class="icon" src="/assets/luuvcrm/app/menu-placeholder.svg" alt="">
+        <div class="icon">ðŸ“‹</div>
         <p>Menu is being prepared. Check back soon!</p>
       </div>
     {% endif %}
@@ -272,28 +228,6 @@
 {% if whatsapp_number %}
   <a href="https://wa.me/{{ whatsapp_number }}?text=Hi!%20I%27d%20like%20to%20order%20food." target="_blank" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(37,211,102,0.4);z-index:999;text-decoration:none;transition:all 0.3s" aria-label="Chat on WhatsApp"><svg viewBox="0 0 24 24" style="width:28px;height:28px;fill:#fff" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></a>
   {% endif %}
-{% if menu_items %}
-<script>
-  (() => {
-    const links = [...document.querySelectorAll('[data-category-link]')];
-    const sections = [...document.querySelectorAll('[data-category-section]')];
-    const activate = id => {
-      links.forEach(link => link.classList.toggle('active', link.dataset.categoryLink === id));
-      const active = links.find(link => link.dataset.categoryLink === id);
-      if (active) active.scrollIntoView({block: 'nearest', inline: 'center'});
-    };
-    links.forEach(link => link.addEventListener('click', () => activate(link.dataset.categoryLink)));
-    if ('IntersectionObserver' in window) {
-      const observer = new IntersectionObserver(entries => {
-        const visible = entries.filter(entry => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible) activate(visible.target.id);
-      }, {rootMargin: '-70px 0px -55% 0px', threshold: [0.05, 0.25, 0.5]});
-      sections.forEach(section => observer.observe(section));
-    }
-  })();
-</script>
-{% endif %}
 {%- else %}
 {% include "templates/includes/branch_choose.html" %}
 {%- endif %}

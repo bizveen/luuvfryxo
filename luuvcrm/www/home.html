@@ -1,372 +1,230 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>{{ brand_name }} · Kurunegala & Dambulla</title>
-<meta name="description" content="Fresh food, online ordering and rewards from {{ brand_name }} in Kurunegala and Dambulla.">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>{{ restaurant.name if restaurant else brand_name }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-:root{
-  --ink:#171411;--ink-soft:#4f4841;--muted:#756d65;--paper:#fffdf9;--cream:#f8f3eb;
-  --line:#e9e0d6;--white:#fff;--accent:#f15207;--accent-dark:#d84804;--lime:#dfff73;
-  --font-display:'Manrope',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;
-  --shadow-sm:0 8px 28px rgba(45,31,20,.08);--shadow-lg:0 28px 70px rgba(45,31,20,.16);
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { font-family:'Inter',-apple-system,sans-serif; background:#F8F9FA; color:#1F2937; -webkit-tap-highlight-color:transparent; }
+.hero {
+  min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background: linear-gradient(160deg, #1F2937 0%, #111827 50%, #0F172A 100%);
+  padding:80px 24px 40px; position:relative; overflow:hidden;
 }
-*,*::before,*::after{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-body);-webkit-font-smoothing:antialiased}
-a{color:inherit}
-img{display:block;max-width:100%}
-button,a{-webkit-tap-highlight-color:transparent}
-.shell{width:min(1180px,calc(100% - 40px));margin-inline:auto}
-.eyebrow{display:inline-flex;align-items:center;gap:9px;font:800 12px/1 var(--font-display);letter-spacing:.11em;text-transform:uppercase;color:var(--accent-dark)}
-.eyebrow::before{content:'';width:22px;height:2px;border-radius:2px;background:currentColor}
-.section-head{display:flex;justify-content:space-between;align-items:end;gap:30px;margin-bottom:38px}
-.section-head h2,.loyalty-copy h2,.final-cta h2{font:800 clamp(32px,4.6vw,58px)/1.02 var(--font-display);letter-spacing:-.055em;margin:10px 0 0;max-width:760px}
-.section-head p{max-width:420px;color:var(--muted);font-size:16px;line-height:1.65;margin:0}
-
-/* Navigation */
-.nav-wrap{position:fixed;inset:0 0 auto;z-index:100;padding:20px 0;pointer-events:none}
-.nav{min-height:62px;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:8px 10px 8px 18px;border:1px solid rgba(255,255,255,.13);border-radius:18px;background:rgba(24,20,17,.82);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:0 12px 40px rgba(0,0,0,.16);pointer-events:auto}
-section[id]{scroll-margin-top:112px}
-.logo{display:flex;align-items:center;gap:11px;text-decoration:none;color:#fff;font:800 18px/1 var(--font-display);letter-spacing:-.03em}
-.logo img{width:38px;height:38px;border-radius:11px;object-fit:cover;background:#fff}
-.nav-links{display:flex;align-items:center;gap:27px}
-.nav-links>a:not(.nav-cta){text-decoration:none;color:rgba(255,255,255,.72);font-size:14px;font-weight:600;transition:.2s ease}
-.nav-links>a:not(.nav-cta):hover{color:#fff}
-.nav-cta,.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;text-decoration:none;font:800 14px/1 var(--font-display);border-radius:13px;transition:transform .2s ease,box-shadow .2s ease,background .2s ease}
-.nav-cta{padding:14px 19px;background:var(--accent);color:#fff}
-.nav-cta:hover,.btn.primary:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(241,82,7,.3)}
-
-/* Hero */
-.hero{position:relative;min-height:780px;overflow:hidden;background:#1a1714;color:#fff;padding:154px 0 90px}
-.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 78% 25%,rgba(241,82,7,.26),transparent 36%),radial-gradient(circle at 8% 88%,rgba(223,255,115,.08),transparent 28%)}
-.hero::after{content:'';position:absolute;width:430px;height:430px;border:1px solid rgba(255,255,255,.07);border-radius:50%;right:-110px;top:-170px;box-shadow:0 0 0 70px rgba(255,255,255,.025),0 0 0 140px rgba(255,255,255,.018)}
-.hero-grid{position:relative;z-index:2;display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:70px}
-.hero-badge{display:inline-flex;align-items:center;gap:10px;padding:9px 13px 9px 10px;border:1px solid rgba(255,255,255,.13);border-radius:999px;background:rgba(255,255,255,.07);font:700 12px/1 var(--font-display);letter-spacing:.04em;color:rgba(255,255,255,.83)}
-.pulse{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 5px rgba(223,255,115,.12)}
-.hero h1{font:800 clamp(53px,7.2vw,92px)/.94 var(--font-display);letter-spacing:-.07em;margin:24px 0 24px;max-width:730px}
-.hero h1 span{color:var(--lime)}
-.hero-lead{font-size:18px;line-height:1.7;color:rgba(255,255,255,.62);max-width:590px;margin:0 0 31px}
-.hero-actions{display:flex;flex-wrap:wrap;gap:12px}
-.btn{min-height:53px;padding:0 22px}
-.btn svg{width:18px;height:18px;flex:none}
-.btn.primary{background:var(--accent);color:#fff}
-.btn.light{background:#fff;color:var(--ink)}
-.btn.outline{border:1px solid rgba(255,255,255,.2);color:#fff;background:rgba(255,255,255,.045)}
-.btn.outline:hover{background:rgba(255,255,255,.1)}
-.hero-notes{display:flex;flex-wrap:wrap;gap:9px 20px;margin-top:28px;color:rgba(255,255,255,.62);font-size:13px;font-weight:600}
-.hero-notes span{display:flex;align-items:center;gap:7px}
-.hero-notes svg{width:15px;height:15px;color:var(--lime)}
-.arrival-offer{display:flex;align-items:center;gap:10px;width:max-content;max-width:100%;margin:0 0 18px;padding:11px 14px;border:1px solid rgba(223,255,115,.3);border-radius:13px;background:rgba(223,255,115,.1);color:var(--lime);font:800 12px/1.35 var(--font-display)}
-
-.food-scene{position:relative;min-height:510px;display:grid;place-items:center}
-.food-orbit{position:absolute;width:440px;height:440px;border-radius:50%;border:1px dashed rgba(255,255,255,.16);animation:spin 30s linear infinite}
-.food-orbit::before,.food-orbit::after{content:'';position:absolute;width:13px;height:13px;border-radius:50%}
-.food-orbit::before{top:40px;left:64px;background:var(--lime);box-shadow:0 0 25px rgba(223,255,115,.55)}
-.food-orbit::after{right:20px;bottom:118px;background:var(--accent)}
-@keyframes spin{to{transform:rotate(360deg)}}
-.food-card{position:relative;width:min(420px,100%);aspect-ratio:.87;border-radius:42px;background:linear-gradient(145deg,#302921,#211c18);border:1px solid rgba(255,255,255,.11);box-shadow:var(--shadow-lg);overflow:hidden;transform:rotate(3deg)}
-.food-card::before{content:'';position:absolute;inset:22px;border:1px solid rgba(255,255,255,.08);border-radius:27px}
-.plate{position:absolute;width:310px;height:310px;border-radius:50%;top:76px;left:50%;transform:translateX(-50%);display:grid;place-items:center;background:radial-gradient(circle at 45% 40%,#fff 0 55%,#e8e1d9 56% 61%,#fff 62%);box-shadow:0 32px 60px rgba(0,0,0,.34)}
-.plate img{width:242px;height:242px;border-radius:50%;object-fit:cover}
-.food-emoji{font-size:118px;filter:drop-shadow(0 18px 12px rgba(0,0,0,.18));transform:rotate(-3deg)}
-.scene-label{position:absolute;left:28px;right:28px;bottom:25px;padding:15px 17px;border-radius:17px;background:rgba(18,15,13,.72);backdrop-filter:blur(13px);display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(255,255,255,.1)}
-.scene-label strong{display:block;font:800 14px/1.2 var(--font-display)}
-.scene-label small{display:block;color:rgba(255,255,255,.55);margin-top:5px}
-.scene-price{font:700 16px/1 var(--font-display);color:var(--lime);white-space:nowrap}
-.floating-pill{position:absolute;z-index:2;display:flex;align-items:center;gap:10px;padding:12px 15px;border-radius:14px;background:#fff;color:var(--ink);box-shadow:0 16px 36px rgba(0,0,0,.25);font:800 12px/1.2 var(--font-display)}
-.floating-pill span{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#fff0e7;font-size:16px}
-.floating-pill.one{top:62px;right:-24px;transform:rotate(-3deg)}
-.floating-pill.two{bottom:142px;left:-38px;transform:rotate(2deg)}
-
-/* Locations */
-.locations{padding:108px 0;background:var(--paper)}
-.location-grid{display:grid;grid-template-columns:1.14fr .86fr;gap:18px}
-.location-card{position:relative;overflow:hidden;min-height:360px;border:1px solid var(--line);border-radius:28px;padding:34px;background:var(--cream);display:flex;flex-direction:column;justify-content:space-between;isolation:isolate}
-.location-card::after{content:'';position:absolute;z-index:-1;width:230px;height:230px;border-radius:50%;right:-74px;bottom:-98px;background:rgba(241,82,7,.08)}
-.location-card.featured{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 24px 55px rgba(241,82,7,.2)}
-.location-card.featured::after{width:350px;height:350px;right:-105px;bottom:-170px;background:rgba(255,255,255,.1);box-shadow:0 0 0 50px rgba(255,255,255,.04)}
-.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
-.location-icon{width:55px;height:55px;border-radius:17px;display:grid;place-items:center;background:#fff;color:var(--accent);box-shadow:var(--shadow-sm)}
-.location-icon svg{width:25px;height:25px}
-.location-card.featured .location-icon{background:rgba(255,255,255,.17);color:#fff;box-shadow:none}
-.priority-label{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border-radius:999px;background:var(--lime);color:#31351e;font:800 11px/1 var(--font-display);text-transform:uppercase;letter-spacing:.05em}
-.location-card h3{font:800 clamp(29px,3vw,42px)/1.05 var(--font-display);letter-spacing:-.045em;margin:30px 0 8px}
-.location-address{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:14px}
-.location-card.featured .location-address{color:rgba(255,255,255,.7)}
-.location-address svg{width:15px;height:15px}
-.location-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:35px}
-.location-card:not(.featured) .btn.primary{box-shadow:0 10px 24px rgba(241,82,7,.18)}
-.location-card:not(.featured) .btn.light{border:1px solid var(--line)}
-.location-card.featured .btn.light{color:var(--accent-dark)}
-
-/* Rewards */
-.loyalty{padding:20px 0 108px;background:var(--paper)}
-.loyalty-panel{position:relative;overflow:hidden;display:grid;grid-template-columns:.92fr 1.08fr;align-items:center;gap:70px;padding:72px;border-radius:35px;background:#1a1714;color:#fff}
-.loyalty-panel::before{content:'';position:absolute;width:500px;height:500px;border-radius:50%;right:-160px;top:-230px;background:radial-gradient(circle,rgba(223,255,115,.16),transparent 65%)}
-.loyalty-card-wrap{position:relative;min-height:360px;display:grid;place-items:center;perspective:900px}
-.loyalty-card{position:relative;width:min(420px,100%);aspect-ratio:1.6;border-radius:25px;padding:28px;background:linear-gradient(135deg,var(--accent),#ff7a35);box-shadow:0 35px 70px rgba(0,0,0,.35);transform:rotate(-5deg);overflow:hidden}
-.loyalty-card::before{content:'';position:absolute;width:280px;height:280px;border-radius:50%;right:-80px;top:-130px;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 0 38px rgba(255,255,255,.07),0 0 0 76px rgba(255,255,255,.04)}
-.loyalty-brand{position:relative;font:800 19px/1 var(--font-display)}
-.loyalty-star{position:absolute;right:26px;bottom:22px;font-size:48px}
-.loyalty-card p{position:absolute;left:28px;bottom:25px;margin:0;font-size:12px;color:rgba(255,255,255,.78);letter-spacing:.05em;text-transform:uppercase;font-weight:700}
-.reward-chip{position:absolute;z-index:2;right:0;bottom:15px;padding:16px 18px;border-radius:17px;background:var(--lime);color:#2d321a;box-shadow:0 18px 35px rgba(0,0,0,.25);font:800 13px/1.2 var(--font-display);transform:rotate(4deg)}
-.loyalty-copy{position:relative;z-index:2}
-.loyalty-copy .eyebrow{color:var(--lime)}
-.loyalty-copy h2{max-width:560px}
-.loyalty-copy>p{font-size:17px;line-height:1.7;color:rgba(255,255,255,.62);margin:21px 0 26px;max-width:560px}
-.benefits{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:28px}
-.benefit{display:flex;align-items:center;gap:11px;font-size:14px;font-weight:600;color:rgba(255,255,255,.8)}
-.benefit i{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;background:rgba(223,255,115,.12);color:var(--lime);font-style:normal}
-
-/* Food preview */
-.menu-preview{padding:108px 0;background:var(--cream)}
-.dish-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.dish{background:#fff;border:1px solid var(--line);border-radius:23px;padding:13px;box-shadow:0 5px 18px rgba(45,31,20,.04);transition:transform .22s ease,box-shadow .22s ease}
-.dish:hover{transform:translateY(-5px);box-shadow:var(--shadow-sm)}
-.dish-visual{height:190px;border-radius:16px;overflow:hidden;background:#f8eee5;display:grid;place-items:center;font-size:72px}
-.dish-visual img{width:100%;height:100%;object-fit:cover}
-.dish-info{padding:17px 7px 7px;display:flex;align-items:end;justify-content:space-between;gap:14px}
-.dish-name{font:800 15px/1.3 var(--font-display);letter-spacing:-.02em}
-.dish-price{color:var(--accent);font:800 14px/1 var(--font-display);white-space:nowrap}
-.dish-desc{padding:0 7px 9px;color:var(--muted);font-size:13px;line-height:1.5}
-.empty-menu{grid-column:1/-1;padding:45px;border:1px dashed #d9ccbd;border-radius:23px;text-align:center;color:var(--muted)}
-
-/* Steps & final CTA */
-.order-flow{padding:108px 0}
-.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.step{padding:29px;border:1px solid var(--line);border-radius:23px;background:#fff}
-.step-number{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#fff0e7;color:var(--accent);font:800 14px/1 var(--font-display);margin-bottom:28px}
-.step h3{font:800 19px/1.2 var(--font-display);margin:0 0 10px;letter-spacing:-.025em}
-.step p{color:var(--muted);font-size:14px;line-height:1.6;margin:0}
-.final{padding:0 0 108px}
-.final-cta{position:relative;overflow:hidden;text-align:center;border-radius:34px;background:var(--accent);color:#fff;padding:76px 30px}
-.final-cta::before,.final-cta::after{content:'';position:absolute;border-radius:50%;border:1px solid rgba(255,255,255,.18)}
-.final-cta::before{width:320px;height:320px;left:-190px;top:-170px;box-shadow:0 0 0 45px rgba(255,255,255,.05)}
-.final-cta::after{width:260px;height:260px;right:-150px;bottom:-150px;box-shadow:0 0 0 40px rgba(255,255,255,.05)}
-.final-cta h2{position:relative;margin:0 auto 17px;max-width:780px}
-.final-cta p{position:relative;color:rgba(255,255,255,.78);font-size:16px;margin:0 auto 27px;max-width:570px;line-height:1.6}
-.final-actions{position:relative;display:flex;justify-content:center;flex-wrap:wrap;gap:11px}
-
-/* Footer */
-.footer{background:#171411;color:#fff;padding:58px 0 30px}
-.footer-grid{display:grid;grid-template-columns:1.2fr .8fr .8fr;gap:50px;padding-bottom:42px}
-.footer-copy{color:rgba(255,255,255,.52);font-size:14px;line-height:1.65;max-width:340px;margin:16px 0 0}
-.footer h4{font:800 13px/1 var(--font-display);text-transform:uppercase;letter-spacing:.08em;margin:4px 0 18px;color:rgba(255,255,255,.5)}
-.footer-links{display:grid;gap:12px}
-.footer-links a{width:max-content;text-decoration:none;color:rgba(255,255,255,.76);font-size:14px}
-.footer-links a:hover{color:#fff}
-.footer-bottom{display:flex;justify-content:space-between;gap:20px;padding-top:24px;border-top:1px solid rgba(255,255,255,.09);font-size:12px;color:rgba(255,255,255,.42)}
-
-@media(max-width:960px){
-  .hero{min-height:auto}.hero-grid{grid-template-columns:1fr;gap:35px}.hero-copy{text-align:center}.hero h1,.hero-lead{margin-left:auto;margin-right:auto}.hero-actions,.hero-notes{justify-content:center}.food-scene{min-height:500px;width:min(500px,100%);margin:auto}
-  .location-grid{grid-template-columns:1fr 1fr}.location-card{padding:27px}.loyalty-panel{grid-template-columns:1fr;padding:55px 45px;gap:25px}.loyalty-copy{text-align:center}.loyalty-copy h2,.loyalty-copy>p{margin-left:auto;margin-right:auto}.benefits{max-width:530px;margin-left:auto;margin-right:auto}.loyalty-copy .btn{margin:auto}
+.hero::before {
+  content:''; position:absolute; width:600px; height:600px; border-radius:50%;
+  background:radial-gradient(circle, rgba(255,107,53,0.12) 0%, transparent 70%);
+  top:-200px; right:-200px; animation:heroGlow 8s ease-in-out infinite alternate;
 }
-@media(max-width:700px){
-  .shell{width:min(100% - 28px,1180px)}.nav-wrap{padding:12px 0}.nav{padding-left:12px}.logo span{font-size:15px}.nav-links>a:not(.nav-cta){display:none}.nav-cta{padding:12px 14px;font-size:12px}section[id]{scroll-margin-top:94px}
-  .hero{padding:127px 0 64px}.hero h1{font-size:51px}.hero-lead{font-size:16px}.hero-actions .btn{width:100%}.hero-notes{gap:8px 14px}
-  .food-scene{min-height:410px}.food-card{width:315px;border-radius:31px}.plate{width:230px;height:230px;top:60px}.plate img{width:180px;height:180px}.food-emoji{font-size:88px}.scene-label{left:19px;right:19px;bottom:18px}.food-orbit{width:340px;height:340px}.floating-pill.one{right:-2px;top:35px}.floating-pill.two{left:0;bottom:110px}
-  .locations,.menu-preview,.order-flow{padding:78px 0}.loyalty{padding-bottom:78px}.section-head{display:block;margin-bottom:28px}.section-head p{margin-top:15px}.section-head h2,.loyalty-copy h2,.final-cta h2{font-size:36px}
-  .location-grid{grid-template-columns:1fr}.location-card{min-height:330px}.location-card.featured{order:-1}.location-actions .btn{flex:1;padding-inline:15px}
-  .loyalty-panel{padding:44px 20px;border-radius:27px}.loyalty-card-wrap{min-height:270px}.loyalty-card{width:300px}.reward-chip{right:3px;bottom:9px}.benefits{grid-template-columns:1fr;text-align:left;width:max-content}.loyalty-copy .btn{width:100%}
-  .dish-grid{grid-template-columns:repeat(2,1fr);gap:10px}.dish{padding:9px;border-radius:18px}.dish-visual{height:145px}.dish-info{display:block;padding:13px 5px 5px}.dish-price{display:block;margin-top:8px}.steps{grid-template-columns:1fr}.final{padding-bottom:78px}.final-cta{padding:58px 22px;border-radius:27px}.final-actions .btn{width:100%}
-  .footer-grid{grid-template-columns:1fr 1fr;gap:35px}.footer-brand{grid-column:1/-1}.footer-bottom{display:block;line-height:1.7}
+@keyframes heroGlow { from{opacity:0.5;transform:scale(1)} to{opacity:1;transform:scale(1.15)} }
+.hero-content { position:relative; z-index:1; text-align:center; max-width:600px; }
+.hero-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  background:rgba(255,107,53,0.15); border:1px solid rgba(255,107,53,0.25);
+  padding:6px 16px; border-radius:20px; font-size:0.78rem; font-weight:600; color:#FF6B35; margin-bottom:20px;
 }
-@media(max-width:390px){.hero h1{font-size:44px}.food-card{width:280px}.food-orbit{width:300px;height:300px}.dish-visual{height:125px}.floating-pill{font-size:10px;padding:10px}.floating-pill span{width:25px;height:25px}}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.food-orbit{animation:none}*{transition:none!important}}
+.hero h1 {
+  font-size:3.2rem; font-weight:900; color:#fff; line-height:1.08; letter-spacing:-1.5px; margin-bottom:16px;
+}
+.hero h1 span { background:linear-gradient(135deg,#FF6B35,#FF8F65); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.hero p { font-size:1.1rem; color:rgba(255,255,255,0.6); margin-bottom:32px; line-height:1.6; max-width:480px; margin-left:auto; margin-right:auto; }
+.hero-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+.hero-btn {
+  padding:14px 32px; border-radius:14px; font-size:0.95rem; font-weight:700; cursor:pointer;
+  font-family:inherit; transition:all 0.25s; text-decoration:none; display:inline-flex; align-items:center; gap:8px;
+}
+.hero-btn.primary { background:linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff; border:none; box-shadow:0 8px 24px rgba(255,107,53,0.3); }
+.hero-btn.primary:hover { transform:translateY(-2px); box-shadow:0 12px 32px rgba(255,107,53,0.4); }
+.hero-btn.secondary { background:rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.15); backdrop-filter:blur(8px); }
+.hero-btn.secondary:hover { background:rgba(255,255,255,0.12); }
+.hero-btn:active { transform:scale(0.97); }
+
+/* ── Category Row ── */
+.section { padding:60px 24px; max-width:1100px; margin:0 auto; }
+.section-title { font-size:1.5rem; font-weight:800; color:#1F2937; margin-bottom:6px; }
+.section-sub { font-size:0.9rem; color:#9CA3AF; margin-bottom:24px; }
+.cat-scroll { display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.cat-scroll::-webkit-scrollbar { display:none; }
+.cat-card {
+  flex-shrink:0; width:130px; background:#fff; border-radius:16px; padding:20px 12px 16px;
+  text-align:center; cursor:pointer; transition:all 0.2s; border:1.5px solid #F3F4F6;
+  box-shadow:0 1px 3px rgba(0,0,0,0.04);
+}
+.cat-card:hover { border-color:#FF6B35; transform:translateY(-2px); box-shadow:0 8px 20px rgba(255,107,53,0.1); }
+.cat-card:active { transform:scale(0.96); }
+.cat-card .icon { font-size:2.2rem; margin-bottom:8px; }
+.cat-card .name { font-size:0.78rem; font-weight:600; color:#374151; }
+.cat-card .count { font-size:0.65rem; color:#9CA3AF; margin-top:2px; }
+
+/* ── Item Grid ── */
+.items-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:12px; }
+.i-card {
+  background:#fff; border-radius:14px; padding:16px 12px; text-align:center;
+  cursor:pointer; transition:all 0.2s; border:1.5px solid #F3F4F6;
+  box-shadow:0 1px 2px rgba(0,0,0,0.04); position:relative;
+}
+.i-card:hover { border-color:#FF6B35; transform:translateY(-2px); box-shadow:0 6px 16px rgba(0,0,0,0.06); }
+.i-card:active { transform:scale(0.97); }
+.i-card .img {
+  width:64px; height:64px; border-radius:14px; background:#FFF5F0; margin:0 auto 10px;
+  display:flex; align-items:center; justify-content:center; font-size:2rem; overflow:hidden;
+}
+.i-card .img img { width:100%; height:100%; object-fit:cover; }
+.i-card .name { font-size:0.8rem; font-weight:600; color:#1F2937; line-height:1.2; margin-bottom:4px; }
+.i-card .price { font-size:1rem; font-weight:700; color:#FF6B35; margin-bottom:10px; }
+.i-card .add-btn {
+  display:inline-block; padding:6px 18px; border-radius:8px; font-size:0.72rem; font-weight:700;
+  background:#FF6B35; color:#fff; text-decoration:none; transition:all 0.2s;
+}
+.i-card .add-btn:hover { background:#E55A2B; }
+
+/* ── How It Works ── */
+.steps { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:20px; }
+.step { text-align:center; padding:24px 16px; background:#fff; border-radius:16px; border:1.5px solid #F3F4F6; transition:all 0.2s; }
+.step:hover { border-color:#FF6B35; transform:translateY(-2px); }
+.step .num { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.1rem; font-weight:800; margin:0 auto 12px; }
+.step h3 { font-size:0.95rem; font-weight:700; margin-bottom:6px; }
+.step p { font-size:0.82rem; color:#6B7280; line-height:1.5; }
+
+/* ── CTA ── */
+.cta {
+  background:linear-gradient(135deg,#1F2937,#111827); border-radius:24px;
+  padding:60px 40px; text-align:center; margin-top:20px;
+}
+.cta h2 { font-size:1.8rem; font-weight:800; color:#fff; margin-bottom:12px; }
+.cta p { color:rgba(255,255,255,0.6); margin-bottom:24px; font-size:0.95rem; }
+.cta .btn { display:inline-block; padding:14px 36px; border-radius:14px; font-size:1rem; font-weight:700; background:linear-gradient(135deg,#FF6B35,#E55A2B); color:#fff; text-decoration:none; transition:all 0.2s; }
+.cta .btn:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(255,107,53,0.3); }
+
+/* ── Footer ── */
+.footer { background:#1F2937; color:rgba(255,255,255,0.6); padding:40px 24px 24px; text-align:center; }
+.footer .brand { font-size:1.2rem; font-weight:800; color:#FF6B35; margin-bottom:4px; }
+.footer .tagline { font-size:0.85rem; margin-bottom:16px; }
+.footer .info { display:flex; justify-content:center; gap:24px; flex-wrap:wrap; font-size:0.82rem; margin-bottom:16px; }
+.footer .info span { display:flex; align-items:center; gap:6px; }
+.footer .copy { font-size:0.72rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; }
+
+/* ── Mobile ── */
+@media (max-width:640px) {
+  .hero h1 { font-size:2.2rem; }
+  .hero p { font-size:0.95rem; }
+  .hero-actions { flex-direction:column; align-items:center; }
+  .hero-btn { width:100%; justify-content:center; }
+  .steps { grid-template-columns:1fr; }
+  .items-grid { grid-template-columns:repeat(2,1fr); }
+  .cat-card { width:100px; padding:14px 8px 12px; }
+  .cat-card .icon { font-size:1.8rem; }
+  .section { padding:40px 16px; }
+  .cta { padding:40px 24px; }
+  .cta h2 { font-size:1.3rem; }
+}
 </style>
 {% include "templates/includes/brand.html" %}
 </head>
 <body>
-{% set em = {'Beverage':'🥤','Beverages':'🥤','Food':'🍗','Biryani & Naan Combos':'🍛','Cheese Kottu':'🧀','Coffee & Tea':'☕','Desserts':'🍨','European Dishes & Salads':'🥗','Fried Rice':'🍚','Grills':'🥩','Indian Cuisine':'🍛','Kottu':'🥘','North Asian':'🥟','Pizza':'🍕','Rice & Curry':'🍛','Seafood':'🦐','Sides & Accompaniments':'🧆','Signature Kottu':'⭐','Sizzler Platters':'🔥','Soups':'🥣','Sri Lankan Fusion':'🌴','Vegetarian':'🥦'} %}
+{%- if branch or not branch_choices %}
 
-<header class="nav-wrap">
-  <nav class="nav shell" aria-label="Main navigation">
-    <a class="logo" href="/" aria-label="{{ brand_name }} home">
-      <img src="{{ brand_logo }}" alt="" width="38" height="38">
-      <span>{{ brand_name }}</span>
-    </a>
-    <div class="nav-links">
-      <a href="#locations">Locations</a>
-      <a href="#menu">Menu</a>
-      <a href="#rewards">Rewards</a>
-      {% if primary_location %}<a class="nav-cta" href="{{ primary_location.order_url }}">Order now</a>{% endif %}
+
+<!-- ═══ Hero ═══ -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">🍽️ Open Now · {{ opening_time or "11:00 AM" }} – {{ closing_time or "11:00 PM" }}</div>
+    <h1>Good Food.<br><span>Great Vibes.</span></h1>
+    <p>Experience the finest flavors crafted with passion. Fresh ingredients, bold taste, delivered to your table.</p>
+    <div class="hero-actions">
+      <a href="/menu" class="hero-btn primary">📖 View Menu</a>
+      <a href="/order" class="hero-btn secondary">🛵 Order Online</a>
     </div>
-  </nav>
-</header>
-
-<main>
-  <section class="hero">
-    <div class="hero-grid shell">
-      <div class="hero-copy">
-        <div class="hero-badge"><span class="pulse"></span> Loyalty rewards · Every referral can earn</div>
-        <h1>Eat well.<br><span>Earn more.</span></h1>
-        <p class="hero-lead">Order your favourites, track every meal and earn multi-level cashback when friends order. Friends joining through your referral get a first-order deal.</p>
-        {% if deep_link.ref %}<div class="arrival-offer">🎁 Referral {{ deep_link.ref }} is saved — choose a branch to claim the first-order deal.</div>{% endif %}
-        {% if deep_link.promo %}<div class="arrival-offer">✨ Your promo is saved — continue to the customer app to claim it.</div>{% endif %}
-        {% if primary_location %}
-        <div class="hero-actions">
-          <a class="btn primary" href="{{ primary_location.rewards_url }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7Zm0 0h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z"/></svg>
-            Open loyalty & rewards
-          </a>
-          <a class="btn outline" href="{{ primary_location.order_url }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 7H6"/><circle cx="10" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
-            Order & claim rewards
-          </a>
-        </div>
-        {% endif %}
-        <div class="hero-notes">
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>5% first-order referral deal</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>5% · 2% · 1% cashback</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>Order and track in one app</span>
-        </div>
-      </div>
-
-      <div class="food-scene" aria-label="Featured food from Kurunegala">
-        <div class="food-orbit"></div>
-        <div class="floating-pill one"><span>🎁</span> Refer friends & earn</div>
-        <div class="floating-pill two"><span>💸</span> Cashback on every level</div>
-        <div class="food-card">
-          <div class="plate">
-            {% if featured_items and featured_items[0].image %}
-              <img src="{{ featured_items[0].image }}" alt="{{ featured_items[0].name }}">
-            {% else %}
-              <div class="food-emoji">{{ em.get(featured_items[0].group,'🍽️') if featured_items else '🍛' }}</div>
-            {% endif %}
-          </div>
-          <div class="scene-label">
-            <div><strong>{{ featured_items[0].name if featured_items else "Made with big flavour" }}</strong><small>Kurunegala kitchen</small></div>
-            {% if featured_items %}<span class="scene-price">Rs {{ '%.0f' % featured_items[0].rate }}</span>{% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="locations" id="locations">
-    <div class="shell">
-      <div class="section-head">
-        <div><span class="eyebrow">Find your table</span><h2>Two cities.<br>One serious appetite.</h2></div>
-        <p>Choose the branch closest to you. Every menu and order stays connected to the correct kitchen.</p>
-      </div>
-      <div class="location-grid">
-        {% for location in locations %}
-        <article class="location-card{% if location.featured %} featured{% endif %}">
-          <div>
-            <div class="card-top">
-              <div class="location-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
-              {% if location.featured %}<span class="priority-label">★ Featured</span>{% endif %}
-            </div>
-            <h3>{{ location.name }}</h3>
-            <div class="location-address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Open {{ opening_time }} – {{ closing_time }}</div>
-            <div class="location-address" style="margin-top:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/></svg>{{ location.address }}</div>
-          </div>
-          <div class="location-actions">
-            <a class="btn {% if location.featured %}light{% else %}primary{% endif %}" href="{{ location.order_url }}">Order here
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-            </a>
-            <a class="btn {% if location.featured %}outline{% else %}light{% endif %}" href="{{ location.menu_url }}">View menu</a>
-            {% if location.featured %}<a class="btn outline" href="{{ location.rewards_url }}">Rewards</a>{% endif %}
-          </div>
-        </article>
-        {% else %}
-        <div class="empty-menu">Locations are being prepared. Please check back soon.</div>
-        {% endfor %}
-      </div>
-    </div>
-  </section>
-
-  {% if primary_location %}
-  <section class="loyalty" id="rewards">
-    <div class="loyalty-panel shell">
-      <div class="loyalty-card-wrap" aria-hidden="true">
-        <div class="loyalty-card"><div class="loyalty-brand">{{ brand_short or brand_name }}</div><p>Loyalty & referral rewards</p><div class="loyalty-star">✦</div></div>
-        <div class="reward-chip">Rewards live here 🎁</div>
-      </div>
-      <div class="loyalty-copy">
-        <span class="eyebrow">Cashback & referral deals</span>
-        <h2>Good food should give something back.</h2>
-        <p>Share your personal QR. Your friend gets a first-order discount, and confirmed orders earn cashback through your referral network.</p>
-        <div class="benefits">
-          <div class="benefit"><i>✓</i> 5% friend first-order deal</div>
-          <div class="benefit"><i>✓</i> Multi-level referral cashback</div>
-          <div class="benefit"><i>✓</i> Track online orders</div>
-          <div class="benefit"><i>✓</i> Redeem from your phone</div>
-        </div>
-        <a class="btn primary" href="{{ primary_location.rewards_url }}">Open loyalty & rewards
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-        </a>
-      </div>
-    </div>
-  </section>
-  {% endif %}
-
-  <section class="menu-preview" id="menu">
-    <div class="shell">
-      <div class="section-head">
-        <div><span class="eyebrow">From our live menu</span><h2>A little preview.<br>A lot to crave.</h2></div>
-        {% if primary_location %}<a class="btn primary" href="{{ primary_location.menu_url }}">Explore full menu
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-        </a>{% endif %}
-      </div>
-      <div class="dish-grid">
-        {% for item in featured_items %}
-        <article class="dish">
-          <div class="dish-visual">
-            {% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">{% else %}<span>{{ em.get(item.group,'🍽️') }}</span>{% endif %}
-          </div>
-          <div class="dish-info"><span class="dish-name">{{ item.name }}</span><span class="dish-price">Rs {{ '%.0f' % item.rate }}</span></div>
-          {% if item.description %}<div class="dish-desc">{{ item.description }}</div>{% endif %}
-        </article>
-        {% else %}
-        <div class="empty-menu">The Kurunegala menu is being prepared. Online ordering will appear here as soon as it is ready.</div>
-        {% endfor %}
-      </div>
-    </div>
-  </section>
-
-  <section class="order-flow">
-    <div class="shell">
-      <div class="section-head"><div><span class="eyebrow">Easy ordering</span><h2>From craving to kitchen<br>in three quick steps.</h2></div></div>
-      <div class="steps">
-        <article class="step"><span class="step-number">01</span><h3>Choose your location</h3><p>Select Kurunegala or Dambulla so your order reaches the correct restaurant.</p></article>
-        <article class="step"><span class="step-number">02</span><h3>Build your order</h3><p>Browse the live branch menu, add your favourites and send your details securely.</p></article>
-        <article class="step"><span class="step-number">03</span><h3>Track and enjoy</h3><p>Follow your order from the customer app and come back anytime for rewards.</p></article>
-      </div>
-    </div>
-  </section>
-
-  {% if primary_location %}
-  <section class="final">
-    <div class="final-cta shell">
-      <h2>Hungry? Kurunegala is ready.</h2>
-      <p>Pick your favourites, place the order online and let our kitchen handle the rest.</p>
-      <div class="final-actions">
-        <a class="btn light" href="{{ primary_location.order_url }}">Order from Kurunegala</a>
-        {% for location in locations %}{% if not location.featured %}<a class="btn outline" href="{{ location.order_url }}">Order from {{ location.name }}</a>{% endif %}{% endfor %}
-      </div>
-    </div>
-  </section>
-  {% endif %}
-</main>
-
-<footer class="footer">
-  <div class="shell">
-    <div class="footer-grid">
-      <div class="footer-brand">
-        <a class="logo" href="/"><img src="{{ brand_logo }}" alt="" width="38" height="38"><span>{{ brand_name }}</span></a>
-        <p class="footer-copy">Fresh food, bold flavour and a better way to order in Kurunegala and Dambulla.</p>
-      </div>
-      <div><h4>Locations</h4><div class="footer-links">{% for location in locations %}<a href="{{ location.menu_url }}">{{ location.name }}</a>{% endfor %}</div></div>
-      <div><h4>Quick links</h4><div class="footer-links">{% if primary_location %}<a href="{{ primary_location.order_url }}">Order online</a><a href="{{ primary_location.rewards_url }}">Loyalty & rewards</a>{% endif %}<a href="tel:{{ contact_phone|replace(' ','') }}">{{ contact_phone }}</a></div></div>
-    </div>
-    <div class="footer-bottom"><span>© 2026 {{ brand_name }}. All rights reserved.</span><span>Kurunegala · Dambulla · Sri Lanka</span></div>
   </div>
+</section>
+
+<!-- ═══ Categories ═══ -->
+<section class="section" id="menu">
+  <h2 class="section-title">Explore Our Menu</h2>
+  <p class="section-sub">Swipe through our categories</p>
+  <div class="cat-scroll">
+    {% for g in menu_groups %}
+    <div class="cat-card" onclick="window.location.href='/menu#{{ g.name|replace(' ','-') }}'">
+      <div class="icon">{{ {'Beverages':'🥤','Biryani & Naan Combos':'🍛','Cheese Kottu':'🧀','Coffee & Tea':'☕','Desserts':'🍨','European Dishes & Salads':'🥗','Fried Rice':'🍚','Grills':'🥩','Indian Cuisine':'🍛','Kottu':'🥘','North Asian':'🥟','Pizza':'🍕','Rice & Curry':'🍛','Seafood':'🦐','Sides & Accompaniments':'🧆','Signature Kottu':'⭐','Sizzler Platters':'🔥','Soups':'🥣','Sri Lankan Fusion':'🌴','Vegetarian':'🥦'}.get(g.name,'🍽️') }}</div>
+      <div class="name">{{ g.name }}</div>
+      <div class="count">{{ g["items"]|length }} items</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ═══ Popular Items ═══ -->
+<section class="section">
+  <h2 class="section-title">Popular Items</h2>
+  <p class="section-sub">Most loved dishes by our guests</p>
+  <div class="items-grid">
+    {% set em = {'SPC-RICE':'🍚','KOTTU':'🥘','CHK-FRICE':'🍗','DEV-CHK':'🍛','MIX-SEAFOOD':'🦐','BEV':'🥤','F-JUICE':'🧃','ICE-CRM':'🍨'} %}
+    {% for g in menu_groups[:4] %}
+      {% for item in g["items"][:3] %}
+      <div class="i-card">
+        <div class="img">
+          {% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<span>{{ em.get(item.code,'🍽️') }}</span>'">
+          {% else %}<span>{{ em.get(item.code,'🍽️') }}</span>{% endif %}
+        </div>
+        <div class="name">{{ item.name }}</div>
+        <div class="price">LKR {{ '%.0f' % item.rate }}</div>
+        <a href="/order" class="add-btn">Order Now</a>
+      </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ═══ How It Works ═══ -->
+<section class="section">
+  <h2 class="section-title">How It Works</h2>
+  <p class="section-sub">Three simple steps to your meal</p>
+  <div class="steps">
+    <div class="step">
+      <div class="num">1</div>
+      <h3>📖 Browse Menu</h3>
+      <p>Explore our wide selection of delicious dishes, from local favorites to international cuisine.</p>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <h3>🛒 Place Order</h3>
+      <p>Select your items, customize your order, and confirm via WhatsApp with your phone number.</p>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <h3>🍽️ Enjoy!</h3>
+      <p>We prepare your order fresh and serve it hot. Dine in or take away — your choice!</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CTA ═══ -->
+<section class="section">
+  <div class="cta">
+    <h2>Ready to Order?</h2>
+    <p>Browse our full menu and place your order now. Fresh food, fast service.</p>
+    <a href="/menu" class="btn">📖 View Full Menu</a>
+  </div>
+</section>
+
+<!-- ═══ Footer ═══ -->
+<footer class="footer">
+  <div class="brand">{{ restaurant.name if restaurant else brand_name }}</div>
+  <div class="tagline">Good Food · Great Vibes</div>
+  <div class="info">
+    <span>📍 {{ restaurant.address or "Kandy, Sri Lanka" }}</span>
+    <span>📞 {{ restaurant.phone or "077 123 4567" }}</span>
+    <span>🕐 {{ opening_time or "11:00 AM" }} – {{ closing_time or "11:00 PM" }}</span>
+  </div>
+  <div class="copy">© 2026 {{ restaurant.name if restaurant else brand_name }}. All rights reserved.</div>
 </footer>
+
+{%- else %}
+{% include "templates/includes/branch_choose.html" %}
+{%- endif %}
 </body>
 </html>

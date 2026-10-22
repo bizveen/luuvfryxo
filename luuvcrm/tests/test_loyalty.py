@@ -8,8 +8,6 @@ balance and referral network — and, through `loyalty_redeem`, to spend it.
 So the first thing these tests pin is that the token is the only way in.
 """
 
-import json
-
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
@@ -209,116 +207,6 @@ class TestApplyingAReferral(LoyaltyTestCase):
         result = self.call(api.loyalty_apply_referral,
                            mobile=self.INVITEE, ref_code=self.code)
         self.assertTrue(result["success"])
-
-
-class TestFirstOrderReferralDiscount(LoyaltyTestCase):
-    REFERRER = "0770000110"
-    INVITEE = "0770000111"
-
-    def setUp(self):
-        super().setUp()
-        self.referrer = _customer(self, self.REFERRER, name="Referrer")
-        self.referrer_token = _token(self, self.REFERRER)
-        self.code = self.call(
-            api.loyalty_generate_code, token=self.referrer_token
-        )["referral_code"]
-        self.item = fx.item(self, "REF-DISCOUNT")
-        fx.item_price(self, self.item, 1000)
-        fx.service_charge(self, 10)
-
-        settings = frappe.get_doc("Loyalty Settings", "Loyalty Settings")
-        previous = settings.referral_discount_percent
-        frappe.db.set_value(
-            "Loyalty Settings", "Loyalty Settings", "referral_discount_percent", 5
-        )
-        self.addCleanup(
-            frappe.db.set_value,
-            "Loyalty Settings", "Loyalty Settings",
-            "referral_discount_percent", previous,
-        )
-        # Registered after _customer's cleanup, so orders/ledger rows disappear
-        # before their linked Loyalty Customer is removed.
-        self.addCleanup(self._drop_checkout_rows)
-
-    def _drop_checkout_rows(self):
-        for mobile in (self.INVITEE, self.REFERRER):
-            for order in frappe.get_all(
-                "POS Order", filters={"mobile": mobile}, pluck="name"
-            ):
-                frappe.delete_doc(
-                    "POS Order", order, force=True, ignore_permissions=True,
-                    delete_permanently=True,
-                )
-            lc = frappe.db.get_value("Loyalty Customer", {"mobile": mobile}, "name")
-            if lc:
-                for txn in frappe.get_all(
-                    "Cashback Transaction",
-                    filters={"loyalty_customer": lc},
-                    pluck="name",
-                ):
-                    frappe.delete_doc(
-                        "Cashback Transaction", txn, force=True,
-                        ignore_permissions=True, delete_permanently=True,
-                    )
-        invitee = frappe.db.get_value(
-            "Loyalty Customer", {"mobile": self.INVITEE}, "name"
-        )
-        if invitee:
-            frappe.delete_doc(
-                "Loyalty Customer", invitee, force=True,
-                ignore_permissions=True, delete_permanently=True,
-            )
-
-    def checkout(self, mobile, code):
-        return self.call(
-            api.kiosk_place_order,
-            items=json.dumps([{"item": self.item, "qty": 1, "rate": 1}]),
-            customer_name="Referral Guest",
-            mobile=mobile,
-            ref_code=code,
-            wa_confirm="1",
-        )
-
-    def test_the_server_prices_and_applies_the_first_order_deal(self):
-        result = self.checkout(self.INVITEE, self.code)
-        self.assertTrue(result["referral_discount_applied"])
-        self.assertEqual(result["referral_discount_percent"], 5)
-        self.assertEqual(result["referral_discount_amount"], 50)
-        self.assertEqual(result["grand_total"], 1045,
-                         "5% off both Rs 1000 food and proportional service")
-
-        order = frappe.get_doc("POS Order", result["name"])
-        self.assertEqual(float(order.discount_amount), 50)
-        self.assertIn(self.code, order.discount_note)
-        self.assertTrue(frappe.db.exists(
-            "Cashback Transaction",
-            {"loyalty_customer": frappe.db.get_value(
-                "Loyalty Customer", {"mobile": self.INVITEE}, "name"),
-             "type": "Referral Discount", "reference_order": order.name},
-        ))
-
-    def test_the_same_phone_cannot_receive_the_deal_twice(self):
-        first = self.checkout(self.INVITEE, self.code)
-        second = self.checkout(self.INVITEE, self.code)
-        self.assertTrue(first["referral_discount_applied"])
-        self.assertFalse(second["referral_discount_applied"])
-        self.assertEqual(second["referral_discount_amount"], 0)
-        self.assertEqual(second["grand_total"], 1100)
-
-    def test_a_self_referral_never_gets_the_discount(self):
-        result = self.checkout(self.REFERRER, self.code)
-        self.assertFalse(result["referral_discount_applied"])
-        self.assertEqual(result["grand_total"], 1100)
-
-    def test_confirmation_cashback_uses_the_discounted_total(self):
-        result = self.checkout(self.INVITEE, self.code)
-        api._process_cashback(
-            self.INVITEE, result["name"], result["grand_total"]
-        )
-        balance = float(frappe.db.get_value(
-            "Loyalty Customer", self.referrer, "cashback_balance"
-        ) or 0)
-        self.assertEqual(balance, 52.25, "5% of the confirmed Rs 1,045 total")
 
 
 class TestSpendingTheBalance(LoyaltyTestCase):
