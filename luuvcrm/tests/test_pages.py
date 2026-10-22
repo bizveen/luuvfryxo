@@ -637,6 +637,36 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
                     self.assertIn("phone=0770000123", url)
             self.assertTrue(row.order_url.startswith("/cus?"))
 
+    def test_public_menu_hides_test_rows_and_has_a_safe_image_fallback(self):
+        page = importlib.import_module("luuvcrm.www.menu")
+        restaurant = frappe.db.get_value("Restaurant", {}, "name")
+        if not restaurant:
+            self.skipTest("no restaurant configured")
+        fake_items = [
+            {"code": "REAL-DISH", "rate": 500},
+            {"code": "_LFT-LEAKED-DISH", "rate": 1},
+        ]
+        with patch.object(page.branch, "for_page", return_value=restaurant), \
+                patch.object(page, "menu_items", return_value=fake_items):
+            context = frappe._dict()
+            page.get_context(context)
+        self.assertEqual([item["code"] for item in context.menu_items], ["REAL-DISH"])
+
+        template = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "menu.html"))
+        self.assertIn("/assets/luuvcrm/app/menu-placeholder.svg", template)
+        self.assertIn("this.onerror=null;this.src=", template)
+        self.assertIn('class="category-nav"', template)
+        self.assertIn("data-category-link", template)
+        self.assertIn("data-category-section", template)
+        self.assertIn("overflow-x: auto", template)
+        for mojibake in ("ð", "Ã", "ï¸"):
+            self.assertNotIn(mojibake, template)
+
+        pos_template = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos.html"))
+        self.assertIn('class="pos-menu-thumb"', pos_template)
+        self.assertIn("/assets/luuvcrm/app/menu-placeholder.svg", pos_template)
+        self.assertIn("this.onerror=null;this.src=", pos_template)
+
     def test_referral_share_and_qr_stay_on_the_direct_customer_app(self):
         html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
         self.assertIn("window.location.origin+'/cus?ref='", html)

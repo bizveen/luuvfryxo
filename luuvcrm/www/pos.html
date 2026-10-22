@@ -136,6 +136,11 @@ input,select,button{font-family:inherit;}
 html{-webkit-tap-highlight-color:transparent;}
 button:focus,a:focus{outline:none;}
 button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+.pos-menu-thumb{
+  width:var(--tile-img,40px);height:var(--tile-img,40px);overflow:hidden;
+  border-radius:10px;background:var(--orange-50);flex:none;
+}
+.pos-menu-thumb img{display:block;width:100%;height:100%;object-fit:cover;}
 
 /* ── flexbox gap fallback ────────────────────────────────────────────────
    The till's System WebView is Chromium 83 (Android 11, rk3566). Flexbox
@@ -285,7 +290,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
             {% for g in menu_groups %}{% for it in g['items'] %}
             <button class="mcard" data-code="{{ it.code }}" data-name="{{ it.name }}" data-rate="{{ it.rate }}" data-group="{{ g.name }}" data-addons="{{ it.addons }}" onclick="addToCart('{{ it.code }}')"
               style="position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:var(--tile-pad,16px);min-height:var(--tile-h,134px);background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);cursor:pointer;text-align:left;box-shadow:var(--shadow-xs);">
-              <div style="font-size:var(--tile-emoji,38px);line-height:1;">{% if it.image %}<img src="{{ it.image }}" style="width:var(--tile-img,40px);height:var(--tile-img,40px);object-fit:cover;border-radius:8px;" loading="lazy">{% else %}🍽️{% endif %}</div>
+              <div class="pos-menu-thumb"><img src="{{ it.image or '/assets/luuvcrm/app/menu-placeholder.svg' }}" alt="{{ it.name }}" loading="lazy" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg'"></div>
               <div style="font-family:var(--font-display);font-weight:700;font-size:var(--tile-name,17px);color:var(--text-strong);line-height:1.2;margin-top:auto;">{{ it.name }}</div>
               <div class="mono" style="font-weight:500;font-size:var(--tile-price,17px);color:var(--color-primary);">{{ "{:,.0f}".format(it.rate) }}</div>
             </button>

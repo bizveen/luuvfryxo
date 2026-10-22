@@ -51,4 +51,11 @@ def get_context(context):
 
     # Cheapest first, across categories — this page is one long list a customer
     # scrolls, not the grouped grid the ordering screens show.
-    context.menu_items = sorted(menu_items(restaurant_name), key=lambda x: x["rate"])
+    # Test fixtures deliberately use the _LFT prefix. A failed/aborted test run
+    # must never leak those rows onto the customer-facing menu, even if it left
+    # one attached to the active Restaurant Menu.
+    public_items = [
+        item for item in menu_items(restaurant_name)
+        if not str(item.get("code") or "").startswith("_LFT")
+    ]
+    context.menu_items = sorted(public_items, key=lambda x: x["rate"])
