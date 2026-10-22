@@ -41,10 +41,20 @@ KURUNEGALA_SHOWCASE = (
 )
 
 
-def _address_line(restaurant):
+def _city(restaurant):
+    doc = frappe.get_cached_doc("Restaurant", restaurant)
+    city = str(doc.get("city") or "").strip()
+    if not city and doc.address:
+        city = frappe.db.get_value("Address", doc.address, "city") or ""
+    if not city and restaurant.casefold() in {"kurunegala", "dambulla"}:
+        city = restaurant
+    return city
+
+
+def _address_line(restaurant, city=""):
     address = frappe.db.get_value("Restaurant", restaurant, "address")
     if not address:
-        return f"{restaurant}, Sri Lanka"
+        return f"{city or restaurant}, Sri Lanka"
     city, line1 = frappe.db.get_value(
         "Address", address, ["city", "address_line1"]
     ) or ("", "")
@@ -57,9 +67,15 @@ def _with_query(path, **params):
 
 def _location(restaurant, featured=False, deep_link=None):
     deep_link = deep_link or {}
+    doc = frappe.get_cached_doc("Restaurant", restaurant)
+    display_name = str(doc.get("restaurant_name") or restaurant).strip()
+    city = _city(restaurant)
     return frappe._dict(
         name=restaurant,
-        address=_address_line(restaurant),
+        display_name=display_name,
+        city=city,
+        label=f"{display_name} — {city}" if city else display_name,
+        address=_address_line(restaurant, city),
         featured=featured,
         # /cus is the one customer journey that can order, retain a referral,
         # track the meal and show rewards.  Do not split landing traffic back
@@ -83,7 +99,7 @@ def get_context(context):
 
     restaurants = branch.all_restaurants()
     primary = next(
-        (name for name in restaurants if name.casefold() == "kurunegala"),
+        (name for name in restaurants if _city(name).casefold() == "kurunegala"),
         restaurants[0] if restaurants else None,
     )
     ordered = ([primary] if primary else []) + [
@@ -124,7 +140,7 @@ def get_context(context):
     ][:5]
     context.featured_items = (
         [frappe._dict(item) for item in KURUNEGALA_SHOWCASE]
-        if primary and primary.casefold() in {"kurunegala", "luuv fryxo"}
+        if primary and _city(primary).casefold() == "kurunegala"
         else menu_preview
     )
     context.opening_time = "11:00 AM"

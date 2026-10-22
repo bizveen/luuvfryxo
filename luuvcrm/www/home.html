@@ -262,7 +262,7 @@ section[id]{scroll-margin-top:112px}
               <div class="location-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
               {% if location.featured %}<span class="priority-label">★ Featured</span>{% endif %}
             </div>
-            <h3>{{ location.name }}</h3>
+            <h3>{{ location.display_name }}{% if location.city %}<span style="display:block;font-size:18px;font-weight:600;margin-top:6px;margin-bottom:14px;opacity:.8">{{ location.city }}</span>{% endif %}</h3>
             <div class="location-address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Open {{ opening_time }} – {{ closing_time }}</div>
             <div class="location-address" style="margin-top:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/></svg>{{ location.address }}</div>
           </div>
@@ -344,11 +344,11 @@ section[id]{scroll-margin-top:112px}
   {% if primary_location %}
   <section class="final">
     <div class="final-cta shell">
-      <h2>Hungry? Kurunegala is ready.</h2>
+      <h2>Visit {{ primary_location.label }}.</h2>
       <p>Pick your favourites, place the order online and let our kitchen handle the rest.</p>
       <div class="final-actions">
-        <a class="btn light" href="{{ primary_location.order_url }}">Order from Kurunegala</a>
-        {% for location in locations %}{% if not location.featured %}<a class="btn outline" href="{{ location.order_url }}">Order from {{ location.name }}</a>{% endif %}{% endfor %}
+        <a class="btn light" href="{{ primary_location.order_url }}">Order from {{ primary_location.label }}</a>
+        {% for location in locations %}{% if not location.featured %}<a class="btn outline" href="{{ location.order_url }}">Order from {{ location.label }}</a>{% endif %}{% endfor %}
       </div>
     </div>
   </section>
@@ -362,7 +362,7 @@ section[id]{scroll-margin-top:112px}
         <a class="logo" href="/"><img src="{{ brand_logo }}" alt="" width="38" height="38"><span>{{ brand_name }}</span></a>
         <p class="footer-copy">Fresh food, bold flavour and a better way to order in Kurunegala and Dambulla.</p>
       </div>
-      <div><h4>Locations</h4><div class="footer-links">{% for location in locations %}<a href="{{ location.menu_url }}">{{ location.name }}</a>{% endfor %}</div></div>
+      <div><h4>Locations</h4><div class="footer-links">{% for location in locations %}<a href="{{ location.menu_url }}">{{ location.label }}</a>{% endfor %}</div></div>
       <div><h4>Quick links</h4><div class="footer-links">{% if primary_location %}<a href="{{ primary_location.order_url }}">Order online</a><a href="{{ primary_location.rewards_url }}">Loyalty & rewards</a>{% endif %}<a href="tel:{{ contact_phone|replace(' ','') }}">{{ contact_phone }}</a></div></div>
     </div>
     <div class="footer-bottom"><span>© 2026 {{ brand_name }}. All rights reserved.</span><span>Kurunegala · Dambulla · Sri Lanka</span></div>
