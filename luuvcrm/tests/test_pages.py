@@ -576,6 +576,12 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
         self.assertIn("menu_groups", ctx,
                       "the landing page shows the menu; erpnext's does not")
 
+    def test_the_landing_app_bar_stays_visible_while_scrolling(self):
+        template = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "home.html"))
+        self.assertIn(".nav-wrap{position:fixed", template)
+        self.assertIn("z-index:100", template)
+        self.assertIn("section[id]{scroll-margin-top:", template)
+
     def test_the_landing_page_prioritises_kurunegala_and_keeps_branch_links_safe(self):
         """The front page shows both branches, but every CTA carries the
         branch explicitly so a Dambulla order cannot reach Kurunegala."""
