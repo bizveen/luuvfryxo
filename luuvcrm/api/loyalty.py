@@ -123,6 +123,142 @@ def _get_loyalty_settings():
             "referral_discount_percent": float(doc.referral_discount_percent or 5.0),
         }
     return {"level_1_percent": 5.0, "level_2_percent": 2.0, "level_3_percent": 1.0, "min_redeem": 200, "referral_discount_percent": 5.0}
+
+
+def _apply_referral_for_mobile(mobile, ref_code):
+    """Attach ``mobile`` to ``ref_code`` without trusting a browser-side total.
+
+    The public endpoint below and the online-order endpoint share this helper.
+    Returning the existing relationship as a success here makes checkout
+    idempotent (a login may already have attached it), while the public endpoint
+    keeps its historical "Already linked" response for callers that need to
+    distinguish the first write.
+    """
+    mobile = (mobile or "").strip()
+    ref_code = (ref_code or "").strip().upper()
+    if not mobile:
+        return {"success": False, "error": "Login required"}
+    if not ref_code:
+        return {"success": False, "error": "Referral code required"}
+
+    referrer = frappe.db.get_value(
+        "Loyalty Customer", {"referral_code": ref_code}, "name"
+    )
+    if not referrer:
+        return {"success": False, "error": "Invalid referral code"}
+
+    ref_doc = frappe.get_doc("Loyalty Customer", referrer)
+    if ref_doc.mobile == mobile:
+        return {"success": False, "error": "Cannot refer yourself"}
+
+    lc_name = _get_loyalty_customer(mobile)
+    lc = frappe.get_doc("Loyalty Customer", lc_name)
+    if lc.referred_by:
+        if lc.referred_by == referrer:
+            return {
+                "success": True,
+                "already_linked": True,
+                "loyalty_customer": lc.name,
+                "referrer": ref_doc.customer_name or ref_doc.mobile,
+                "referral_code": ref_code,
+            }
+        return {"success": False, "error": "Already linked to a referrer"}
+
+    lc.referred_by = referrer
+    lc.flags.ignore_permissions = True
+    lc.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {
+        "success": True,
+        "already_linked": False,
+        "loyalty_customer": lc.name,
+        "referrer": ref_doc.customer_name or ref_doc.mobile,
+        "referral_code": ref_code,
+    }
+
+
+def _claim_first_order_referral_discount(mobile, ref_code, order_name, subtotal):
+    """Reserve and record the invitee's one-time referral discount.
+
+    This runs *after* the POS Order has been inserted but before its transaction
+    commits.  Locking the Loyalty Customer serialises simultaneous checkouts for
+    one phone number; the second request sees the first order/ledger row and gets
+    no second discount.  The browser only supplies the referral code.  Prices,
+    eligibility and the amount all come from server-side records.
+    """
+    mobile = (mobile or "").strip()
+    ref_code = (ref_code or "").strip().upper()
+    try:
+        subtotal = round(float(subtotal or 0), 2)
+    except (TypeError, ValueError):
+        subtotal = 0
+    if not mobile or not ref_code or not order_name or subtotal <= 0:
+        return {"applied": False, "amount": 0, "percent": 0}
+
+    referrer = frappe.db.get_value(
+        "Loyalty Customer", {"referral_code": ref_code}, "name"
+    )
+    if not referrer:
+        return {"applied": False, "amount": 0, "percent": 0,
+                "error": "Invalid referral code"}
+
+    # FOR UPDATE is the single-use guard.  A phone can only have one Loyalty
+    # Customer (mobile is unique), so this is a narrow row lock, not a table lock.
+    rows = frappe.db.sql(
+        """SELECT name, referred_by
+             FROM `tabLoyalty Customer`
+            WHERE mobile = %s
+            LIMIT 1 FOR UPDATE""",
+        mobile,
+        as_dict=True,
+    )
+    if not rows or rows[0].referred_by != referrer:
+        return {"applied": False, "amount": 0, "percent": 0,
+                "error": "Referral is not linked to this customer"}
+    lc_name = rows[0].name
+
+    previous_order = frappe.db.exists(
+        "POS Order",
+        {
+            "mobile": mobile,
+            "name": ["!=", order_name],
+            "docstatus": ["!=", 2],
+            "grand_total": [">", 0],
+        },
+    )
+    already_discounted = frappe.db.exists(
+        "Cashback Transaction",
+        {"loyalty_customer": lc_name, "type": "Referral Discount"},
+    )
+    if previous_order or already_discounted:
+        return {"applied": False, "amount": 0, "percent": 0,
+                "error": "First-order discount already used"}
+
+    percent = max(0.0, min(float(
+        _get_loyalty_settings().get("referral_discount_percent") or 0
+    ), 100.0))
+    amount = min(subtotal, round(subtotal * percent / 100, 2))
+    if amount <= 0:
+        return {"applied": False, "amount": 0, "percent": percent}
+
+    txn = frappe.get_doc({
+        "doctype": "Cashback Transaction",
+        "loyalty_customer": lc_name,
+        "type": "Referral Discount",
+        "amount": amount,
+        "reference_order": order_name,
+        "notes": f"{percent:g}% first-order referral discount ({ref_code})",
+    })
+    txn.flags.ignore_permissions = True
+    txn.insert()
+    return {
+        "applied": True,
+        "amount": amount,
+        "percent": percent,
+        "referral_code": ref_code,
+    }
+
+
 def _credit_cashback(lc_name, amount, level, ref_order="", notes=""):
     """Credit cashback to a Loyalty Customer and log transaction."""
     if not lc_name or amount <= 0:
@@ -241,28 +377,12 @@ def loyalty_apply_referral():
     if not ref_code:
         return {"success": False, "error": "Referral code required"}
 
-    # Find referrer by code
-    referrer = frappe.db.get_value("Loyalty Customer", {"referral_code": ref_code}, "name")
-    if not referrer:
-        return {"success": False, "error": "Invalid referral code"}
-
-    ref_doc = frappe.get_doc("Loyalty Customer", referrer)
-    if ref_doc.mobile == mobile:
-        return {"success": False, "error": "Cannot refer yourself"}
-
-    # Get or create customer
-    lc_name = _get_loyalty_customer(mobile)
-    lc = frappe.get_doc("Loyalty Customer", lc_name)
-
-    if lc.referred_by:
+    result = _apply_referral_for_mobile(mobile, ref_code)
+    # Preserve the endpoint's established one-shot response even though the
+    # internal checkout helper is deliberately idempotent.
+    if result.get("already_linked"):
         return {"success": False, "error": "Already linked to a referrer"}
-
-    lc.referred_by = referrer
-    lc.flags.ignore_permissions = True
-    lc.save(ignore_permissions=True)
-    frappe.db.commit()
-
-    return {"success": True, "referrer": ref_doc.customer_name or ref_doc.mobile}
+    return result
 @frappe.whitelist(allow_guest=True)
 def loyalty_redeem():
     mobile = _customer_mobile()
@@ -312,7 +432,9 @@ def loyalty_find_referrer():
     if not lc_name:
         return {"found": False, "ref_code": ref_code}
     lc = frappe.get_doc("Loyalty Customer", lc_name)
-    return {"found": True, "referrer_name": lc.customer_name or lc.mobile, "ref_code": ref_code}
+    return {"found": True, "referrer_name": lc.customer_name or lc.mobile,
+            "ref_code": ref_code,
+            "discount_percent": _get_loyalty_settings()["referral_discount_percent"]}
 @frappe.whitelist(allow_guest=True)
 def get_kitchen_groups():
     groups = frappe.get_all("Kitchen Group",

@@ -150,6 +150,8 @@ from luuvcrm.api.kitchen import (
     setup_kitchen_groups,
 )
 from luuvcrm.api.loyalty import (
+    _apply_referral_for_mobile,
+    _claim_first_order_referral_discount,
     _credit_cashback,
     _generate_referral_code,
     _get_loyalty_customer,

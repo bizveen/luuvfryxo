@@ -15,6 +15,7 @@
 <link rel="apple-touch-icon" href="/assets/luuvcrm/app/icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="/assets/luuvcrm/js/qrcode.js"></script>
 <style>
 :root{
   --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-300:#FF9E68;--orange-400:#FB7430;
@@ -149,6 +150,9 @@ input,button{font-family:inherit;}
 .tier{flex:1;background:var(--surface-sunken);border-radius:var(--radius-md);padding:10px;text-align:center;}
 .tier .v{font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);}
 .tier .l{font-size:10.5px;color:var(--text-muted);margin-top:2px;}
+.referral-banner{display:none;align-items:center;gap:10px;background:var(--color-success-subtle);border:1.5px solid #B7DFC8;border-radius:var(--radius-lg);padding:11px 14px;margin-bottom:12px;color:#147344;font-size:13px;font-weight:700;line-height:1.4;}
+.ref-qr{display:flex;justify-content:center;margin-top:14px;}
+.ref-qr img{width:150px;height:150px;border-radius:12px;border:1px solid var(--border-subtle);padding:7px;background:#fff;image-rendering:pixelated;}
 
 .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:12px 20px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);max-width:90%;text-align:center;}
 </style>
@@ -177,6 +181,10 @@ input,button{font-family:inherit;}
       <div id="promoBar" style="display:none;align-items:center;gap:10px;background:var(--orange-50);border:1.5px solid var(--orange-200);border-radius:var(--radius-lg);padding:11px 14px;margin-bottom:12px;">
         <span style="font-size:20px;flex:none;">🎁</span>
         <span id="promoBarTxt" style="font-size:13px;font-weight:700;color:var(--orange-700);line-height:1.35;"></span>
+      </div>
+      <div id="referralBar" class="referral-banner">
+        <span style="font-size:20px;flex:none;">💸</span>
+        <span id="referralBarTxt"></span>
       </div>
       <div class="search">
         <i data-lucide="search" style="width:18px;height:18px;color:var(--text-muted);"></i>
@@ -266,8 +274,11 @@ input,button{font-family:inherit;}
       <button onclick="clearCart()" style="border:none;background:none;color:var(--color-danger);font-weight:700;font-size:13px;cursor:pointer;">Clear</button>
     </div>
     <div id="cartItems"></div>
+    <div id="refDiscountRow" style="display:none;justify-content:space-between;color:var(--color-success);font-size:13px;font-weight:700;margin:12px 0 -5px;">
+      <span id="refDiscountLabel">Referral first-order discount</span><span class="mono" id="refDiscountAmount">− Rs 0</span>
+    </div>
     <div style="display:flex;justify-content:space-between;font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);margin:14px 0 16px;">
-      <span>Total</span><span class="mono" style="font-weight:500;" id="cartTotal">Rs 0</span>
+      <span>Estimated total</span><span class="mono" style="font-weight:500;" id="cartTotal">Rs 0</span>
     </div>
     <div id="pickupNote" style="display:none;background:var(--orange-50);color:var(--orange-700);border-radius:var(--radius-md);padding:10px 12px;font-size:12.5px;font-weight:600;line-height:1.5;margin-bottom:14px;">📍 Your free meal is <b>pickup only</b> — collect it at our <b><span id="pickupOutlet">Kurunegala</span></b> outlet (no delivery).</div>
     <div class="field" id="schedField" style="display:none;margin-bottom:14px;">
@@ -336,9 +347,10 @@ let _name = localStorage.getItem('lf_name') || '';
 let _ref = "{{ ref_code }}" || localStorage.getItem('lf_ref') || '';
 let _promo = "{{ promo_code }}" || localStorage.getItem('lf_promo') || '';
 const PREFILL_PHONE = "{{ prefill_phone }}";
-let tab = 'order';
+let tab = {{ initial_tab | tojson }};
 let cart = {};            // code -> qty
 let _loy = null;          // cached loyalty info
+let _refInfo = null;      // validated referral code + server-configured discount
 
 if (_ref) localStorage.setItem('lf_ref', _ref);
 if (_promo) localStorage.setItem('lf_promo', _promo);
@@ -362,6 +374,29 @@ async function _post(method, args){
   return r.json();
 }
 
+async function validateReferral(){
+  const bar=document.getElementById('referralBar');
+  if(!_ref||!bar) return;
+  try{
+    const r=await _call('luuvcrm.api.loyalty_find_referrer',{ref_code:_ref});
+    const m=r&&r.message;
+    if(m&&m.found){
+      _refInfo=m;
+      const pct=parseFloat(m.discount_percent)||0;
+      document.getElementById('referralBarTxt').textContent='Referred by '+m.ref_code+' — '+pct+'% First Order Discount Applied!';
+      bar.style.display='flex';
+      syncCart();
+      return;
+    }
+  }catch(e){}
+  _refInfo=null;
+  _ref='';
+  localStorage.removeItem('lf_ref');
+  bar.style.display='none';
+  toast('Referral code is not valid');
+  syncCart();
+}
+
 /* ─────────── tabs ─────────── */
 function setTab(t){
   tab=t;
@@ -379,6 +414,7 @@ function rateOf(code){ const el=document.querySelector('.mcard[data-code="'+CSS.
 function nameOf(code){ const el=document.querySelector('.mcard[data-code="'+CSS.escape(code)+'"]'); return el?el.dataset.name:code; }
 function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
 function cartTotal(){ return Object.entries(cart).reduce((a,[c,q])=>a+rateOf(c)*q,0); }
+function referralDiscount(){ return _refInfo ? cartTotal()*(parseFloat(_refInfo.discount_percent)||0)/100 : 0; }
 
 function addItem(code){ cart[code]=(cart[code]||0)+1; syncCart(); }
 function setQty(code,d){ cart[code]=(cart[code]||0)+d; if(cart[code]<=0) delete cart[code]; syncCart(); }
@@ -392,7 +428,7 @@ function slotHtml(code){
 function syncCart(){
   // update each item card's +/- slot
   document.querySelectorAll('.mcard').forEach(el=>{ const slot=el.querySelector('[data-slot]'); if(slot) slot.innerHTML=slotHtml(el.dataset.code); });
-  const n=cartCount(), tot=cartTotal();
+  const n=cartCount(), gross=cartTotal(), discount=referralDiscount(), tot=Math.max(0,gross-discount);
   document.getElementById('cartCnt').textContent=n;
   document.getElementById('cartBarTotal').textContent='Rs '+nf(tot);
   document.getElementById('cartbar').style.display=(tab==='order'&&n>0)?'flex':'none';
@@ -407,6 +443,12 @@ function syncCart(){
     )).join('') : '<div class="empty" style="padding:30px 10px;"><span class="ic">🛒</span><div>Your cart is empty</div></div>';
   }
   document.getElementById('cartTotal').textContent='Rs '+nf(tot);
+  const dr=document.getElementById('refDiscountRow');
+  if(dr){
+    dr.style.display=(_refInfo&&discount>0)?'flex':'none';
+    document.getElementById('refDiscountLabel').textContent=(parseFloat(_refInfo&&_refInfo.discount_percent)||0)+'% referral first-order discount';
+    document.getElementById('refDiscountAmount').textContent='− Rs '+nf(discount);
+  }
   const pb=document.getElementById('placeBtn'); if(pb) pb.disabled = n===0;
 }
 function openCart(){ if(cartCount()===0) return; if(isAuthed()&&_mobile) document.getElementById('checkoutPhone').value=_mobile;
@@ -448,16 +490,20 @@ async function placeOrder(){
   }
   const items=entries.map(([code,qty])=>({item:code,qty,rate:rateOf(code)}));
   const btn=document.getElementById('placeBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>'; eb.style.display='none';
-  // attach referral first (best-effort) so the referrer earns cashback on this order
-  if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{mobile:phone,ref_code:_ref}); }catch(e){} localStorage.removeItem('lf_ref'); _ref=''; }
   let res;
-  try{ res=await _post('luuvcrm.api.kiosk_place_order',{items:JSON.stringify(items),customer_name:_name||'Online Guest',mobile:phone,scheduled_time:sched,wa_confirm:'1'}); }
+  // The server links the referral, verifies first-order eligibility and computes
+  // the discount from authoritative item prices.  No client-supplied amount.
+  try{ res=await _post('luuvcrm.api.kiosk_place_order',{items:JSON.stringify(items),customer_name:_name||'Online Guest',mobile:phone,scheduled_time:sched,wa_confirm:'1',ref_code:_ref}); }
   catch(e){ btn.disabled=false; btn.textContent='Place order'; em.textContent='Connection error — please try again'; eb.style.display='flex'; return; }
   btn.disabled=false; btn.textContent='Place order';
   if(res && res.message && res.message.name){
+    const saved=res.message.referral_discount_amount||0;
+    const savedMsg=res.message.referral_discount_applied?(' · Referral deal saved Rs '+nf(saved)+' 💸'):'';
+    localStorage.removeItem('lf_ref'); _ref=''; _refInfo=null;
+    const rb=document.getElementById('referralBar'); if(rb) rb.style.display='none';
     cart={}; syncCart(); closeCart();
-    if(res.message.promo_item){ toast('Order placed! 🎉 Free '+res.message.promo_item+' added 🎁'+(res.message.pickup_outlet?(' · 📍 collect at '+res.message.pickup_outlet):'')+(res.message.scheduled_time?(' · ⏰ '+res.message.scheduled_time.slice(0,16)):'')); }
-    else toast('Order placed! 🎉 #'+res.message.name);
+    if(res.message.promo_item){ toast('Order placed! 🎉 Free '+res.message.promo_item+' added 🎁'+savedMsg+(res.message.pickup_outlet?(' · 📍 collect at '+res.message.pickup_outlet):'')+(res.message.scheduled_time?(' · ⏰ '+res.message.scheduled_time.slice(0,16)):'')); }
+    else toast('Order placed! 🎉 #'+res.message.name+savedMsg);
     promoBanner();
     if(res.message.needs_wa_confirm && res.message.confirm_link){ openWaConfirm(res.message); }
     else if(isAuthed()){ setTab('orders'); } else { toast('Order placed! Sign in to track it & earn cashback.'); }
@@ -520,7 +566,7 @@ async function renderRewards(){
     '<div class="panel"><h3>🔗 Your referral code</h3>'+
       '<div class="codebox"><span class="code">'+esc(d.referral_code||'—')+'</span><button onclick="copyCode(\''+esc(d.referral_code||'')+'\')">Copy</button></div>'+
       '<button class="lf-btn ghost" onclick="shareRef(\''+esc(d.referral_code||'')+'\')"><i data-lucide="share-2" style="width:17px;height:17px;"></i> Share with a friend</button>'+
-      '<div style="display:flex;justify-content:center;margin-top:14px;"><img src="https://chart.googleapis.com/chart?chs=170x170&cht=qr&chl='+encodeURIComponent(refUrl)+'" alt="QR" width="150" height="150" style="border-radius:12px;border:1px solid var(--border-subtle);"></div>'+
+      '<div class="ref-qr" id="refQr" aria-label="Referral QR code"></div>'+
       '<div style="text-align:center;font-size:12px;color:var(--text-faint);margin-top:8px;">Friend scans → orders → you earn cashback</div></div>'+
     '<div class="panel"><h3>💸 Redeem cashback</h3>'+
       '<div class="err" id="redErr"></div><div class="ok" id="redOk"></div>'+
@@ -529,11 +575,24 @@ async function renderRewards(){
     '<div class="panel"><h3>👥 Your referrals ('+(d.downline_count||0)+')</h3>'+
       ((d.downline&&d.downline.length)?d.downline.map(x=>'<div class="dl"><span class="nm">'+esc(x.name)+'</span><span class="ea">+Rs '+nf(x.total_earned)+'</span></div>').join(''):'<div style="font-size:13px;color:var(--text-muted);">No referrals yet — share your code above!</div>')+'</div>'+
     '<div class="tiers"><div class="tier"><div class="v">'+(s.level_1_percent||5)+'%</div><div class="l">Direct (L1)</div></div><div class="tier"><div class="v">'+(s.level_2_percent||2)+'%</div><div class="l">Level 2</div></div><div class="tier"><div class="v">'+(s.level_3_percent||1)+'%</div><div class="l">Level 3</div></div></div>';
+  renderReferralQr(refUrl);
   icons();
 }
 async function genCode(){ const g=await _call('luuvcrm.api.loyalty_generate_code',{token: _token}); if(g.message&&g.message.referral_code){ toast('Referral code ready!'); renderRewards(); } else toast('Could not create code'); }
 function copyCode(code){ navigator.clipboard.writeText(code).then(()=>toast('Code copied: '+code)).catch(()=>{}); }
 function shareRef(code){ const link=window.location.origin+'/cus?ref='+code; const txt='Order from '+BRAND+' with my code '+code+' 🍔'; if(navigator.share){ navigator.share({title:BRAND,text:txt,url:link}).catch(()=>{}); } else { navigator.clipboard.writeText(link).then(()=>toast('Referral link copied')).catch(()=>prompt('Copy this link:',link)); } }
+function renderReferralQr(url){
+  const el=document.getElementById('refQr'); if(!el) return;
+  if(typeof qrcode!=='function'){
+    el.textContent='QR unavailable — use the Share button above.';
+    return;
+  }
+  try{
+    const qr=qrcode(0,'M'); qr.addData(url); qr.make();
+    el.innerHTML=qr.createImgTag(5,8);
+    const img=el.querySelector('img'); if(img){ img.alt='Referral QR code'; img.width=150; img.height=150; }
+  }catch(e){ el.textContent='QR unavailable — use the Share button above.'; }
+}
 async function doRedeem(){
   const amt=parseFloat(document.getElementById('redAmt').value)||0;
   const eb=document.getElementById('redErr'), ok=document.getElementById('redOk');
@@ -661,8 +720,9 @@ async function acctRegister(){
 async function saveSession(token,mobile,name){
   _token=token; _mobile=mobile; _name=name||'';
   localStorage.setItem('lf_token',_token); localStorage.setItem('lf_mobile',_mobile); localStorage.setItem('lf_name',_name);
-  // attach pending referral now that we know the mobile
-  if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{token:_token,ref_code:_ref}); }catch(e){} localStorage.removeItem('lf_ref'); _ref=''; }
+  // Attach now so the relationship survives, but keep the code until checkout:
+  // kiosk_place_order is the server-authoritative first-order discount path.
+  if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{token:_token,ref_code:_ref}); }catch(e){} }
   // attach a scanned sticker QR promo code → free meal on the first order
   if(_promo){
     try{ const pr=await _post('luuvcrm.api.promo_register',{mobile:_mobile,code:_promo}); const pm=pr&&pr.message;
@@ -761,6 +821,8 @@ async function saveProf(){
 /* ─────────── boot ─────────── */
 reflectAuth();
 syncCart();
+setTab(tab);
+validateReferral();
 promoLanding();
 profilePrompt();
 icons();
