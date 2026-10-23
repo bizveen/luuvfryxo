@@ -113,3 +113,10 @@ del _branched
 # through a hook that works for both the custom and standard shapes.
 doc_events.setdefault("Purchase Bill", {})["validate"] = \
     "luuvcrm.api.purchases.ensure_purchase_date"
+
+permission_query_conditions = {
+    "Branch Kitchen Request": "luuvcrm.api.branch_requests.request_query_conditions",
+}
+has_permission = {
+    "Branch Kitchen Request": "luuvcrm.api.branch_requests.request_has_permission",
+}

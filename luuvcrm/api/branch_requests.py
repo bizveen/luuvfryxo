@@ -18,6 +18,30 @@ from luuvcrm import branch, roles
 ACTIVE_STATUSES = ("Requested", "Accepted", "Preparing", "Ready", "Dispatched")
 TERMINAL_STATUSES = ("Received", "Rejected", "Cancelled")
 
+
+def request_query_conditions(user=None):
+    """Keep Desk and REST lists scoped just like the kitchen screen."""
+    user = user or frappe.session.user
+    if user == "Administrator":
+        return ""
+    active = branch.current(user)
+    if not active or user == "Guest":
+        return "1=0"
+    value = frappe.db.escape(active)
+    return (f"(`tabBranch Kitchen Request`.requesting_restaurant = {value} "
+            f"OR `tabBranch Kitchen Request`.supplying_restaurant = {value})")
+
+
+def request_has_permission(doc, user=None, permission_type=None):
+    """Direct document access must not reveal another branch's requests."""
+    user = user or frappe.session.user
+    if user == "Administrator":
+        return True
+    if user == "Guest" or permission_type not in (None, "read", "select"):
+        return False
+    active = branch.current(user)
+    return bool(active and active in (doc.requesting_restaurant, doc.supplying_restaurant))
+
 # (current status, requested status) -> which side may do it
 TRANSITIONS = {
     ("Requested", "Accepted"): "supplier",

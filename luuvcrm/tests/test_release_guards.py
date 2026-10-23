@@ -8,6 +8,23 @@ from luuvcrm.api import branch_requests, purchases
 
 
 class TestReleaseGuards(unittest.TestCase):
+    def test_direct_request_read_is_limited_to_participating_branch(self):
+        doc = frappe._dict(requesting_restaurant="A", supplying_restaurant="B")
+        with patch.object(branch, "current", return_value="C"):
+            self.assertFalse(branch_requests.request_has_permission(doc, "staff@example.com", "read"))
+        with patch.object(branch, "current", return_value="B"):
+            self.assertTrue(branch_requests.request_has_permission(doc, "staff@example.com", "read"))
+            self.assertFalse(branch_requests.request_has_permission(doc, "staff@example.com", "write"))
+
+    def test_request_list_requires_selected_branch(self):
+        with patch.object(branch, "current", return_value=None):
+            self.assertEqual(branch_requests.request_query_conditions("staff@example.com"), "1=0")
+        with patch.object(branch, "current", return_value="Dambulla"):
+            condition = branch_requests.request_query_conditions("staff@example.com")
+            self.assertIn("requesting_restaurant", condition)
+            self.assertIn("supplying_restaurant", condition)
+            self.assertIn("'Dambulla'", condition)
+
     def test_staff_labels_preserve_internal_ids(self):
         records = {
             "Luuv Fryxo": frappe._dict(restaurant_name="Rangiri Luuv", city="Dambulla"),
