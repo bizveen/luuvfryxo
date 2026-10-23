@@ -40,8 +40,9 @@ button,a{-webkit-tap-highlight-color:transparent}
 .hero-line{display:block;overflow:hidden;padding-bottom:.06em;margin-bottom:-.06em}
 .hero-line>span{display:block}
 .motion-ready .hero h1[data-reveal]{opacity:1;transform:none}
-.motion-ready .hero h1[data-reveal] .hero-line>span{transform:translateY(108%) rotate(1deg);transition:transform .68s cubic-bezier(.16,1,.3,1);will-change:transform}
-.motion-ready .hero h1[data-reveal] .hero-line:nth-child(2)>span{transition-delay:70ms}
+.motion-ready .hero [data-reveal]{transition-duration:.85s,1.1s}
+.motion-ready .hero h1[data-reveal] .hero-line>span{transform:translateY(108%) rotate(1deg);transition:transform 1.3s cubic-bezier(.22,.61,.36,1) 120ms;will-change:transform}
+.motion-ready .hero h1[data-reveal] .hero-line:nth-child(2)>span{transition-delay:280ms}
 .motion-ready .hero h1[data-reveal].is-visible .hero-line>span{transform:translateY(0) rotate(0)}
 
 /* Navigation */
@@ -64,7 +65,7 @@ section[id]{scroll-margin-top:112px}
 .hero::after{content:'';position:absolute;width:430px;height:430px;border:1px solid rgba(255,255,255,.07);border-radius:50%;right:-110px;top:-170px;box-shadow:0 0 0 70px rgba(255,255,255,.025),0 0 0 140px rgba(255,255,255,.018)}
 .hero-grid{position:relative;z-index:2;display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:70px}
 .hero-badge{display:inline-flex;align-items:center;gap:10px;padding:9px 13px 9px 10px;border:1px solid rgba(255,255,255,.13);border-radius:999px;background:rgba(255,255,255,.07);font:700 12px/1 var(--font-display);letter-spacing:.04em;color:rgba(255,255,255,.83)}
-.pulse{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 5px rgba(223,255,115,.12);animation:pulseGlow 2.2s ease-out infinite}
+.pulse{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 5px rgba(223,255,115,.12);animation:pulseGlow 3.5s ease-out infinite}
 @keyframes pulseGlow{0%,100%{box-shadow:0 0 0 5px rgba(223,255,115,.12)}50%{box-shadow:0 0 0 9px rgba(223,255,115,0)}}
 .hero h1{font:800 clamp(53px,7.2vw,92px)/.94 var(--font-display);letter-spacing:-.07em;margin:24px 0 24px;max-width:730px}
 .hero h1 .accent-line>span{color:var(--lime)}
@@ -82,7 +83,7 @@ section[id]{scroll-margin-top:112px}
 .arrival-offer{display:flex;align-items:center;gap:10px;width:max-content;max-width:100%;margin:0 0 18px;padding:11px 14px;border:1px solid rgba(223,255,115,.3);border-radius:13px;background:rgba(223,255,115,.1);color:var(--lime);font:800 12px/1.35 var(--font-display)}
 
 .food-scene{position:relative;min-height:510px;display:grid;place-items:center}
-.food-orbit{position:absolute;width:440px;height:440px;border-radius:50%;border:1px dashed rgba(255,255,255,.16);animation:spin 30s linear infinite}
+.food-orbit{position:absolute;width:440px;height:440px;border-radius:50%;border:1px dashed rgba(255,255,255,.16);animation:spin 45s linear infinite}
 .food-orbit::before,.food-orbit::after{content:'';position:absolute;width:13px;height:13px;border-radius:50%}
 .food-orbit::before{top:40px;left:64px;background:var(--lime);box-shadow:0 0 25px rgba(223,255,115,.55)}
 .food-orbit::after{right:20px;bottom:118px;background:var(--accent)}
@@ -98,8 +99,8 @@ section[id]{scroll-margin-top:112px}
 .scene-price{font:700 16px/1 var(--font-display);color:var(--lime);white-space:nowrap}
 .floating-pill{position:absolute;z-index:2;display:flex;align-items:center;gap:10px;padding:12px 15px;border-radius:14px;background:#fff;color:var(--ink);box-shadow:0 16px 36px rgba(0,0,0,.25);font:800 12px/1.2 var(--font-display)}
 .floating-pill span{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#fff0e7;font-size:16px}
-.floating-pill.one{top:62px;right:-24px;animation:floatOne 4.5s ease-in-out infinite}
-.floating-pill.two{bottom:142px;left:-38px;animation:floatTwo 5.2s ease-in-out .6s infinite}
+.floating-pill.one{top:62px;right:-24px;animation:floatOne 7.5s ease-in-out infinite}
+.floating-pill.two{bottom:142px;left:-38px;animation:floatTwo 8.5s ease-in-out .6s infinite}
 @keyframes floatOne{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-9px) rotate(-1deg)}}
 @keyframes floatTwo{0%,100%{transform:translateY(0) rotate(2deg)}50%{transform:translateY(8px) rotate(4deg)}}
 
