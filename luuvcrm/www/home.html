@@ -28,9 +28,26 @@ button,a{-webkit-tap-highlight-color:transparent}
 .section-head h2,.loyalty-copy h2,.final-cta h2{font:800 clamp(32px,4.6vw,58px)/1.02 var(--font-display);letter-spacing:-.055em;margin:10px 0 0;max-width:760px}
 .section-head p{max-width:420px;color:var(--muted);font-size:16px;line-height:1.65;margin:0}
 
+/* Motion */
+.scroll-progress{position:fixed;z-index:140;inset:0 0 auto;height:4px;pointer-events:none;background:rgba(255,255,255,.08)}
+.scroll-progress span{display:block;width:100%;height:100%;transform:scaleX(0);transform-origin:left;background:linear-gradient(90deg,var(--lime),var(--accent));box-shadow:0 0 14px rgba(241,82,7,.45);will-change:transform}
+.motion-ready [data-reveal]{opacity:0;transform:translate3d(0,20px,0);transition:opacity .46s ease-out,transform .58s cubic-bezier(.2,.75,.2,1);transition-delay:var(--reveal-delay,0ms);will-change:opacity,transform}
+.motion-ready [data-reveal="left"]{transform:translate3d(-22px,7px,0) rotate(-.6deg)}
+.motion-ready [data-reveal="right"]{transform:translate3d(22px,7px,0) rotate(.6deg)}
+.motion-ready [data-reveal].is-visible{opacity:1;transform:translate3d(0,0,0)}
+.eyebrow::before{transform-origin:left;transition:transform .65s cubic-bezier(.2,.8,.2,1) .22s}
+.motion-ready [data-reveal]:not(.is-visible) .eyebrow::before{transform:scaleX(0)}
+.hero-line{display:block;overflow:hidden;padding-bottom:.06em;margin-bottom:-.06em}
+.hero-line>span{display:block}
+.motion-ready .hero h1[data-reveal]{opacity:1;transform:none}
+.motion-ready .hero h1[data-reveal] .hero-line>span{transform:translateY(108%) rotate(1deg);transition:transform .68s cubic-bezier(.16,1,.3,1);will-change:transform}
+.motion-ready .hero h1[data-reveal] .hero-line:nth-child(2)>span{transition-delay:70ms}
+.motion-ready .hero h1[data-reveal].is-visible .hero-line>span{transform:translateY(0) rotate(0)}
+
 /* Navigation */
 .nav-wrap{position:fixed;inset:0 0 auto;z-index:100;padding:20px 0;pointer-events:none}
-.nav{min-height:62px;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:8px 10px 8px 18px;border:1px solid rgba(255,255,255,.13);border-radius:18px;background:rgba(24,20,17,.82);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:0 12px 40px rgba(0,0,0,.16);pointer-events:auto}
+.nav{min-height:62px;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:8px 10px 8px 18px;border:1px solid rgba(255,255,255,.13);border-radius:18px;background:rgba(24,20,17,.82);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:0 12px 40px rgba(0,0,0,.16);pointer-events:auto;transition:min-height .3s ease,background .3s ease,box-shadow .3s ease,transform .3s ease}
+.page-scrolled .nav{min-height:56px;background:rgba(24,20,17,.94);box-shadow:0 10px 30px rgba(0,0,0,.22);transform:translateY(-4px)}
 section[id]{scroll-margin-top:112px}
 .logo{display:flex;align-items:center;gap:11px;text-decoration:none;color:#fff;font:800 18px/1 var(--font-display);letter-spacing:-.03em}
 .logo img{width:38px;height:38px;border-radius:11px;object-fit:cover;background:#fff}
@@ -47,9 +64,10 @@ section[id]{scroll-margin-top:112px}
 .hero::after{content:'';position:absolute;width:430px;height:430px;border:1px solid rgba(255,255,255,.07);border-radius:50%;right:-110px;top:-170px;box-shadow:0 0 0 70px rgba(255,255,255,.025),0 0 0 140px rgba(255,255,255,.018)}
 .hero-grid{position:relative;z-index:2;display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:70px}
 .hero-badge{display:inline-flex;align-items:center;gap:10px;padding:9px 13px 9px 10px;border:1px solid rgba(255,255,255,.13);border-radius:999px;background:rgba(255,255,255,.07);font:700 12px/1 var(--font-display);letter-spacing:.04em;color:rgba(255,255,255,.83)}
-.pulse{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 5px rgba(223,255,115,.12)}
+.pulse{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 5px rgba(223,255,115,.12);animation:pulseGlow 2.2s ease-out infinite}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 5px rgba(223,255,115,.12)}50%{box-shadow:0 0 0 9px rgba(223,255,115,0)}}
 .hero h1{font:800 clamp(53px,7.2vw,92px)/.94 var(--font-display);letter-spacing:-.07em;margin:24px 0 24px;max-width:730px}
-.hero h1 span{color:var(--lime)}
+.hero h1 .accent-line>span{color:var(--lime)}
 .hero-lead{font-size:18px;line-height:1.7;color:rgba(255,255,255,.62);max-width:590px;margin:0 0 31px}
 .hero-actions{display:flex;flex-wrap:wrap;gap:12px}
 .btn{min-height:53px;padding:0 22px}
@@ -69,7 +87,7 @@ section[id]{scroll-margin-top:112px}
 .food-orbit::before{top:40px;left:64px;background:var(--lime);box-shadow:0 0 25px rgba(223,255,115,.55)}
 .food-orbit::after{right:20px;bottom:118px;background:var(--accent)}
 @keyframes spin{to{transform:rotate(360deg)}}
-.food-card{position:relative;width:min(420px,100%);aspect-ratio:.87;border-radius:42px;background:linear-gradient(145deg,#302921,#211c18);border:1px solid rgba(255,255,255,.11);box-shadow:var(--shadow-lg);overflow:hidden;transform:rotate(3deg)}
+.food-card{position:relative;width:min(420px,100%);aspect-ratio:.87;border-radius:42px;background:linear-gradient(145deg,#302921,#211c18);border:1px solid rgba(255,255,255,.11);box-shadow:var(--shadow-lg);overflow:hidden;transform:translate3d(0,var(--food-y,0px),0) rotate(calc(3deg + var(--food-rotate,0deg)));will-change:transform}
 .food-card::before{content:'';position:absolute;inset:22px;border:1px solid rgba(255,255,255,.08);border-radius:27px}
 .plate{position:absolute;width:310px;height:310px;border-radius:50%;top:76px;left:50%;transform:translateX(-50%);display:grid;place-items:center;background:radial-gradient(circle at 45% 40%,#fff 0 55%,#e8e1d9 56% 61%,#fff 62%);box-shadow:0 32px 60px rgba(0,0,0,.34)}
 .plate img{width:242px;height:242px;border-radius:50%;object-fit:cover}
@@ -80,8 +98,28 @@ section[id]{scroll-margin-top:112px}
 .scene-price{font:700 16px/1 var(--font-display);color:var(--lime);white-space:nowrap}
 .floating-pill{position:absolute;z-index:2;display:flex;align-items:center;gap:10px;padding:12px 15px;border-radius:14px;background:#fff;color:var(--ink);box-shadow:0 16px 36px rgba(0,0,0,.25);font:800 12px/1.2 var(--font-display)}
 .floating-pill span{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#fff0e7;font-size:16px}
-.floating-pill.one{top:62px;right:-24px;transform:rotate(-3deg)}
-.floating-pill.two{bottom:142px;left:-38px;transform:rotate(2deg)}
+.floating-pill.one{top:62px;right:-24px;animation:floatOne 4.5s ease-in-out infinite}
+.floating-pill.two{bottom:142px;left:-38px;animation:floatTwo 5.2s ease-in-out .6s infinite}
+@keyframes floatOne{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-9px) rotate(-1deg)}}
+@keyframes floatTwo{0%,100%{transform:translateY(0) rotate(2deg)}50%{transform:translateY(8px) rotate(4deg)}}
+
+/* Category marquee */
+.menu-categories{overflow:hidden;margin:-6px 0 34px}
+.category-marquee{display:flex;overflow:visible}
+.category-marquee.is-scrollable{overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.category-track{display:flex;width:100%}
+.category-marquee.is-scrollable .category-track{width:max-content;animation:categoryFlow var(--category-duration,18s) ease-in-out infinite alternate;will-change:transform}
+.category-marquee:hover .category-track,.category-marquee:focus-within .category-track{animation-play-state:paused}
+.category-set{display:flex;flex:none;align-items:stretch;gap:12px}
+.category-marquee:not(.is-scrollable) .category-set{width:100%;flex-wrap:wrap}
+.category-pill{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:0;flex:none;width:164px;min-height:138px;padding:15px 13px;border:1px solid var(--line);border-radius:19px;background:#fff;color:var(--ink);text-align:center;text-decoration:none;box-shadow:0 4px 14px rgba(45,31,20,.04);transition:color .2s ease,border-color .2s ease,background .2s ease,transform .2s ease,box-shadow .2s ease}
+.category-pill i{display:grid;place-items:center;width:54px;height:54px;border-radius:50%;margin-bottom:11px;background:#fff0e7;font:normal 25px/1 sans-serif;transition:transform .25s ease,background .25s ease}
+.category-name{display:block;max-width:138px;font:800 13px/1.25 var(--font-display);letter-spacing:-.015em}
+.category-count{display:block;margin-top:6px;color:var(--muted);font-size:11px;font-weight:600;line-height:1}
+a.category-pill:hover{color:var(--accent-dark);border-color:#f5ad88;background:#fffdfb;transform:translateY(-3px);box-shadow:0 13px 27px rgba(241,82,7,.11)}
+a.category-pill:hover i{background:#ffe5d6;transform:scale(1.07) rotate(-4deg)}
+a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset:2px}
+@keyframes categoryFlow{to{transform:translateX(var(--category-shift,0px))}}
 
 /* Locations */
 .locations{padding:108px 0;background:var(--paper)}
@@ -99,6 +137,10 @@ section[id]{scroll-margin-top:112px}
 .location-address{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:14px}
 .location-card.featured .location-address{color:rgba(255,255,255,.7)}
 .location-address svg{width:15px;height:15px}
+.location-directions{display:inline-flex;align-items:center;gap:7px;margin-top:14px;color:var(--accent-dark);font:800 12px/1 var(--font-display);text-decoration:none}
+.location-directions svg{width:15px;height:15px;transition:transform .2s ease}
+.location-directions:hover svg{transform:translate(2px,-2px)}
+.location-card.featured .location-directions{color:#fff}
 .location-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:35px}
 .location-card:not(.featured) .btn.primary{box-shadow:0 10px 24px rgba(241,82,7,.18)}
 .location-card:not(.featured) .btn.light{border:1px solid var(--line)}
@@ -109,7 +151,7 @@ section[id]{scroll-margin-top:112px}
 .loyalty-panel{position:relative;overflow:hidden;display:grid;grid-template-columns:.92fr 1.08fr;align-items:center;gap:70px;padding:72px;border-radius:35px;background:#1a1714;color:#fff}
 .loyalty-panel::before{content:'';position:absolute;width:500px;height:500px;border-radius:50%;right:-160px;top:-230px;background:radial-gradient(circle,rgba(223,255,115,.16),transparent 65%)}
 .loyalty-card-wrap{position:relative;min-height:360px;display:grid;place-items:center;perspective:900px}
-.loyalty-card{position:relative;width:min(420px,100%);aspect-ratio:1.6;border-radius:25px;padding:28px;background:linear-gradient(135deg,var(--accent),#ff7a35);box-shadow:0 35px 70px rgba(0,0,0,.35);transform:rotate(-5deg);overflow:hidden}
+.loyalty-card{position:relative;width:min(420px,100%);aspect-ratio:1.6;border-radius:25px;padding:28px;background:linear-gradient(135deg,var(--accent),#ff7a35);box-shadow:0 35px 70px rgba(0,0,0,.35);transform:translate3d(0,var(--reward-y,0px),0) rotate(calc(-5deg + var(--reward-rotate,0deg)));overflow:hidden;will-change:transform}
 .loyalty-card::before{content:'';position:absolute;width:280px;height:280px;border-radius:50%;right:-80px;top:-130px;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 0 38px rgba(255,255,255,.07),0 0 0 76px rgba(255,255,255,.04)}
 .loyalty-brand{position:relative;font:800 19px/1 var(--font-display)}
 .loyalty-star{position:absolute;right:26px;bottom:22px;font-size:48px}
@@ -125,6 +167,8 @@ section[id]{scroll-margin-top:112px}
 
 /* Food preview */
 .menu-preview{padding:108px 0;background:var(--cream)}
+.menu-live-note{display:flex;align-items:center;gap:9px;margin:-19px 0 28px;color:var(--muted);font-size:13px;font-weight:600}
+.menu-live-note::before{content:'';width:8px;height:8px;flex:none;border-radius:50%;background:#72a526;box-shadow:0 0 0 4px rgba(114,165,38,.12)}
 .dish-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .dish{background:#fff;border:1px solid var(--line);border-radius:23px;padding:13px;box-shadow:0 5px 18px rgba(45,31,20,.04);transition:transform .22s ease,box-shadow .22s ease}
 .dish:hover{transform:translateY(-5px);box-shadow:var(--shadow-sm)}
@@ -143,6 +187,17 @@ section[id]{scroll-margin-top:112px}
 .step-number{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#fff0e7;color:var(--accent);font:800 14px/1 var(--font-display);margin-bottom:28px}
 .step h3{font:800 19px/1.2 var(--font-display);margin:0 0 10px;letter-spacing:-.025em}
 .step p{color:var(--muted);font-size:14px;line-height:1.6;margin:0}
+.faq{padding:0 0 108px;background:var(--paper)}
+.faq-grid{display:grid;grid-template-columns:.72fr 1.28fr;gap:75px;align-items:start}
+.faq-intro h2{font:800 clamp(32px,4.6vw,52px)/1.03 var(--font-display);letter-spacing:-.055em;margin:10px 0 17px}
+.faq-intro p{max-width:390px;color:var(--muted);font-size:15px;line-height:1.65;margin:0}
+.faq-list{border-top:1px solid var(--line)}
+.faq-item{border-bottom:1px solid var(--line)}
+.faq-item summary{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px 2px;cursor:pointer;list-style:none;font:800 16px/1.35 var(--font-display);letter-spacing:-.02em}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary::after{content:'+';display:grid;place-items:center;width:29px;height:29px;flex:none;border-radius:50%;background:#fff0e7;color:var(--accent);font:700 19px/1 var(--font-body);transition:transform .25s ease,background .25s ease}
+.faq-item[open] summary::after{transform:rotate(45deg);background:var(--accent);color:#fff}
+.faq-answer{max-width:680px;padding:0 48px 22px 2px;color:var(--muted);font-size:14px;line-height:1.7}
 .final{padding:0 0 108px}
 .final-cta{position:relative;overflow:hidden;text-align:center;border-radius:34px;background:var(--accent);color:#fff;padding:76px 30px}
 .final-cta::before,.final-cta::after{content:'';position:absolute;border-radius:50%;border:1px solid rgba(255,255,255,.18)}
@@ -169,21 +224,25 @@ section[id]{scroll-margin-top:112px}
 @media(max-width:700px){
   .shell{width:min(100% - 28px,1180px)}.nav-wrap{padding:12px 0}.nav{padding-left:12px}.logo span{font-size:15px}.nav-links>a:not(.nav-cta){display:none}.nav-cta{padding:12px 14px;font-size:12px}section[id]{scroll-margin-top:94px}
   .hero{padding:127px 0 64px}.hero h1{font-size:51px}.hero-lead{font-size:16px}.hero-actions .btn{width:100%}.hero-notes{gap:8px 14px}
+  .menu-categories{margin-top:-2px}.category-marquee.is-scrollable{-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}.category-pill{width:145px;min-height:126px;padding:13px 10px}.category-pill i{width:47px;height:47px;margin-bottom:9px;font-size:21px}.category-name{font-size:12px}.category-count{font-size:10px}
   .food-scene{min-height:410px}.food-card{width:315px;border-radius:31px}.plate{width:230px;height:230px;top:60px}.plate img{width:180px;height:180px}.food-emoji{font-size:88px}.scene-label{left:19px;right:19px;bottom:18px}.food-orbit{width:340px;height:340px}.floating-pill.one{right:-2px;top:35px}.floating-pill.two{left:0;bottom:110px}
   .floating-pill.two{bottom:175px}
-  .locations,.menu-preview,.order-flow{padding:78px 0}.loyalty{padding-bottom:78px}.section-head{display:block;margin-bottom:28px}.section-head p{margin-top:15px}.section-head h2,.loyalty-copy h2,.final-cta h2{font-size:36px}
+  .locations,.menu-preview,.order-flow{padding:78px 0}.loyalty,.faq{padding-bottom:78px}.section-head{display:block;margin-bottom:28px}.section-head p{margin-top:15px}.section-head h2,.loyalty-copy h2,.final-cta h2{font-size:36px}.menu-live-note{margin-top:-12px;line-height:1.5}
   .location-grid{grid-template-columns:1fr}.location-card{min-height:330px}.location-card.featured{order:-1}.location-actions .btn{flex:1;padding-inline:15px}
   .loyalty-panel{padding:44px 20px;border-radius:27px}.loyalty-card-wrap{min-height:270px}.loyalty-card{width:300px}.reward-chip{right:3px;bottom:9px}.benefits{grid-template-columns:1fr;text-align:left;width:max-content}.loyalty-copy .btn{width:100%}
-  .dish-grid{grid-template-columns:repeat(2,1fr);gap:10px}.dish{padding:9px;border-radius:18px}.dish-visual{height:145px}.dish-info{display:block;padding:13px 5px 5px}.dish-price{display:block;margin-top:8px}.steps{grid-template-columns:1fr}.final{padding-bottom:78px}.final-cta{padding:58px 22px;border-radius:27px}.final-actions .btn{width:100%}
+  .dish-grid{grid-template-columns:repeat(2,1fr);gap:10px}.dish{padding:9px;border-radius:18px}.dish-visual{height:145px}.dish-info{display:block;padding:13px 5px 5px}.dish-price{display:block;margin-top:8px}.steps{grid-template-columns:1fr}.faq-grid{grid-template-columns:1fr;gap:34px}.faq-intro h2{font-size:36px}.faq-item summary{font-size:15px}.final{padding-bottom:78px}.final-cta{padding:58px 22px;border-radius:27px}.final-actions .btn{width:100%}
   .footer-grid{grid-template-columns:1fr 1fr;gap:35px}.footer-brand{grid-column:1/-1}.footer-bottom{display:block;line-height:1.7}
 }
 @media(max-width:390px){.hero h1{font-size:44px}.food-card{width:280px}.food-orbit{width:300px;height:300px}.dish-visual{height:125px}.floating-pill{font-size:10px;padding:10px}.floating-pill span{width:25px;height:25px}}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.food-orbit{animation:none}*{transition:none!important}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.food-orbit,.pulse,.floating-pill,.category-track{animation:none!important}*{transition:none!important}.motion-ready [data-reveal]{opacity:1!important;filter:none!important;transform:none!important}.motion-ready .hero h1[data-reveal] .hero-line>span{transform:none!important}.food-card{transform:rotate(3deg)!important}.loyalty-card{transform:rotate(-5deg)!important}.scroll-progress{display:none}.category-marquee{mask-image:none!important;-webkit-mask-image:none!important}}
 </style>
+<script>document.documentElement.classList.add('motion-ready')</script>
 {% include "templates/includes/brand.html" %}
 </head>
 <body>
 {% set em = {'Beverage':'🥤','Beverages':'🥤','Food':'🍗','Biryani & Naan Combos':'🍛','Cheese Kottu':'🧀','Coffee & Tea':'☕','Desserts':'🍨','European Dishes & Salads':'🥗','Fried Rice':'🍚','Grills':'🥩','Indian Cuisine':'🍛','Kottu':'🥘','North Asian':'🥟','Pizza':'🍕','Rice & Curry':'🍛','Seafood':'🦐','Sides & Accompaniments':'🧆','Signature Kottu':'⭐','Sizzler Platters':'🔥','Soups':'🥣','Sri Lankan Fusion':'🌴','Vegetarian':'🥦'} %}
+
+<div class="scroll-progress" aria-hidden="true"><span></span></div>
 
 <header class="nav-wrap">
   <nav class="nav shell" aria-label="Main navigation">
@@ -204,13 +263,13 @@ section[id]{scroll-margin-top:112px}
   <section class="hero">
     <div class="hero-grid shell">
       <div class="hero-copy">
-        <div class="hero-badge"><span class="pulse"></span> Loyalty rewards · Every referral can earn</div>
-        <h1>Eat well.<br><span>Earn more.</span></h1>
-        <p class="hero-lead">Order your favourites, track every meal and earn multi-level cashback when friends order. Friends joining through your referral get a first-order deal.</p>
+        <div class="hero-badge" data-reveal data-delay="0"><span class="pulse"></span> Loyalty rewards · Every referral can earn</div>
+        <h1 data-reveal data-delay="90"><span class="hero-line"><span>Eat well.</span></span><span class="hero-line accent-line"><span>Earn more.</span></span></h1>
+        <p class="hero-lead" data-reveal data-delay="130">Order your favourites, track every meal and earn multi-level cashback when friends order. Friends joining through your referral get a first-order deal.</p>
         {% if deep_link.ref %}<div class="arrival-offer">🎁 Referral {{ deep_link.ref }} is saved — choose a branch to claim the first-order deal.</div>{% endif %}
         {% if deep_link.promo %}<div class="arrival-offer">✨ Your promo is saved — continue to the customer app to claim it.</div>{% endif %}
         {% if primary_location %}
-        <div class="hero-actions">
+        <div class="hero-actions" data-reveal data-delay="190">
           <a class="btn primary" href="{{ primary_location.rewards_url }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7Zm0 0h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z"/></svg>
             Open loyalty & rewards
@@ -221,14 +280,14 @@ section[id]{scroll-margin-top:112px}
           </a>
         </div>
         {% endif %}
-        <div class="hero-notes">
+        <div class="hero-notes" data-reveal data-delay="240">
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>5% first-order referral deal</span>
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>5% · 2% · 1% cashback</span>
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>Order and track in one app</span>
         </div>
       </div>
 
-      <div class="food-scene" aria-label="Featured food from Kurunegala">
+      <div class="food-scene" aria-label="Featured food from Kurunegala" data-reveal="right" data-delay="120">
         <div class="food-orbit"></div>
         <div class="floating-pill one"><span>🎁</span> Refer friends & earn</div>
         <div class="floating-pill two"><span>💸</span> Cashback on every level</div>
@@ -251,13 +310,13 @@ section[id]{scroll-margin-top:112px}
 
   <section class="locations" id="locations">
     <div class="shell">
-      <div class="section-head">
+      <div class="section-head" data-reveal>
         <div><span class="eyebrow">Find your table</span><h2>Two cities.<br>One serious appetite.</h2></div>
-        <p>Choose the branch closest to you. Every menu and order stays connected to the correct kitchen.</p>
+        <p>Choose the restaurant closest to you and explore its menu, offers and signature flavours.</p>
       </div>
-      <div class="location-grid">
+      <div class="location-grid" data-stagger>
         {% for location in locations %}
-        <article class="location-card{% if location.featured %} featured{% endif %}">
+        <article class="location-card{% if location.featured %} featured{% endif %}" data-reveal>
           <div>
             <div class="card-top">
               <div class="location-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
@@ -266,6 +325,9 @@ section[id]{scroll-margin-top:112px}
             <h3>{{ location.display_name }}{% if location.city %}<span style="display:block;font-size:18px;font-weight:600;margin-top:6px;margin-bottom:14px;opacity:.8">{{ location.city }}</span>{% endif %}</h3>
             <div class="location-address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Open {{ opening_time }} – {{ closing_time }}</div>
             <div class="location-address" style="margin-top:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/></svg>{{ location.address }}</div>
+            {% if location.directions_url %}<a class="location-directions" href="{{ location.directions_url }}" target="_blank" rel="noopener" aria-label="Get directions to {{ location.label }}">Get directions
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M7 7h10v10"/></svg>
+            </a>{% endif %}
           </div>
           <div class="location-actions">
             <a class="btn {% if location.featured %}light{% else %}primary{% endif %}" href="{{ location.order_url }}">Order here
@@ -285,11 +347,11 @@ section[id]{scroll-margin-top:112px}
   {% if primary_location %}
   <section class="loyalty" id="rewards">
     <div class="loyalty-panel shell">
-      <div class="loyalty-card-wrap" aria-hidden="true">
+      <div class="loyalty-card-wrap" aria-hidden="true" data-reveal="left">
         <div class="loyalty-card"><div class="loyalty-brand">{{ brand_short or brand_name }}</div><p>Loyalty & referral rewards</p><div class="loyalty-star">✦</div></div>
         <div class="reward-chip">Rewards live here 🎁</div>
       </div>
-      <div class="loyalty-copy">
+      <div class="loyalty-copy" data-reveal="right" data-delay="100">
         <span class="eyebrow">Cashback & referral deals</span>
         <h2>Good food should give something back.</h2>
         <p>Share your personal QR. Your friend gets a first-order discount, and confirmed orders earn cashback through your referral network.</p>
@@ -309,15 +371,33 @@ section[id]{scroll-margin-top:112px}
 
   <section class="menu-preview" id="menu">
     <div class="shell">
-      <div class="section-head">
+      <div class="section-head" data-reveal>
         <div><span class="eyebrow">From our live menu</span><h2>A little preview.<br>A lot to crave.</h2></div>
         {% if primary_location %}<a class="btn primary" href="{{ primary_location.menu_url }}">Explore full menu
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
         </a>{% endif %}
       </div>
-      <div class="dish-grid">
+      <p class="menu-live-note" data-reveal>Menus, prices and availability are kept up to date for each restaurant.</p>
+      {% if menu_groups and primary_location %}
+      <div class="menu-categories" data-reveal>
+        <div class="category-marquee" aria-label="Menu categories">
+          <div class="category-track">
+            <div class="category-set">
+              {% for group in menu_groups %}
+              <a class="category-pill" href="{{ primary_location.menu_url }}#menu-category-{{ loop.index }}">
+                <i aria-hidden="true">{{ em.get(group.name,'✦') }}</i>
+                <span class="category-name">{{ group.name }}</span>
+                <small class="category-count">{{ group['items']|length }} item{% if group['items']|length != 1 %}s{% endif %}</small>
+              </a>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      <div class="dish-grid" data-stagger>
         {% for item in featured_items %}
-        <article class="dish">
+        <article class="dish" data-reveal>
           <div class="dish-visual">
             {% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">{% else %}<span>{{ em.get(item.group,'🍽️') }}</span>{% endif %}
           </div>
@@ -333,18 +413,46 @@ section[id]{scroll-margin-top:112px}
 
   <section class="order-flow">
     <div class="shell">
-      <div class="section-head"><div><span class="eyebrow">Easy ordering</span><h2>From craving to kitchen<br>in three quick steps.</h2></div></div>
-      <div class="steps">
-        <article class="step"><span class="step-number">01</span><h3>Choose your location</h3><p>Select Kurunegala or Dambulla so your order reaches the correct restaurant.</p></article>
-        <article class="step"><span class="step-number">02</span><h3>Build your order</h3><p>Browse the live branch menu, add your favourites and send your details securely.</p></article>
-        <article class="step"><span class="step-number">03</span><h3>Track and enjoy</h3><p>Follow your order from the customer app and come back anytime for rewards.</p></article>
+      <div class="section-head" data-reveal><div><span class="eyebrow">Easy ordering</span><h2>From craving to kitchen<br>in three quick steps.</h2></div></div>
+      <div class="steps" data-stagger>
+        <article class="step" data-reveal><span class="step-number">01</span><h3>Choose your location</h3><p>Select Kurunegala or Dambulla so your order reaches the correct restaurant.</p></article>
+        <article class="step" data-reveal><span class="step-number">02</span><h3>Build your order</h3><p>Browse the live branch menu, add your favourites and send your details securely.</p></article>
+        <article class="step" data-reveal><span class="step-number">03</span><h3>Track and enjoy</h3><p>Follow your order from the customer app and come back anytime for rewards.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="faq" id="faq">
+    <div class="faq-grid shell">
+      <div class="faq-intro" data-reveal="left">
+        <span class="eyebrow">Good to know</span>
+        <h2>Quick answers before you order.</h2>
+        <p>Everything you need to choose a restaurant, place an order and enjoy your rewards.</p>
+      </div>
+      <div class="faq-list" data-reveal="right">
+        <details class="faq-item">
+          <summary>Where are your restaurants located?</summary>
+          <div class="faq-answer">We currently serve from {% for location in locations %}{{ location.label }}{% if not loop.last %} and {% endif %}{% endfor %}. Choose the restaurant closest to you for its menu and ordering options.</div>
+        </details>
+        <details class="faq-item">
+          <summary>What are your opening hours?</summary>
+          <div class="faq-answer">Our listed opening hours are {{ opening_time }} to {{ closing_time }}. Hours may change on public holidays, so please check with the restaurant before making a special trip.</div>
+        </details>
+        <details class="faq-item">
+          <summary>Can I order online?</summary>
+          <div class="faq-answer">Yes. Choose your restaurant, browse its current menu and place your order online. You can also return to the customer app to track your order.</div>
+        </details>
+        <details class="faq-item">
+          <summary>How do referral rewards work?</summary>
+          <div class="faq-answer">Share your personal referral QR with a friend. Their eligible first order receives the referral deal, while confirmed orders can earn cashback through your referral network.</div>
+        </details>
       </div>
     </div>
   </section>
 
   {% if primary_location %}
   <section class="final">
-    <div class="final-cta shell">
+    <div class="final-cta shell" data-reveal>
       <h2>Visit {{ primary_location.label }}.</h2>
       <p>Pick your favourites, place the order online and let our kitchen handle the rest.</p>
       <div class="final-actions">
@@ -369,5 +477,94 @@ section[id]{scroll-margin-top:112px}
     <div class="footer-bottom"><span>© 2026 {{ brand_name }}. All rights reserved.</span><span>Kurunegala · Dambulla · Sri Lanka</span></div>
   </div>
 </footer>
+<script>
+(() => {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const revealItems = [...document.querySelectorAll('[data-reveal]')];
+
+  document.querySelectorAll('[data-stagger]').forEach(group => {
+    [...group.querySelectorAll(':scope > [data-reveal]')].forEach((item, index) => {
+      item.style.setProperty('--reveal-delay', `${Math.min(index * 55, 180)}ms`);
+    });
+  });
+  revealItems.forEach(item => {
+    if (item.dataset.delay) item.style.setProperty('--reveal-delay', `${item.dataset.delay}ms`);
+  });
+
+  if (reduceMotion || !('IntersectionObserver' in window)) {
+    revealItems.forEach(item => item.classList.add('is-visible'));
+  } else {
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -7% 0px' });
+    revealItems.forEach(item => observer.observe(item));
+  }
+
+  if (reduceMotion) return;
+  const progress = document.querySelector('.scroll-progress span');
+  const foodCard = document.querySelector('.food-card');
+  const rewardCard = document.querySelector('.loyalty-card');
+  const categoryMarquees = [...document.querySelectorAll('.category-marquee')];
+  let ticking = false;
+
+  const updateCategoryMotion = () => {
+    categoryMarquees.forEach(marquee => {
+      const track = marquee.querySelector('.category-track');
+      const categoryCount = track.querySelectorAll('.category-pill').length;
+      const hasManyCategories = categoryCount > 6;
+      marquee.classList.toggle('is-scrollable', hasManyCategories);
+
+      if (!hasManyCategories) {
+        track.style.removeProperty('--category-shift');
+        track.style.removeProperty('--category-duration');
+        return;
+      }
+
+      const travel = Math.max(track.scrollWidth - marquee.clientWidth, 0);
+      marquee.classList.toggle('is-scrollable', travel > 1);
+      track.style.setProperty('--category-shift', `${-travel}px`);
+      track.style.setProperty('--category-duration', `${Math.max(16, Math.min(42, travel / 35))}s`);
+    });
+  };
+
+  const updateScrollEffects = () => {
+    const maxScroll = Math.max(document.documentElement.scrollHeight - innerHeight, 1);
+    const scrollRatio = Math.min(scrollY / maxScroll, 1);
+    progress.style.transform = `scaleX(${scrollRatio})`;
+    document.body.classList.toggle('page-scrolled', scrollY > 42);
+
+    if (foodCard) {
+      const scene = foodCard.closest('.food-scene').getBoundingClientRect();
+      const amount = Math.max(-1, Math.min(1, (innerHeight / 2 - (scene.top + scene.height / 2)) / innerHeight));
+      foodCard.style.setProperty('--food-y', `${amount * 16}px`);
+      foodCard.style.setProperty('--food-rotate', `${amount * -1.6}deg`);
+    }
+    if (rewardCard) {
+      const panel = rewardCard.closest('.loyalty-panel').getBoundingClientRect();
+      const amount = Math.max(-1, Math.min(1, (innerHeight / 2 - (panel.top + panel.height / 2)) / innerHeight));
+      rewardCard.style.setProperty('--reward-y', `${amount * 13}px`);
+      rewardCard.style.setProperty('--reward-rotate', `${amount * 1.8}deg`);
+    }
+    ticking = false;
+  };
+
+  const requestScrollUpdate = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(updateScrollEffects);
+  };
+  addEventListener('scroll', requestScrollUpdate, { passive: true });
+  addEventListener('resize', () => {
+    updateCategoryMotion();
+    requestScrollUpdate();
+  }, { passive: true });
+  updateCategoryMotion();
+  updateScrollEffects();
+})();
+</script>
 </body>
 </html>

@@ -65,17 +65,28 @@ def _with_query(path, **params):
     return path + "?" + urlencode([(key, value) for key, value in params.items() if value])
 
 
+def _directions_url(label, address):
+    if not address:
+        return ""
+    return "https://www.google.com/maps/search/?" + urlencode(
+        {"api": "1", "query": f"{label}, {address}"}
+    )
+
+
 def _location(restaurant, featured=False, deep_link=None):
     deep_link = deep_link or {}
     doc = frappe.get_cached_doc("Restaurant", restaurant)
     display_name = str(doc.get("restaurant_name") or restaurant).strip()
     city = _city(restaurant)
+    label = f"{display_name} — {city}" if city else display_name
+    address = _address_line(restaurant, city)
     return frappe._dict(
         name=restaurant,
         display_name=display_name,
         city=city,
-        label=f"{display_name} — {city}" if city else display_name,
-        address=_address_line(restaurant, city),
+        label=label,
+        address=address,
+        directions_url=_directions_url(label, address) if doc.address else "",
         featured=featured,
         # /cus is the one customer journey that can order, retain a referral,
         # track the meal and show rewards.  Do not split landing traffic back
