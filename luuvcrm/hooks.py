@@ -107,3 +107,9 @@ for _branched in (
 ):
     doc_events.setdefault(_branched, {})["before_insert"] = "luuvcrm.branch.stamp"
 del _branched
+
+# Some upgraded sites still hold Purchase Bill as the original Custom DocType,
+# where Frappe does not load the repo controller. Keep its report date invariant
+# through a hook that works for both the custom and standard shapes.
+doc_events.setdefault("Purchase Bill", {})["validate"] = \
+    "luuvcrm.api.purchases.ensure_purchase_date"

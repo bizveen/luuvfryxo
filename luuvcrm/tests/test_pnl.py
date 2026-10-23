@@ -72,7 +72,13 @@ class TestTheCostLines(PnlTestCase):
         labels = [c["label"] for c in self.report()["costs"]]
         self.assertEqual(labels[:3], ["Rent", "Payroll", "Advertising"])
         self.assertEqual(labels[-2:], ["Food cost", "Other cost"])
-        self.assertEqual(len(labels), 18)
+        self.assertEqual(len(labels), 19)
+
+    def test_packaging_has_its_own_line(self):
+        self.expense("Packaging", 850)
+        r = self.report()
+        self.assertEqual(_line(r, "costs", "Packaging"), 850)
+        self.assertEqual(_line(r, "costs", "Other cost"), 0)
 
     def test_only_approved_expenses_count(self):
         self.expense("Rent", 1000, status="pending")

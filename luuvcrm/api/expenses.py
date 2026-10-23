@@ -27,10 +27,15 @@ EXPENSE_CATEGORIES = [
     # fresh one from this list (its patches are marked done without running).
     "Advertising", "Office Supplies", "Employee Houses Rent", "Staff Meals", "Staff Medical",
     "Municipal Council", "Taxes", "Charities",
+    # Takeaway boxes, bags, cups bought as a running cost rather than on a stock
+    # bill. Its own line on the statement; a live site gets it from
+    # patches.v1_0.add_packaging_expense_category.
+    "Packaging",
 ]
-# The eight above, for the patch: a site that already has categories is topped up
-# with these and nothing else.
-PNL_EXPENSE_CATEGORIES = EXPENSE_CATEGORIES[11:]
+# The eight P&L categories above, for their patch: a site that already has
+# categories is topped up with these and nothing else.
+PNL_EXPENSE_CATEGORIES = EXPENSE_CATEGORIES[11:19]
+PACKAGING_CATEGORY = "Packaging"
 def _ensure_select_option(doctype, fieldname, option):
     """Append an option to a Select on an existing custom DocType — Frappe rejects a value that
     isn't in `options`, so a new approval_type has to be registered before it can be used."""

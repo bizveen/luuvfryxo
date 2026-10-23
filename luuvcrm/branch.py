@@ -553,6 +553,51 @@ def assigned(user):
 
 # ─── Stamping it on a row ────────────────────────────────────────────────────
 
+def require_access(doctype, name, user=None):
+    """Refuse a direct document lookup outside this user's branch.
+
+    ``get_list`` applies Restaurant User Permissions, but ``get_doc`` and
+    ``db.set_value`` do not.  Endpoints which receive a document name therefore
+    need this small second gate before reading or changing the row.  An empty
+    Restaurant is left visible for backwards compatibility; ``check()`` already
+    reports those legacy rows and they must be backfilled before strict branch
+    isolation is enabled.
+
+    Returns the row's Restaurant so callers may also use it when needed.
+    """
+    user = user or frappe.session.user
+    if user == "Guest":
+        frappe.throw(_("You are not permitted to access this record"),
+                     frappe.PermissionError)
+    if not name or not frappe.db.exists(doctype, name):
+        frappe.throw(_("Record not found"), frappe.DoesNotExistError)
+    restaurant = (frappe.db.get_value(doctype, name, FIELD)
+                  if frappe.db.has_column(doctype, FIELD) else None)
+    allowed = _permitted_restaurants(user)
+    if restaurant and allowed and restaurant not in allowed:
+        # Do not reveal which other branch owns a guessed sequential name.
+        frappe.throw(_("You are not permitted to access this record"),
+                     frappe.PermissionError)
+    return restaurant
+
+
+def accessible_pos_profiles(user=None):
+    """POS Profiles this user may operate, in deterministic order.
+
+    POS Profile is an ERPNext doctype, so it is not covered by this app's
+    Restaurant User Permission query conditions. Its custom ``restaurant``
+    link is nevertheless authoritative: a branch-pinned cashier must never be
+    offered (or be allowed to POST) another branch's till.
+    """
+    user = user or frappe.session.user
+    profiles = frappe.get_all("POS Profile", pluck="name", order_by="name asc")
+    allowed = _permitted_restaurants(user)
+    if not allowed:
+        return profiles
+    return [profile for profile in profiles
+            if _restaurant_for_profile(profile) in allowed]
+
+
 def stamp(doc, method=None):
     """`before_insert` hook: fill in the branch if the caller did not.
 
@@ -831,3 +876,14 @@ def _managers():
         if roles.RESTAURANT_MANAGER in held and not (held & set(roles.OWNER_ROLES)):
             out.append(user)
     return out
+
+
+def display_label(restaurant=None):
+    """Customer-facing restaurant name and city, keeping record IDs intact."""
+    restaurant = restaurant or viewing()
+    if not restaurant:
+        return ""
+    doc = frappe.get_doc("Restaurant", restaurant)
+    name = doc.get("restaurant_name") or restaurant
+    city = doc.get("city") or ""
+    return " — ".join(part for part in (name, city) if part)

@@ -7,7 +7,7 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 import frappe
 from frappe import _
 
-from luuvcrm import activity
+from luuvcrm import activity, branch
 from luuvcrm.api.shifts import _get_invoice_doc
 
 
@@ -17,6 +17,7 @@ from luuvcrm.api.shifts import _get_invoice_doc
 def log_print():
     data = frappe.local.form_dict
     order_name = data.get("order_name", "")
+    branch.require_access("POS Order", order_name)
     print_type = data.get("print_type", "")  # "receipt", "kot"
     user = frappe.session.user
     user_full = frappe.get_value("User", user, "full_name") or user
@@ -74,6 +75,7 @@ def get_receipt_print_data(order_name):
     """Return data for printing a POS receipt."""
     if not order_name:
         frappe.throw(_("Order name is required"))
+    branch.require_access("POS Order", order_name)
     doc = frappe.get_doc("POS Order", order_name)
     items = []
     for i in (doc.get("items") or []):
@@ -111,6 +113,7 @@ def get_guest_check_data(order_name):
     """Return data for printing a Guest Check (pre-bill)."""
     if not order_name:
         frappe.throw(_("Order name is required"))
+    branch.require_access("POS Order", order_name)
     doc = frappe.get_doc("POS Order", order_name)
     items = []
     for i in (doc.get("items") or []):
@@ -140,6 +143,7 @@ def get_kot_print_data(order_name):
     """Return data for printing a Kitchen Order Ticket."""
     if not order_name:
         frappe.throw(_("Order name is required"))
+    branch.require_access("POS Order", order_name)
     doc = frappe.get_doc("POS Order", order_name)
     items = []
     for i in (doc.get("items") or []):
@@ -189,6 +193,7 @@ def render_pos_print(order_name, kind="receipt", print_format=None):
     invoiced for a receipt), so the caller falls back to the built-in layout."""
     if not order_name:
         frappe.throw(_("Order name is required"))
+    branch.require_access("POS Order", order_name)
     if not print_format:
         return {"html": ""}
     if kind == "receipt":

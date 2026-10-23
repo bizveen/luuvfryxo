@@ -89,6 +89,9 @@ EXPECTED_DOCTYPES = (
     "Item Review",
     "POS Item Addon",
     "Kitchen Group",
+    "Branch Kitchen Request Item",
+    "Branch Kitchen Request Status",
+    "Branch Kitchen Request",
     # Not "WhatsApp Account": that DocType belongs to the frappe_whatsapp app
     # (13 fields, module "Frappe Whatsapp"). This app shipped a 5-field one of
     # the same name for a while, which would have overwritten it on the first
