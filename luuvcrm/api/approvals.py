@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import activity, branch, roles
+from luuvcrm import activity, roles
 
 from luuvcrm.api.expenses import _decide_expense
 from luuvcrm.api.pricing import (
@@ -34,8 +34,6 @@ def create_approval():
     data = frappe.local.form_dict
     approval_type = data.get("approval_type", "void")
     pos_order = data.get("pos_order", "")
-    if pos_order:
-        branch.require_access("POS Order", pos_order)
     action = data.get("action", "")
     action_payload = data.get("action_payload", "") or ""
 
@@ -348,10 +346,8 @@ def get_purchase_approvals():
     return {"approvals": _format_approvals(rows), "pending": len(rows)}
 @frappe.whitelist()
 def get_approval_status(name):
-    if (not name or not frappe.db.exists("DocType", "POS Approval")
-            or not frappe.db.exists("POS Approval", name)):
+    if not name or not frappe.db.exists("DocType", "POS Approval"):
         return {"status": "unknown"}
-    branch.require_access("POS Approval", name)
     return {"status": frappe.db.get_value("POS Approval", name, "status") or "unknown"}
 @frappe.whitelist(methods=["POST"])
 def resolve_approval():
@@ -375,7 +371,6 @@ def resolve_approval():
     decision = data.get("decision")
     if decision not in ("approved", "rejected"):
         frappe.throw(_("Decision must be 'approved' or 'rejected'"))
-    branch.require_access("POS Approval", name)
     doc = frappe.get_doc("POS Approval", name)
     if (doc.action or "") == "purchase_bill":
         roles.require_purchases()
@@ -528,7 +523,6 @@ def mark_check_printed():
     order_name = frappe.local.form_dict.get("order_name")
     if not order_name:
         frappe.throw(_("Order name is required"))
-    branch.require_access("POS Order", order_name)
     if not frappe.db.has_column("POS Order", "check_printed"):
         _install_check_printed()
     frappe.db.set_value("POS Order", order_name, "check_printed", 1)
@@ -536,10 +530,8 @@ def mark_check_printed():
 @frappe.whitelist()
 def get_order_flags(order_name):
     """Lightweight flags the POS needs to decide if an edit requires approval."""
-    roles.require_pos()
     if not order_name:
         return {}
-    branch.require_access("POS Order", order_name)
     cp = 0
     if frappe.db.has_column("POS Order", "check_printed"):
         cp = int(frappe.db.get_value("POS Order", order_name, "check_printed") or 0)

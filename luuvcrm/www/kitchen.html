@@ -24,7 +24,6 @@
     .k-header { background:#1E293B; padding:10px 20px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
     .k-brand { font-size:1rem; font-weight:800; }
     .k-brand span { color:var(--pending); }
-    .k-restaurant { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:1px solid rgba(245,158,11,0.35); border-radius:999px; padding:4px 9px; color:#FCD34D; font-size:0.7rem; font-weight:700; }
     .k-refresh { margin-left:auto; display:flex; align-items:center; gap:8px; }
     .k-refresh-dot { width:7px; height:7px; border-radius:50%; background:#10B981; animation:pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
@@ -124,57 +123,7 @@
     .pc-status .pcs-dot.pending { background:var(--pending); }
     .pc-status .pcs-dot.processing { background:var(--processing); }
 
-    /* ── Inter-branch kitchen requests ── */
-    .supply-view { padding:14px; overflow-y:auto; }
-    .supply-view.active { display:flex; flex-direction:column; }
-    .sr-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-    .sr-toolbar h2 { font-size:1rem; }
-    .sr-new { margin-left:auto; border:0; border-radius:9px; padding:9px 14px; background:var(--pending); color:#111827; font-weight:800; cursor:pointer; }
-    .sr-section { margin-bottom:18px; }
-    .sr-section-title { display:flex; align-items:center; gap:8px; margin:0 0 8px; color:rgba(255,255,255,.62); font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
-    .sr-count { border-radius:999px; padding:1px 7px; background:rgba(255,255,255,.08); color:#fff; }
-    .sr-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:10px; }
-    .sr-card { border:1px solid var(--border); border-left:4px solid #64748B; border-radius:12px; padding:13px; background:#1E293B; }
-    .sr-card.urgent { border-left-color:#EF4444; }
-    .sr-top { display:flex; align-items:flex-start; gap:8px; }
-    .sr-name { font-size:.78rem; font-weight:800; color:#fff; }
-    .sr-route { margin-top:3px; font-size:.68rem; color:rgba(255,255,255,.45); }
-    .sr-status { margin-left:auto; flex:none; border-radius:999px; padding:4px 8px; background:rgba(59,130,246,.15); color:#93C5FD; font-size:.62rem; font-weight:800; text-transform:uppercase; }
-    .sr-status.Ready { background:rgba(16,185,129,.16); color:#6EE7B7; }
-    .sr-status.Dispatched { background:rgba(139,92,246,.16); color:#C4B5FD; }
-    .sr-status.Received { background:rgba(16,185,129,.16); color:#6EE7B7; }
-    .sr-status.Rejected,.sr-status.Cancelled { background:rgba(239,68,68,.14); color:#FCA5A5; }
-    .sr-meta { display:flex; flex-wrap:wrap; gap:5px 12px; margin:9px 0; color:rgba(255,255,255,.4); font-size:.66rem; }
-    .sr-items { border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:7px 0; }
-    .sr-item { display:flex; gap:8px; padding:3px 0; font-size:.78rem; }
-    .sr-item-qty { width:68px; flex:none; color:#FCD34D; font-weight:800; }
-    .sr-item-name { color:#F8FAFC; }
-    .sr-note { margin-top:8px; color:#CBD5E1; font-size:.7rem; }
-    .sr-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
-    .sr-action { border:0; border-radius:8px; padding:7px 10px; background:#334155; color:#fff; font-size:.68rem; font-weight:800; cursor:pointer; }
-    .sr-action.primary { background:#2563EB; }
-    .sr-action.good { background:#059669; }
-    .sr-action.warn { background:#B45309; }
-    .sr-action.danger { background:#B91C1C; }
-    .sr-history { margin-top:9px; color:rgba(255,255,255,.43); font-size:.64rem; }
-    .sr-history summary { cursor:pointer; font-weight:700; }
-    .sr-history-row { margin:5px 0 0 8px; padding-left:8px; border-left:2px solid rgba(255,255,255,.1); }
-    .sr-empty { padding:22px; border:1px dashed rgba(255,255,255,.12); border-radius:10px; text-align:center; color:rgba(255,255,255,.35); font-size:.76rem; }
-    .sr-modal { display:none; position:fixed; inset:0; z-index:500; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.68); }
-    .sr-modal.open { display:flex; }
-    .sr-sheet { width:min(620px,100%); max-height:92vh; overflow-y:auto; border-radius:18px 18px 0 0; padding:18px; background:#1E293B; box-shadow:0 -20px 60px rgba(0,0,0,.35); }
-    .sr-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .sr-field { display:flex; flex-direction:column; gap:5px; margin-bottom:10px; }
-    .sr-field label { color:rgba(255,255,255,.55); font-size:.68rem; font-weight:700; }
-    .sr-field input,.sr-field select,.sr-field textarea { width:100%; border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:9px 10px; background:#0F172A; color:#fff; font:inherit; font-size:.78rem; }
-    .sr-line { display:grid; grid-template-columns:minmax(0,1fr) 80px 95px 34px; gap:7px; margin-bottom:7px; }
-    .sr-line select,.sr-line input { min-width:0; border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:8px; background:#0F172A; color:#fff; font-size:.72rem; }
-    .sr-remove { border:0; border-radius:8px; background:rgba(239,68,68,.16); color:#FCA5A5; cursor:pointer; }
-    .sr-sheet-actions { display:flex; gap:8px; margin-top:14px; }
-    .sr-sheet-actions button { flex:1; border:0; border-radius:9px; padding:11px; font-weight:800; cursor:pointer; }
-
     @media (max-width:900px) { .kanban { flex-direction:column; overflow-y:auto; } .kanban-col { max-width:none; min-width:0; } .kanban-col-body { max-height:300px; } .prep-kanban { flex-direction:column; overflow-y:auto; } .prep-col { max-width:none; min-width:0; } .prep-col-body { max-height:250px; } }
-    @media (max-width:560px) { .sr-form-grid { grid-template-columns:1fr; } .sr-line { grid-template-columns:minmax(0,1fr) 64px 78px 34px; } }
   </style>
 {% include "templates/includes/brand.html" %}
 </head>
@@ -186,7 +135,6 @@
 
 <div class="k-header">
   <div class="k-brand">🍳 Kitchen <span>Display</span></div>
-  <div class="k-restaurant" data-active-restaurant title="Active restaurant">🏪 {{ restaurant_name or "No restaurant selected" }}</div>
   <div class="k-info">
     <span class="k-clock" id="kClock"></span>
     <span>{{ current_user_full }}</span>
@@ -200,7 +148,6 @@
 <div class="k-tabs">
   <button class="k-tab active" id="tabOrders" onclick="switchKTab('orders')">📋 Orders</button>
   <button class="k-tab" id="tabPrep" onclick="switchKTab('prep')">🍳 Prep View <span class="kt-count" id="prepTabCount">0</span></button>
-  {% if can_branch_requests %}<button class="k-tab" id="tabSupply" onclick="switchKTab('supply')">🚚 Branch Requests <span class="kt-count" id="supplyTabCount">0</span></button>{% endif %}
 </div>
 
 <!-- What the screen is not showing, and why. Never silent: the queue is capped
@@ -221,31 +168,6 @@
   <div class="prep-kanban" id="prepKanban"></div>
 </div>
 
-{% if can_branch_requests %}
-<!-- Requests for food/prep made between restaurant kitchens. -->
-<div class="k-view supply-view" id="supplyView">
-  <div class="sr-toolbar">
-    <div><h2>🚚 Branch Kitchen Requests</h2><div style="font-size:.68rem;color:rgba(255,255,255,.4);margin-top:3px;">Prepare, dispatch and receive items between restaurants</div></div>
-    <button class="sr-new" onclick="openSupplyModal()">＋ New Request</button>
-  </div>
-  <div id="supplyRequests"><div class="sr-empty">Loading requests…</div></div>
-</div>
-
-<div class="sr-modal" id="supplyModal" onclick="if(event.target===this) closeSupplyModal()">
-  <div class="sr-sheet">
-    <div style="display:flex;align-items:center;margin-bottom:14px;"><div><div style="font-size:1rem;font-weight:800;">New Branch Kitchen Request</div><div id="srFrom" style="font-size:.68rem;color:rgba(255,255,255,.4);margin-top:3px;"></div></div><button onclick="closeSupplyModal()" style="margin-left:auto;border:0;background:transparent;color:#fff;font-size:1.4rem;cursor:pointer;">×</button></div>
-    <div class="sr-form-grid">
-      <div class="sr-field"><label>Supplying kitchen</label><select id="srSupplier"></select></div>
-      <div class="sr-field"><label>Priority</label><select id="srPriority"><option>Normal</option><option>Urgent</option></select></div>
-    </div>
-    <div class="sr-field"><label>Required by (optional)</label><input id="srRequiredBy" type="datetime-local"></div>
-    <div class="sr-field"><label>Items</label><div id="srLines"></div><button onclick="addSupplyLine()" style="align-self:flex-start;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:7px 10px;background:transparent;color:#CBD5E1;font-weight:700;cursor:pointer;">＋ Add item</button></div>
-    <div class="sr-field"><label>Request notes</label><textarea id="srNotes" rows="2" placeholder="Packing, batch or delivery instructions"></textarea></div>
-    <div class="sr-sheet-actions"><button onclick="closeSupplyModal()" style="background:#334155;color:#fff;">Cancel</button><button id="srSubmit" onclick="submitSupplyRequest()" style="background:var(--pending);color:#111827;">Send Request</button></div>
-  </div>
-</div>
-{% endif %}
-
 <script>
 // Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
 // a locked screen were both still asking the server every few seconds — and
@@ -255,15 +177,11 @@ function lfPoll(fn, ms){
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
 }
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
-const CAN_BRANCH_REQUESTS = {{ 1 if can_branch_requests else 0 }};
 let knownOrders = new Set();
 let refreshTimer = 8;
 let refreshInterval = null;
 let _lastOrders = [];
 let activeKTab = 'orders';
-let _branchRequests = [];
-let _branchRequestOptions = null;
-let _knownIncomingRequests = new Set();
 
 async function _post(url, data={}) {
   const fd = new URLSearchParams({ csrf_token: CSRF, ...data });
@@ -515,147 +433,6 @@ async function buildPrepView(orders) {
   }).join('');
 }
 
-// ─── Branch kitchen requests ──────────────────
-function requestTime(value) {
-  if (!value) return 'Not specified';
-  try { return new Date(String(value).replace(' ','T')).toLocaleString(undefined,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); }
-  catch(e) { return String(value); }
-}
-
-function requestActions(r) {
-  const b = (status, label, cls) => `<button class="sr-action ${cls||''}" onclick="changeSupplyStatus('${r.name}','${status}')">${label}</button>`;
-  if (r.direction === 'incoming') {
-    if (r.status === 'Requested') return b('Accepted','✓ Accept','good') + b('Rejected','✕ Reject','danger');
-    if (r.status === 'Accepted') return b('Preparing','👨‍🍳 Start preparing','primary') + b('Rejected','✕ Reject','danger');
-    if (r.status === 'Preparing') return b('Ready','✓ Mark ready','good');
-    if (r.status === 'Ready') return b('Dispatched','🚚 Mark dispatched','primary');
-  } else {
-    if (r.status === 'Requested' || r.status === 'Accepted') return b('Cancelled','✕ Cancel request','danger');
-    if (r.status === 'Dispatched') return b('Received','📦 Confirm received','good');
-  }
-  return '';
-}
-
-function supplyCard(r) {
-  const items = (r.items||[]).map(i => `<div class="sr-item"><div class="sr-item-qty">${Number(i.qty||0).toLocaleString()} ${escHtml(i.uom||'')}</div><div class="sr-item-name">${escHtml(i.item_name||i.item)}${i.notes?`<div style="color:rgba(255,255,255,.4);font-size:.64rem;">${escHtml(i.notes)}</div>`:''}</div></div>`).join('');
-  const history = (r.history||[]).map(h => `<div class="sr-history-row"><strong>${escHtml(h.status)}</strong> · ${requestTime(h.changed_at)} · ${escHtml(h.changed_by||'')}${h.note?`<div>${escHtml(h.note)}</div>`:''}</div>`).join('');
-  const actions = requestActions(r);
-  return `<div class="sr-card ${r.priority==='Urgent'?'urgent':''}">
-    <div class="sr-top"><div><div class="sr-name">${escHtml(r.name)} ${r.priority==='Urgent'?'· 🔴 URGENT':''}</div><div class="sr-route">${escHtml(r.requesting_restaurant)} → ${escHtml(r.supplying_restaurant)}</div></div><div class="sr-status ${escHtml(r.status)}">${escHtml(r.status)}</div></div>
-    <div class="sr-meta"><span>Requested ${requestTime(r.requested_at)}</span><span>Required ${requestTime(r.required_by)}</span><span>By ${escHtml(r.requested_by||'')}</span></div>
-    <div class="sr-items">${items}</div>
-    ${r.notes?`<div class="sr-note">📝 ${escHtml(r.notes)}</div>`:''}
-    ${actions?`<div class="sr-actions">${actions}</div>`:''}
-    <details class="sr-history"><summary>Status history (${(r.history||[]).length})</summary>${history}</details>
-  </div>`;
-}
-
-function renderSupplyRequests(rows) {
-  const incoming = rows.filter(r => r.direction === 'incoming');
-  const outgoing = rows.filter(r => r.direction === 'outgoing');
-  const block = (title, icon, list) => `<section class="sr-section"><div class="sr-section-title">${icon} ${title}<span class="sr-count">${list.length}</span></div><div class="sr-grid">${list.length?list.map(supplyCard).join(''):'<div class="sr-empty">No requests</div>'}</div></section>`;
-  document.getElementById('supplyRequests').innerHTML = block('Incoming to this kitchen','📥',incoming) + block('Sent to another kitchen','📤',outgoing);
-  const active = incoming.filter(r => ['Requested','Accepted','Preparing','Ready'].includes(r.status)).length;
-  document.getElementById('supplyTabCount').textContent = active;
-}
-
-async function loadBranchRequests() {
-  if (!CAN_BRANCH_REQUESTS) return;
-  try {
-    const res = await _post('/api/method/luuvcrm.api.get_branch_kitchen_requests');
-    if (!res) return;
-    const data = await res.json();
-    if (!res.ok || !data.message) return;
-    const rows = data.message.requests || [];
-    const incomingRequested = rows.filter(r => r.direction==='incoming' && r.status==='Requested');
-    if (_knownIncomingRequests.size) {
-      incomingRequested.filter(r => !_knownIncomingRequests.has(r.name)).forEach(r => {
-        playNewOrderSound();
-        notifyKitchen('New Branch Kitchen Request', `${r.requesting_restaurant} · ${(r.items||[]).length} item(s)`);
-      });
-    }
-    _knownIncomingRequests = new Set(incomingRequested.map(r=>r.name));
-    _branchRequests = rows;
-    renderSupplyRequests(rows);
-  } catch(e) { console.error('Branch request load failed', e); }
-}
-
-function responseError(data, fallback) {
-  if (data && typeof data.message === 'string') return data.message;
-  try {
-    const messages = JSON.parse(data._server_messages||'[]');
-    if (messages.length) return JSON.parse(messages[0]).message || fallback;
-  } catch(e) {}
-  return fallback;
-}
-
-async function changeSupplyStatus(name, status) {
-  if (!confirm(`Change ${name} to ${status}?`)) return;
-  const note = prompt('Status note (optional)') || '';
-  const res = await _post('/api/method/luuvcrm.api.update_branch_kitchen_request_status', {request_name:name,status,note});
-  if (!res) return;
-  const data = await res.json();
-  if (!res.ok) { alert(responseError(data,'Could not update request')); return; }
-  await loadBranchRequests();
-}
-
-async function openSupplyModal() {
-  try {
-    if (!_branchRequestOptions) {
-      const res = await _post('/api/method/luuvcrm.api.get_branch_kitchen_request_options');
-      if (!res) return;
-      const data = await res.json();
-      if (!res.ok) { alert(responseError(data,'Could not load request form')); return; }
-      _branchRequestOptions = data.message;
-    }
-    if (!_branchRequestOptions.restaurants.length) { alert('No other restaurant is configured.'); return; }
-    document.getElementById('srFrom').textContent = `From ${_branchRequestOptions.current_restaurant}`;
-    document.getElementById('srSupplier').innerHTML = _branchRequestOptions.restaurants.map(r=>`<option value="${escHtml(r.name)}">${escHtml(r.name)}</option>`).join('');
-    document.getElementById('srPriority').value = 'Normal';
-    document.getElementById('srRequiredBy').value = '';
-    document.getElementById('srNotes').value = '';
-    document.getElementById('srLines').innerHTML = '';
-    addSupplyLine();
-    document.getElementById('supplyModal').classList.add('open');
-  } catch(e) { alert('Could not load request form'); }
-}
-
-function closeSupplyModal() { document.getElementById('supplyModal')?.classList.remove('open'); }
-
-function addSupplyLine() {
-  if (!_branchRequestOptions) return;
-  const row = document.createElement('div');
-  row.className = 'sr-line';
-  const options = ['<option value="">Select item…</option>'].concat((_branchRequestOptions.items||[]).map(i=>`<option value="${escHtml(i.name)}" data-uom="${escHtml(i.stock_uom||'')}">${escHtml(i.item_name||i.name)}${i.item_name&&i.item_name!==i.name?' · '+escHtml(i.name):''}</option>`)).join('');
-  row.innerHTML = `<select class="sr-item-select" onchange="this.parentElement.querySelector('.sr-uom').value=this.selectedOptions[0]?.dataset.uom||''">${options}</select><input class="sr-qty" type="number" min="0.001" step="any" value="1" aria-label="Quantity"><input class="sr-uom" placeholder="UOM" aria-label="UOM"><button class="sr-remove" onclick="this.parentElement.remove()" title="Remove">×</button>`;
-  document.getElementById('srLines').appendChild(row);
-}
-
-async function submitSupplyRequest() {
-  const lines = Array.from(document.querySelectorAll('#srLines .sr-line')).map(row=>({
-    item:row.querySelector('.sr-item-select').value,
-    qty:row.querySelector('.sr-qty').value,
-    uom:row.querySelector('.sr-uom').value
-  })).filter(row=>row.item);
-  if (!lines.length) { alert('Add at least one item.'); return; }
-  const button = document.getElementById('srSubmit');
-  button.disabled = true; button.textContent = 'Sending…';
-  try {
-    const res = await _post('/api/method/luuvcrm.api.create_branch_kitchen_request', {
-      supplying_restaurant:document.getElementById('srSupplier').value,
-      priority:document.getElementById('srPriority').value,
-      required_by:document.getElementById('srRequiredBy').value,
-      notes:document.getElementById('srNotes').value,
-      items:JSON.stringify(lines)
-    });
-    if (!res) return;
-    const data = await res.json();
-    if (!res.ok) { alert(responseError(data,'Could not create request')); return; }
-    closeSupplyModal();
-    await loadBranchRequests();
-  } finally { button.disabled=false; button.textContent='Send Request'; }
-}
-
 // ─── Load orders ───────────────────────────────
 async function loadOrders() {
   try {
@@ -699,11 +476,8 @@ function switchKTab(tab) {
   activeKTab = tab;
   document.getElementById('tabOrders').classList.toggle('active', tab==='orders');
   document.getElementById('tabPrep').classList.toggle('active', tab==='prep');
-  document.getElementById('tabSupply')?.classList.toggle('active', tab==='supply');
   document.getElementById('ordersView').classList.toggle('active', tab==='orders');
   document.getElementById('prepView').classList.toggle('active', tab==='prep');
-  document.getElementById('supplyView')?.classList.toggle('active', tab==='supply');
-  if (tab==='supply') loadBranchRequests();
 }
 
 // ─── Timer ─────────────────────────────────────
@@ -713,18 +487,13 @@ function startRefresh() {
   clearInterval(refreshInterval);
   refreshInterval = setInterval(() => {
     refreshTimer--;
-    if (refreshTimer <= 0) { refreshAll(); refreshTimer = 8; }
+    if (refreshTimer <= 0) { loadOrders(); refreshTimer = 8; }
     document.getElementById('refreshText').textContent = refreshTimer + 's';
   }, 1000);
 }
 
-function refreshAll() {
-  loadOrders();
-  if (CAN_BRANCH_REQUESTS) loadBranchRequests();
-}
-
 tick(); lfPoll(tick, 10000);
-refreshAll();
+loadOrders();
 startRefresh();
 
 // ─── KOT Print ─────────────────────────────────

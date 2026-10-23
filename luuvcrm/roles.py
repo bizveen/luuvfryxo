@@ -88,11 +88,6 @@ WAITER_ROLES = POS_ROLES | {WAITER}
 #: here too.
 KITCHEN_ROLES = WAITER_ROLES | {KITCHEN_STAFF}
 
-# Inter-branch production requests are operational kitchen work, but unlike a
-# customer KOT they may create a commitment between two locations. Kitchen
-# staff and management can handle them; waiters and cashiers cannot.
-BRANCH_REQUEST_ROLES = MANAGER_ROLES | {KITCHEN_STAFF}
-
 #: Every role this app defines, in the order a person is likely to be promoted
 #: through them. Used by the installer to create them.
 LUUVCRM_ROLES = (KITCHEN_STAFF, WAITER, CASHIER, PURCHASER, RESTAURANT_MANAGER, RESTAURANT_OWNER)
@@ -152,11 +147,6 @@ def require_waiter(user=None):
 
 def require_kitchen(user=None):
     _require(KITCHEN_ROLES, _("Only kitchen staff can do this"), user)
-
-
-def require_branch_requests(user=None):
-    _require(BRANCH_REQUEST_ROLES,
-             _("Only kitchen staff or a manager can manage branch requests"), user)
 
 
 # ── installing ────────────────────────────────────────────────────────────
@@ -281,9 +271,6 @@ _MANAGERS = (RESTAURANT_MANAGER, RESTAURANT_OWNER)
 _BUYING = (PURCHASER,)
 
 APP_DOCPERMS = {
-    # Cross-branch requests are changed only through the transition endpoint;
-    # direct write would allow Requested -> Received and erase the audit trail.
-    "Branch Kitchen Request": {"read": _KITCHEN + _MANAGERS},
     # Money out. Whoever enters a bill does not decide it — which is the
     # approval flow, and why write is granted to neither the till nor a
     # Purchaser: write is what would let somebody set their own bill to
@@ -608,3 +595,4 @@ def block_self_approval(requested_by, approval_type=None):
         return
     frappe.throw(_("You raised this request — someone else has to answer it"),
                  frappe.PermissionError)
+

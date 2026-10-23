@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from luuvcrm import branch, roles
+from luuvcrm import roles
 
 no_cache = 1
 
@@ -25,7 +25,6 @@ def get_context(context):
     full_name = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()
     context.current_user = user
     context.current_user_full = full_name
-    context.restaurant_name = branch.viewing() or ""
 
     # The old soft PIN lock ("4321") was rendered into client JavaScript, so it was
     # readable in view-source — and its gate had already been disabled in the page.

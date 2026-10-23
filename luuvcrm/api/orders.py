@@ -12,7 +12,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import activity, branch, roles
+from luuvcrm import activity, roles
 from luuvcrm.api import tables
 
 from luuvcrm.api.pricing import (
@@ -33,11 +33,7 @@ from luuvcrm.api.shifts import _append_service_charge_tax, _get_invoice_doc
 
 @frappe.whitelist()
 def get_pos_profiles():
-    roles.require_pos()
-    names = branch.accessible_pos_profiles()
-    profiles = frappe.get_all("POS Profile", filters={"name": ["in", names]},
-                              fields=["name", "company", "warehouse", "currency"],
-                              order_by="name asc") if names else []
+    profiles = frappe.get_all("POS Profile", fields=["name", "company", "warehouse", "currency"])
     modes = frappe.get_all("Mode of Payment", fields=["name"], order_by="name asc")
     return {"profiles": profiles, "payment_modes": modes}
 # ─── Tables ──────────────────────────────────────────────
@@ -123,7 +119,6 @@ def get_tables_with_status():
 
 @frappe.whitelist(methods=["POST"])
 def send_to_kitchen():
-    roles.require_waiter()
     data = frappe.local.form_dict
     items_raw = data.get("items")
     items = frappe.parse_json(items_raw) if isinstance(items_raw, str) else items_raw
@@ -135,14 +130,10 @@ def send_to_kitchen():
     mobile = data.get("mobile", "").strip() or ""
     country_code = (data.get("country_code") or "94").strip() or "94"   # dial code for the WhatsApp number
     table = data.get("table", "")
-    if table:
-        branch.require_access("Restaurant Table", table)
     notes = data.get("notes", "").strip()
     order_source = data.get("order_source", "Walk-in")
     order_type = data.get("order_type", "")
     amended_from = data.get("amended_from", "").strip()
-    if amended_from:
-        branch.require_access("POS Order", amended_from)
     waiter_name = frappe.get_value("User", frappe.session.user, "full_name") or frappe.session.user
     # Draft = auto-created as the cashier builds the ticket; not yet fired to the kitchen.
     is_draft = int(data.get("draft") or 0)
@@ -375,12 +366,10 @@ def get_completed_orders():
 
 @frappe.whitelist(methods=["POST"])
 def cancel_order():
-    roles.require_pos()
     data = frappe.local.form_dict
     order_name = data.get("order_name")
     if not order_name:
         frappe.throw(_("Order name is required"))
-    branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.pos_invoice:
         frappe.throw(_("Cannot cancel — payment already processed"))
@@ -424,13 +413,8 @@ def cancel_order():
 
 @frappe.whitelist()
 def get_all_changelogs():
-    visible_orders = frappe.get_list("POS Order", filters={"modified": [">=", frappe.utils.today()]},
-                                     pluck="name", limit_page_length=0)
-    if not visible_orders:
-        return {"logs": []}
     versions = frappe.get_all("Version",
-        filters={"ref_doctype": "POS Order", "docname": ["in", visible_orders],
-                 "creation": [">=", frappe.utils.today()]},
+        filters={"ref_doctype": "POS Order", "creation": [">=", frappe.utils.today()]},
         fields=["name", "creation", "owner", "data", "docname"],
         order_by="creation desc",
         limit_page_length=50
@@ -464,13 +448,11 @@ def get_all_changelogs():
 
 @frappe.whitelist(methods=["POST"])
 def mark_order_served():
-    roles.require_kitchen()
     data = frappe.local.form_dict
     order_name = data.get("order_name")
     if not order_name:
         frappe.throw(_("Order name is required"))
 
-    branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Order is not in draft state"))
@@ -500,11 +482,9 @@ def mark_kot_printed():
     # Any authenticated user (incl. the Waiter role, which is NOT in roles.POS_ROLES) may fire a KOT —
     # this only advances sent_qty on an order (benign, same Draft→Pending promotion send_to_kitchen
     # already does gate-free). Whitelist alone blocks guests.
-    roles.require_waiter()
     order_name = frappe.local.form_dict.get("order_name")
     if not order_name:
         frappe.throw(_("Order name is required"))
-    branch.require_access("POS Order", order_name)
     if not frappe.db.has_column("POS Order Item", "sent_qty"):
         _install_sent_qty_field()
     doc = frappe.get_doc("POS Order", order_name)
@@ -535,7 +515,6 @@ def delete_draft_order():
     order_name = frappe.local.form_dict.get("order_name")
     if not order_name or not frappe.db.exists("POS Order", order_name):
         return {"ok": True, "deleted": False}
-    branch.require_access("POS Order", order_name)
     doc = frappe.get_doc("POS Order", order_name)
     fired = sum(int(i.get("sent_qty") or 0) for i in (doc.get("items") or []))
     if doc.pos_invoice or fired > 0:
@@ -608,8 +587,6 @@ def get_order_items(order_name, s=None):
         # Deliberately the same answer as an order that does not exist: telling
         # the difference is most of what an enumerator wants.
         return {"items": []}
-    if staff:
-        branch.require_access("POS Order", order_name)
     doc = frappe.get_doc("POS Order", order_name)
     items = []
     for i in (doc.get("items") or []):
@@ -668,7 +645,6 @@ def waiter_append_items():
     mark_kot_printed, keyed on sent_qty) fires ONLY these new lines. This deliberately avoids
     update_order's full rebuild, which folds multiple lines of the same (item, takeaway) and
     would mis-carry sent_qty onto a freshly-added same-item line."""
-    roles.require_waiter()
     data = frappe.local.form_dict
     order_name = data.get("order_name")
     items_raw = data.get("items")
@@ -678,7 +654,6 @@ def waiter_append_items():
     if not items:
         frappe.throw(_("At least one item is required"))
 
-    branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Only draft orders can be added to"))
@@ -739,11 +714,10 @@ def compare_orders():
         if not order_name:
             result[key] = None
             continue
-        if not frappe.db.exists("POS Order", order_name):
+        doc = frappe.get_doc("POS Order", order_name) if frappe.db.exists("POS Order", order_name) else None
+        if not doc:
             result[key] = None
             continue
-        branch.require_access("POS Order", order_name)
-        doc = frappe.get_doc("POS Order", order_name)
         items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate}
                  for i in (doc.get("items") or [])]
         result[key] = {
@@ -795,7 +769,6 @@ def update_order():
     if not items or len(items) == 0:
         frappe.throw(_("At least one item is required"))
 
-    branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Only draft orders can be edited"))
@@ -934,7 +907,6 @@ def get_order_changelog(order_name):
     roles.require_pos()
     if not order_name:
         return {"changelog": []}
-    branch.require_access("POS Order", order_name)
 
     # Fetch versions (Frappe's built-in version tracking)
     versions = frappe.get_all("Version",
@@ -977,14 +949,12 @@ def get_order_changelog(order_name):
 @frappe.whitelist(methods=["POST"])
 def move_order_table():
     """Move an open (unpaid) POS Order to a different restaurant table."""
-    roles.require_waiter()
     data = frappe.local.form_dict
     order_name = data.get("order_name")
     table = (data.get("table") or "").strip()
     if not order_name:
         frappe.throw(_("Order name is required"))
 
-    branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Only open orders can be moved"))
@@ -992,12 +962,6 @@ def move_order_table():
         frappe.throw(_("Cannot move a paid order"))
     if table and not frappe.db.exists("Restaurant Table", table):
         frappe.throw(_("Table {0} not found").format(table))
-    if table:
-        target_restaurant = branch.require_access("Restaurant Table", table)
-        if (pos_order.get(branch.FIELD) and target_restaurant
-                and pos_order.get(branch.FIELD) != target_restaurant):
-            frappe.throw(_("An order cannot be moved to another restaurant"),
-                         frappe.PermissionError)
 
     old_table = pos_order.restaurant_table
     pos_order.db_set("restaurant_table", table)

@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import activity, branch, roles
+from luuvcrm import activity, roles
 
 
 # The role model lives in luuvcrm/roles.py. Guards are called as
@@ -16,15 +16,8 @@ from luuvcrm import activity, branch, roles
 # the rule comes from.
 
 def _resolve_pos_profile_name(requested=""):
-    """A POS Profile this session is permitted to operate."""
-    if requested:
-        branch.require_access("POS Profile", requested)
-        return requested
-    profiles = branch.accessible_pos_profiles()
-    if not profiles:
-        frappe.throw(_("No POS Profile is configured for your restaurant"),
-                     frappe.PermissionError)
-    return profiles[0]
+    """POS Profile from request, else the first configured profile."""
+    return requested or frappe.db.get_value("POS Profile", {}, "name")
 def _link_invoice_to_order(invoice_name, order_name):
     """Set the reverse invoice -> POS Order link (POS Invoice or Sales Invoice)."""
     dt = "POS Invoice" if frappe.db.exists("POS Invoice", invoice_name) else "Sales Invoice"
@@ -35,8 +28,6 @@ def _active_pos_profile_name(requested=""):
     entry for native consolidation), else requested, else first profile."""
     prof = frappe.db.get_value("POS Opening Entry",
         {"status": "Open", "user": frappe.session.user}, "pos_profile")
-    if prof:
-        branch.require_access("POS Profile", prof)
     return prof or _resolve_pos_profile_name(requested)
 def _invoice_doctype_for(pos_profile_name):
     """POS sales always become native POS Invoices (open/close entries + consolidation).
@@ -46,7 +37,6 @@ def _ensure_open_shift(pos_profile_name):
     """Guarantee the session user has an open shift for the profile; auto-open one
     (0 opening per payment mode) if not. POS Invoice creation requires an open POS
     Opening Entry, so this keeps every cashier sale on the native POS pipeline."""
-    branch.require_access("POS Profile", pos_profile_name)
     user = frappe.session.user
     existing = frappe.db.get_value("POS Opening Entry",
         {"status": "Open", "docstatus": 1, "user": user, "pos_profile": pos_profile_name}, "name")

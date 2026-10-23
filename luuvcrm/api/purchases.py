@@ -260,18 +260,6 @@ def _purchase_date(value=None):
     return day
 
 
-def ensure_purchase_date(doc, method=None):
-    """Keep reportable dates on DB-created/custom Purchase Bill records too.
-
-    Older sites created Purchase Bill as a Custom DocType before the repo-backed
-    controller existed, so its Python ``validate`` method is not loaded there.
-    The hook gives both shapes the same invariant.
-    """
-    if not doc.get("purchase_date"):
-        doc.purchase_date = (frappe.utils.getdate(doc.requested_at)
-                             if doc.get("requested_at") else frappe.utils.today())
-
-
 # ─── Vendors ──────────────────────────────────────────────────────────────
 # Vendor is free text on the bill, so "Green Valley", "green valley " and
 # "Green  Valley" were three vendors in every report. The sheet now offers the
@@ -446,12 +434,11 @@ def get_purchase_bills():
     # One aggregate row straight from the DB: no documents built, nothing to page
     # through, and it uses the same filter get_due_bills() lists by so the two agree.
     if frappe.db.has_column("Purchase Bill", "payment_status"):
-        condition, params = branch.sql_restaurant("pb")
         agg = frappe.db.sql("""
             SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS amt
-            FROM `tabPurchase Bill` pb
+            FROM `tabPurchase Bill`
             WHERE status = 'approved' AND IFNULL(payment_status, 'unpaid') != 'paid'
-        """ + condition, params, as_dict=True)[0]
+        """, as_dict=True)[0]
         due_count = int(agg.n or 0)
         due_amt = float(agg.amt or 0)
     else:
@@ -460,9 +447,8 @@ def get_purchase_bills():
     # Approvals badge: a count, nothing more (the cards only travel when the tab opens).
     appr_count = 0
     if frappe.db.exists("DocType", "POS Approval"):
-        appr_count = len(frappe.get_list(
-            "POS Approval", filters={"status": "pending", "action": "purchase_bill"},
-            pluck="name", limit_page_length=0))
+        appr_count = frappe.db.count("POS Approval",
+                                     {"status": "pending", "action": "purchase_bill"})
     return {"bills": bills, "approved_today": approved_today, "pending_amt": pending_amt,
             "week": week, "due_amt": due_amt, "due_count": due_count,
             "appr_count": appr_count}
@@ -493,10 +479,10 @@ def get_purchase_day_summary(date=None):
     if not frappe.db.exists("DocType", "Purchase Bill"):
         return empty
 
-    names = frappe.get_list("Purchase Bill",
-                            filters=[["purchase_date", "=", str(day)]],
-                            fields=["name", "requested_by", "resolved_by"],
-                            order_by="requested_at desc", limit_page_length=0)
+    names = frappe.get_all("Purchase Bill",
+                           filters=[["purchase_date", "=", str(day)]],
+                           fields=["name", "requested_by", "resolved_by"],
+                           order_by="requested_at desc", limit_page_length=0)
     if not names:
         return empty
     bills = [_bill_dict(r.name) for r in names]
@@ -594,7 +580,9 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
 def get_purchase_bill(name=None):
     """One bill in full. Search results carry no lines — a tapped card fetches them."""
     roles.require_purchases()
-    return _bill_dict(_visible("Purchase Bill", name).name)
+    if not name or not frappe.db.exists("Purchase Bill", name):
+        frappe.throw(_("Bill not found"))
+    return _bill_dict(name)
 # ─── Correcting a bill after the fact ─────────────────────────────────────
 # A bill typed in a hurry at the market comes back with the vendor misspelt,
 # the wrong day, or the photo of a different receipt. A manager (or owner, or
@@ -622,7 +610,8 @@ def _visible(doctype, name):
     restaurant must not reach another's bills by guessing a name."""
     if not name or not frappe.db.exists(doctype, name):
         frappe.throw(_("Bill not found"))
-    branch.require_access(doctype, name)
+    if not frappe.get_list(doctype, filters={"name": name}, pluck="name", limit_page_length=1):
+        frappe.throw(_("Bill not found"))
     return frappe.get_doc(doctype, name)
 
 
@@ -755,10 +744,9 @@ def resolve_purchase_bill():
     decision = data.get("decision")
     if decision not in ("approved", "rejected"):
         frappe.throw(_("Decision must be 'approved' or 'rejected'"))
-    doc = _visible("Purchase Bill", name)
-    if doc.status != "pending":
+    if frappe.db.get_value("Purchase Bill", name, "status") != "pending":
         frappe.throw(_("Already resolved"))
-    roles.block_self_approval(doc.requested_by)
+    roles.block_self_approval(frappe.db.get_value("Purchase Bill", name, "requested_by"))
     updated = _decide_purchase_bill(name, decision, discount=data.get("discount"))
     return {"ok": True, "status": decision, "prices_updated": updated,
             "total": frappe.db.get_value("Purchase Bill", name, "total"),
@@ -809,13 +797,11 @@ def get_due_bills():
     # IFNULL, not a plain `!= 'paid'`: a bill created before the payment_status field
     # existed reads NULL, and SQL drops NULL rows from a `!=` comparison — it would be
     # owed money missing from the list. Same predicate the Due badge counts by.
-    condition, params = branch.sql_restaurant("pb")
     rows = frappe.db.sql("""
-        SELECT name FROM `tabPurchase Bill` pb
+        SELECT name FROM `tabPurchase Bill`
         WHERE status = 'approved' AND IFNULL(payment_status, 'unpaid') != 'paid'
-        """ + condition + """
         ORDER BY purchase_date ASC, requested_at ASC LIMIT 2000
-    """, params, as_dict=True)
+    """, as_dict=True)
     # 2000, not 200: the live restaurant owes more than 200 bills (every bill
     # approved before payment_status existed reads as owed), and a cap below
     # the count hid the newest ones from the list that exists to show them.
@@ -838,10 +824,12 @@ def mark_bill_paid():
         _install_purchase_payment_fields()
     data = frappe.local.form_dict
     name = data.get("name")
-    doc = _visible("Purchase Bill", name)
-    if doc.status != "approved":
+    if not name or not frappe.db.exists("Purchase Bill", name):
+        frappe.throw(_("Bill not found"))
+    if frappe.db.get_value("Purchase Bill", name, "status") != "approved":
         frappe.throw(_("Only an approved bill can be marked paid"))
     paid = str(data.get("paid", "1")) not in ("0", "false", "False", "")
+    doc = frappe.get_doc("Purchase Bill", name)
     doc.db_set("payment_status", "paid" if paid else "unpaid")
     doc.db_set("paid_at", now_datetime() if paid else None)
     doc.db_set("paid_by", frappe.session.user if paid else None)

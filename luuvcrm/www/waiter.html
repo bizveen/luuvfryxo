@@ -29,10 +29,8 @@
       background:#064E3B; color:#fff; display:flex; align-items:center;
       gap:10px; padding:0 12px; z-index:50; flex-shrink:0;
     }
-    .w-brand-wrap { display:flex; flex-direction:column; min-width:0; max-width:130px; }
     .w-brand { font-size:0.9rem; font-weight:800; white-space:nowrap; }
     .w-badge { background:var(--green); color:#fff; font-size:0.55rem; font-weight:700; padding:2px 7px; border-radius:4px; text-transform:uppercase; }
-    .w-restaurant { margin-top:2px; color:#A7F3D0; font-size:0.65rem; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .w-table-wrap { flex:1; display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.1); border-radius:8px; padding:5px 10px; cursor:pointer; min-width:0; }
     .w-table-wrap select { background:transparent; color:#fff; border:none; outline:none; font-size:0.85rem; font-weight:700; font-family:inherit; width:100%; cursor:pointer; }
     .w-table-wrap select option { background:#064E3B; }
@@ -318,10 +316,7 @@
 
 <!-- Header -->
 <div class="w-header">
-  <div class="w-brand-wrap">
-    <div class="w-brand">{{ brand_name }} <span class="w-badge">Waiter</span></div>
-    <div class="w-restaurant" data-active-restaurant title="Active restaurant">🏪 {{ restaurant_name or "No restaurant selected" }}</div>
-  </div>
+  <div class="w-brand">{{ brand_name }} <span class="w-badge">Waiter</span></div>
   <div class="w-table-wrap">
     <span class="w-table-label">Table</span>
     <select id="tableSelect" onchange="onTablePick()">

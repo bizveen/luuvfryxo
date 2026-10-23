@@ -15,7 +15,7 @@ import json
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from luuvcrm import api, branch, roles
+from luuvcrm import api, roles
 from luuvcrm.tests import fixtures as fx
 
 
@@ -53,11 +53,6 @@ class ApprovalTestCase(FrappeTestCase):
                             "send_welcome_email": 0,
                             "roles": [{"role": role}]}).insert(ignore_permissions=True)
             frappe.set_user(here)
-        # Reused test accounts must not inherit a branch restriction left by a
-        # different suite/run. These approval tests create their order before
-        # switching users, so a stale pin can make the fixture itself cross
-        # branch and correctly trigger the production guard being tested.
-        branch.unassign(email)
         return email
 
     def as_user(self, email):

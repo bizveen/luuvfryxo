@@ -89,42 +89,22 @@ def get_manager_dashboard():
     void_count = len(voids)
     void_amt = sum(float(v.grand_total or 0) for v in voids)
 
-    # Cash drawer — every open till in the branch being viewed. A branch may
-    # have several cashiers open at once, and an unrestricted Owner needs the
-    # combined position across all branches rather than one arbitrary row.
-    opening_filters = {"docstatus": 1, "status": "Open"}
-    scoped = branch._scoped_to()
-    if scoped:
-        profiles = [p for p in frappe.get_all("POS Profile", pluck="name")
-                    if branch._restaurant_for_profile(p) == scoped]
-        openings = frappe.get_all(
-            "POS Opening Entry", filters={**opening_filters,
-                                           "pos_profile": ["in", profiles]},
-            fields=["name", "period_start_date", "user", "pos_profile"],
-            order_by="period_start_date asc") if profiles else []
-    else:
-        openings = frappe.get_all(
-            "POS Opening Entry", filters=opening_filters,
-            fields=["name", "period_start_date", "user", "pos_profile"],
-            order_by="period_start_date asc")
+    # cash drawer — the open shift (any cashier)
+    opening = frappe.db.get_value("POS Opening Entry",
+        {"docstatus": 1, "status": "Open"}, ["name", "period_start_date", "user"], as_dict=True)
     float_amt = 0
     cash_in = cash_out = 0
     cash_moves = []
     opened_at = ""
     cashier = ""
-    if openings:
-        opening_names = [o.name for o in openings]
-        for opening in openings:
-            od = frappe.get_doc("POS Opening Entry", opening.name)
-            float_amt += sum(float(d.opening_amount or 0) for d in (od.balance_details or []))
-        opened_at = str(openings[0].period_start_date)
-        user_names = []
-        for user in dict.fromkeys(o.user for o in openings if o.user):
-            user_names.append(frappe.get_value("User", user, "full_name") or user)
-        cashier = ", ".join(user_names)
+    if opening:
+        od = frappe.get_doc("POS Opening Entry", opening.name)
+        float_amt = sum(float(d.opening_amount or 0) for d in (od.balance_details or []))
+        opened_at = str(opening.period_start_date)
+        cashier = frappe.get_value("User", opening.user, "full_name") or opening.user
         if frappe.db.exists("DocType", "POS Cash Movement"):
             rows = frappe.get_list("POS Cash Movement",
-                filters={"pos_opening_entry": ["in", opening_names]},
+                filters={"pos_opening_entry": opening.name},
                 fields=["direction", "amount", "reason", "cashier", "movement_time"],
                 order_by="movement_time desc")
             names = {r.cashier for r in rows if r.cashier}
@@ -157,7 +137,6 @@ def get_manager_dashboard():
         "cash": {
             "opened_at": opened_at,
             "cashier": cashier,
-            "open_count": len(openings),
             "float": float_amt,
             "cash_sales": cash_sales,
             "cash_in": cash_in,

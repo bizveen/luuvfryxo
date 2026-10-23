@@ -1,6 +1,6 @@
 import frappe
 
-from luuvcrm import branch, roles
+from luuvcrm import roles
 
 no_cache = 1
 
@@ -29,5 +29,3 @@ def get_context(context):
 
     user = frappe.session.user
     context.current_user_full = frappe.get_value("User", user, "full_name") or user.split("@")[0].title()
-    context.restaurant_name = branch.viewing() or ""
-    context.can_branch_requests = roles.has_any(roles.BRANCH_REQUEST_ROLES)

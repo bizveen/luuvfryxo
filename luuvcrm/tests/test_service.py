@@ -14,7 +14,7 @@ import json
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from luuvcrm import api, branch, roles
+from luuvcrm import api, roles
 from luuvcrm.tests import fixtures as fx
 
 
@@ -61,14 +61,9 @@ class FloorTestCase(FrappeTestCase):
         return frappe.get_doc("POS Order", name)
 
     def table(self):
-        # The test site's Administrator may have an open shift at one of
-        # several branches. Pick a table from the same branch as the order the
-        # fixture creates, not whichever table the database returns first.
-        here = branch.current()
-        name = frappe.db.get_value("Restaurant Table",
-                                   {"restaurant": here}, "name") if here else None
+        name = frappe.db.get_value("Restaurant Table", {}, "name")
         if not name:
-            self.skipTest("no Restaurant Table in the active branch on this site")
+            self.skipTest("no Restaurant Table on this site")
         return name
 
 

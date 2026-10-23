@@ -9,7 +9,6 @@ from frappe import _
 import json
 from frappe.utils import now_datetime
 
-from luuvcrm import branch, roles
 from luuvcrm.api.orders import SCREEN_ORDER_CEILING, lines_by_order
 from luuvcrm.api.shifts import _get_invoice_doc
 
@@ -123,30 +122,24 @@ def _kitchen_groups(item_codes):
             for r in rows}
 @frappe.whitelist(methods=["POST"])
 def mark_kitchen_processing():
-    roles.require_kitchen()
     order_name = frappe.local.form_dict.get("order_name")
     if not order_name:
         frappe.throw(_("Order name required"))
-    branch.require_access("POS Order", order_name)
     frappe.db.set_value("POS Order", order_name, "kitchen_status", "Processing")
     return {"status": "processing", "name": order_name}
 @frappe.whitelist(methods=["POST"])
 def mark_kitchen_ready():
-    roles.require_kitchen()
     order_name = frappe.local.form_dict.get("order_name")
     if not order_name:
         frappe.throw(_("Order name required"))
-    branch.require_access("POS Order", order_name)
     frappe.db.set_value("POS Order", order_name, "kitchen_status", "Ready")
     return {"status": "ready", "name": order_name}
 @frappe.whitelist(methods=["POST"])
 def mark_kitchen_served():
-    roles.require_kitchen()
     order_name = frappe.local.form_dict.get("order_name")
     if not order_name:
         frappe.throw(_("Order name required"))
 
-    branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Order already served"))
