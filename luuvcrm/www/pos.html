@@ -229,7 +229,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         <div class="tb-logo" style="width:46px;height:46px;border-radius:var(--radius-md);background:var(--color-primary);color:#fff;font-family:var(--font-display);font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-brand);">LF</div>
         <div>
           <div class="tb-title" style="font-family:var(--font-display);font-weight:800;font-size:var(--tb-title,22px);letter-spacing:-.01em;color:var(--text-strong);line-height:1.12;">New order</div>
-          <div class="tb-sub" style="font-size:14px;color:var(--text-muted);">Counter · dine-in &amp; takeaway</div>
+          <div class="tb-restaurant" data-active-restaurant style="max-width:220px;font-size:11.5px;font-weight:700;line-height:1.3;color:var(--orange-700);">{{ (restaurant.get("restaurant_name") or restaurant.name) if restaurant else "No restaurant selected" }}{% if restaurant and restaurant.get("city") %} — {{ restaurant.city }}{% endif %}</div>
         </div>
       </div>
       <nav class="tb-nav" style="display:flex;align-items:center;gap:4px;background:var(--gray-100);border-radius:var(--radius-pill);padding:4px;flex:none;margin-left:var(--tb-nav-ml,0);">
