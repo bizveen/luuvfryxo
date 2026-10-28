@@ -232,15 +232,22 @@
   <div class="container">
     {% if menu_items %}
       {% set groups = menu_items | groupby('group') %}
+      {% set kurunegala_menu = restaurant and restaurant.name == 'Kurunegala' %}
+      {% set category_ids = {'Add-ons':1, 'Chips':2, 'Drinks':3, 'Loaded Fries':4} %}
+      {% if kurunegala_menu %}
+        {% set groups = (groups | selectattr('grouper', 'equalto', 'Loaded Fries') | list) + (groups | rejectattr('grouper', 'equalto', 'Loaded Fries') | rejectattr('grouper', 'equalto', 'Add-ons') | list) + (groups | selectattr('grouper', 'equalto', 'Add-ons') | list) %}
+      {% endif %}
       <nav class="category-nav-wrap" aria-label="Menu categories">
         <div class="category-nav">
           {% for group in groups %}
-            <a class="category-chip{% if loop.first %} active{% endif %}" href="#menu-category-{{ loop.index }}" data-category-link="menu-category-{{ loop.index }}">{{ group.grouper }}</a>
+            {% set category_id = category_ids.get(group.grouper, loop.index) if kurunegala_menu else loop.index %}
+            <a class="category-chip{% if loop.first %} active{% endif %}" href="#menu-category-{{ category_id }}" data-category-link="menu-category-{{ category_id }}">{{ group.grouper }}</a>
           {% endfor %}
         </div>
       </nav>
       {% for group in groups %}
-        <section class="category" id="menu-category-{{ loop.index }}" data-category-section>
+        {% set category_id = category_ids.get(group.grouper, loop.index) if kurunegala_menu else loop.index %}
+        <section class="category" id="menu-category-{{ category_id }}" data-category-section>
           <div class="category-header"><h2>{{ group.grouper }}</h2></div>
           {% for item in group.list %}
             <div class="menu-item">
@@ -253,7 +260,7 @@
                   <div class="desc">{{ item.description }}</div>
                 {% endif %}
               </div>
-              <div class="rate">{{ '%.0f' % item.rate }}</div>
+              <div class="rate">{% if kurunegala_menu %}Rs {{ '{:,.0f}'.format(item.rate) }}{% else %}{{ '%.0f' % item.rate }}{% endif %}</div>
             </div>
           {% endfor %}
         </section>
