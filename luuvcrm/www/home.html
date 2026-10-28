@@ -91,7 +91,7 @@ section[id]{scroll-margin-top:112px}
 .food-card{position:relative;width:min(420px,100%);aspect-ratio:.87;border-radius:42px;background:linear-gradient(145deg,#302921,#211c18);border:1px solid rgba(255,255,255,.11);box-shadow:var(--shadow-lg);overflow:hidden;transform:translate3d(0,var(--food-y,0px),0) rotate(calc(3deg + var(--food-rotate,0deg)));will-change:transform}
 .food-card::before{content:'';position:absolute;inset:22px;border:1px solid rgba(255,255,255,.08);border-radius:27px}
 .plate{position:absolute;width:310px;height:310px;border-radius:50%;top:76px;left:50%;transform:translateX(-50%);display:grid;place-items:center;background:radial-gradient(circle at 45% 40%,#fff 0 55%,#e8e1d9 56% 61%,#fff 62%);box-shadow:0 32px 60px rgba(0,0,0,.34)}
-.plate img{width:242px;height:242px;border-radius:50%;object-fit:cover}
+.plate img{width:272px;height:272px;border-radius:50%;object-fit:contain;background:#fff}
 .food-emoji{font-size:118px;filter:drop-shadow(0 18px 12px rgba(0,0,0,.18));transform:rotate(-3deg)}
 .scene-label{position:absolute;left:28px;right:28px;bottom:25px;padding:15px 17px;border-radius:17px;background:rgba(18,15,13,.72);backdrop-filter:blur(13px);display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(255,255,255,.1)}
 .scene-label strong{display:block;font:800 14px/1.2 var(--font-display)}
@@ -174,7 +174,8 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
 .dish{background:#fff;border:1px solid var(--line);border-radius:23px;padding:13px;box-shadow:0 5px 18px rgba(45,31,20,.04);transition:transform .22s ease,box-shadow .22s ease}
 .dish:hover{transform:translateY(-5px);box-shadow:var(--shadow-sm)}
 .dish-visual{height:190px;border-radius:16px;overflow:hidden;background:#f8eee5;display:grid;place-items:center;font-size:72px}
-.dish-visual img{width:100%;height:100%;object-fit:cover}
+.dish-visual img{width:100%;height:100%;object-fit:contain;background:#fff;transition:transform .3s ease}
+.dish:hover .dish-visual img{transform:scale(1.04)}
 .dish-info{padding:17px 7px 7px;display:flex;align-items:end;justify-content:space-between;gap:14px}
 .dish-name{font:800 15px/1.3 var(--font-display);letter-spacing:-.02em}
 .dish-price{color:var(--accent);font:800 14px/1 var(--font-display);white-space:nowrap}
@@ -378,7 +379,7 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
         </a>{% endif %}
       </div>
-      <p class="menu-live-note" data-reveal>Menus, prices and availability are kept up to date for each restaurant.</p>
+      <p class="menu-live-note" data-reveal>Discover Loaded Fries, crispy Chips and refreshing Drinks from our Kurunegala menu.</p>
       {% if menu_groups and primary_location %}
       <div class="menu-categories" data-reveal>
         <div class="category-marquee" aria-label="Menu categories">

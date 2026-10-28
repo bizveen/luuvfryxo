@@ -10,37 +10,6 @@ no_cache = 1
 login_required = False
 
 
-# Three genuine dishes and prices from the current public menu. The original
-# image files no longer resolve, so the landing owns a
-# small, consistently photographed set instead of hot-linking broken assets.
-KURUNEGALA_SHOWCASE = (
-    {
-        "code": "LANDING-POT-BIRYANI",
-        "name": "Chicken Pot Biryani (Single)",
-        "description": "Naan-wrapped biryani with tandoori chicken, egg, raita and hot sauce.",
-        "image": "/assets/luuvcrm/landing/chicken-pot-biryani.webp",
-        "rate": 1440,
-        "group": "Biryani & Naan Combos",
-    },
-    {
-        "code": "LANDING-CHEESE-KOTTU",
-        "name": "Vegetable Cheese Kottu (Regular)",
-        "description": "Vegetable kottu finished with rich, creamy melted cheese.",
-        "image": "/assets/luuvcrm/landing/vegetable-cheese-kottu.webp",
-        "rate": 990,
-        "group": "Cheese Kottu",
-    },
-    {
-        "code": "LANDING-HYDERABADI-BIRYANI",
-        "name": "Hyderabadi Style Chicken Biryani",
-        "description": "Aromatic biryani with tandoori chicken, egg, raita and fresh salad.",
-        "image": "/assets/luuvcrm/landing/hyderabadi-chicken-biryani.webp",
-        "rate": 1490,
-        "group": "Indian Cuisine",
-    },
-)
-
-
 def _city(restaurant):
     doc = frappe.get_cached_doc("Restaurant", restaurant)
     city = str(doc.get("city") or "").strip()
@@ -140,19 +109,22 @@ def get_context(context):
         for item in group["items"]
         if not item["code"].startswith("_LFT") and item["rate"] > 0
     ]
-    # A food dish leads the visual even when Drinks happens to be the first
-    # alphabetical menu group. The rest keep the live menu's own order.
+    # Keep the landing tied to the available branch menu and its current prices.
     hero = next(
-        (item for item in items if item["group"].casefold() not in {"beverage", "beverages"}),
+        (item for item in items if item["group"].casefold() not in {"beverage", "beverages", "drinks", "add-ons"}),
         items[0] if items else None,
     )
     menu_preview = ([hero] if hero else []) + [
         item for item in items if item is not hero
     ][:5]
-    context.featured_items = (
-        [frappe._dict(item) for item in KURUNEGALA_SHOWCASE]
-        if primary and _city(primary).casefold() == "kurunegala"
-        else menu_preview
-    )
+    if primary and _city(primary).casefold() == "kurunegala":
+        by_code = {item["code"]: item for item in items}
+        featured_codes = (
+            "KG-FRIES-CHICKEN", "KG-FRIES-PRAWN", "KG-FRIES-BEEF",
+            "KG-CHIPS-FISH", "KG-CHIPS-WIENILET", "KG-SMOOTHIE-BLUEBERRY",
+        )
+        context.featured_items = [by_code[code] for code in featured_codes if code in by_code]
+    else:
+        context.featured_items = menu_preview
     context.opening_time = "11:00 AM"
     context.closing_time = "11:00 PM"
