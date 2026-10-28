@@ -174,7 +174,8 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
 .dish{background:#fff;border:1px solid var(--line);border-radius:23px;padding:13px;box-shadow:0 5px 18px rgba(45,31,20,.04);transition:transform .22s ease,box-shadow .22s ease}
 .dish:hover{transform:translateY(-5px);box-shadow:var(--shadow-sm)}
 .dish-visual{height:190px;border-radius:16px;overflow:hidden;background:#f8eee5;display:grid;place-items:center;font-size:72px}
-.dish-visual img{width:100%;height:100%;object-fit:contain;background:#fff;transition:transform .3s ease}
+.dish-visual{position:relative}
+.dish-visual img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;transition:transform .3s ease}
 .dish:hover .dish-visual img{transform:scale(1.04)}
 .dish-info{padding:17px 7px 7px;display:flex;align-items:end;justify-content:space-between;gap:14px}
 .dish-name{font:800 15px/1.3 var(--font-display);letter-spacing:-.02em}
