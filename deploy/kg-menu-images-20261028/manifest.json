@@ -1,0 +1,310 @@
+[
+  {
+    "code": "KG-FRIES-CHICKEN",
+    "file": "kg-fries-chicken-20261028.jpg",
+    "md5": "d29a4fa67732c94ac484db3adf07d347",
+    "box": [
+      0,
+      192,
+      204,
+      326
+    ]
+  },
+  {
+    "code": "KG-FRIES-FISH",
+    "file": "kg-fries-fish-20261028.jpg",
+    "md5": "d1f2e3c0f9bc344937536c696818a700",
+    "box": [
+      0,
+      315,
+      204,
+      456
+    ]
+  },
+  {
+    "code": "KG-FRIES-PRAWN",
+    "file": "kg-fries-prawn-20261028.jpg",
+    "md5": "f2d1d03df67d7147992a1f0a88ded19c",
+    "box": [
+      0,
+      442,
+      204,
+      593
+    ]
+  },
+  {
+    "code": "KG-FRIES-BEEF",
+    "file": "kg-fries-beef-20261028.jpg",
+    "md5": "c2b802d06e3f90abfacba37f1db2e01c",
+    "box": [
+      0,
+      583,
+      204,
+      728
+    ]
+  },
+  {
+    "code": "KG-FRIES-SAUSAGE",
+    "file": "kg-fries-sausage-20261028.jpg",
+    "md5": "78fdaace2ea1b9bd8ae828ba881a542a",
+    "box": [
+      0,
+      715,
+      204,
+      867
+    ]
+  },
+  {
+    "code": "KG-FRIES-MIX",
+    "file": "kg-fries-mix-20261028.jpg",
+    "md5": "b87a2ed137ef87444e063da0cd4144e6",
+    "box": [
+      0,
+      852,
+      207,
+      1009
+    ]
+  },
+  {
+    "code": "KG-CHIPS-FISH",
+    "file": "kg-chips-fish-20261028.jpg",
+    "md5": "280d4a1bf1bda92ab512ca0ba570628d",
+    "box": [
+      632,
+      205,
+      852,
+      397
+    ]
+  },
+  {
+    "code": "KG-CHIPS-WIENILET",
+    "file": "kg-chips-wienilet-20261028.jpg",
+    "md5": "39d9ba27685d2a6e09958a0387876464",
+    "box": [
+      632,
+      387,
+      852,
+      577
+    ]
+  },
+  {
+    "code": "KG-CHIPS-SPICY",
+    "file": "kg-chips-spicy-20261028.jpg",
+    "md5": "1f27ee7df80625980896b76446f3d602",
+    "box": [
+      638,
+      568,
+      849,
+      730
+    ]
+  },
+  {
+    "code": "KG-EXTRA-BROWN",
+    "file": "kg-extra-brown-20261028.jpg",
+    "md5": "8e5de01cb3f70bcce61a9504ee643eac",
+    "box": [
+      657,
+      779,
+      762,
+      830
+    ]
+  },
+  {
+    "code": "KG-EXTRA-WHITE",
+    "file": "kg-extra-white-20261028.jpg",
+    "md5": "c0c57e66a1f58d8120af4e8a4ccfff09",
+    "box": [
+      808,
+      779,
+      916,
+      837
+    ]
+  },
+  {
+    "code": "KG-EXTRA-GOLDEN",
+    "file": "kg-extra-golden-20261028.jpg",
+    "md5": "efa40a72d1f288b2a722a6d0f60a4b5d",
+    "box": [
+      960,
+      778,
+      1074,
+      835
+    ]
+  },
+  {
+    "code": "KG-EXTRA-SALSA",
+    "file": "kg-extra-salsa-20261028.jpg",
+    "md5": "a55dd951f2bd7d87d24453529d274450",
+    "box": [
+      657,
+      884,
+      763,
+      943
+    ]
+  },
+  {
+    "code": "KG-EXTRA-HOT",
+    "file": "kg-extra-hot-20261028.jpg",
+    "md5": "9979c0d34b77b789d9e9c437679ecf73",
+    "box": [
+      809,
+      884,
+      918,
+      942
+    ]
+  },
+  {
+    "code": "KG-EXTRA-CHEESE",
+    "file": "kg-extra-cheese-20261028.jpg",
+    "md5": "9721d7b898d4f74d4a687433b2581335",
+    "box": [
+      951,
+      883,
+      1080,
+      947
+    ]
+  },
+  {
+    "code": "KG-THAI-BLUEBERRY",
+    "file": "kg-thai-blueberry-20261028.jpg",
+    "md5": "3abe91084d0e391c481a388c1aeb0fd5",
+    "box": [
+      1124,
+      203,
+      1188,
+      258
+    ]
+  },
+  {
+    "code": "KG-THAI-STRAWBERRY",
+    "file": "kg-thai-strawberry-20261028.jpg",
+    "md5": "03015e39c2beeb8a98e14970220a2aa0",
+    "box": [
+      1124,
+      258,
+      1188,
+      309
+    ]
+  },
+  {
+    "code": "KG-THAI-MANGO",
+    "file": "kg-thai-mango-20261028.jpg",
+    "md5": "4ed10e0f0657e32d5735bb58f266c4e6",
+    "box": [
+      1124,
+      309,
+      1188,
+      361
+    ]
+  },
+  {
+    "code": "KG-SMOOTHIE-MANGO",
+    "file": "kg-smoothie-mango-20261028.jpg",
+    "md5": "dbaa86a620fe05d3bbb30155ccf5165d",
+    "box": [
+      1124,
+      361,
+      1188,
+      412
+    ]
+  },
+  {
+    "code": "KG-SMOOTHIE-BLUEBERRY",
+    "file": "kg-smoothie-blueberry-20261028.jpg",
+    "md5": "dba4fd23d63840553f398f708f93184c",
+    "box": [
+      1124,
+      412,
+      1188,
+      466
+    ]
+  },
+  {
+    "code": "KG-SMOOTHIE-PASSION",
+    "file": "kg-smoothie-passion-20261028.jpg",
+    "md5": "dd950c63b009be8cf9aa2189cfe2c0de",
+    "box": [
+      1124,
+      466,
+      1188,
+      518
+    ]
+  },
+  {
+    "code": "KG-SMOOTHIE-STRAWBERRY",
+    "file": "kg-smoothie-strawberry-20261028.jpg",
+    "md5": "45de5c2a9a6ce19cb2efafb3ee89e5ce",
+    "box": [
+      1124,
+      518,
+      1188,
+      571
+    ]
+  },
+  {
+    "code": "KG-ICED-COFFEE",
+    "file": "kg-iced-coffee-20261028.jpg",
+    "md5": "42c4e3af77875abe33df39e731d916e5",
+    "box": [
+      1124,
+      571,
+      1188,
+      623
+    ]
+  },
+  {
+    "code": "KG-ICED-CHOCOLATE",
+    "file": "kg-iced-chocolate-20261028.jpg",
+    "md5": "8618c89f7fd019e128ae4d2f0a490fe3",
+    "box": [
+      1124,
+      623,
+      1188,
+      678
+    ]
+  },
+  {
+    "code": "KG-LEMONADE-BLUEBERRY",
+    "file": "kg-lemonade-blueberry-20261028.jpg",
+    "md5": "0bd60ce0c4c95adf4028cbc4acf6deb0",
+    "box": [
+      1124,
+      678,
+      1188,
+      732
+    ]
+  },
+  {
+    "code": "KG-LEMONADE-STRAWBERRY",
+    "file": "kg-lemonade-strawberry-20261028.jpg",
+    "md5": "94d8ee6f985bf248f92fdbcd7d842069",
+    "box": [
+      1124,
+      732,
+      1188,
+      790
+    ]
+  },
+  {
+    "code": "KG-LEMONADE-PASSION",
+    "file": "kg-lemonade-passion-20261028.jpg",
+    "md5": "e684c93ec796aef911582382162f48c1",
+    "box": [
+      1124,
+      790,
+      1188,
+      848
+    ]
+  },
+  {
+    "code": "KG-LEMON-MINT",
+    "file": "kg-lemon-mint-20261028.jpg",
+    "md5": "49ce395fac643b79a2ad68488ef904b1",
+    "box": [
+      1124,
+      848,
+      1188,
+      952
+    ]
+  }
+]
