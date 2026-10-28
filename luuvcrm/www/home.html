@@ -88,9 +88,9 @@ section[id]{scroll-margin-top:112px}
 .food-orbit::before{top:40px;left:64px;background:var(--lime);box-shadow:0 0 25px rgba(223,255,115,.55)}
 .food-orbit::after{right:20px;bottom:118px;background:var(--accent)}
 @keyframes spin{to{transform:rotate(360deg)}}
-.food-card{position:relative;width:min(420px,100%);aspect-ratio:.87;border-radius:42px;background:#fff;border:1px solid rgba(255,255,255,.25);box-shadow:var(--shadow-lg);overflow:hidden;transform:translate3d(0,var(--food-y,0px),0) rotate(calc(3deg + var(--food-rotate,0deg)));will-change:transform}
+.food-card{position:relative;width:min(520px,110%);aspect-ratio:1.02;background:transparent;border:0;box-shadow:none;overflow:visible;transform:translate3d(0,var(--food-y,0px),0) rotate(var(--food-rotate,0deg));will-change:transform}
 
-.hero-product{position:absolute;inset:26px 20px 100px;display:grid;place-items:center}
+.hero-product{position:absolute;inset:0 -24px 76px;display:grid;place-items:center}
 .hero-product img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .food-emoji{font-size:118px;filter:drop-shadow(0 18px 12px rgba(0,0,0,.18));transform:rotate(-3deg)}
 .scene-label{position:absolute;left:28px;right:28px;bottom:25px;padding:15px 17px;border-radius:17px;background:rgba(18,15,13,.72);backdrop-filter:blur(13px);display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(255,255,255,.1)}
@@ -228,7 +228,7 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
   .shell{width:min(100% - 28px,1180px)}.nav-wrap{padding:12px 0}.nav{padding-left:12px}.logo span{font-size:15px}.nav-links>a:not(.nav-cta){display:none}.nav-cta{padding:12px 14px;font-size:12px}section[id]{scroll-margin-top:94px}
   .hero{padding:127px 0 64px}.hero h1{font-size:51px}.hero-lead{font-size:16px}.hero-actions .btn{width:100%}.hero-notes{gap:8px 14px}
   .menu-categories{margin-top:-2px}.category-marquee.is-scrollable{-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}.category-pill{width:145px;min-height:126px;padding:13px 10px}.category-pill i{width:47px;height:47px;margin-bottom:9px;font-size:21px}.category-name{font-size:12px}.category-count{font-size:10px}
-  .food-scene{min-height:410px}.food-card{width:315px;border-radius:31px}.hero-product{inset:18px 12px 88px}.food-emoji{font-size:88px}.scene-label{left:19px;right:19px;bottom:18px}.food-orbit{width:340px;height:340px}.floating-pill.one{right:-2px;top:35px}.floating-pill.two{left:0;bottom:110px}
+  .food-scene{min-height:410px}.food-card{width:min(360px,100%)}.hero-product{inset:0 -12px 78px}.food-emoji{font-size:88px}.scene-label{left:19px;right:19px;bottom:18px}.food-orbit{width:340px;height:340px}.floating-pill.one{right:-2px;top:35px}.floating-pill.two{left:0;bottom:110px}
   .floating-pill.two{bottom:175px}
   .locations,.menu-preview,.order-flow{padding:78px 0}.loyalty,.faq{padding-bottom:78px}.section-head{display:block;margin-bottom:28px}.section-head p{margin-top:15px}.section-head h2,.loyalty-copy h2,.final-cta h2{font-size:36px}.menu-live-note{margin-top:-12px;line-height:1.5}
   .location-grid{grid-template-columns:1fr}.location-card{min-height:330px}.location-card.featured{order:-1}.location-actions .btn{flex:1;padding-inline:15px}
@@ -297,7 +297,7 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
         <div class="food-card">
           <div class="hero-product">
             {% if featured_items and featured_items[0].image %}
-              <img src="{{ featured_items[0].image }}" alt="{{ featured_items[0].name }}">
+              <img src="{{ '/assets/luuvcrm/landing/menu-20261028/hero-chicken.webp' if featured_items[0].code == 'KG-FRIES-CHICKEN' else featured_items[0].image }}" alt="{{ featured_items[0].name }}">
             {% else %}
               <div class="food-emoji">{{ em.get(featured_items[0].group,'🍽️') if featured_items else '🍛' }}</div>
             {% endif %}
@@ -399,10 +399,11 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
       </div>
       {% endif %}
       <div class="dish-grid" data-stagger>
+        {% set showcase_photos = {'KG-FRIES-CHICKEN':'chicken', 'KG-FRIES-PRAWN':'prawn', 'KG-FRIES-BEEF':'beef', 'KG-CHIPS-FISH':'fish', 'KG-CHIPS-WIENILET':'wings', 'KG-SMOOTHIE-BLUEBERRY':'blueberry'} %}
         {% for item in featured_items %}
         <article class="dish" data-reveal>
           <div class="dish-visual">
-            {% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">{% else %}<span>{{ em.get(item.group,'🍽️') }}</span>{% endif %}
+            {% if item.code in showcase_photos %}<img src="/assets/luuvcrm/landing/menu-20261028/{{ showcase_photos[item.code] }}.webp" alt="{{ item.name }}" loading="lazy">{% elif item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">{% else %}<span>{{ em.get(item.group,'🍽️') }}</span>{% endif %}
           </div>
           <div class="dish-info"><span class="dish-name">{{ item.name }}</span><span class="dish-price">Rs {{ '%.0f' % item.rate }}</span></div>
           {% if item.description %}<div class="dish-desc">{{ item.description }}</div>{% endif %}
