@@ -297,7 +297,7 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
         <div class="food-card">
           <div class="hero-product">
             {% if featured_items and featured_items[0].image %}
-              <img src="{{ '/assets/luuvcrm/landing/menu-20261028/hero-chicken.webp' if featured_items[0].code == 'KG-FRIES-CHICKEN' else featured_items[0].image }}" alt="{{ featured_items[0].name }}">
+              <img src="{{ '/files/kg-web-20261028-hero-chicken.webp' if featured_items[0].code == 'KG-FRIES-CHICKEN' else featured_items[0].image }}" alt="{{ featured_items[0].name }}">
             {% else %}
               <div class="food-emoji">{{ em.get(featured_items[0].group,'🍽️') if featured_items else '🍛' }}</div>
             {% endif %}
@@ -403,7 +403,7 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
         {% for item in featured_items %}
         <article class="dish" data-reveal>
           <div class="dish-visual">
-            {% if item.code in showcase_photos %}<img src="/assets/luuvcrm/landing/menu-20261028/{{ showcase_photos[item.code] }}.webp" alt="{{ item.name }}" loading="lazy">{% elif item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">{% else %}<span>{{ em.get(item.group,'🍽️') }}</span>{% endif %}
+            {% if item.code in showcase_photos %}<img src="/files/kg-web-20261028-{{ showcase_photos[item.code] }}.webp" alt="{{ item.name }}" loading="lazy">{% elif item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">{% else %}<span>{{ em.get(item.group,'🍽️') }}</span>{% endif %}
           </div>
           <div class="dish-info"><span class="dish-name">{{ item.name }}</span><span class="dish-price">Rs {{ '%.0f' % item.rate }}</span></div>
           {% if item.description %}<div class="dish-desc">{{ item.description }}</div>{% endif %}
