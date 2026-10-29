@@ -337,7 +337,9 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
         </div>
 
         <div style="display:flex;gap:10px;padding:14px 22px 0;">
+          {% if not restaurant or restaurant.name != 'Kurunegala' %}
           <button id="guestCheckBtn" class="lf-btn lf-btn--secondary lf-btn--md" style="flex:1;min-width:0;" onclick="guestCheckClick()"><i data-lucide="receipt" style="width:17px;height:17px;"></i> Guest check</button>
+          {% endif %}
           <button id="kotBtn" class="lf-btn lf-btn--secondary lf-btn--md" style="flex:1;min-width:0;" onclick="kotClick()"><i data-lucide="chef-hat" style="width:17px;height:17px;"></i> KOT</button>
         </div>
         <div style="display:flex;gap:10px;align-items:stretch;padding:10px 22px 22px;">
@@ -448,7 +450,9 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
     <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;">This order</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
       <button class="drow" onclick="drawerKitchen()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="printer"></i></span><span class="dlbl">Kitchen ticket</span><i data-lucide="chevron-right" class="dchev"></i></button>
+      {% if not restaurant or restaurant.name != 'Kurunegala' %}
       <button class="drow" onclick="drawerBill()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="receipt"></i></span><span class="dlbl">Guest check</span><i data-lucide="chevron-right" class="dchev"></i></button>
+      {% endif %}
       <button class="drow" onclick="drawerSplit()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="split"></i></span><span class="dlbl">Split bill</span><i data-lucide="chevron-right" class="dchev"></i></button>
       <button class="drow" onclick="drawerSplitTA()"><span class="dico" style="background:var(--color-warning-subtle);color:#9a6207;"><i data-lucide="shopping-bag"></i></span><span class="dlbl">Split takeaway</span><i data-lucide="chevron-right" class="dchev"></i></button>
       <button class="drow" onclick="drawerMove()"><span class="dico" style="background:var(--orange-50);color:var(--color-primary);"><i data-lucide="move"></i></span><span class="dlbl">Move table</span><i data-lucide="chevron-right" class="dchev"></i></button>
@@ -604,6 +608,7 @@ function lfPoll(fn, ms){
   setInterval(function(){ if(!document.hidden) fn(); }, ms);
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
 }
+  const GUEST_CHECK_ENABLED = {{ (not restaurant or restaurant.name != 'Kurunegala') | tojson }};
   const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   const SC_RATE = {{ service_charge_rate or 0 }};
   const PROFILE_PAY = {{ pos_profile_payments_json | safe }};
@@ -1030,6 +1035,7 @@ function lfPoll(fn, ms){
   async function voidZombie(i){ return lfOnce('voidZombie',null, ()=>_voidZombie(i)); }
 
   async function guestCheckClick(){
+    if(!GUEST_CHECK_ENABLED) return;
     if(!Object.keys(cart).length){ toast('Add items first'); return; }
     clearTimeout(_saveTimer); let g=0; while(_saving && g++<60){ await new Promise(r=>setTimeout(r,40)); }
     if(!currentOrder){ await autosaveTicket(); }
@@ -1050,7 +1056,7 @@ function lfPoll(fn, ms){
         await autosaveTicket();   // flush any just-added items onto the order before charging
         // Dine-in: payment is only taken after the guest check has been printed for the customer.
         // Take Away is charged at the counter, so it skips the guest-check gate.
-        if(orderType!=='Take Away'){
+        if(GUEST_CHECK_ENABLED && orderType!=='Take Away'){
           const flags=await getOrderFlags(currentOrder);
           if(!flags.check_printed){ toast('Print the guest check first — tap “Print guest check”'); return; }
         }
@@ -1597,6 +1603,7 @@ function lfPoll(fn, ms){
 
   // Guest check (pre-bill) print
   async function printGuestCheck(name,updated){ try{
+    if(!GUEST_CHECK_ENABLED) return;
     const banner=updated?'<div style="text-align:center;font-weight:700;border:2px solid #000;padding:5px;margin:0 0 8px;font-family:monospace;">UPDATED — REPLACES PREVIOUS BILL</div>':'';
     await printWithFormat(name,'guest_check',async()=>{ const r=await _post('/api/method/luuvcrm.api.get_guest_check_data',{order_name:name}); if(!r) return; const d=await r.json(); const x=d.message||{};
       const items=sectionRows(x.items||[],i=>`<tr><td>${i.qty}× ${i.takeaway?'(takeaway) ':''}${i.item_name||i.item}</td><td class="r">${((i.rate||0)*(i.qty||0)).toLocaleString()}</td></tr>`);
@@ -2483,6 +2490,7 @@ function lfPoll(fn, ms){
     };
 
     printGuestCheck = async function(name,updated){
+      if(!GUEST_CHECK_ENABLED) return;
       if(legacy('guest_check')) return _printGuestCheck(name,updated);
       var r=await _post('/api/method/luuvcrm.api.get_guest_check_data',{order_name:name});
       if(!r){ toast('Guest check failed — no connection'); return; }
