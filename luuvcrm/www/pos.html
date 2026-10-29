@@ -661,7 +661,7 @@ function lfPoll(fn, ms){
   document.querySelectorAll('.catp[data-cat]').forEach(p=>{ if(p.dataset.cat!=='__all__'){ const e=p.querySelector('.cemoji'); if(e) e.textContent=emojiFor(p.dataset.cat); } });
 
   async function _api(url,opts){ opts=opts||{}; opts.headers=opts.headers||{}; opts.headers['X-Frappe-CSRF-Token']=CSRF; opts.credentials='include';
-    try{ const r=await fetch(url,opts); if(r.status===403||r.status===401){ location.href='/login?redirect-to=/pos'; return null;} return r;}catch(e){ return null; } }
+    try{ const r=await fetch(url,opts); if(r.status===401){ location.href='/login?redirect-to=/pos'; return null;} return r;}catch(e){ return null; } }
   async function _post(url,data){ const fd=new URLSearchParams(); fd.set('csrf_token',CSRF); for(const[k,v] of Object.entries(data)) fd.set(k,v); return _api(url,{method:'POST',body:fd}); }
 
   // ── nav: switch SPA screens ──
@@ -1680,7 +1680,7 @@ function lfPoll(fn, ms){
   async function openShift(){ const prof=document.getElementById('openProfile').value;
     const details=[...document.querySelectorAll('.opening-amt')].map(i=>({mode_of_payment:i.dataset.mode,opening_amount:parseFloat(i.value)||0}));
     const btn=document.getElementById('openBtn'); btn.disabled=true; mErr('openErr','');
-    try{ const res=await _post('/api/method/luuvcrm.api.pos_open_shift',{pos_profile:prof,balance_details:JSON.stringify(details)}); if(!res){ btn.disabled=false; return; } const d=await res.json();
+    try{ const res=await _post('/api/method/luuvcrm.api.pos_open_shift',{pos_profile:prof,balance_details:JSON.stringify(details)}); if(!res){ mErr('openErr','Could not connect. Refresh the page and try again.'); btn.disabled=false; return; } const d=await res.json();
       if(res.ok && d.message && d.message.shift){ toast('Shift opened'); hide('shiftOpenModal'); await loadShift(); loadOpenOrders(); } else mErr('openErr', _smsg(d,'could not open shift'));
     }catch(e){ mErr('openErr','Connection error'); } btn.disabled=false; }
   async function openCloseModal(){ const s=await loadShift(); if(!s){ toast('No open shift'); return; }
@@ -1688,7 +1688,7 @@ function lfPoll(fn, ms){
     document.getElementById('closeModes').innerHTML=renderCloseRecon(s); mErr('closeErr',''); show('shiftCloseModal'); }
   async function closeShift(){ const details=[...document.querySelectorAll('.closing-amt')].map(i=>({mode_of_payment:i.dataset.mode,closing_amount:parseFloat(i.value)||0}));
     const btn=document.getElementById('closeBtn'); btn.disabled=true; mErr('closeErr','');
-    try{ const res=await _post('/api/method/luuvcrm.api.pos_close_shift',{closing_details:JSON.stringify(details)}); if(!res){ btn.disabled=false; return; } const d=await res.json();
+    try{ const res=await _post('/api/method/luuvcrm.api.pos_close_shift',{closing_details:JSON.stringify(details)}); if(!res){ mErr('closeErr','Could not connect. Refresh the page and try again.'); btn.disabled=false; return; } const d=await res.json();
       if(res.ok && d.message && d.message.shift){ const z=d.message.shift; hide('shiftCloseModal'); toast('Shift closed — '+(z.order_count||0)+' orders, '+fmt(z.total_sales||0)); if(z.consolidated===false){ toast('Shift closed, but daily invoice consolidation is pending — a manager can retry it.'); }
         // The shift is already closed server-side at this point: a Z-report
         // print problem must not leave the dialog hanging with a closed shift.
