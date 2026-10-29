@@ -90,8 +90,14 @@ def get_receipt_print_data(order_name):
 
     invoice_name = doc.pos_invoice or ""
     payment_mode = ""
+    tendered = 0
+    change = 0
     if invoice_name:
         inv = _get_invoice_doc(invoice_name)
+        # Read the recorded cash exchange, including when reprinting a bill.
+        # Payment rows contain the bill amount, not the cash handed over.
+        tendered = inv.get("custom_tendered_amount") or 0
+        change = inv.get("custom_change_returned") or 0
         if inv.payments:
             payment_mode = inv.payments[0].mode_of_payment
 
@@ -105,6 +111,8 @@ def get_receipt_print_data(order_name):
         "service_charge_rate": doc.service_charge_rate or 0,
         "service_charge_amount": doc.service_charge_amount or 0,
         "payment_mode": payment_mode,
+        "tendered": tendered,
+        "change": change,
         "items": items,
         "creation": str(doc.creation),
     }
