@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 import json
 from frappe.utils import now_datetime
-from luuvcrm import roles
+from luuvcrm import branch, roles
 
 from luuvcrm.api.schema import _install_pos_approval
 from luuvcrm.api.shifts import _open_shift_name, _resolve_pos_profile_name
@@ -277,7 +277,8 @@ def get_expenses():
     roles.require_expenses()
     if not frappe.db.exists("DocType", "Expense"):
         return {"expenses": [], "approved_today": 0, "pending_amt": 0, "week": 0}
-    rows = frappe.get_list("Expense", fields=["name"], order_by="requested_at desc",
+    rows = frappe.get_list("Expense", filters={branch.FIELD: branch.viewing()},
+                          fields=["name"], order_by="requested_at desc",
                           limit_page_length=60)
     expenses = [_expense_dict(r.name) for r in rows]
     today = frappe.utils.today()

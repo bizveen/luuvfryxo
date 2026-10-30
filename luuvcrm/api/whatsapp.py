@@ -237,6 +237,9 @@ def process_wa_reply(doc, method):
                     "⚠️ We couldn't match this order to your number. Please confirm "
                     "from the phone that placed the order.")
                 return
+            from luuvcrm.api.inventory import consume_order_stock
+
+            consume_order_stock(oname)
             frappe.db.set_value("POS Order", oname,
                                 {"whatsapp_status": "Confirmed", "kitchen_status": "Pending"})
             frappe.db.commit()

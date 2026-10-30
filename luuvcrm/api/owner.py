@@ -202,16 +202,18 @@ def update_branch(restaurant=None, cost_center=None, warehouse=None):
 def get_branch_choice():
     """Which branch this person is looking at, and whether they may change it.
 
-    A manager is pinned by their User Permission and gets no picker — their
-    branch is not a preference. An owner has no permission by definition, so
-    with two restaurants somebody has to say which one is on screen.
+    Single-branch staff are pinned and get no picker. Owners, Administrator and
+    staff explicitly permitted for several branches can switch among the
+    restaurants they are allowed to operate.
     """
-    roles.require_manager()
+    if not roles.has_any(roles.KITCHEN_ROLES | roles.PURCHASE_ROLES):
+        frappe.throw("You are not permitted to use an operational app",
+                     frappe.PermissionError)
     return {
         "viewing": branch.viewing(),
         "chosen": branch.selected(),
         "can_choose": branch.can_choose(),
-        "restaurants": branch.all_restaurants(),
+        "restaurants": branch.available_restaurants(),
     }
 
 
@@ -219,11 +221,12 @@ def get_branch_choice():
 def set_branch_choice(restaurant=None):
     """Choose the branch to look at, or clear it with a blank.
 
-    Screens only. A row is still stamped with `branch.current()`, which refuses
-    to guess — so choosing a branch changes what you *see*, never whose books a
-    sale lands in.
+    This is the shared operational choice: it scopes the five staff apps and
+    their reports, and `branch.current()` stamps new rows with the same branch.
     """
-    roles.require_manager()
+    if not roles.has_any(roles.KITCHEN_ROLES | roles.PURCHASE_ROLES):
+        frappe.throw("You are not permitted to use an operational app",
+                     frappe.PermissionError)
     chosen = branch.select(restaurant)
 
     activity.log_activity(

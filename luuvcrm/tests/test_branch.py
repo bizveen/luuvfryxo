@@ -683,13 +683,18 @@ class TestTheReportsAreBranchAware(BranchTestCase):
         self.assertEqual(branch.sql_restaurant("pb"), ("", ()))
         self.assertEqual(branch.invoice_filters(), {})
 
-    def test_nor_is_an_owner_scoped_once_there_are_two(self):
-        _restaurant(self, "Branch-REP")
+    def test_an_owner_is_scoped_to_the_branch_chosen_in_the_app_header(self):
+        other = _restaurant(self, "Branch-REP")
+        centre = _cost_centre(self, "CC-OWNER-REP")
+        frappe.db.set_value("Restaurant", other, "cost_center", centre)
         owner = _user(self, "rep-owner", roles.RESTAURANT_OWNER)
         branch.unassign(owner)
+        branch.select(other, owner)
+        self.addCleanup(branch.select, "", owner)
         self.as_user(owner)
-        self.assertEqual(branch.sql_cost_center(), ("", ()))
-        self.assertEqual(branch.invoice_filters(), {})
+        self.assertEqual(branch.sql_restaurant("pb")[1], (other,))
+        self.assertEqual(branch.sql_cost_center()[1], (centre,))
+        self.assertEqual(branch.invoice_filters(), {"cost_center": centre})
 
     def test_a_restricted_manager_is_scoped_by_their_cost_centre(self):
         other = _restaurant(self, "Branch-REP2")
@@ -805,10 +810,12 @@ class TestSalesVsCostsStaysInItsBranch(BranchTestCase):
         r = api.get_food_cost_report(**self.WINDOW)
         self.assertEqual((r["purchases"], r["wastage"], r["overhead"]), (700, 40, 200))
 
-    def test_the_owner_reads_both(self):
+    def test_the_owner_reads_the_branch_selected_in_the_app_header(self):
+        branch.select(self.b, self.owner)
+        self.addCleanup(branch.select, "", self.owner)
         self.as_user(self.owner)
         r = api.get_food_cost_report(**self.WINDOW)
-        self.assertEqual((r["purchases"], r["wastage"], r["overhead"]), (1000, 50, 250))
+        self.assertEqual((r["purchases"], r["wastage"], r["overhead"]), (300, 10, 50))
 
 
 class TestWhichBranchAScreenShows(BranchTestCase):

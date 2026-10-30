@@ -20,3 +20,4 @@ luuvcrm.patches.v1_0.add_pnl_expense_categories
 luuvcrm.patches.v1_0.grant_tour_company_permissions
 luuvcrm.patches.v1_0.add_tour_company_invoice_fields
 luuvcrm.patches.v1_0.add_packaging_expense_category
+luuvcrm.patches.v1_0.add_bom_inventory_fields

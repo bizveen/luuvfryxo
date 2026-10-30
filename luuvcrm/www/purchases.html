@@ -117,7 +117,12 @@ input,button{font-family:inherit;}
       <div id="apprList"></div>
     </div>
     <div id="tabPrices" style="display:none;">
-      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="book-open" style="width:16px;height:16px;color:var(--color-primary);"></i> Current purchasing price per item. Updates when a bill is approved.</div>
+      <div style="display:flex;align-items:flex-start;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.45;"><i data-lucide="boxes" style="width:16px;height:16px;color:var(--color-primary);flex:none;margin-top:1px;"></i><span>Buying prices and BOM recipes in one place. Tap an item to edit its recipe; use the pencil to fix its name or unit.</span></div>
+      <div style="position:relative;margin-bottom:9px;">
+        <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-faint);pointer-events:none;"></i>
+        <input id="recipeSearch" type="text" placeholder="Search item, category or BOM" oninput="renderRecipeItems()" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:10px 14px 10px 36px;font-size:13.5px;color:var(--text-strong);">
+      </div>
+      <div id="itemBookSummary" style="font-size:11.5px;color:var(--text-faint);margin:0 3px 11px;"></div>
       <div id="priceList" style="display:flex;flex-direction:column;gap:9px;"></div>
     </div>
   </div>
@@ -133,7 +138,7 @@ input,button{font-family:inherit;}
     <button class="navb" data-tab="due" onclick="setTab('due')"><span style="position:relative;display:inline-flex;"><i data-lucide="alarm-clock"></i><span id="dueBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-danger);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Due</span></button>
     <button class="navb" data-tab="appr" onclick="setTab('appr')"><span style="position:relative;display:inline-flex;"><i data-lucide="stamp"></i><span id="apprBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-primary);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Approve</span></button>
     <button class="navb" data-tab="expenses" onclick="setTab('expenses')"><span style="position:relative;display:inline-flex;"><i data-lucide="zap"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Expenses</span></button>
-    <button class="navb" data-tab="prices" onclick="setTab('prices')"><span style="position:relative;display:inline-flex;"><i data-lucide="book-open"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Price book</span></button>
+    <button class="navb" data-tab="prices" onclick="setTab('prices')"><span style="position:relative;display:inline-flex;"><i data-lucide="boxes"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Items</span></button>
   </div>
 </div></div>
 
@@ -211,6 +216,39 @@ input,button{font-family:inherit;}
   </div>
 </div>
 
+<!-- BOM editor — available here as well as Admin so purchasing can maintain recipes -->
+<div id="recipeOverlay" style="position:fixed;inset:0;z-index:72;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeRecipe()">
+  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
+    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <div style="flex:1;min-width:0;">
+        <div id="recipeTitle" style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Recipe</div>
+        <div id="recipeMeta" style="font-size:12.5px;color:var(--text-muted);margin-top:2px;"></div>
+      </div>
+      <span class="badge warning" id="recipeBomBadge">No BOM</span>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted);margin:14px 0;line-height:1.5;">Ingredients needed for one unit. Prepared items and raw materials can be used together.</div>
+    <div id="recipeLines" style="display:flex;flex-direction:column;gap:9px;"></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:8px;margin-top:12px;">
+      <div><div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:5px;">Ingredient</div><select id="recipeIngredient" class="inp"></select></div>
+      <div><div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:5px;">Qty</div><input id="recipeIngredientQty" class="inp" inputmode="decimal" placeholder="0.000"></div>
+    </div>
+    <button onclick="addRecipeIngredient()" style="width:100%;margin-top:9px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:13.5px;font-weight:700;">+ Add ingredient</button>
+    <div id="recipeErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:11px;"></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button onclick="closeRecipe()" style="flex:none;padding:0 20px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;">Cancel</button>
+      <div style="flex:1;"><button class="lf-btn" id="recipeSaveBtn" onclick="savePurchaseRecipe()">Save BOM</button></div>
+    </div>
+    <div id="recipeBatch" style="display:none;margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;"><div style="font-family:var(--font-display);font-size:14px;font-weight:800;color:var(--text-strong);">Prepare stock batch</div><span class="badge success" id="recipeBalance">In stock: 0</span></div>
+      <div style="display:flex;gap:9px;align-items:end;">
+        <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:5px;">Quantity prepared</div><input id="recipeBatchQty" class="inp" inputmode="decimal" placeholder="0.000"></div>
+        <button id="recipeBatchBtn" onclick="preparePurchaseBatch()" style="height:47px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:0 17px;cursor:pointer;font-family:var(--font-display);font-size:13px;font-weight:700;">Prepare</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Bill / expense detail — opened by tapping any card in the Bills, Expenses, Due or search lists -->
 <div id="detOverlay" style="position:fixed;inset:0;z-index:75;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeDetail()">
   <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:88vh;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 24px;display:flex;flex-direction:column;animation:peSheet var(--duration-base) var(--ease-spring);">
@@ -246,7 +284,7 @@ function lfPoll(fn, ms){
 }
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   const CAN_EDIT={{ "true" if can_edit_bills else "false" }};
-  let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='', priceItems=[];
+  let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='', priceItems=[], recipeItems=[], ACTIVE_RECIPE=null;
   let expStats={}, billStats={}, expCats=[];
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
@@ -392,10 +430,24 @@ function lfPoll(fn, ms){
       else { toast(srvMsg(d,'Could not update')); if(btn){ btn.disabled=false; btn.innerHTML='<i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid'; icons(); } }
     }catch(e){ toast('Connection error'); if(btn){ btn.disabled=false; btn.innerHTML='<i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid'; icons(); } } }
 
-  async function loadPriceBook(){ try{ const r=await _post('/api/method/luuvcrm.api.get_price_book',{}); if(!r) return; const d=await r.json(); const items=(d.message&&d.message.items)||[]; priceItems=items;
-    document.getElementById('priceList').innerHTML=items.length?items.map((p,ix)=>`<div onclick="openRename(${ix})" title="Tap to fix the name" style="display:flex;align-items:center;gap:12px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow-xs);cursor:pointer;-webkit-tap-highlight-color:transparent;"><span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(p.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(p.name)}</div><div style="font-size:12px;color:var(--text-muted);">per ${esc(p.unit)}</div></div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt(p.price)}</div><button onclick="event.stopPropagation();openRename(${ix})" title="Edit name / unit" style="flex:none;width:34px;height:34px;border:1px solid var(--border-subtle);background:var(--surface-card);color:var(--text-muted);border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="pencil" style="width:15px;height:15px;"></i></button></div>`).join(''):'<div style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">No purchase items yet.</div>';
-    icons();
-  }catch(e){} }
+  async function loadPriceBook(){
+    const box=document.getElementById('priceList');
+    box.innerHTML='<div style="color:var(--text-faint);text-align:center;padding:35px;font-size:14px;">Loading items…</div>';
+    try{
+      const [priceRes,recipeRes]=await Promise.all([
+        _post('/api/method/luuvcrm.api.get_price_book',{}),
+        _post('/api/method/luuvcrm.api.get_purchase_recipe_items',{})
+      ]);
+      if(!priceRes||!recipeRes) return;
+      const [priceData,recipeData]=await Promise.all([priceRes.json(),recipeRes.json()]);
+      if(!priceRes.ok||!recipeRes.ok){ box.innerHTML=`<div style="color:var(--color-danger);text-align:center;padding:35px;font-size:13px;">${esc(srvMsg(!priceRes.ok?priceData:recipeData,'Could not load items'))}</div>`; return; }
+      priceItems=(priceData.message&&priceData.message.items)||[];
+      recipeItems=(recipeData.message&&recipeData.message.items)||[];
+      const known=new Set(recipeItems.map(i=>i.item));
+      priceItems.forEach(p=>{ if(!known.has(p.item)) recipeItems.push({item:p.item,name:p.name,uom:p.unit,group:p.group||'',is_stock_item:1,bom:''}); });
+      renderRecipeItems();
+    }catch(e){ box.innerHTML='<div style="color:var(--color-danger);text-align:center;padding:35px;font-size:13px;">Connection error</div>'; }
+  }
   // ── Fix a purchase item's name/unit (typo) — display only; price and existing bills untouched ──
   const RENAME_UNITS=['Nos','Kg','g','L','ml','Pkt','Box','Dozen'];
   function openRename(ix){ const p=priceItems[ix]; if(!p) return;
@@ -419,6 +471,96 @@ function lfPoll(fn, ms){
       if(r.ok && d.message && d.message.ok){ closeRename(); toast('Item updated ✏️'); await loadCatalog(); loadPriceBook(); }
       else{ errMsg.textContent=(d.message&&d.message.message)||srvMsg(d,'could not update'); err.style.display='flex'; btn.disabled=false; }
     }catch(e){ errMsg.textContent='Connection error'; err.style.display='flex'; btn.disabled=false; } }
+
+  // ── BOM editor ──
+  // Purchasers already maintain the stock catalogue and its prices here. The
+  // same item list now opens the native BOM instead of sending them to Desk or
+  // making a manager repeat the recipe in /admin.
+  function renderRecipeItems(){
+    const q=(document.getElementById('recipeSearch').value||'').trim().toLowerCase();
+    const prices=new Map(priceItems.map((p,ix)=>[p.item,{p,ix}]));
+    const rows=recipeItems.map((p,ix)=>({p,ix,price:prices.get(p.item)}))
+      .filter(x=>!q||[x.p.name,x.p.item,x.p.group,x.p.bom,x.price?'price':''].join(' ').toLowerCase().includes(q))
+      .sort((a,b)=>Number(Boolean(b.price))-Number(Boolean(a.price))||Number(Boolean(b.p.bom))-Number(Boolean(a.p.bom))||(a.p.name||'').localeCompare(b.p.name||''));
+    const bomCount=recipeItems.filter(p=>p.bom).length;
+    document.getElementById('itemBookSummary').textContent=`${priceItems.length} buying price${priceItems.length===1?'':'s'} · ${bomCount} BOM${bomCount===1?'':'s'}${q?' · '+rows.length+' shown':''}`;
+    document.getElementById('priceList').innerHTML=rows.length?rows.map(x=>{ const p=x.p, priced=x.price&&x.price.p;
+      const raw=(p.group||'').toLowerCase()==='raw materials';
+      const kind=raw?'<span class="badge">ingredient</span>':(p.is_stock_item?'<span class="badge success">stock</span>':'<span class="badge warning">dish</span>');
+      const state=p.bom?'<span class="badge success">BOM ready</span>':'<span class="badge warning">No BOM</span>';
+      const price=priced?`<div class="mono" style="font-size:15px;color:var(--text-strong);white-space:nowrap;">Rs ${nfmt(priced.price)}</div>`:'<div style="font-size:11.5px;color:var(--text-faint);white-space:nowrap;">No price</div>';
+      const edit=priced?`<button onclick="event.stopPropagation();openRename(${x.price.ix})" title="Edit name / unit" aria-label="Edit ${esc(p.name)}" style="flex:none;width:34px;height:34px;border:1px solid var(--border-subtle);background:var(--surface-card);color:var(--text-muted);border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="pencil" style="width:15px;height:15px;"></i></button>`:'<i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);flex:none;"></i>';
+      return `<div onclick="openPurchaseRecipe(${x.ix})" title="Open BOM recipe" style="display:flex;align-items:center;gap:11px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 13px;box-shadow:var(--shadow-xs);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(p.name)}</span>
+        <div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(p.name)}</div><div style="font-size:11.5px;color:var(--text-muted);margin-top:1px;">${esc(p.group||'Item')} · per ${esc(p.uom||'unit')}</div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;">${kind}${state}</div></div>
+        <div style="display:flex;align-items:center;gap:7px;">${price}${edit}</div></div>`;
+    }).join(''):`<div style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">${q?'No item matches.':'No items available.'}</div>`;
+    icons();
+  }
+  async function openPurchaseRecipe(ix){
+    const picked=recipeItems[ix]; if(!picked) return;
+    document.getElementById('recipeOverlay').style.display='flex';
+    document.getElementById('recipeTitle').textContent=picked.name||picked.item;
+    document.getElementById('recipeMeta').textContent='Loading BOM…';
+    document.getElementById('recipeLines').innerHTML='<div style="color:var(--text-faint);padding:18px 0;">Loading ingredients…</div>';
+    document.getElementById('recipeErr').style.display='none'; ACTIVE_RECIPE=null;
+    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_recipe',{item_code:picked.item}); if(!r) return;
+      const d=await r.json();
+      if(!r.ok){ showRecipeErr(srvMsg(d,'Could not load BOM')); return; }
+      ACTIVE_RECIPE=d.message; renderPurchaseRecipe();
+    }catch(e){ showRecipeErr('Connection error'); }
+  }
+  function closeRecipe(){ document.getElementById('recipeOverlay').style.display='none'; ACTIVE_RECIPE=null; }
+  function showRecipeErr(msg){ const e=document.getElementById('recipeErr'); e.textContent=msg; e.style.display='block'; }
+  function renderPurchaseRecipe(){
+    const r=ACTIVE_RECIPE; if(!r) return;
+    document.getElementById('recipeTitle').textContent=r.name||r.item;
+    document.getElementById('recipeMeta').textContent=(r.group||'Item')+' · per 1 '+(r.uom||'unit');
+    const badge=document.getElementById('recipeBomBadge'); badge.textContent=r.bom||'No BOM'; badge.className='badge '+(r.bom?'success':'warning');
+    document.getElementById('recipeIngredient').innerHTML='<option value="">Pick ingredient</option>'+r.catalog.map(i=>`<option value="${esc(i.item)}">${esc(i.name)} · ${esc(i.uom)}</option>`).join('');
+    document.getElementById('recipeLines').innerHTML=r.ingredients.length?r.ingredients.map((i,n)=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) 82px 34px;gap:7px;align-items:center;background:var(--surface-sunken);border-radius:var(--radius-md);padding:9px;">
+      <div style="min-width:0;"><div style="font-size:13.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(i.name||i.item)}</div><div style="font-size:11.5px;color:var(--text-muted);">${esc(i.uom||'')}</div></div>
+      <input class="inp" value="${esc(String(i.qty))}" inputmode="decimal" aria-label="Quantity for ${esc(i.name||i.item)}" oninput="ACTIVE_RECIPE.ingredients[${n}].qty=parseFloat(this.value)||0" style="padding:9px;">
+      <button onclick="removeRecipeIngredient(${n})" aria-label="Remove" style="width:34px;height:34px;border:1px solid var(--border-subtle);background:#fff;color:var(--color-danger);border-radius:9px;cursor:pointer;font-size:18px;">×</button></div>`).join(''):'<div style="color:var(--text-faint);text-align:center;padding:18px 6px;font-size:13px;">No BOM yet. Add the ingredients required for one unit.</div>';
+    const batch=document.getElementById('recipeBatch'); batch.style.display=r.is_stock_item?'block':'none';
+    if(r.is_stock_item){ document.getElementById('recipeBalance').textContent='In stock: '+Number(r.balance||0).toLocaleString('en-US',{maximumFractionDigits:3})+' '+(r.uom||''); document.getElementById('recipeBatchBtn').disabled=!r.bom; }
+    document.getElementById('recipeErr').style.display='none'; icons();
+  }
+  function addRecipeIngredient(){
+    if(!ACTIVE_RECIPE) return;
+    const code=document.getElementById('recipeIngredient').value;
+    const qty=parseFloat(document.getElementById('recipeIngredientQty').value)||0;
+    if(!code||qty<=0){ showRecipeErr('Pick an ingredient and enter a quantity above zero'); return; }
+    const cat=ACTIVE_RECIPE.catalog.find(i=>i.item===code), old=ACTIVE_RECIPE.ingredients.find(i=>i.item===code);
+    if(old) old.qty=(parseFloat(old.qty)||0)+qty;
+    else ACTIVE_RECIPE.ingredients.push({item:code,name:(cat&&cat.name)||code,uom:(cat&&cat.uom)||'',qty:qty});
+    document.getElementById('recipeIngredientQty').value=''; renderPurchaseRecipe();
+  }
+  function removeRecipeIngredient(n){ if(ACTIVE_RECIPE){ ACTIVE_RECIPE.ingredients.splice(n,1); renderPurchaseRecipe(); } }
+  async function savePurchaseRecipe(){
+    const r=ACTIVE_RECIPE; if(!r) return;
+    if(!r.ingredients.length){ showRecipeErr('Add at least one ingredient'); return; }
+    if(r.ingredients.some(i=>!(parseFloat(i.qty)>0))){ showRecipeErr('Every ingredient needs a quantity above zero'); return; }
+    const btn=document.getElementById('recipeSaveBtn'); btn.disabled=true;
+    try{ const res=await _post('/api/method/luuvcrm.api.save_purchase_recipe',{item_code:r.item,ingredients:JSON.stringify(r.ingredients.map(i=>({item:i.item,qty:parseFloat(i.qty)})))}); if(!res){ btn.disabled=false; return; }
+      const d=await res.json();
+      if(res.ok&&d.message){ ACTIVE_RECIPE=d.message; const row=recipeItems.find(i=>i.item===ACTIVE_RECIPE.item); if(row) row.bom=ACTIVE_RECIPE.bom; renderPurchaseRecipe(); renderRecipeItems(); toast('BOM saved ✓'); }
+      else showRecipeErr(srvMsg(d,'Could not save BOM'));
+    }catch(e){ showRecipeErr('Connection error'); }
+    btn.disabled=false;
+  }
+  async function preparePurchaseBatch(){
+    const r=ACTIVE_RECIPE; if(!r||!r.is_stock_item||!r.bom) return;
+    const qty=parseFloat(document.getElementById('recipeBatchQty').value)||0;
+    if(qty<=0){ showRecipeErr('Enter the quantity prepared'); return; }
+    const btn=document.getElementById('recipeBatchBtn'); btn.disabled=true;
+    try{ const res=await _post('/api/method/luuvcrm.api.prepare_item_batch',{item_code:r.item,qty:qty}); if(!res){ btn.disabled=false; return; }
+      const d=await res.json();
+      if(res.ok&&d.message){ ACTIVE_RECIPE=Object.assign({},r,d.message,{is_stock_item:1,group:r.group}); document.getElementById('recipeBatchQty').value=''; renderPurchaseRecipe(); toast(qty+' '+(r.uom||'')+' prepared · stock updated'); }
+      else showRecipeErr(srvMsg(d,'Could not prepare batch'));
+    }catch(e){ showRecipeErr('Connection error'); }
+    btn.disabled=false;
+  }
 
 
   // ── Add bill ──
@@ -851,6 +993,7 @@ function lfPoll(fn, ms){
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
 </script>
 {% include "templates/includes/bill_edit.html" %}
+{% include "templates/includes/branch_switcher.html" %}
 {% include "templates/includes/app_switch.html" %}
 </body>
 </html>

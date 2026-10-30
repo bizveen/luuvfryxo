@@ -142,6 +142,9 @@ def sync_offline_orders():
             pos_order.flags.ignore_links = True
             pos_order.insert()
             _apply_takeaway_service_charge(pos_order)
+            from luuvcrm.api.inventory import consume_order_stock
+
+            consume_order_stock(pos_order.name)
 
             _link_invoice_to_order(invoice.name, pos_order.name)
 

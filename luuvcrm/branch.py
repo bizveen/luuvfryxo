@@ -65,16 +65,13 @@ def current(user=None):
        "which branch is this user's", and it is what will drive the filtering
        when the reads flip to `get_list` — so it must also drive the default,
        or a row would be written into a branch its author cannot then read.
-    2. **The open shift's POS Profile**, through its company. A cashier on a
+    2. **The branch explicitly chosen in the operational app switcher.** This
+       applies to Owners/Administrator and staff permitted for several branches;
+       it keeps every app, report and new row on the same restaurant.
+    3. **The open shift's POS Profile**, through its company. A cashier on a
        till is unambiguously at that till's branch.
-    3. **A POS Profile assigned to the user**, the same hop. Covers a manager
+    4. **A POS Profile assigned to the user**, the same hop. Covers a manager
        who is not on a shift.
-    4. **The branch the person has explicitly chosen** (`select()`, the
-       owner's picker). Only an owner or an admin ever gets this far — everyone
-       else is answered by 1–3 — and an owner who has said "I am working on
-       Kandy" and then enters a bill from their phone means Kandy. Without
-       this step that bill was written with no branch at all and stayed
-       visible to every branch (found the day after the 2026-09 deploy).
     5. **The only Restaurant, if there is exactly one.** Today's behaviour,
        preserved exactly, which is what makes this change safe to land before
        the second restaurant exists.
@@ -90,14 +87,18 @@ def current(user=None):
     if len(allowed) == 1:
         return allowed[0]
 
+    # Somebody who may work in more than one restaurant has made an explicit
+    # operational choice.  It must beat a stale/open till assignment: the five
+    # staff apps share this choice, and showing Kurunegala in the header while
+    # reading or writing Dambulla is worse than refusing to guess at all.
+    chosen = selected(user)
+    if chosen:
+        return chosen
+
     for profile in _profiles_for(user):
         restaurant = _restaurant_for_profile(profile)
         if restaurant and (not allowed or restaurant in allowed):
             return restaurant
-
-    chosen = selected(user)          # already checked to exist and be permitted
-    if chosen:
-        return chosen
 
     only = _the_only_restaurant()
     if only and (not allowed or only in allowed):
@@ -113,12 +114,10 @@ CHOSEN_KEY = "luuv_restaurant"
 
 
 def selected(user=None):
-    """The branch this person has explicitly chosen to look at, or None.
+    """The branch explicitly chosen in the shared operational app switcher.
 
-    Only ever consulted for somebody `current()` could not answer for — which
-    means an owner or an admin, because everyone else is pinned by a User
-    Permission or by the till they are standing at. A choice that no longer
-    exists, or that the person is not permitted, is ignored rather than obeyed.
+    A choice that no longer exists, is outside the person's permissions, or
+    belongs to unassigned non-owner staff is ignored rather than obeyed.
     """
     user = user or frappe.session.user
     chosen = frappe.defaults.get_user_default(CHOSEN_KEY, user)
@@ -127,15 +126,18 @@ def selected(user=None):
     allowed = _permitted_restaurants(user)
     if allowed and chosen not in allowed:
         return None
+    if not allowed and len(all_restaurants()) > 1:
+        from luuvcrm import roles
+        if not roles.is_owner(user):
+            return None
     return chosen
 
 
 def select(restaurant=None, user=None):
     """Choose which branch to look at. Blank clears it.
 
-    Refused for anyone a User Permission already answers for: their branch is
-    not a preference, and letting them "choose" another would show them a menu
-    they cannot write an order against.
+    A person with several User Permissions may choose among them. A person with
+    one is pinned to it; Owners and Administrator may choose any restaurant.
     """
     user = user or frappe.session.user
     restaurant = (restaurant or "").strip()
@@ -145,6 +147,11 @@ def select(restaurant=None, user=None):
         allowed = _permitted_restaurants(user)
         if allowed and restaurant not in allowed:
             frappe.throw(frappe._("You are not permitted that branch"))
+        if not allowed and len(all_restaurants()) > 1:
+            from luuvcrm import roles
+            if not roles.is_owner(user):
+                frappe.throw(frappe._("You are not assigned to a restaurant"),
+                             frappe.PermissionError)
         frappe.defaults.set_user_default(CHOSEN_KEY, restaurant, user)
     else:
         frappe.defaults.clear_user_default(CHOSEN_KEY, user)
@@ -166,8 +173,8 @@ def viewing(user=None):
       helps nobody, so after `current()` (which now includes the person's own
       choice) it falls back to the first branch by name.
 
-    The fallback is a display decision the owner asked for, and it is safe only
-    because it is confined here: nothing writes a row from it.
+    The fallback is display-only. An explicit switch is not a fallback: it also
+    drives `current()` so new operational rows land in the restaurant on screen.
     """
     here = current(user)
     if here:
@@ -183,12 +190,24 @@ def viewing(user=None):
 
 
 def can_choose(user=None):
-    """True when this person gets a branch picker: more than one restaurant, and
-    no User Permission pinning them to one of them."""
+    """True when this person may operate more than one restaurant."""
+    return len(available_restaurants(user)) > 1
+
+
+def available_restaurants(user=None):
+    """Restaurants offered by the operational app branch switcher.
+
+    A single User Permission pins staff to one branch.  Several permissions
+    mean the person may cover those branches; no permissions is the Owner /
+    Administrator shape and offers every branch.
+    """
     user = user or frappe.session.user
-    if len(all_restaurants()) < 2:
-        return False
-    return not _permitted_restaurants(user)
+    allowed = _permitted_restaurants(user)
+    names = all_restaurants()
+    if allowed:
+        return [name for name in names if name in allowed]
+    from luuvcrm import roles
+    return names if roles.is_owner(user) else []
 
 
 def _permitted_restaurants(user):
@@ -571,12 +590,23 @@ def require_access(doctype, name, user=None):
                      frappe.PermissionError)
     if not name or not frappe.db.exists(doctype, name):
         frappe.throw(_("Record not found"), frappe.DoesNotExistError)
-    restaurant = (frappe.db.get_value(doctype, name, FIELD)
-                  if frappe.db.has_column(doctype, FIELD) else None)
+    if doctype == "POS Profile":
+        restaurant = _restaurant_for_profile(name)
+    else:
+        restaurant = (frappe.db.get_value(doctype, name, FIELD)
+                      if frappe.db.has_column(doctype, FIELD) else None)
     allowed = _permitted_restaurants(user)
     if restaurant and allowed and restaurant not in allowed:
         # Do not reveal which other branch owns a guessed sequential name.
         frappe.throw(_("You are not permitted to access this record"),
+                     frappe.PermissionError)
+    # User Permissions protect pinned staff.  Owners and Administrator have no
+    # such permission, so their explicit app choice is the boundary instead.
+    # This also stops a stale card from another branch being acted on after the
+    # header switcher reloads the app.
+    active = viewing(user) if len(all_restaurants()) > 1 else None
+    if restaurant and active and restaurant != active:
+        frappe.throw(_("This record belongs to another restaurant"),
                      frappe.PermissionError)
     return restaurant
 
@@ -592,10 +622,14 @@ def accessible_pos_profiles(user=None):
     user = user or frappe.session.user
     profiles = frappe.get_all("POS Profile", pluck="name", order_by="name asc")
     allowed = _permitted_restaurants(user)
-    if not allowed:
-        return profiles
-    return [profile for profile in profiles
-            if _restaurant_for_profile(profile) in allowed]
+    active = viewing(user) if len(all_restaurants()) > 1 else None
+    if active:
+        return [profile for profile in profiles
+                if _restaurant_for_profile(profile) == active]
+    if allowed:
+        return [profile for profile in profiles
+                if _restaurant_for_profile(profile) in allowed]
+    return profiles
 
 
 def stamp(doc, method=None):
@@ -638,23 +672,23 @@ def stamp(doc, method=None):
 #     the whole reason a branch is a Cost Center: the money separates itself in
 #     ERPNext's own ledger, and a report only has to say which one it wants.
 #
-# Both helpers return nothing at all — no condition, no parameters — when the
-# session is unrestricted, when there is only one branch, or when the dimension
-# has not been configured yet. That last case matters: the live site's invoices
-# all have an empty cost centre today, so a filter that did not degrade would
-# turn every report to zero the day it shipped. `check()` reports the gap
-# instead, which is the honest way round.
+# Both helpers return nothing at all only when there is one branch, or when the
+# selected branch's accounting dimension has not been configured yet. Owners
+# and Administrator are deliberately scoped to their explicit app choice; the
+# separate Admin comparison endpoint is the one place that reads every branch.
+# A missing dimension still degrades rather than turning the report to zero;
+# `check()` reports that configuration gap.
 
 def _scoped_to():
-    """The single branch this session is restricted to, or None for no scoping.
+    """The branch the operational apps are currently showing.
 
-    None for an Owner (no User Permission), for Administrator, and while there
-    is only one branch to be restricted to.
+    Pinned staff resolve through their User Permission.  Multi-branch staff,
+    Owners and Administrator resolve through the shared explicit choice.  The
+    one-restaurant case stays unfiltered for backwards compatibility.
     """
     if len(all_restaurants()) < 2:
         return None
-    allowed = _permitted_restaurants(frappe.session.user)
-    return allowed[0] if len(allowed) == 1 else None
+    return viewing()
 
 
 def sql_restaurant(alias=""):

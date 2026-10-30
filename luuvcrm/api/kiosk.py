@@ -148,6 +148,10 @@ def kiosk_place_order():
         pos_order.db_set("scheduled_time", scheduled_dt)
     if wa_confirm:
         pos_order.db_set("whatsapp_status", "Awaiting Confirmation")
+    else:
+        from luuvcrm.api.inventory import consume_order_stock
+
+        consume_order_stock(pos_order.name)
     frappe.db.commit()
 
     # single use: mark the promo code redeemed against this order

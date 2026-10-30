@@ -26,7 +26,11 @@ from luuvcrm.api.schema import (
     _ensure_item_notes_field,
     _install_sent_qty_field,
 )
-from luuvcrm.api.shifts import _append_service_charge_tax, _get_invoice_doc
+from luuvcrm.api.shifts import (
+    _active_open_shift_name,
+    _append_service_charge_tax,
+    _get_invoice_doc,
+)
 
 
 # ─── POS Profiles ────────────────────────────────────────
@@ -100,6 +104,7 @@ def get_tables_with_status():
             ["docstatus", "=", 0],
             ["kitchen_status", "!=", "Served"],
             ["pos_invoice", "is", "not set"],
+            [branch.FIELD, "=", branch.viewing()],
         ],
         fields=["restaurant_table", "name", "kitchen_status"],
         # Deterministic: a table with several open orders binds its tile to the
@@ -193,8 +198,12 @@ def send_to_kitchen():
         "items": [],
     })
 
-    opening_entry_name = frappe.db.get_value("POS Opening Entry",
-        {"status": "Open", "user": frappe.session.user}, "name")
+    try:
+        opening_entry_name = _active_open_shift_name()
+    except Exception:
+        # The shift link is optional on an order.  Branch stamping must remain
+        # the source of truth even if a broken till assignment cannot resolve.
+        opening_entry_name = None
     if opening_entry_name:
         pos_order.pos_opening_entry = opening_entry_name
 
@@ -224,6 +233,10 @@ def send_to_kitchen():
     if order_type:
         pos_order.db_set("order_type", order_type)
     _apply_takeaway_service_charge(pos_order)
+    if not is_draft:
+        from luuvcrm.api.inventory import consume_order_stock
+
+        consume_order_stock(pos_order.name)
 
     # NOTE: the customer WhatsApp confirmation is sent client-side via a wa.me click-to-chat link
     # (waiter's WhatsApp opens with the message pre-filled), NOT the backend Cloud API — this
@@ -334,8 +347,7 @@ def get_kiosk_orders():
 
 @frappe.whitelist()
 def get_completed_orders():
-    opening_name = frappe.db.get_value("POS Opening Entry",
-        {"status": "Open", "user": frappe.session.user}, "name")
+    opening_name = _active_open_shift_name()
 
     filters = {"docstatus": 1, "order_source": ["in", ["Walk-in", "Waiter"]],
                "restaurant": branch.viewing()}
@@ -426,7 +438,9 @@ def cancel_order():
 
 @frappe.whitelist()
 def get_all_changelogs():
-    visible_orders = frappe.get_list("POS Order", filters={"modified": [">=", frappe.utils.today()]},
+    visible_orders = frappe.get_list("POS Order", filters={
+                                         "modified": [">=", frappe.utils.today()],
+                                         branch.FIELD: branch.viewing()},
                                      pluck="name", limit_page_length=0)
     if not visible_orders:
         return {"logs": []}
@@ -509,6 +523,12 @@ def mark_kot_printed():
     branch.require_access("POS Order", order_name)
     if not frappe.db.has_column("POS Order Item", "sent_qty"):
         _install_sent_qty_field()
+    # Issue the BOM ingredients before acknowledging the KOT. If stock cannot
+    # move (for example, a configured ingredient is short), the transaction
+    # rolls back and the ticket remains unfired rather than silently drifting.
+    from luuvcrm.api.inventory import consume_order_stock
+
+    stock = consume_order_stock(order_name)
     doc = frappe.get_doc("POS Order", order_name)
     for i in (doc.get("items") or []):
         if int(i.get("sent_qty") or 0) != int(i.qty or 0):
@@ -516,7 +536,7 @@ def mark_kot_printed():
     # Firing the KOT promotes a draft to the kitchen queue.
     if doc.kitchen_status == "Draft":
         frappe.db.set_value("POS Order", order_name, "kitchen_status", "Pending")
-    return {"ok": True}
+    return {"ok": True, "stock": stock}
 @frappe.whitelist()
 def setup_kitchen_status_options():
     """Allow 'Draft' (auto-created, not yet fired) and 'Cancelled' as kitchen_status values via a
@@ -631,8 +651,10 @@ def get_table_orders():
     table = frappe.local.form_dict.get("table", "")
     if not table:
         return {"orders": []}
+    branch.require_access("Restaurant Table", table)
     orders = frappe.get_list("POS Order",
-        filters={"docstatus": 0, "restaurant_table": table},
+        filters={"docstatus": 0, "restaurant_table": table,
+                 branch.FIELD: branch.viewing()},
         fields=["name", "customer_name", "waiter_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "notes", "kitchen_status",
                 "pos_invoice", "discount_amount", "discount_note"],
@@ -652,7 +674,8 @@ def get_my_orders():
     tab: shows status, lets the waiter add more items (Add items) or mark served."""
     today = frappe.utils.today()
     orders = frappe.get_list("POS Order",
-        filters={"owner": frappe.session.user, "creation": [">=", today]},
+        filters={"owner": frappe.session.user, "creation": [">=", today],
+                 branch.FIELD: branch.viewing()},
         fields=["name", "restaurant_table", "kitchen_status", "grand_total", "creation",
                 "order_source", "notes", "pos_invoice"],
         order_by="creation desc"
@@ -722,6 +745,9 @@ def waiter_append_items():
     pos_order.flags.ignore_permissions = True
     pos_order.save()
     _apply_takeaway_service_charge(pos_order)
+    from luuvcrm.api.inventory import consume_order_stock
+
+    consume_order_stock(pos_order.name)
 
     activity.log_activity(
         "order.append", label="Added %d line(s) to the bill" % len(items),
@@ -824,10 +850,12 @@ def update_order():
     # (item, takeaway) group are joined, since the POS folds them into a single cart line.
     _ensure_item_notes_field()
     sent_map = {}
+    consumed_map = {}
     notes_map = {}
     for i in (pos_order.get("items") or []):
         key = (i.item, int(i.get("takeaway") or 0))
-        sent_map[key] = int(i.get("sent_qty") or 0)
+        sent_map[key] = sent_map.get(key, 0) + int(i.get("sent_qty") or 0)
+        consumed_map[key] = consumed_map.get(key, 0) + float(i.get("stock_consumed_qty") or 0)
         n = _clean_item_note(i.get("notes"))
         if n:
             parts = [p for p in notes_map.get(key, "").split("; ") if p]
@@ -846,10 +874,15 @@ def update_order():
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
         ta_flag = 1 if item_ta else 0
         line_note = _clean_item_note(item_data.get("notes")) or notes_map.get((item_code, ta_flag), "")
-        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate,
-                                   "takeaway": ta_flag,
-                                   "sent_qty": min(sent_map.get((item_code, ta_flag), 0), qty),
-                                   "notes": line_note})
+        row = {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate,
+               "takeaway": ta_flag,
+               "sent_qty": min(sent_map.get((item_code, ta_flag), 0), qty),
+               "notes": line_note}
+        if frappe.db.has_column("POS Order Item", "stock_consumed_qty"):
+            # May intentionally exceed the new qty after an after-KOT
+            # reduction: cooked food is not put back into raw-material stock.
+            row["stock_consumed_qty"] = consumed_map.get((item_code, ta_flag), 0)
+        pos_order.append("items", row)
         subtotal += rate * qty
         if not item_ta:
             sc_base += rate * qty

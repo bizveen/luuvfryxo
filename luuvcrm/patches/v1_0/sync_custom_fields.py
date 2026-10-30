@@ -1,6 +1,6 @@
 """Apply the declared custom fields to a site that already exists.
 
-`CUSTOM_FIELDS` in setup_doctype.py declares all 29 fields the code reads and
+`CUSTOM_FIELDS` in setup_doctype.py declares the fields the code reads and
 writes but no DocType JSON defines, and `after_install` applies them — which
 covers a new site and nothing else. On a site that is already running, the only
 thing that had ever created them was somebody calling the matching `setup_*`

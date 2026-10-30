@@ -795,6 +795,22 @@ class TestTheAdminPortal(PageTestCase):
         page that waits for one is a page that hangs when the line is bad."""
         self.assertNotIn("unpkg.com", self.page())
 
+    def test_the_table_toggle_stays_on_its_table_row(self):
+        """Seats/open chips share the name cell; otherwise the fifth grid
+        child pushes Turn off onto a second row on a phone."""
+        html = self.page()
+        self.assertIn('.li.table-row{grid-template-columns:minmax(0,1fr) auto}', html)
+        self.assertIn('<div class="li table-row"${off}>', html)
+        self.assertIn('<div class="tags">${seats}${open}</div>', html)
+
+    def test_purchases_has_the_same_bom_editor_as_admin(self):
+        """Purchasing staff should maintain recipes without opening Desk."""
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
+        self.assertIn('data-tab="recipes"', html)
+        self.assertIn("get_purchase_recipe_items", html)
+        self.assertIn("save_purchase_recipe", html)
+        self.assertIn("prepare_item_batch", html)
+
 
 class TestEveryStaffPageReportsItsErrors(PageTestCase):
     """`lferr.js` is what turns "the app is being weird" into a row somebody can

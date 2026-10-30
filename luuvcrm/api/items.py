@@ -150,7 +150,7 @@ def create_item(item_name=None, rate=None, group=None, is_stock_item=0, uom=None
 @frappe.whitelist(methods=["POST"])
 def update_item(item_code=None, item_name=None, rate=None, group=None,
                 kitchen_group=None, tags=None, guide_pct=None, description=None,
-                restaurant=None):
+                restaurant=None, is_stock_item=None, uom=None):
     """Edit the item itself. Works whether or not it is on a menu.
 
     `luuvcrm.api.menu.update_menu_item` is the menu-scoped editor and refuses an
@@ -199,6 +199,16 @@ def update_item(item_code=None, item_name=None, rate=None, group=None,
         frappe.db.set_value("Item", item_code, "guide_commission_percent", gp)
     if description is not None:
         frappe.db.set_value("Item", item_code, "description", str(description).strip()[:2000])
+    if is_stock_item is not None:
+        stock = str(is_stock_item).strip().lower() not in ("", "0", "false", "no")
+        doc = frappe.get_doc("Item", item_code)
+        if uom not in (None, ""):
+            if not frappe.db.exists("UOM", str(uom).strip()):
+                frappe.throw(_("Pick a valid unit"))
+            doc.stock_uom = str(uom).strip()
+        doc.is_stock_item = 1 if stock else 0
+        doc.flags.ignore_permissions = True
+        doc.save()
 
     after = float(_resolve_item_rate(item_code, 0, price_list) or 0)
     activity.log_activity(
@@ -206,7 +216,9 @@ def update_item(item_code=None, item_name=None, rate=None, group=None,
         ref_doctype="Item", ref_name=item_code, item=item_code,
         item_name=frappe.db.get_value("Item", item_code, "item_name") or item_code,
         amount=after - before, total_before=before, total_after=after,
-        detail={"renamed_to": item_name or None, "group": group or None})
+        detail={"renamed_to": item_name or None, "group": group or None,
+                "stock_item": None if is_stock_item is None else bool(stock),
+                "uom": uom or None})
     return {"ok": True, "code": item_code, "rate": after}
 
 

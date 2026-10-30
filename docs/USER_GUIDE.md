@@ -155,10 +155,27 @@ Bills waiting for approval, **one line at a time** — you see each item, its qu
 Non-stock costs: electricity, water, gas, rent, internet, salaries, repairs, transport, cleaning, licences. Pick the category, enter the amount, add a note. These feed the food-cost report.
 
 ### Prices
-The price book — what each ingredient last cost and from whom, so you can see when a supplier's price moves.
+The price book — what each ingredient last cost and from whom, so you can see when a supplier's price moves. When an ingredient is marked **Stock item — counted**, approving its bill also receives that quantity into the branch warehouse.
 
 ### Wastage
 Record spoiled or dropped stock with a reason. Uncomfortable, and worth it: wastage is invisible money, and food cost is wrong without it.
+
+### Ingredient stock and menu recipes
+
+This needs one setup pass before the first stock-controlled sale:
+
+1. In `/admin` → **Branches**, make sure the restaurant has a leaf Warehouse.
+2. In `/admin` → **Items**, open each ingredient, choose **Stock item — counted**, and set its stock unit (Kg, Litre, Nos, and so on).
+3. Enter the real opening quantity with ERPNext **Stock Reconciliation**. Old LuuvCRM purchase bills are history; enabling stock does not invent an opening balance from them.
+4. In `/admin` → **Menu**, open a dish. Under **Recipe (BOM)** add what one serving consumes and save the recipe.
+
+After that, approving a new purchase creates a native **Material Receipt**. Sending a menu item to the kitchen creates a native **Material Issue** from its default BOM. Adding more items consumes only the added quantity; printing or paying twice does not deduct twice. A made-to-order item with no recipe continues to sell without moving stock, which lets recipes be introduced gradually. A stock item sold directly, such as a bottled drink, deducts itself without a BOM.
+
+Food made ahead—naan, cooked chicken, sauces, dough, and similar prep—is also a stock item. Create it under `/admin` → **Items** as **Stock item — counted**, reopen it, and add its **Preparation recipe**. Enter the quantity the kitchen made and press **Prepare batch**: the recipe ingredients leave stock and the prepared item enters stock. A final menu BOM can mix prepared stock and raw ingredients; for example, naan roti biriyani can consume one prepared naan, prepared chicken, raw onion, and sauce. At sale time the prepared items themselves are deducted, not their raw materials a second time.
+
+The same add/update controls are under `/purchases` → **BOM** for the staff who maintain buying items. Search for either a prepared item or a final dish, open it, edit the ingredients, and save. Stock items with a saved BOM also show **Prepare stock batch** there.
+
+If ERPNext reports insufficient stock, correct the physical count or purchase receipt; do not enter a fake purchase just to clear the warning. Cancelling food after it has reached the kitchen does not put ingredients back—the food has already been consumed and should be handled as wastage.
 
 ---
 

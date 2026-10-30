@@ -219,9 +219,11 @@ def _pending_and_recent_approvals(action=None, include_recent=True):
               "action", "action_payload"]
     if frappe.db.has_column("POS Approval", "manager_comment"):
         fields.append("manager_comment")
-    pending_filters = {"status": "pending"}
+    active = branch.viewing()
+    pending_filters = {"status": "pending", branch.FIELD: active}
     recent_filters = [["status", "in", ["approved", "rejected"]],
-                      ["modified", ">=", frappe.utils.today()]]
+                      ["modified", ">=", frappe.utils.today()],
+                      [branch.FIELD, "=", active]]
     if action:
         pending_filters["action"] = action
         recent_filters.append(["action", "=", action])
@@ -558,7 +560,8 @@ def get_approval_days():
     """
     if not frappe.db.exists("DocType", "POS Approval"):
         return {"days": {}}
-    rows = frappe.get_list("POS Approval", filters={"status": "pending"},
+    rows = frappe.get_list("POS Approval", filters={"status": "pending",
+                                                     branch.FIELD: branch.viewing()},
                           fields=["name", "requested_at", "action", "action_payload"],
                           limit_page_length=200)
     days = {}
@@ -589,8 +592,9 @@ def get_approvals_digest():
     """
     if not frappe.db.exists("DocType", "POS Approval"):
         return {"pending": 0, "sig": "none"}
+    condition, params = branch.sql_restaurant()
     row = frappe.db.sql(
         """select count(case when status='pending' then 1 end), max(modified)
-           from `tabPOS Approval`""")[0]
+           from `tabPOS Approval` where 1=1""" + condition, params)[0]
     pending = int(row[0] or 0)
     return {"pending": pending, "sig": f"{row[1]}|{pending}"}

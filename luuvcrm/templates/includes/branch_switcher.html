@@ -1,0 +1,154 @@
+<style>
+  [data-active-restaurant].lf-branch-switchable {
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  [data-active-restaurant].lf-branch-switchable::after {
+    content: "▾";
+    display: inline-block;
+    margin-left: 6px;
+    font-size: .82em;
+    opacity: .78;
+  }
+  [data-active-restaurant].lf-branch-switchable:hover { opacity: .9; }
+  [data-active-restaurant].lf-branch-switchable:active { transform: scale(.98); }
+  [data-active-restaurant].lf-branch-switchable:focus-visible {
+    outline: 3px solid rgba(245, 158, 11, .35);
+    outline-offset: 2px;
+  }
+  .lf-branch-backdrop {
+    position: fixed; inset: 0; z-index: 2147483000;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding: 18px; background: rgba(15, 23, 42, .52);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  }
+  .lf-branch-sheet {
+    width: min(100%, 420px); max-height: min(72vh, 560px); overflow: auto;
+    box-sizing: border-box; border-radius: 22px; padding: 18px;
+    background: #fff; color: #172033;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .lf-branch-title { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+  .lf-branch-help { margin: 4px 0 14px; color: #64748b; font-size: 12.5px; line-height: 1.45; }
+  .lf-branch-list { display: grid; gap: 9px; }
+  .lf-branch-option {
+    width: 100%; min-height: 52px; display: flex; align-items: center; gap: 11px;
+    box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 14px;
+    padding: 11px 13px; background: #fff; color: #1e293b;
+    font: inherit; font-size: 14px; font-weight: 750; text-align: left; cursor: pointer;
+  }
+  .lf-branch-option:hover { border-color: #f59e0b; background: #fffaf0; }
+  .lf-branch-option[aria-current="true"] { border-color: #f59e0b; background: #fff7e6; color: #9a4d08; }
+  .lf-branch-option:disabled { opacity: .55; cursor: wait; }
+  .lf-branch-icon {
+    width: 34px; height: 34px; flex: none; display: grid; place-items: center;
+    border-radius: 10px; background: #fff0d5; font-size: 17px;
+  }
+  .lf-branch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .lf-branch-check { color: #d97706; font-size: 18px; }
+  .lf-branch-cancel {
+    width: 100%; margin-top: 11px; border: 0; padding: 10px; background: transparent;
+    color: #64748b; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  @media (min-width: 640px) {
+    .lf-branch-backdrop { align-items: center; }
+  }
+</style>
+<script>
+(() => {
+  const badges = [...document.querySelectorAll('[data-active-restaurant]')];
+  if (!badges.length) return;
+
+  const endpoint = '/api/method/luuvcrm.api.';
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  let choice = null;
+  let sheet = null;
+
+  const message = async (response) => {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?._server_messages || data?.exception || 'Could not switch restaurant');
+    return data.message || {};
+  };
+
+  async function loadChoice() {
+    const response = await fetch(endpoint + 'get_branch_choice', {
+      credentials: 'include', cache: 'no-store'
+    });
+    choice = await message(response);
+    if (!choice.can_choose || !Array.isArray(choice.restaurants) || choice.restaurants.length < 2) return;
+    badges.forEach((badge) => {
+      badge.classList.add('lf-branch-switchable');
+      badge.setAttribute('role', 'button');
+      badge.setAttribute('tabindex', '0');
+      badge.setAttribute('aria-label', 'Switch restaurant. Current: ' + (choice.viewing || 'none'));
+      badge.title = 'Switch restaurant';
+      badge.addEventListener('click', openSheet);
+      badge.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault(); openSheet();
+        }
+      });
+    });
+  }
+
+  function closeSheet() {
+    sheet?.remove();
+    sheet = null;
+  }
+
+  function openSheet() {
+    if (!choice?.can_choose || sheet) return;
+    sheet = document.createElement('div');
+    sheet.className = 'lf-branch-backdrop';
+    sheet.setAttribute('role', 'presentation');
+    const panel = document.createElement('div');
+    panel.className = 'lf-branch-sheet';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-label', 'Switch restaurant');
+    panel.innerHTML = '<div class="lf-branch-title">Switch restaurant</div>' +
+      '<div class="lf-branch-help">This app will reload with only the selected restaurant\'s data.</div>' +
+      '<div class="lf-branch-list"></div>' +
+      '<button type="button" class="lf-branch-cancel">Cancel</button>';
+    const list = panel.querySelector('.lf-branch-list');
+    choice.restaurants.forEach((restaurant) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'lf-branch-option';
+      button.setAttribute('aria-current', restaurant === choice.viewing ? 'true' : 'false');
+      button.innerHTML = '<span class="lf-branch-icon">🏪</span><span class="lf-branch-name"></span>' +
+        (restaurant === choice.viewing ? '<span class="lf-branch-check">✓</span>' : '');
+      button.querySelector('.lf-branch-name').textContent = restaurant;
+      button.addEventListener('click', () => selectRestaurant(restaurant));
+      list.appendChild(button);
+    });
+    panel.querySelector('.lf-branch-cancel').addEventListener('click', closeSheet);
+    sheet.addEventListener('click', (event) => { if (event.target === sheet) closeSheet(); });
+    sheet.appendChild(panel);
+    document.body.appendChild(sheet);
+    panel.querySelector('.lf-branch-option')?.focus();
+  }
+
+  async function selectRestaurant(restaurant) {
+    if (restaurant === choice.viewing && restaurant === choice.chosen) { closeSheet(); return; }
+    sheet?.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+    try {
+      const body = new URLSearchParams({ restaurant, csrf_token: csrf });
+      const response = await fetch(endpoint + 'set_branch_choice', {
+        method: 'POST', credentials: 'include', cache: 'no-store', body,
+        headers: csrf ? {'X-Frappe-CSRF-Token': csrf} : {}
+      });
+      await message(response);
+      window.location.reload();
+    } catch (error) {
+      sheet?.querySelectorAll('button').forEach((button) => { button.disabled = false; });
+      window.alert(error?.message || 'Could not switch restaurant');
+    }
+  }
+
+  loadChoice().catch(() => {});
+})();
+</script>

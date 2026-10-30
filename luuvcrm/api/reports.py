@@ -67,7 +67,8 @@ def get_manager_dashboard():
     # reads the child rows of exactly those, in one query instead of building
     # every order document to add up its lines.
     paid_orders = frappe.get_list("POS Order",
-        filters={"pos_invoice": ["!=", ""], "creation": [">=", today]}, pluck="name")
+        filters={"pos_invoice": ["!=", ""], "creation": [">=", today],
+                 branch.FIELD: branch.viewing()}, pluck="name")
     tally = {}
     if paid_orders:
         for it in frappe.get_all("POS Order Item",
@@ -84,14 +85,15 @@ def get_manager_dashboard():
 
     # voids today
     voids = frappe.get_list("POS Order",
-        filters={"docstatus": 2, "kitchen_status": "Cancelled", "modified": [">=", today]},
+        filters={"docstatus": 2, "kitchen_status": "Cancelled", "modified": [">=", today],
+                 branch.FIELD: branch.viewing()},
         fields=["grand_total"])
     void_count = len(voids)
     void_amt = sum(float(v.grand_total or 0) for v in voids)
 
-    # Cash drawer — every open till in the branch being viewed. A branch may
-    # have several cashiers open at once, and an unrestricted Owner needs the
-    # combined position across all branches rather than one arbitrary row.
+    # Cash drawer — every open till in the branch selected in the shared app
+    # header. A branch may have several cashiers open at once; the Admin compare
+    # endpoint remains the deliberate all-branch view.
     opening_filters = {"docstatus": 1, "status": "Open"}
     scoped = branch._scoped_to()
     if scoped:
@@ -254,6 +256,7 @@ def get_manager_sales_report(days=7, start=None, end=None):
     best_day = max(daily, key=lambda d: d["revenue"]) if daily else None
 
     # ── item-wise sales over the window (from paid POS Orders) ──
+    _so_cond, _so_params = branch.sql_restaurant("so")
     item_rows = frappe.db.sql(
         """
         SELECT soi.item AS item,
@@ -264,10 +267,11 @@ def get_manager_sales_report(days=7, start=None, end=None):
         INNER JOIN `tabPOS Order` so ON so.name = soi.parent
         WHERE so.pos_invoice IS NOT NULL AND so.pos_invoice != ''
           AND so.creation >= %s AND so.creation < %s
+        """ + _so_cond + """
         GROUP BY soi.item, name
         ORDER BY revenue DESC
         """,
-        (start, add_days(end, 1)), as_dict=True)
+        (start, add_days(end, 1)) + _so_params, as_dict=True)
     items = [{"item": r.item, "name": r.name, "qty": int(r.qty or 0),
               "revenue": float(r.revenue or 0)}
              for r in item_rows if r.name]
@@ -483,6 +487,7 @@ def get_manager_day_report(date=None):
     hourly_list = [{"hour": h, "amount": hourly[h]} for h in sorted(hourly.keys())]
 
     # item-wise sales for the day (from paid POS Orders)
+    _so_cond, _so_params = branch.sql_restaurant("so")
     item_rows = frappe.db.sql(
         """
         SELECT COALESCE(soi.item_name, soi.item) AS name,
@@ -492,17 +497,19 @@ def get_manager_day_report(date=None):
         INNER JOIN `tabPOS Order` so ON so.name = soi.parent
         WHERE so.pos_invoice IS NOT NULL AND so.pos_invoice != ''
           AND so.creation >= %s AND so.creation < %s
+        """ + _so_cond + """
         GROUP BY name
         ORDER BY revenue DESC
         """,
-        (day_start, day_end), as_dict=True)
+        (day_start, day_end) + _so_params, as_dict=True)
     items = [{"name": r.name, "qty": int(r.qty or 0), "revenue": float(r.revenue or 0)}
              for r in item_rows if r.name]
 
     # voids that day
     voids = frappe.get_list("POS Order",
         filters=[["docstatus", "=", 2], ["kitchen_status", "=", "Cancelled"],
-                 ["modified", ">=", day_start], ["modified", "<", day_end]],
+                 ["modified", ">=", day_start], ["modified", "<", day_end],
+                 [branch.FIELD, "=", branch.viewing()]],
         fields=["grand_total"])
 
     return {
@@ -582,6 +589,11 @@ def get_manager_bill_detail(name=None):
     if not name or not frappe.db.exists("POS Invoice", name):
         frappe.throw(_("Bill not found"))
     doc = frappe.get_doc("POS Invoice", name)
+    active_centre = branch.cost_center(branch.viewing())
+    if active_centre and doc.cost_center != active_centre:
+        # Do not let an old card or a guessed invoice name cross the restaurant
+        # selected in the shared app header.
+        frappe.throw(_("Bill not found"))
 
     items = [{"name": i.item_name or i.item_code, "qty": float(i.qty or 0),
               "rate": float(i.rate or 0), "amount": float(i.amount or 0)}

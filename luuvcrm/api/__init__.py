@@ -203,6 +203,25 @@ from luuvcrm.api.items import (
     set_item_enabled,
     update_item,
 )
+from luuvcrm.api.inventory import (
+    CONSUMED_FIELD,
+    ORDER_REF_FIELD,
+    PURCHASE_REF_FIELD,
+    _components,
+    _default_bom,
+    _new_stock_entry,
+    _submit,
+    consume_order_stock,
+    get_menu_recipe,
+    get_prepared_item,
+    get_purchase_recipe,
+    get_purchase_recipe_items,
+    prepare_item_batch,
+    receive_purchase_stock,
+    save_menu_recipe,
+    save_prepared_recipe,
+    save_purchase_recipe,
+)
 from luuvcrm.api.tables import (
     _has_flag,
     _scope,

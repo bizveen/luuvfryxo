@@ -45,7 +45,8 @@ def get_kitchen_orders():
     if frappe.db.has_column("POS Order", "scheduled_time"):
         _fields.append("scheduled_time")
 
-    waiting = {"kitchen_status": ["not in", ["Served", "Draft", "Cancelled"]]}
+    waiting = {"kitchen_status": ["not in", ["Served", "Draft", "Cancelled"]],
+               branch.FIELD: branch.viewing()}
     cutoff = add_to_date(now_datetime(), hours=-KITCHEN_WINDOW_HOURS)
 
     # Counted through get_list, not db.count: the kitchen on a two-branch site

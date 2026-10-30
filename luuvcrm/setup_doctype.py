@@ -186,6 +186,21 @@ CUSTOM_FIELDS = [
     {"dt": "POS Order Item", "fieldname": "notes", "label": "Notes", "fieldtype": "Small Text",
      "insert_after": "paid_qty",
      "description": "Per-line prep instruction — lets the same item appear twice with different notes"},
+    {"dt": "POS Order Item", "fieldname": "stock_consumed_qty", "label": "Stock Consumed Qty",
+     "fieldtype": "Float", "default": "0", "insert_after": "notes", "read_only": 1, "hidden": 1,
+     "description": "Menu-item quantity already expanded through its BOM and issued from stock"},
+
+    # Audit links for BOM-backed stock movements. A Purchase Bill produces at
+    # most one receipt; an order can produce several issues as items are added.
+    {"dt": "Stock Entry", "fieldname": "luuv_purchase_bill", "label": "Luuv Purchase Bill",
+     "fieldtype": "Link", "options": "Purchase Bill", "read_only": 1, "no_copy": 1,
+     "insert_after": "remarks", "unique": 1},
+    {"dt": "Stock Entry", "fieldname": "luuv_pos_order", "label": "Luuv POS Order",
+     "fieldtype": "Link", "options": "POS Order", "read_only": 1, "no_copy": 1,
+     "insert_after": "luuv_purchase_bill"},
+    {"dt": "Purchase Bill", "fieldname": "stock_entry", "label": "Stock Entry",
+     "fieldtype": "Link", "options": "Stock Entry", "read_only": 1, "no_copy": 1,
+     "insert_after": "status"},
 
     # Cash tendered / change returned — display-only, printed on the receipt.
     # Written by api._set_cash_tender() before the invoice is inserted; without

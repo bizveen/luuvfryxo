@@ -108,7 +108,7 @@ def setup_raw_materials():
             frappe.get_doc({
                 "doctype": "Item", "item_code": code, "item_name": name,
                 "item_group": "Raw Materials", "stock_uom": uom,
-                "is_purchase_item": 1, "is_sales_item": 0, "is_stock_item": 0,
+                "is_purchase_item": 1, "is_sales_item": 0, "is_stock_item": 1,
             }).insert(ignore_permissions=True)
             created += 1
         if not frappe.db.exists("Item Price", {"item_code": code, "price_list": pl}):
@@ -184,7 +184,7 @@ def create_purchase_item():
             "item_name": item_name,
             "item_group": group,
             "stock_uom": unit,
-            "is_stock_item": 0,
+            "is_stock_item": 1,
             "is_purchase_item": 1,
         })
         doc.flags.ignore_permissions = True
@@ -431,7 +431,8 @@ def get_purchase_bills():
         return {"bills": [], "approved_today": 0, "pending_amt": 0, "week": 0}
     # Listed in the order they were entered, so a bill typed in just now is at
     # the top whatever day it is dated. The figures count by purchase_date.
-    rows = frappe.get_list("Purchase Bill", filters={}, fields=["name", "status", "purchase_date"],
+    rows = frappe.get_list("Purchase Bill", filters={branch.FIELD: branch.viewing()},
+                          fields=["name", "status", "purchase_date"],
                           order_by="requested_at desc", limit_page_length=60)
     bills = [_bill_dict(r.name) for r in rows]
     today = frappe.utils.today()
@@ -461,7 +462,8 @@ def get_purchase_bills():
     appr_count = 0
     if frappe.db.exists("DocType", "POS Approval"):
         appr_count = len(frappe.get_list(
-            "POS Approval", filters={"status": "pending", "action": "purchase_bill"},
+            "POS Approval", filters={"status": "pending", "action": "purchase_bill",
+                                     branch.FIELD: branch.viewing()},
             pluck="name", limit_page_length=0))
     return {"bills": bills, "approved_today": approved_today, "pending_amt": pending_amt,
             "week": week, "due_amt": due_amt, "due_count": due_count,
@@ -494,7 +496,8 @@ def get_purchase_day_summary(date=None):
         return empty
 
     names = frappe.get_list("Purchase Bill",
-                            filters=[["purchase_date", "=", str(day)]],
+                            filters=[["purchase_date", "=", str(day)],
+                                     [branch.FIELD, "=", branch.viewing()]],
                             fields=["name", "requested_by", "resolved_by"],
                             order_by="requested_at desc", limit_page_length=0)
     if not names:
@@ -556,6 +559,10 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
     offset = max(0, int(offset or 0))
     where = ["1 = 1"]
     params = {"lim": limit + 1, "off": offset}   # one extra row answers "is there more?"
+    active = branch.viewing()
+    if active:
+        where.append("b.`restaurant` = %(restaurant)s")
+        params["restaurant"] = active
     if q:
         params["like"] = "%" + q + "%"
         where.append("""(b.vendor LIKE %(like)s OR b.note LIKE %(like)s
@@ -697,6 +704,9 @@ def _decide_purchase_bill(name, decision, discount=None):
     * `total` is what the day summary adds up and what the food-cost report
       sums, so the saving lands in the numbers without anything else moving.
     """
+    # Two managers can answer the same card at once. Serialize the decision so
+    # both the price-book write and its stock receipt remain exactly-once.
+    frappe.db.sql("select name from `tabPurchase Bill` where name=%s for update", (name,))
     doc = frappe.get_doc("Purchase Bill", name)
     if doc.status != "pending":
         return 0
@@ -719,6 +729,14 @@ def _decide_purchase_bill(name, decision, discount=None):
                                 "price_list": pl, "buying": 1,
                                 "price_list_rate": float(line.price)}).insert(ignore_permissions=True)
                 updated += 1
+        # Price and quantity are separate truths. The custom Purchase Bill has
+        # always updated the buying price above; stock-enabled lines now also
+        # become a native Material Receipt in this bill's branch warehouse.
+        # Kept inside the same transaction so a failed receipt cannot leave a
+        # green "approved" bill whose stock never arrived.
+        from luuvcrm.api.inventory import receive_purchase_stock
+
+        receive_purchase_stock(doc)
     doc.db_set("status", decision)
     doc.db_set("resolved_by", frappe.session.user)
     doc.db_set("resolved_at", now_datetime())

@@ -2462,6 +2462,7 @@ function lfPoll(fn, ms){
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/manager_sw.js',{scope:'/manager'}).catch(()=>{}); }
 </script>
 {% include "templates/includes/bill_edit.html" %}
+{% include "templates/includes/branch_switcher.html" %}
 {% include "templates/includes/app_switch.html" %}
 </body>
 </html>

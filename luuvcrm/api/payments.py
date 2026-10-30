@@ -194,7 +194,8 @@ def place_order():
     })
 
     opening_entry_name = frappe.db.get_value("POS Opening Entry",
-        {"status": "Open", "user": frappe.session.user}, "name")
+        {"status": "Open", "user": frappe.session.user,
+         "pos_profile": pos_profile_name}, "name")
     if opening_entry_name:
         pos_order.pos_opening_entry = opening_entry_name
 
@@ -216,6 +217,9 @@ def place_order():
     if order_type:
         pos_order.db_set("order_type", order_type)
     _apply_takeaway_service_charge(pos_order)
+    from luuvcrm.api.inventory import consume_order_stock
+
+    consume_order_stock(pos_order.name)
 
     _link_invoice_to_order(invoice.name, pos_order.name)
 
@@ -268,6 +272,13 @@ def process_payment():
         frappe.throw(_("Payment already processed for this order"))
     if any(int(i.get("paid_qty") or 0) > 0 for i in pos_order.items):
         frappe.throw(_("This order has split payments. Use Split Bill to pay the remaining items."))
+
+    # Normally this was already issued when the KOT fired. The idempotent call
+    # also covers legacy/open tickets that reach payment without that browser
+    # acknowledgement.
+    from luuvcrm.api.inventory import consume_order_stock
+
+    consume_order_stock(order_name)
 
     payment_mode = data.get("payment_mode", "Cash")
     cash_amount = float(data.get("cash_amount", 0))
@@ -396,6 +407,10 @@ def pay_split():
         requested[code] = requested.get(code, 0) + qty
     if not requested:
         frappe.throw(_("Select at least one item to bill"))
+
+    from luuvcrm.api.inventory import consume_order_stock
+
+    consume_order_stock(order_name)
 
     sc_rate = _get_service_charge_rate()
     subtotal = 0

@@ -38,6 +38,24 @@ def _active_pos_profile_name(requested=""):
     if prof:
         branch.require_access("POS Profile", prof)
     return prof or _resolve_pos_profile_name(requested)
+
+
+def _active_open_shift_name(user=None, fallback_to_branch=False):
+    """An open shift belonging to the restaurant selected in the app header."""
+    user = user or frappe.session.user
+    profiles = branch.accessible_pos_profiles(user)
+    if not profiles:
+        return None
+    filters = {"docstatus": 1, "status": "Open",
+               "pos_profile": ["in", profiles]}
+    filters["user"] = user
+    name = frappe.db.get_value("POS Opening Entry", filters, "name",
+                               order_by="creation desc")
+    if name or not fallback_to_branch:
+        return name
+    filters.pop("user", None)
+    return frappe.db.get_value("POS Opening Entry", filters, "name",
+                               order_by="creation desc")
 def _invoice_doctype_for(pos_profile_name):
     """POS sales always become native POS Invoices (open/close entries + consolidation).
     An open shift is guaranteed by _ensure_open_shift() before any invoice is created."""
@@ -234,9 +252,7 @@ def pos_close_shift():
     if not counted and data.get("closing_balance") is not None:
         counted["Cash"] = float(data.get("closing_balance") or 0)
 
-    opening_name = frappe.db.get_value("POS Opening Entry",
-        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name",
-        order_by="creation desc")
+    opening_name = _active_open_shift_name()
     if not opening_name:
         frappe.throw(_("No open shift found"))
 
@@ -397,10 +413,11 @@ def recover_stuck_shift(opening=None):
     roles.require_pos()
     from erpnext.accounts.doctype.pos_closing_entry.pos_closing_entry import make_closing_entry_from_opening
 
-    opening_name = opening or frappe.db.get_value("POS Opening Entry",
-        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name")
+    opening_name = opening or _active_open_shift_name()
     if not opening_name:
         frappe.throw(_("No stuck shift found"))
+    branch.require_access("POS Profile",
+                          frappe.db.get_value("POS Opening Entry", opening_name, "pos_profile"))
     opening_doc = frappe.get_doc("POS Opening Entry", opening_name)
 
     # Drop earlier half-done closings (Failed/Queued) — nothing was consolidated, so cancelling is
@@ -451,9 +468,7 @@ def recover_stuck_shift(opening=None):
 @frappe.whitelist()
 def get_pos_shift():
     roles.require_pos()
-    opening_name = frappe.db.get_value("POS Opening Entry",
-        {"docstatus": 1, "status": "Open", "user": frappe.session.user}, "name",
-        order_by="creation desc")
+    opening_name = _active_open_shift_name()
     if not opening_name:
         return {"shift": None}
 
@@ -504,10 +519,8 @@ def get_pos_shift():
 # record type is a DocType. POS Cash Movement is a per-shift drawer log (not GL-integrated).
 
 def _open_shift_name(user=None):
-    """The user's own open shift, else the single open shift (so a manager can act on the till)."""
-    return frappe.db.get_value("POS Opening Entry",
-        {"docstatus": 1, "status": "Open", "user": user or frappe.session.user}, "name") \
-        or frappe.db.get_value("POS Opening Entry", {"docstatus": 1, "status": "Open"}, "name")
+    """The user's active-restaurant shift, else one active-restaurant till."""
+    return _active_open_shift_name(user, fallback_to_branch=True)
 def _install_cash_movement():
     """Create the `POS Cash Movement` Custom DocType (idempotent; custom:1 => no bench migrate).
     A small drawer pay-in / pay-out log linked to the shift's POS Opening Entry."""

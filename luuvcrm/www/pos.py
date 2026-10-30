@@ -188,8 +188,10 @@ def get_context(context):
         t["short_name"] = parts[-1] if len(parts) > 1 else t.name
     context.tables = _tables
 
+    profile_names = branch.accessible_pos_profiles(user)
     opening = frappe.db.get_value("POS Opening Entry",
-        {"docstatus": 1, "status": "Open", "user": user},
+        {"docstatus": 1, "status": "Open", "user": user,
+         "pos_profile": ["in", profile_names]},
         ["name", "period_start_date"], as_dict=True)
     context.shift = {"status": "open"} if opening else None
 
@@ -197,9 +199,13 @@ def get_context(context):
     # wire to call len() on the list — and drafts are never cleared, so it grew
     # for the life of the site, on the page the counter opens every shift.
     context.ongoing_count = frappe.db.count("POS Order", {
-        "docstatus": 0, "order_source": "Walk-in", "pos_invoice": ""})
+        "docstatus": 0, "order_source": "Walk-in", "pos_invoice": "",
+        branch.FIELD: restaurant_name})
 
-    context.pos_profiles = frappe.get_all("POS Profile", fields=["name", "warehouse", "company", "currency"])
+    context.pos_profiles = frappe.get_all(
+        "POS Profile", filters={"name": ["in", profile_names]},
+        fields=["name", "warehouse", "company", "currency"]
+    ) if profile_names else []
     context.payment_modes = frappe.get_all("Mode of Payment", fields=["name"], order_by="name asc")
 
     # Payment methods per POS Profile (for the native opening screen)

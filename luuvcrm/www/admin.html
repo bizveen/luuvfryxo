@@ -176,6 +176,8 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
 .li .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
 .li .pr{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:14.5px;
         color:var(--text-strong);white-space:nowrap}
+.li.table-row{grid-template-columns:minmax(0,1fr) auto}
+.li.table-row>button{white-space:nowrap;align-self:center}
 .sw{width:44px;height:25px;border-radius:var(--radius-pill);border:none;padding:0;flex:none;
     background:var(--gray-300);position:relative;transition:background .15s;cursor:pointer}
 .sw[aria-checked="true"]{background:var(--green-500)}
@@ -465,6 +467,20 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
         <div class="pick" id="fAddons"></div>
         <p class="hint">The till offers these as extra lines the moment this item is added.</p>
       </div>
+      <div id="recipeWrap" style="display:none;border-top:1px solid var(--border-subtle);padding-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <label style="margin:0">Recipe (BOM)</label>
+          <span class="chip" id="recipeBom">No recipe</span>
+        </div>
+        <p class="hint">Raw material needed for one serving. Stock is deducted when the item is sent to the kitchen.</p>
+        <div id="recipeLines"></div>
+        <div class="row" style="align-items:end;margin-top:10px">
+          <div style="flex:1;min-width:180px"><label for="recipeItem">Raw material</label><select id="recipeItem"></select></div>
+          <div style="width:105px"><label for="recipeQty">Qty</label><input id="recipeQty" type="text" inputmode="decimal" placeholder="0.000"></div>
+          <button type="button" class="ghost" onclick="addRecipeLine()">Add</button>
+        </div>
+        <button type="button" class="ghost" id="recipeSave" onclick="saveRecipe()" style="width:100%;margin-top:10px">Save recipe</button>
+      </div>
     </div>
     <div class="ft">
       <button class="danger left" id="itemDel" onclick="removeItem()">Remove from menu</button>
@@ -497,6 +513,25 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
       </div>
       <div><label for="sTags">Speciality tags</label><input type="text" id="sTags"></div>
       <p class="hint" id="stockOnMenu" style="display:none"></p>
+      <div id="prepWrap" style="display:none;border-top:1px solid var(--border-subtle);padding-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <label style="margin:0">Preparation recipe</label>
+          <span><span class="chip" id="prepBom">No recipe</span> <span class="chip ok" id="prepBalance">0</span></span>
+        </div>
+        <p class="hint">For food made ahead and kept in stock. One batch consumes these ingredients and adds the prepared quantity to this branch's stock.</p>
+        <div id="prepRecipeLines"></div>
+        <div class="row" style="align-items:end;margin-top:10px">
+          <div style="flex:1;min-width:180px"><label for="prepRecipeItem">Ingredient</label><select id="prepRecipeItem"></select></div>
+          <div style="width:105px"><label for="prepRecipeQty">Qty per 1</label><input id="prepRecipeQty" type="text" inputmode="decimal" placeholder="0.000"></div>
+          <button type="button" class="ghost" onclick="addPrepRecipeLine()">Add</button>
+        </div>
+        <button type="button" class="ghost" id="prepRecipeSave" onclick="savePrepRecipe()" style="width:100%;margin-top:10px">Save preparation recipe</button>
+        <div class="row" style="align-items:end;margin-top:14px;padding-top:14px;border-top:1px solid var(--border-subtle)">
+          <div><label for="prepBatchQty">Prepared quantity</label><input id="prepBatchQty" type="text" inputmode="decimal" placeholder="0.000"></div>
+          <button type="button" id="prepBatchMake" onclick="prepareBatch()">Prepare batch</button>
+        </div>
+        <p class="hint">Example: entering 20 Nos for naan deducts the recipe ingredients for 20 and receives 20 prepared naan.</p>
+      </div>
     </div>
     <div class="ft">
       <button class="danger left" id="stockRetire" onclick="retireItem()">Retire</button>
@@ -934,8 +969,8 @@ function renderTables(){
           ? `<span class="chip">${t.open_orders} open</span>` : '';
         const seats = t.seats ? `<span class="chip">${t.seats} seats</span>` : '';
         const off = t.enabled ? '' : ' style="opacity:.55"';
-        return `<div class="li"${off}><span></span>
-          <div class="nm">${esc(t.name)}</div>${seats}${open}
+        return `<div class="li table-row"${off}>
+          <div><div class="nm">${esc(t.name)}</div><div class="tags">${seats}${open}</div></div>
           ${TABLES.can_toggle
             ? `<button class="ghost sm" onclick="toggleTable('${esc(t.name)}', ${t.enabled ? 0 : 1})">${t.enabled ? 'Turn off' : 'Turn on'}</button>`
             : '<span class="chip">migrate first</span>'}
@@ -1054,6 +1089,7 @@ async function restoreItem(code){
   if(r){ toast(code + ' is on the menu'); loadMenu(MENU.restaurant); }
 }
 
+let RECIPE = null;
 function openItem(code){
   if(!MENU){ toast('Menu still loading…'); return; }
   if(!MENU.menu){ toast('This branch has no active menu yet'); return; }
@@ -1075,10 +1111,13 @@ function openItem(code){
   document.getElementById('fDesc').value = isNew ? '' : (EDIT.description || '');
   setPhoto('itemPhoto', isNew ? '' : EDIT.image, isNew ? 'save first' : 'no photo');
   renderAddonPicker(isNew ? [] : (EDIT.addons || []), code);
+  document.getElementById('recipeWrap').style.display = isNew ? 'none' : '';
+  RECIPE = null;
+  if(!isNew) loadRecipe(code);
   document.getElementById('itemSave').textContent = isNew ? 'Add to menu' : 'Save';
   document.getElementById('itemSheet').classList.add('open');
 }
-function closeItem(){ document.getElementById('itemSheet').classList.remove('open'); EDIT = null; }
+function closeItem(){ document.getElementById('itemSheet').classList.remove('open'); EDIT = null; RECIPE = null; }
 function kitchenOpts(chosen){
   return '<option value="">— none —</option>' + (MENU?.kitchen_groups || []).map(g =>
     `<option value="${esc(g.name)}"${g.name === chosen ? ' selected' : ''}>${esc(g.label)}</option>`).join('');
@@ -1098,6 +1137,56 @@ function renderAddonPicker(chosen, code){
     .map(i => `<button type="button" aria-pressed="${picked.has(i.code)}" data-code="${esc(i.code)}"
                  onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')==='true'?'false':'true')"
                >${esc(i.name)}</button>`).join('') || '<span class="hint">Add another item first.</span>';
+}
+async function loadRecipe(code){
+  document.getElementById('recipeLines').innerHTML = '<p class="hint">Loading recipe…</p>';
+  const r = await call('get_menu_recipe?item_code=' + encodeURIComponent(code) +
+                       '&restaurant=' + encodeURIComponent(MENU?.restaurant || ''));
+  if(!r || !EDIT || EDIT.code !== code) return;
+  RECIPE = r;
+  const select = document.getElementById('recipeItem');
+  select.innerHTML = '<option value="">Pick raw material</option>' + r.catalog.map(i =>
+    `<option value="${esc(i.item)}">${esc(i.name)} · ${esc(i.uom)}</option>`).join('');
+  renderRecipe();
+}
+function renderRecipe(){
+  if(!RECIPE) return;
+  document.getElementById('recipeBom').textContent = RECIPE.bom || 'No recipe';
+  const box = document.getElementById('recipeLines');
+  box.innerHTML = RECIPE.ingredients.length ? RECIPE.ingredients.map((i, n) =>
+    `<div style="display:grid;grid-template-columns:minmax(0,1fr) 105px 34px;gap:8px;align-items:center;margin-top:8px">
+      <div><strong>${esc(i.name || i.item)}</strong><div class="hint" style="margin:1px 0 0">${esc(i.item)} · ${esc(i.uom)}</div></div>
+      <input type="text" inputmode="decimal" value="${esc(i.qty)}" aria-label="Quantity for ${esc(i.name || i.item)}"
+             onchange="RECIPE.ingredients[${n}].qty=parseFloat(this.value)||0">
+      <button type="button" class="ghost sm" onclick="recipeRemove(${n})" aria-label="Remove">×</button>
+    </div>`).join('') : '<p class="hint">No BOM yet. Add the raw materials for one serving.</p>';
+}
+function addRecipeLine(){
+  if(!RECIPE) return;
+  const code = document.getElementById('recipeItem').value;
+  const qty = parseFloat(document.getElementById('recipeQty').value) || 0;
+  if(!code || qty <= 0){ toast('Pick a raw material and enter a quantity above zero'); return; }
+  const cat = RECIPE.catalog.find(i => i.item === code);
+  const old = RECIPE.ingredients.find(i => i.item === code);
+  if(old) old.qty = (parseFloat(old.qty) || 0) + qty;
+  else RECIPE.ingredients.push({item:code,name:cat?.name || code,uom:cat?.uom || '',qty});
+  document.getElementById('recipeQty').value = '';
+  renderRecipe();
+}
+function recipeRemove(n){ if(RECIPE){ RECIPE.ingredients.splice(n,1); renderRecipe(); } }
+async function saveRecipe(){
+  if(!RECIPE || !EDIT) return;
+  if(!RECIPE.ingredients.length){ toast('Add at least one recipe ingredient'); return; }
+  if(RECIPE.ingredients.some(i => !(parseFloat(i.qty) > 0))){ toast('Every ingredient needs a quantity above zero'); return; }
+  const btn = document.getElementById('recipeSave'); btn.disabled = true;
+  const r = await call('save_menu_recipe', {
+    item_code: EDIT.code,
+    restaurant: MENU?.restaurant || '',
+    ingredients: JSON.stringify(RECIPE.ingredients.map(i => ({item:i.item, qty:parseFloat(i.qty)})))
+  });
+  btn.disabled = false;
+  if(!r) return;
+  RECIPE = r; renderRecipe(); toast('Recipe saved · ' + r.bom);
 }
 function itemFail(msg){
   const e = document.getElementById('itemErr'); e.textContent = msg; e.style.display = 'block';
@@ -1168,7 +1257,7 @@ async function uploadPhoto(){
    The menu is a selection; this is the list it selects from. Most of what a
    restaurant buys is never on a menu, an add-on exists only to be attached to
    something else, and an item pulled for the season still has to be findable. */
-let ITEMS = null, STOCK = null;
+let ITEMS = null, STOCK = null, PREP = null;
 
 async function loadItems(){
   const showAll = document.getElementById('iShow').value;
@@ -1225,18 +1314,89 @@ function openStock(code){
   document.getElementById('sKitchen').innerHTML = stockKitchenOpts(isNew ? '' : STOCK.kitchen_group);
   document.getElementById('sGuide').value = isNew ? '' : (STOCK.gd_pct || '');
   document.getElementById('sTags').value = isNew ? '' : (STOCK.tags || '');
-  document.getElementById('sUom').innerHTML = opts(ITEMS.uoms, 'Nos', null);
-  document.getElementById('stockNewOnly').style.display = isNew ? '' : 'none';
+  document.getElementById('sStock').value = isNew ? '0' : String(STOCK.is_stock_item ? 1 : 0);
+  document.getElementById('sUom').innerHTML = opts(ITEMS.uoms, isNew ? 'Nos' : (STOCK.uom || 'Nos'), null);
+  document.getElementById('stockNewOnly').style.display = '';
   const onMenu = document.getElementById('stockOnMenu');
   onMenu.style.display = (!isNew && STOCK.on_menu) ? '' : 'none';
   onMenu.textContent = 'This item is on the menu. Its price and category are the same thing you edit under Menu; take it off the menu there before retiring it.';
+  const prepWrap = document.getElementById('prepWrap');
+  prepWrap.style.display = (!isNew && STOCK.is_stock_item) ? '' : 'none';
+  PREP = null;
+  if(!isNew && STOCK.is_stock_item) loadPreparedItem(STOCK.code);
   const retire = document.getElementById('stockRetire');
   retire.style.display = isNew ? 'none' : '';
   retire.textContent = (!isNew && STOCK.disabled) ? 'Bring back' : 'Retire';
   document.getElementById('stockSave').textContent = isNew ? 'Create' : 'Save';
   document.getElementById('stockSheet').classList.add('open');
 }
-function closeStock(){ document.getElementById('stockSheet').classList.remove('open'); STOCK = null; }
+function closeStock(){ document.getElementById('stockSheet').classList.remove('open'); STOCK = null; PREP = null; }
+
+async function loadPreparedItem(code){
+  document.getElementById('prepRecipeLines').innerHTML = '<p class="hint">Loading preparation recipe…</p>';
+  const r = await call('get_prepared_item?item_code=' + encodeURIComponent(code) +
+                       '&restaurant=' + encodeURIComponent(WORKING || ''));
+  if(!r || !STOCK || STOCK.code !== code) return;
+  PREP = r;
+  document.getElementById('prepRecipeItem').innerHTML = '<option value="">Pick ingredient</option>' +
+    r.catalog.map(i => `<option value="${esc(i.item)}">${esc(i.name)} · ${esc(i.uom)}</option>`).join('');
+  renderPreparedItem();
+}
+function renderPreparedItem(){
+  if(!PREP) return;
+  document.getElementById('prepBom').textContent = PREP.bom || 'No recipe';
+  document.getElementById('prepBalance').textContent =
+    'In stock: ' + Number(PREP.balance || 0).toLocaleString('en-US', {maximumFractionDigits:3}) + ' ' + (PREP.uom || '');
+  const box = document.getElementById('prepRecipeLines');
+  box.innerHTML = PREP.ingredients.length ? PREP.ingredients.map((i, n) =>
+    `<div style="display:grid;grid-template-columns:minmax(0,1fr) 105px 34px;gap:8px;align-items:center;margin-top:8px">
+      <div><strong>${esc(i.name || i.item)}</strong><div class="hint" style="margin:1px 0 0">${esc(i.item)} · ${esc(i.uom)}</div></div>
+      <input type="text" inputmode="decimal" value="${esc(i.qty)}" aria-label="Quantity for ${esc(i.name || i.item)}"
+             onchange="PREP.ingredients[${n}].qty=parseFloat(this.value)||0">
+      <button type="button" class="ghost sm" onclick="prepRecipeRemove(${n})" aria-label="Remove">×</button>
+    </div>`).join('') : '<p class="hint">No preparation BOM yet. Add the ingredients needed to make one stock unit.</p>';
+  document.getElementById('prepBatchMake').disabled = !PREP.bom;
+}
+function addPrepRecipeLine(){
+  if(!PREP) return;
+  const code = document.getElementById('prepRecipeItem').value;
+  const qty = parseFloat(document.getElementById('prepRecipeQty').value) || 0;
+  if(!code || qty <= 0){ toast('Pick an ingredient and enter a quantity above zero'); return; }
+  const cat = PREP.catalog.find(i => i.item === code);
+  const old = PREP.ingredients.find(i => i.item === code);
+  if(old) old.qty = (parseFloat(old.qty) || 0) + qty;
+  else PREP.ingredients.push({item:code,name:cat?.name || code,uom:cat?.uom || '',qty});
+  document.getElementById('prepRecipeQty').value = '';
+  renderPreparedItem();
+}
+function prepRecipeRemove(n){ if(PREP){ PREP.ingredients.splice(n,1); renderPreparedItem(); } }
+async function savePrepRecipe(){
+  if(!PREP || !STOCK) return;
+  if(!PREP.ingredients.length){ toast('Add at least one preparation ingredient'); return; }
+  if(PREP.ingredients.some(i => !(parseFloat(i.qty) > 0))){ toast('Every ingredient needs a quantity above zero'); return; }
+  const btn = document.getElementById('prepRecipeSave'); btn.disabled = true;
+  const r = await call('save_prepared_recipe', {
+    item_code: STOCK.code,
+    restaurant: WORKING || '',
+    ingredients: JSON.stringify(PREP.ingredients.map(i => ({item:i.item, qty:parseFloat(i.qty)})))
+  });
+  btn.disabled = false;
+  if(!r) return;
+  PREP = r; renderPreparedItem(); toast('Preparation recipe saved · ' + r.bom);
+}
+async function prepareBatch(){
+  if(!PREP || !STOCK || !PREP.bom) return;
+  const qty = parseFloat(document.getElementById('prepBatchQty').value) || 0;
+  if(qty <= 0){ toast('Enter the quantity prepared'); return; }
+  const btn = document.getElementById('prepBatchMake'); btn.disabled = true;
+  const r = await call('prepare_item_batch', {item_code:STOCK.code, qty,
+                                              restaurant:WORKING || ''});
+  btn.disabled = false;
+  if(!r) return;
+  PREP = r; document.getElementById('prepBatchQty').value = '';
+  renderPreparedItem();
+  toast(qty + ' ' + (r.uom || '') + ' prepared · stock updated');
+}
 function stockKitchenOpts(chosen){
   const groups = (MENU && MENU.kitchen_groups) || [];
   if(!groups.length) return '<option value="">— none —</option>';
@@ -1260,6 +1420,8 @@ async function saveStock(){
       kitchen_group: document.getElementById('sKitchen').value,
       guide_pct: document.getElementById('sGuide').value || 0,
       tags: document.getElementById('sTags').value.trim(),
+      is_stock_item: document.getElementById('sStock').value,
+      uom: document.getElementById('sUom').value,
       restaurant: WORKING || ''
     });
   } else {
