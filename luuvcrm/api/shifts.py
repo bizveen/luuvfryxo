@@ -32,11 +32,20 @@ def _link_invoice_to_order(invoice_name, order_name):
         frappe.db.set_value(dt, invoice_name, "pos_order", order_name)
 def _active_pos_profile_name(requested=""):
     """POS Profile of the session user's OPEN shift (so POS Invoices match the opening
-    entry for native consolidation), else requested, else first profile."""
+    entry for native consolidation), else requested, else first profile.
+
+    A multi-branch owner may have an old open shift in another restaurant.  It
+    must not override the restaurant currently selected in the shared header.
+    Only consider shifts whose profiles are accessible in that selected branch.
+    """
+    profiles = branch.accessible_pos_profiles()
+    if not profiles:
+        frappe.throw(_("No POS Profile is configured for your restaurant"),
+                     frappe.PermissionError)
     prof = frappe.db.get_value("POS Opening Entry",
-        {"status": "Open", "user": frappe.session.user}, "pos_profile")
-    if prof:
-        branch.require_access("POS Profile", prof)
+        {"status": "Open", "docstatus": 1, "user": frappe.session.user,
+         "pos_profile": ["in", profiles]}, "pos_profile",
+        order_by="period_start_date desc")
     return prof or _resolve_pos_profile_name(requested)
 
 
@@ -60,6 +69,24 @@ def _invoice_doctype_for(pos_profile_name):
     """POS sales always become native POS Invoices (open/close entries + consolidation).
     An open shift is guaranteed by _ensure_open_shift() before any invoice is created."""
     return "POS Invoice"
+
+
+def _invoice_branch_fields(pos_profile):
+    """Accounting dimensions that make a POS Invoice belong to its outlet.
+
+    ERPNext does not reliably copy ``POS Profile.cost_center`` when these API
+    endpoints construct a POS Invoice directly.  Reports separate restaurants
+    by that native field, so leaving it blank makes a genuine sale disappear
+    as soon as the manager switches from an all-outlet view to one branch.
+    Prefer the Restaurant's configured centre and retain the profile's native
+    centre as a fallback for older/single-branch setups.
+    """
+    restaurant = branch._restaurant_for_profile(pos_profile.name)
+    centre = branch.cost_center(restaurant) if restaurant else None
+    centre = centre or pos_profile.get("cost_center")
+    return {"cost_center": centre} if centre else {}
+
+
 def _ensure_open_shift(pos_profile_name):
     """Guarantee the session user has an open shift for the profile; auto-open one
     (0 opening per payment mode) if not. POS Invoice creation requires an open POS

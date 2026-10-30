@@ -23,6 +23,7 @@ from luuvcrm.api.shifts import (
     _active_pos_profile_name,
     _append_service_charge_tax,
     _ensure_open_shift,
+    _invoice_branch_fields,
     _invoice_doctype_for,
     _link_invoice_to_order,
 )
@@ -94,6 +95,7 @@ def sync_offline_orders():
             _ensure_open_shift(pos_profile_name)
 
             invoice = frappe.get_doc({
+                **_invoice_branch_fields(pos_profile),
                 "doctype": _invoice_doctype_for(pos_profile_name),
                 "is_pos": 1,
                 "pos_profile": pos_profile_name,

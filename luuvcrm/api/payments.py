@@ -28,6 +28,7 @@ from luuvcrm.api.shifts import (
     _active_pos_profile_name,
     _append_service_charge_tax,
     _ensure_open_shift,
+    _invoice_branch_fields,
     _ensure_order_type_field,
     _invoice_doctype_for,
     _link_invoice_to_order,
@@ -144,6 +145,7 @@ def place_order():
     tour = _tour_stamp(data.get("tour_company"))
     invoice = frappe.get_doc({
         **tour,
+        **_invoice_branch_fields(pos_profile),
         "doctype": _invoice_doctype_for(pos_profile_name),
         "is_pos": 1,
         "pos_profile": pos_profile_name,
@@ -304,6 +306,7 @@ def process_payment():
     tour = _tour_stamp(data.get("tour_company"))
     invoice = frappe.get_doc({
         **tour,
+        **_invoice_branch_fields(pos_profile),
         "doctype": _invoice_doctype_for(pos_profile_name),
         "is_pos": 1,
         "pos_profile": pos_profile_name,
@@ -442,6 +445,7 @@ def pay_split():
     tour = _tour_stamp(data.get("tour_company"))
     invoice = frappe.get_doc({
         **tour,
+        **_invoice_branch_fields(pos_profile),
         "doctype": _invoice_doctype_for(pos_profile_name),
         "is_pos": 1,
         "pos_profile": pos_profile_name,

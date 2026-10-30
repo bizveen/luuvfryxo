@@ -91,6 +91,16 @@ class TestPayInFull(PaymentTestCase):
         result = self.pay(order)
         self.assertEqual(frappe.db.get_value("POS Invoice", result["invoice_name"], "docstatus"), 1)
 
+    def test_the_invoice_carries_its_outlet_cost_centre(self):
+        """A blank centre makes a real sale vanish from branch reports."""
+        order = self.order([{"item": self.burger, "qty": 1}])
+        result = self.pay(order)
+        invoice = frappe.get_doc("POS Invoice", result["invoice_name"])
+        profile_centre = frappe.db.get_value(
+            "POS Profile", invoice.pos_profile, "cost_center")
+        self.assertTrue(profile_centre, "the test till must identify its outlet")
+        self.assertEqual(invoice.cost_center, profile_centre)
+
     def test_the_lines_carry_over(self):
         order = self.order([{"item": self.burger, "qty": 2}, {"item": self.cola, "qty": 1}])
         result = self.pay(order)
