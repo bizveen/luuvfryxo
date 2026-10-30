@@ -295,7 +295,8 @@ def send_to_kitchen():
 @frappe.whitelist()
 def get_ongoing_orders():
     orders = frappe.get_list("POS Order",
-        filters={"docstatus": 0, "order_source": ["in", ["Walk-in", "Waiter"]]},
+        filters={"docstatus": 0, "order_source": ["in", ["Walk-in", "Waiter"]],
+                 "restaurant": branch.viewing()},
         fields=["name", "customer_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "pos_invoice", "order_type",
                 "discount_amount", "discount_note"],
@@ -316,7 +317,7 @@ def get_ongoing_orders():
 @frappe.whitelist()
 def get_kiosk_orders():
     orders = frappe.get_list("POS Order",
-        filters={"docstatus": 0, "order_source": "Online"},
+        filters={"docstatus": 0, "order_source": "Online", "restaurant": branch.viewing()},
         fields=["name", "customer_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "pos_invoice"],
         order_by="creation desc",
@@ -336,7 +337,8 @@ def get_completed_orders():
     opening_name = frappe.db.get_value("POS Opening Entry",
         {"status": "Open", "user": frappe.session.user}, "name")
 
-    filters = {"docstatus": 1, "order_source": ["in", ["Walk-in", "Waiter"]]}
+    filters = {"docstatus": 1, "order_source": ["in", ["Walk-in", "Waiter"]],
+               "restaurant": branch.viewing()}
     if opening_name:
         filters["pos_opening_entry"] = opening_name
 
