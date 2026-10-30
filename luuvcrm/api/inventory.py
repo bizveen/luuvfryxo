@@ -32,6 +32,15 @@ ORDER_REF_FIELD = "luuv_pos_order"
 PURCHASE_REF_FIELD = "luuv_purchase_bill"
 
 
+def _active_restaurant(restaurant=None):
+    """Inventory operations must use the restaurant on the caller's screen."""
+    active = branch.viewing()
+    if restaurant and restaurant != active:
+        frappe.throw(_("Switch to that restaurant before managing its inventory"),
+                     frappe.PermissionError)
+    return active
+
+
 def _has_field(doctype, fieldname):
     return bool(frappe.db.has_column(doctype, fieldname))
 
@@ -217,6 +226,7 @@ def consume_order_stock(order_name):
                 "qty": qty,
                 "uom": component_uom[item_code],
                 "conversion_factor": 1,
+                "cost_center": branch.cost_center(restaurant),
             },
         )
     _submit(entry)
@@ -327,6 +337,7 @@ def receive_purchase_stock(purchase_bill):
                 # rate is per stock UOM.
                 "basic_rate": flt(line.price) / conversion,
                 "set_basic_rate_manually": 1,
+                "cost_center": branch.cost_center(restaurant),
             },
         )
         total_qty += flt(line.qty) * conversion
@@ -337,7 +348,7 @@ def receive_purchase_stock(purchase_bill):
 
 
 def _company_for_recipe(restaurant=None):
-    restaurant = restaurant or branch.viewing()
+    restaurant = _active_restaurant(restaurant)
     warehouse = branch.warehouse(restaurant)
     if not warehouse:
         frappe.throw(
@@ -353,6 +364,7 @@ def _company_for_recipe(restaurant=None):
 
 def _recipe(item_code=None, restaurant=None):
     """Current default BOM plus stock ingredients offered by recipe editors."""
+    restaurant = _active_restaurant(restaurant)
     item_code = (item_code or "").strip()
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Item not found"))
@@ -513,6 +525,7 @@ def save_prepared_recipe(item_code=None, ingredients=None, restaurant=None):
 def get_purchase_recipe_items(search=None, restaurant=None):
     """All active items a purchaser may add or update a BOM for."""
     roles.require_purchases()
+    restaurant = _active_restaurant(restaurant)
     filters = {"disabled": 0}
     or_filters = None
     if search:
@@ -610,7 +623,7 @@ def prepare_item_batch(item_code=None, qty=None, restaurant=None):
     if not bom:
         frappe.throw(_("Save a preparation recipe before making a batch"))
 
-    restaurant = (restaurant or branch.current() or "").strip()
+    restaurant = _active_restaurant(restaurant)
     warehouse = branch.warehouse(restaurant)
     company = frappe.db.get_value("Warehouse", warehouse, "company") if warehouse else None
     if not warehouse or not company:
@@ -635,6 +648,8 @@ def prepare_item_batch(item_code=None, qty=None, restaurant=None):
     )
     entry.flags.ignore_permissions = True
     entry.get_items()
+    for row in entry.items:
+        row.cost_center = branch.cost_center(restaurant)
     if not any(row.s_warehouse for row in entry.items):
         frappe.throw(_("Preparation BOM {0} has no ingredients").format(bom))
     if branch.cost_center(restaurant):
