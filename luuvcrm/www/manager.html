@@ -297,6 +297,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
               <button class="rangeBtn active" data-group="__all__" onclick="setItemGroup('__all__')">All</button>
               <button class="rangeBtn" data-group="Food" onclick="setItemGroup('Food')">Food</button>
               <button class="rangeBtn" data-group="Beverage" onclick="setItemGroup('Beverage')">Beverage</button>
+              <button class="rangeBtn" data-group="Others" onclick="setItemGroup('Others')">Others</button>
             </div>
           </div>
           <div style="font-size:12px;color:var(--text-faint);margin-bottom:10px;" id="repItemSub"></div>
@@ -1320,6 +1321,31 @@ function lfPoll(fn, ms){
   // Filtering and sorting are client-side: the whole list is already here, and
   // six round-trips to re-sort what is in hand is six chances to be stale.
   let repItems=[], repUnsold=[], repItemsRevenue=1, itemView='high', itemGroup='__all__';
+  // Report-only classification; menu categories and branch-scoped API rows stay intact.
+  // Add new category names here. Unmapped/blank categories (including Add-ons)
+  // remain visible in Others and All instead of being guessed as Food.
+  const ITEM_REPORT_GROUPS={
+    Food: new Set([
+      'food', 'kottu', 'signature kottu', 'cheese kottu', 'fried rice',
+      'rice & curry', 'biryani & naan combos', 'indian cuisine',
+      'european dishes & salads', 'north asian', 'sri lankan fusion',
+      'sides & accompaniments', 'soups', 'sizzler platters', 'pizza',
+      'vegetarian', 'seafood', 'grills', 'desserts', 'loaded fries', 'chips'
+    ]),
+    Beverage: new Set([
+      'beverage', 'beverages', 'drinks', 'soft drinks', 'water bottles',
+      'coffee & tea', 'beer'
+    ])
+  };
+  function itemReportGroup(group){
+    const key=String(group||'').trim().toLowerCase().replace(/\s+/g,' ');
+    if(ITEM_REPORT_GROUPS.Food.has(key)) return 'Food';
+    if(ITEM_REPORT_GROUPS.Beverage.has(key)) return 'Beverage';
+    return 'Others';
+  }
+  function matchesItemGroup(row){
+    return itemGroup==='__all__'||itemReportGroup(row.group)===itemGroup;
+  }
   const ITEM_SUB={high:'Most units sold — what the kitchen preps for',
                   low:'Least sold first, starting with what sold nothing at all',
                   income:'Most revenue — not always the same as most sold'};
@@ -1333,7 +1359,7 @@ function lfPoll(fn, ms){
   // The rows the current tab and filter ask for, longest form. The card slices
   // it, the sheet does not — so the two can never disagree about the order.
   function itemRowsFor(){
-    const keep=r=>itemGroup==='__all__'||r.group===itemGroup;
+    const keep=matchesItemGroup;
     if(itemView==='low') return repUnsold.filter(keep).concat(repItems.filter(keep).slice().sort((a,b)=>a.qty-b.qty));
     if(itemView==='income') return repItems.filter(keep).slice().sort((a,b)=>b.revenue-a.revenue);
     return repItems.filter(keep).slice().sort((a,b)=>b.qty-a.qty);
@@ -1346,7 +1372,7 @@ function lfPoll(fn, ms){
     return `<div style="padding:11px 0;border-bottom:1px solid var(--border-subtle);${zero?'opacity:.72;':''}"><div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;"><span style="width:38px;height:38px;border-radius:11px;background:${zero?'var(--surface-sunken)':'var(--orange-50)'};display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(t.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);">${esc(t.name)}</div><div style="font-size:12.5px;color:var(--text-muted);">${meta}</div></div><span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(t.revenue)}</span></div><div style="height:6px;border-radius:var(--radius-pill);background:var(--surface-sunken);overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--orange-300);border-radius:var(--radius-pill);"></div></div></div>`;
   }
   function itemCountLine(){
-    const keep=r=>itemGroup==='__all__'||r.group===itemGroup;
+    const keep=matchesItemGroup;
     const shown=repItems.filter(keep).length, dead=repUnsold.filter(keep).length;
     return (shown?shown+' sold':'')+(dead?((shown?' · ':'')+dead+' unsold'):'');
   }
@@ -1366,10 +1392,10 @@ function lfPoll(fn, ms){
   // The whole menu in one order — most ordered first, the unsold falling to the
   // bottom on nothing sold. The card's three tabs are three ways to read the
   // top of a list; the sheet is the list, so it does not re-sort itself under
-  // whoever opened it. The Food/Beverage filter still applies: that narrows
+  // whoever opened it. The Food/Beverage/Others filter still applies: that narrows
   // what you are looking at rather than how it is ranked.
   function itemRowsAll(){
-    const keep=r=>itemGroup==='__all__'||r.group===itemGroup;
+    const keep=matchesItemGroup;
     return repItems.filter(keep).concat(repUnsold.filter(keep))
       .sort((a,b)=> (b.qty-a.qty) || (b.revenue-a.revenue));
   }
