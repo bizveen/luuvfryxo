@@ -17,6 +17,21 @@ from luuvcrm.api.purchases import _find_pending_card
 from luuvcrm.tests import fixtures as fx
 
 
+class TestManagerPurchaseBillUI(FrappeTestCase):
+    def manager_page(self):
+        return frappe.read_file(frappe.get_app_path("luuvcrm", "www", "manager.html"))
+
+    def test_recent_bills_can_be_filtered_to_approved(self):
+        html = self.manager_page()
+        self.assertIn('data-bf="approved"', html)
+        self.assertIn("setBillFilter('approved')", html)
+
+    def test_an_approved_bill_names_its_approver_in_the_sheet(self):
+        html = self.manager_page()
+        self.assertIn("Approved by ${esc(b.resolved_by)}", html)
+        self.assertIn("b.status==='approved'&&b.resolved_by", html)
+
+
 class PurchaseTestCase(FrappeTestCase):
     def setUp(self):
         super().setUp()

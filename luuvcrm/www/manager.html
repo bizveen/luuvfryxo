@@ -434,6 +434,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <div style="display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;gap:3px;margin-bottom:8px;flex-wrap:wrap;" id="billFilter">
             <button class="rangeBtn active" data-bf="all" onclick="setBillFilter('all')">All</button>
             <button class="rangeBtn" data-bf="pending" onclick="setBillFilter('pending')">Pending</button>
+            <button class="rangeBtn" data-bf="approved" onclick="setBillFilter('approved')">Approved</button>
             <button class="rangeBtn" data-bf="due" onclick="setBillFilter('due')">Unpaid</button>
             <button class="rangeBtn" data-bf="rejected" onclick="setBillFilter('rejected')">Rejected</button>
           </div>
@@ -1916,7 +1917,7 @@ function lfPoll(fn, ms){
       icons();
     }catch(e){}
   }
-  // The four readings of this list a manager comes to it for. "Unpaid" is not a
+  // The five readings of this list a manager comes to it for. "Unpaid" is not a
   // status but a state — approved and not yet settled — and it is the one that
   // matches the Owed to vendors card above.
   let billFilter='all';
@@ -1967,7 +1968,7 @@ function lfPoll(fn, ms){
         <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(lt)}</span>
       </div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No items on this bill.</div>';
     document.getElementById('billBody').innerHTML=`
-      <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-pill);padding:6px 13px;margin-bottom:12px;">${t[2]==='Pending'?'Waiting for approval':t[2]}</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-pill);padding:6px 13px;margin-bottom:12px;">${b.status==='approved'&&b.resolved_by?`Approved by ${esc(b.resolved_by)}${b.resolved_time?` · ${esc(b.resolved_time)}`:''}`:(t[2]==='Pending'?'Waiting for approval':t[2])}</div>
       ${b.receipt_image?`<img src="${esc(b.receipt_image)}" onclick="viewImg('${esc(b.receipt_image)}')" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:6px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:12px;text-align:center;">Tap the photo to open it full size</div>`:''}
       ${b.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;">📝 ${esc(b.note)}</div>`:''}
       <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:2px;">Items</div>
