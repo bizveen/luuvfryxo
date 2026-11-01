@@ -136,8 +136,73 @@ def get_expense_categories():
         _install_expenses()
     return {"categories": [r.name for r in frappe.get_all(
         "Expense Category", filters={"disabled": 0}, fields=["name"], order_by="name")]}
+
+
+def _expense_approval(doc):
+    """Return the approval linked to an expense, if it has one."""
+    if not frappe.db.exists("DocType", "POS Approval"):
+        return None
+    fields = ["name", "action_payload", "resolved_by", "resolved_at"]
+    if frappe.db.has_column("POS Approval", "manager_comment"):
+        fields.append("manager_comment")
+    for approval in frappe.get_all(
+            "POS Approval",
+            filters={"action": "expense", "action_payload": ["like", f"%{doc.name}%"]},
+            fields=fields, order_by="resolved_at desc", limit_page_length=10):
+        try:
+            linked = json.loads(approval.action_payload or "{}").get("expense")
+        except (TypeError, ValueError):
+            continue
+        if linked == doc.name:
+            return approval
+    return None
+
+
+def _reclassified_expense_money(doc, approval):
+    """Original subtotal/discount when a stock bill became this expense."""
+    if not approval:
+        return 0.0, 0.0, ""
+    try:
+        payload = json.loads(approval.action_payload or "{}")
+    except (TypeError, ValueError):
+        payload = {}
+    source = payload.get("purchase_bill") or ""
+    if not source and frappe.db.exists("DocType", "LF Activity Log"):
+        rows = frappe.get_all(
+            "LF Activity Log",
+            filters={"action": "purchase_bill.reclassified", "ref_name": doc.name},
+            fields=["detail"], order_by="creation desc", limit_page_length=1,
+        )
+        if rows:
+            try:
+                source = json.loads(rows[0].detail or "{}").get("purchase_bill") or ""
+            except (TypeError, ValueError):
+                source = ""
+    if not source or not frappe.db.exists("Purchase Bill", source):
+        return 0.0, float(payload.get("discount") or 0), source
+    bill = frappe.get_doc("Purchase Bill", source)
+    subtotal = sum(float(line.qty or 0) * float(line.price or 0)
+                   for line in (bill.get("items") or []))
+    return subtotal, float(bill.get("discount") or payload.get("discount") or 0), source
+
+
+def _expense_resolution(doc, approval=None):
+    """Who decided an expense and when, including pre-audit-field records."""
+    resolved_by = doc.get("resolved_by") or ""
+    resolved_at = doc.get("resolved_at")
+    if (doc.status or "pending") == "pending" or (resolved_by and resolved_at):
+        return resolved_by, resolved_at
+    approval = approval or _expense_approval(doc)
+    if approval:
+        return resolved_by or approval.resolved_by or "", resolved_at or approval.resolved_at
+    return resolved_by, resolved_at
+
+
 def _expense_dict(name):
     d = frappe.get_doc("Expense", name)
+    approval = _expense_approval(d)
+    resolved_by, resolved_at = _expense_resolution(d, approval)
+    source_subtotal, source_discount, source_bill = _reclassified_expense_money(d, approval)
     return {
         "name": d.name, "category": d.category, "payee": d.payee or "",
         "amount": float(d.amount or 0), "date": str(d.expense_date or ""),
@@ -146,6 +211,16 @@ def _expense_dict(name):
         "status": d.status, "shift": d.pos_opening_entry or "",
         "by": frappe.get_value("User", d.requested_by, "full_name") or d.requested_by or "",
         "when": frappe.utils.pretty_date(d.requested_at) if d.requested_at else "",
+        "resolved_by": (frappe.get_value("User", resolved_by, "full_name")
+                        or resolved_by or "") if resolved_by else "",
+        "resolved_time": frappe.utils.pretty_date(resolved_at) if resolved_at else "",
+        "resolved_at": str(resolved_at or ""),
+        "resolved_when": (frappe.utils.format_datetime(resolved_at, "d MMM yyyy, h:mm a")
+                          if resolved_at else ""),
+        "manager_comment": approval.get("manager_comment") if approval else "",
+        "source_subtotal": source_subtotal,
+        "discount": source_discount,
+        "source_purchase_bill": source_bill,
     }
 @frappe.whitelist(methods=["POST"])
 def create_expense():

@@ -81,6 +81,14 @@ class TestRaisingARequest(ApprovalTestCase):
         self.assertEqual(doc.requested_by, frappe.session.user)
         self.assertTrue(doc.requested_at)
 
+    def test_manager_card_names_who_requested_it_beside_the_time(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "manager.html"))
+        self.assertIn("Requested by '+esc(a.by)", html)
+        self.assertIn("Requester not recorded", html)
+        self.assertIn("a.time||''", html)
+        self.assertIn('class="apprReqDesktop"', html)
+        self.assertIn('class="apprReqMobile"', html)
+
     def test_a_cashier_can_raise_one_without_admin_rights(self):
         """create_approval creates the POS Approval doctype on first use. While
         that work sat behind a System Manager guard, the first cashier to ask
@@ -629,6 +637,45 @@ class TestBillChangesLand(ApprovalTestCase):
 
     def approve(self, name):
         return self.call(api.resolve_approval, name=name, decision="approved")
+
+    def test_a_discount_card_keeps_the_order_it_is_about(self):
+        order = self.order([{"item": self.burger, "qty": 2},
+                            {"item": self.cola, "qty": 1}])
+        self.cashier()
+        details = json.dumps({
+            "lines": [{"qtyStr": "", "name": "Discount 10%", "totalStr": "− Rs 225"}],
+            "footer_label": "New total", "footer_value": "Rs 2,025",
+        })
+        card_name = self.request(
+            approval_type="discount", pos_order=order, action="discount",
+            action_payload=json.dumps({"kind": "pct", "value": 10}),
+            details_json=details,
+        )
+
+        saved = json.loads(frappe.db.get_value("POS Approval", card_name, "details_json"))
+        self.assertEqual(len(saved["order_lines"]), 2)
+        self.assertTrue(saved["order_total"])
+        card = api._format_approvals([frappe.db.get_value(
+            "POS Approval", card_name,
+            ["name", "approval_type", "pos_order", "title", "subhead", "details_json",
+             "flag_text", "status", "requested_by", "requested_at", "resolved_at",
+             "action", "action_payload"], as_dict=True,
+        )])[0]
+        self.assertEqual(len(card["order_lines"]), 2)
+        self.assertFalse(card["order_context_missing"])
+
+    def test_an_orphaned_discount_card_says_its_order_context_is_missing(self):
+        card_name = self.request(
+            approval_type="discount", action="discount",
+            action_payload=json.dumps({"kind": "pct", "value": 10}),
+        )
+        card = api._format_approvals([frappe.db.get_value(
+            "POS Approval", card_name,
+            ["name", "approval_type", "pos_order", "title", "subhead", "details_json",
+             "flag_text", "status", "requested_by", "requested_at", "resolved_at",
+             "action", "action_payload"], as_dict=True,
+        )])[0]
+        self.assertTrue(card["order_context_missing"])
 
     def test_removing_every_item_voids_the_bill(self):
         order = self.order([{"item": self.burger, "qty": 1}])

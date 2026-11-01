@@ -323,6 +323,62 @@ def _canonical_vendor(typed):
     return tidy
 
 
+def _bill_approval(doc):
+    """The approval that decided a bill, including a bill reclassified later."""
+    if not frappe.db.exists("DocType", "POS Approval"):
+        return None
+    fields = ["name", "action_payload", "resolved_by", "resolved_at"]
+    if frappe.db.has_column("POS Approval", "manager_comment"):
+        fields.append("manager_comment")
+    for approval in frappe.get_all(
+            "POS Approval", filters={"action_payload": ["like", f"%{doc.name}%"]},
+            fields=fields, order_by="resolved_at desc", limit_page_length=10):
+        try:
+            payload = json.loads(approval.action_payload or "{}")
+        except (TypeError, ValueError):
+            continue
+        if payload.get("bill") == doc.name or payload.get("purchase_bill") == doc.name:
+            return approval
+
+    # Older reclassifications replaced the payload with only the new expense.
+    # Their activity entry is the durable bridge back to this original bill.
+    if frappe.db.exists("DocType", "LF Activity Log"):
+        logs = frappe.get_all(
+            "LF Activity Log",
+            filters={"action": "purchase_bill.reclassified",
+                     "detail": ["like", f"%{doc.name}%"]},
+            fields=["detail"], order_by="creation desc", limit_page_length=10,
+        )
+        for row in logs:
+            try:
+                detail = json.loads(row.detail or "{}")
+            except (TypeError, ValueError):
+                continue
+            approval_name = detail.get("approval") if detail.get("purchase_bill") == doc.name else None
+            if approval_name and frappe.db.exists("POS Approval", approval_name):
+                return frappe.db.get_value("POS Approval", approval_name, fields, as_dict=True)
+    return None
+
+
+def _bill_resolution(doc):
+    """Return the durable who/when trail for a settled purchase bill.
+
+    Current decisions write the trail onto both the Purchase Bill and its
+    POS Approval.  Some older approved bills pre-date the Purchase Bill fields,
+    though, so their green status had no name or time in the manager sheet.
+    Recover that history from the linked approval without guessing from
+    ``modified`` (which can move later when somebody edits or pays the bill).
+    """
+    resolved_by = doc.get("resolved_by") or ""
+    resolved_at = doc.get("resolved_at")
+    if (doc.status or "pending") == "pending" or (resolved_by and resolved_at):
+        return resolved_by, resolved_at
+    approval = _bill_approval(doc)
+    if approval:
+        return resolved_by or approval.resolved_by or "", resolved_at or approval.resolved_at
+    return resolved_by, resolved_at
+
+
 @frappe.whitelist()
 def get_purchase_vendors():
     """Vendors for the new-bill sheet's suggestions, most-used first."""
@@ -334,6 +390,7 @@ def get_purchase_vendors():
 
 def _bill_dict(name):
     doc = frappe.get_doc("Purchase Bill", name)
+    approval = _bill_approval(doc)
     lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",
               "qty": float(i.qty or 0), "price": float(i.price or 0),
               "old_price": float(i.old_price or 0)} for i in (doc.get("items") or [])]
@@ -344,6 +401,7 @@ def _bill_dict(name):
     # be worked out twice in JavaScript.
     discount = float(doc.get("discount") or 0)
     total = max(subtotal - discount, 0)
+    resolved_by, resolved_at = _bill_resolution(doc)
     # A bill counts as "due" (owed to the vendor) once it is approved but not yet
     # marked paid. payment_status is a custom field added by setup_purchase_payment_fields;
     # .get() keeps this safe if the column hasn't been created yet (reads as None → unpaid).
@@ -359,9 +417,13 @@ def _bill_dict(name):
         "date": (frappe.utils.formatdate(doc.purchase_date, "d MMM yyyy")
                  if doc.get("purchase_date") else ""),
         # who settled it, for the grouped Bills list and the drill-down sheet
-        "resolved_by": (frappe.get_value("User", doc.resolved_by, "full_name")
-                        or doc.resolved_by or "") if doc.get("resolved_by") else "",
-        "resolved_time": frappe.utils.pretty_date(doc.resolved_at) if doc.get("resolved_at") else "",
+        "resolved_by": (frappe.get_value("User", resolved_by, "full_name")
+                        or resolved_by or "") if resolved_by else "",
+        "resolved_time": frappe.utils.pretty_date(resolved_at) if resolved_at else "",
+        "resolved_at": str(resolved_at or ""),
+        "resolved_when": (frappe.utils.format_datetime(resolved_at, "d MMM yyyy, h:mm a")
+                          if resolved_at else ""),
+        "manager_comment": approval.get("manager_comment") if approval else "",
         "lines": lines, "subtotal": subtotal, "discount": discount, "total": total,
         "payment_status": pay_status,
         "due": (doc.status == "approved" and pay_status != "paid"),

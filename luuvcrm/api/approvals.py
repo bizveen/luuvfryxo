@@ -17,12 +17,41 @@ from luuvcrm.api.pricing import (
     _server_item_rate,
     _service_charge_on,
 )
-from luuvcrm.api.purchases import _decide_purchase_bill
+from luuvcrm.api.purchases import _apply_bill_discount, _decide_purchase_bill
 from luuvcrm.api.schema import (
     _clean_item_note,
     _ensure_item_notes_field,
     _install_pos_approval,
 )
+
+
+def _discount_order_snapshot(details_json, pos_order):
+    """Keep the order behind a discount request readable after it changes.
+
+    A manager is deciding whether *this particular meal* deserves a discount,
+    so the card needs the items and current total, not only "10%".  Store a
+    snapshot on the request: reading the live order later would make the card's
+    evidence change while it waits, or disappear after the order is paid.
+    """
+    try:
+        details = json.loads(details_json or "{}")
+    except (TypeError, ValueError):
+        details = {}
+    if details.get("order_lines") or not pos_order or not frappe.db.exists("POS Order", pos_order):
+        return details
+    order = frappe.get_doc("POS Order", pos_order)
+    details["order_lines"] = [{
+        "qtyStr": "%s×" % (int(row.qty) if float(row.qty or 0).is_integer() else row.qty),
+        "name": row.item_name or row.item,
+        "totalStr": "Rs %s" % f"{float(row.qty or 0) * float(row.rate or 0):,.0f}",
+    } for row in (order.get("items") or [])]
+    details["order_total"] = "Rs %s" % f"{float(order.grand_total or 0):,.0f}"
+    details["order_context"] = " · ".join(filter(None, [
+        order.order_type or "",
+        ("Waiter " + order.waiter_name) if order.waiter_name else "",
+        ("Customer " + order.customer_name) if order.customer_name else "",
+    ]))
+    return details
 
 
 @frappe.whitelist(methods=["POST"])
@@ -38,6 +67,9 @@ def create_approval():
         branch.require_access("POS Order", pos_order)
     action = data.get("action", "")
     action_payload = data.get("action_payload", "") or ""
+    details_json = data.get("details_json", "") or ""
+    if approval_type == "discount":
+        details_json = json.dumps(_discount_order_snapshot(details_json, pos_order))
 
     # Dedupe. The POS leaves a removed or edited item on screen until the manager
     # approves, so nothing visibly changes after a tap and the cashier taps again
@@ -73,7 +105,7 @@ def create_approval():
         "pos_order": pos_order,
         "title": data.get("title", "") or "Approval request",
         "subhead": data.get("subhead", ""),
-        "details_json": data.get("details_json", "") or "",
+        "details_json": details_json,
         "flag_text": data.get("flag_text", ""),
         "action": action,
         "action_payload": action_payload,
@@ -251,6 +283,13 @@ def _format_approvals(rows):
     # Whether *this* viewer may answer their own card depends only on their
     # roles, so ask once rather than per row — same reason as `names` above.
     self_ok_types = roles.SELF_APPROVABLE_TYPES if roles.is_manager() else frozenset()
+    category_options = []
+    if any((r.get("action") or "") in ("purchase_bill", "expense") for r in rows):
+        category_options = [{"value": "", "label": "Purchase Bill (stock items)"}]
+        if frappe.db.exists("DocType", "Expense Category"):
+            category_options += [{"value": r.name, "label": r.name} for r in frappe.get_all(
+                "Expense Category", filters={"disabled": 0}, fields=["name"], order_by="name",
+            )]
 
     # Purchase-bill cards show each line's price with a "was Rs X" delta when the
     # buying price moved — the one number that says whether a supplier put their
@@ -280,16 +319,27 @@ def _format_approvals(rows):
             details = json.loads(r.get("details_json") or "{}")
         except Exception:
             details = {}
+        if (r.get("approval_type") or "") == "discount" and not details.get("order_lines"):
+            # Enrich requests raised just before this feature was deployed while
+            # their linked order still exists. Truly old/orphaned cards remain
+            # explicit about missing evidence instead of inventing it.
+            details = _discount_order_snapshot(r.get("details_json"), r.get("pos_order"))
         # Purchase-bill / expense approvals carry a receipt photo on the linked
         # doc — surface it so the approver can inspect the actual bill.
         image = ""
+        expense_category = ""
         try:
             payload = json.loads(r.get("action_payload") or "{}")
             action = r.get("action") or ""
             if action == "purchase_bill" and payload.get("bill"):
                 image = frappe.db.get_value("Purchase Bill", payload["bill"], "receipt_image") or ""
             elif action == "expense" and payload.get("expense"):
-                image = frappe.db.get_value("Expense", payload["expense"], "receipt_image") or ""
+                expense = frappe.db.get_value(
+                    "Expense", payload["expense"], ["receipt_image", "category"], as_dict=True,
+                )
+                if expense:
+                    image = expense.receipt_image or ""
+                    expense_category = expense.category or ""
         except Exception:
             image = ""
 
@@ -315,10 +365,21 @@ def _format_approvals(rows):
             "lines": lines,
             "footer_label": details.get("footer_label") or "",
             "footer_value": details.get("footer_value") or "",
+            "order_lines": details.get("order_lines") or [],
+            "order_total": details.get("order_total") or "",
+            "order_context": details.get("order_context") or "",
+            "order_context_missing": ((r.get("approval_type") or "") == "discount"
+                                      and not details.get("order_lines")),
             "flag_text": r.get("flag_text") or "",
             "status": r.get("status") or "pending",
             "time": frappe.utils.pretty_date(r.get("requested_at")),
             "image": image,
+            "expense_category": expense_category,
+            # The exact same classifier as New bill / expense: blank means a
+            # stock Purchase Bill; every other value is an Expense Category.
+            "category_value": expense_category if (r.get("action") or "") == "expense" else "",
+            "category_options": (category_options
+                                 if (r.get("action") or "") in ("purchase_bill", "expense") else []),
             "manager_comment": r.get("manager_comment") or "",
             "by": names.get(r.get("requested_by"), ""),
             # Whoever raised it cannot resolve it — the UI locks the card,
@@ -355,6 +416,66 @@ def get_approval_status(name):
         return {"status": "unknown"}
     branch.require_access("POS Approval", name)
     return {"status": frappe.db.get_value("POS Approval", name, "status") or "unknown"}
+
+
+def _purchase_bill_to_expense(bill_name, category, approval, discount=None):
+    """Reclassify a pending stock bill as an approved expense without losing it.
+
+    The original Purchase Bill stays as a rejected audit record (and therefore
+    cannot receive stock or rewrite the buying price book).  The approved amount
+    lives on a new Expense carrying the same payee, date, note, receipt, branch,
+    requester and request time.  Both changes share this request's transaction.
+
+    The reverse conversion is deliberately not guessed: an Expense has only one
+    amount and no item/qty/unit rows, so it cannot become a valid stock receipt.
+    """
+    if not frappe.db.exists("Expense Category", {"name": category, "disabled": 0}):
+        frappe.throw(_("Pick an active expense category"))
+    bill = frappe.get_doc("Purchase Bill", bill_name)
+    if bill.status != "pending":
+        frappe.throw(_("This purchase bill has already been resolved"))
+    if discount not in (None, ""):
+        _apply_bill_discount(bill, discount)
+        bill.reload()
+
+    values = {
+        "doctype": "Expense",
+        "category": category,
+        "payee": bill.vendor or "",
+        "amount": float(bill.total or 0),
+        "expense_date": bill.purchase_date,
+        "note": bill.note or "",
+        "receipt_image": bill.receipt_image or "",
+        "status": "pending",
+        "requested_by": bill.requested_by,
+        "requested_at": bill.requested_at,
+    }
+    if bill.meta.has_field(branch.FIELD) and frappe.get_meta("Expense").has_field(branch.FIELD):
+        values[branch.FIELD] = bill.get(branch.FIELD)
+    expense = frappe.get_doc(values)
+    expense.flags.ignore_permissions = True
+    expense.insert(ignore_permissions=True)
+
+    _decide_purchase_bill(bill.name, "rejected")
+    _decide_expense(expense.name, "approved")
+    approval.db_set("action", "expense")
+    approval.db_set("action_payload", json.dumps({
+        "expense": expense.name,
+        "purchase_bill": bill.name,
+        "discount": float(bill.discount or 0),
+    }))
+    approval.db_set("title", category)
+    approval.db_set("subhead", ((bill.vendor or "") + " · " if bill.vendor else "") + "expense")
+    activity.log_activity(
+        "purchase_bill.reclassified",
+        label="Purchase bill reclassified as %s" % category,
+        ref_doctype="Expense", ref_name=expense.name, amount=expense.amount,
+        detail={"purchase_bill": bill.name, "approval": approval.name, "category": category,
+                "discount": float(bill.discount or 0)},
+    )
+    return expense.name
+
+
 @frappe.whitelist(methods=["POST"])
 def resolve_approval():
     """Approve or reject a POS Approval; on approve the action is executed.
@@ -406,13 +527,48 @@ def resolve_approval():
             # off the whole bill. The manager is looking at the paper when
             # they approve, which is the only moment anybody can read that
             # figure off it.
-            _decide_purchase_bill(bill, decision, discount=data.get("discount"))
-            executed = "purchase_" + decision
+            category = (data.get("category") or "").strip()
+            if decision == "approved" and category:
+                _purchase_bill_to_expense(
+                    bill, category, doc, discount=data.get("discount"),
+                )
+                executed = "purchase_reclassified_as_expense"
+            else:
+                _decide_purchase_bill(bill, decision, discount=data.get("discount"))
+                executed = "purchase_" + decision
     elif action == "expense":
         # Runs on reject too - that's what pulls the drawer pay-out back out.
         payload = json.loads(doc.action_payload or "{}")
         expense = payload.get("expense")
         if expense and frappe.db.exists("Expense", expense):
+            # The approver is the second pair of eyes. Let them correct a wrongly
+            # classified expense as part of approval instead of approving bad
+            # reporting first and hunting for the edit screen afterwards.
+            category_sent = "category" in data
+            category = (data.get("category") or "").strip()
+            if decision == "approved" and category_sent and not category:
+                frappe.throw(_(
+                    "A stock Purchase Bill needs item, quantity and unit-price lines. "
+                    "Reject this expense and enter it again as a Purchase Bill."
+                ))
+            if decision == "approved" and category:
+                if not frappe.db.exists("Expense Category", {"name": category, "disabled": 0}):
+                    frappe.throw(_("Pick an active expense category"))
+                expense_doc = frappe.get_doc("Expense", expense)
+                old_category = expense_doc.category or ""
+                if category != old_category:
+                    expense_doc.db_set("category", category)
+                    doc.db_set("title", category)
+                    doc.db_set(
+                        "subhead",
+                        ((expense_doc.payee or "") + " · " if expense_doc.payee else "") + "expense",
+                    )
+                    activity.log_activity(
+                        "expense.category_at_approval",
+                        label="Expense category corrected: %s → %s" % (old_category, category),
+                        ref_doctype="Expense", ref_name=expense, amount=expense_doc.amount,
+                        detail={"from": old_category, "to": category, "approval": doc.name},
+                    )
             _decide_expense(expense, decision)
             executed = "expense_" + decision
     elif decision == "approved" and doc.pos_order:

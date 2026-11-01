@@ -669,6 +669,17 @@ class TestSpendByCategory(FrappeTestCase):
         sheet = api.get_category_bills(category=api.PURCHASE_CATEGORY, days=7)
         self.assertIn("lines", sheet["rows"][0])
 
+    def test_not_in_chart_status_rows_open_their_bill_lists(self):
+        pending = self.bill(444, status="pending")
+        rejected = self.bill(555, status="rejected")
+        for status, name, amount in (("pending", pending, 444),
+                                     ("rejected", rejected, 555)):
+            sheet = api.get_purchase_status_bills(status=status, days=7)
+            row = next(row for row in sheet["rows"] if row["name"] == name)
+            self.assertEqual(row["status"], status)
+            self.assertEqual(row["total"], amount)
+            self.assertIn("lines", row)
+
     def test_a_purchaser_cannot_read_it(self):
         email = "lf-test-cat-purchaser@example.com"
         if not frappe.db.exists("User", email):

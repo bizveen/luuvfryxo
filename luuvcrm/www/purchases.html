@@ -869,8 +869,8 @@ function lfPoll(fn, ms){
   function detRow(label,value){ return value?`<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:13.5px;"><span style="color:var(--text-muted);flex:none;">${label}</span><span style="color:var(--text-strong);font-weight:600;text-align:right;min-width:0;overflow-wrap:anywhere;">${value}</span></div>`:''; }
   function openDetail(kind,rec){ if(!rec) return; detKind=kind; detRec=rec;
     const exp=kind==='expense', t=DET_TONE[rec.status]||DET_TONE.pending;
-    document.getElementById('detTitle').textContent=(exp?rec.category:rec.vendor)||'—';
-    document.getElementById('detMeta').textContent=exp?'Expense':'Purchase bill';
+    document.getElementById('detTitle').textContent=(exp?(rec.payee||rec.category):rec.vendor)||'—';
+    document.getElementById('detMeta').textContent=exp?['Expense',rec.category].filter(Boolean).join(' · '):'Purchase bill';
     const photo=rec.receipt_image?`<img src="${esc(rec.receipt_image)}" onclick="viewImg('${esc(rec.receipt_image)}')" style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:4px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:10px;text-align:center;">Tap the photo to open it full size</div>`:'';
     const dateTxt=exp?(rec.date?new Date(rec.date+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):''):rec.date;
     let rows=detRow('Category',esc(exp?rec.category:'Purchase Bill'))
@@ -878,10 +878,10 @@ function lfPoll(fn, ms){
       +detRow(exp?'Date':'Bought on',esc(dateTxt))
       +(exp?detRow('Bill / account no',esc(rec.bill_ref)):'')
       +detRow('Entered by',esc([rec.by,exp?rec.when:rec.time].filter(Boolean).join(' · ')))
-      +(!exp&&rec.resolved_by?detRow(rec.status==='rejected'?'Rejected by':'Approved by',esc([rec.resolved_by,rec.resolved_time].filter(Boolean).join(' · '))):'')
+      +(rec.status!=='pending'?detRow(rec.status==='rejected'?'Rejected by':'Approved by',esc([rec.resolved_by||'Approver not recorded',rec.resolved_when,rec.resolved_time].filter(Boolean).join(' · '))):'')
       +(!exp&&rec.status==='approved'?detRow('Payment',rec.payment_status==='paid'?'Paid':'<span style="color:var(--color-warning);">Not paid yet</span>'):'');
     let money='';
-    if(exp){ money=`<div style="display:flex;justify-content:space-between;padding:14px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(rec.amount)}</span></div>`; }
+    if(exp){ money=(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0 0;color:var(--text-muted);"><span>Original subtotal</span><span class="mono">Rs ${nfmt(rec.source_subtotal)}</span></div><div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0 0;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')+`<div style="display:flex;justify-content:space-between;padding:14px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(rec.amount)}</span></div>`; }
     else {
       const lines=(rec.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;"><span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> ${esc(l.name||'')} <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span></span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`).join('');
       money=`<div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:14px 0 2px;">Items</div>${lines||'<div style="color:var(--text-faint);font-size:13px;padding:8px 0;">No items on this bill.</div>'}`
@@ -890,6 +890,7 @@ function lfPoll(fn, ms){
     }
     document.getElementById('detBody').innerHTML=`<span class="badge ${t[0]}" style="margin-bottom:12px;display:inline-block;">${t[1]}</span>${photo}${rows}`
       +(rec.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-top:12px;">📝 ${esc(rec.note)}</div>`:'')
+      +(rec.manager_comment?`<div style="font-size:13px;color:var(--text-body);background:var(--color-info-subtle);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-top:12px;"><b>Approval note</b><div style="margin-top:3px;">${esc(rec.manager_comment)}</div></div>`:'')
       +money
       +(CAN_EDIT&&rec.name?`<button onclick="editDetail()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit</button>`:'');
     document.getElementById('detOverlay').style.display='flex'; icons(); }
@@ -911,6 +912,8 @@ function lfPoll(fn, ms){
   // the prices they were bought at, so one haggle does not rewrite the price book.
   const apprDiscs={};
   function apprDisc(name,v){ apprDiscs[name]=v; }
+  const apprCats={};
+  function apprCategory(name,v){ apprCats[name]=v; }
   // Approve stays disabled until every line has been ticked off against the receipt —
   // the point of the tab is that someone actually read the bill.
   const apprTicks={};
@@ -921,7 +924,7 @@ function lfPoll(fn, ms){
     if(cnt) cnt.textContent=n<total?('Tick every line to approve · '+n+'/'+total):('All '+total+' checked'); }
   async function loadApprovals(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[]};
     const ae=document.activeElement;   // never repaint the list out from under a comment being typed
-    if(ae&&ae.tagName==='INPUT'&&document.getElementById('apprList').contains(ae)) return;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='SELECT')&&document.getElementById('apprList').contains(ae)) return;
     apprRows=(m.approvals||[]).filter(a=>a.status==='pending');   // a queue, not a history
     renderAppr();
   }catch(e){} }
@@ -930,6 +933,7 @@ function lfPoll(fn, ms){
     const list=apprQ?apprRows.filter(a=>apprHay(a).includes(apprQ)):apprRows;
     document.getElementById('apprList').innerHTML=list.length?(apprQ?`<div style="font-size:12px;color:var(--text-faint);margin:-2px 0 10px;">${list.length} of ${apprRows.length} waiting</div>`:'')+list.map(a=>{
       const nl=(a.lines||[]).length, tk=apprTicks[a.name]||{}, nTk=Object.keys(tk).length;
+      if(apprCats[a.name]===undefined) apprCats[a.name]=a.category_value||'';
       const lines=(a.lines||[]).map((l,ix)=>{
         // Buying-price delta: the "was" is the previous UNIT price (last price paid).
         const op=+l.old_price||0, pr=+l.price||0;
@@ -944,7 +948,7 @@ function lfPoll(fn, ms){
       }).join('');
       const foot=(a.mine
           ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
-          : `${a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:12px;">
+          : `${(a.category_options||[]).length?`<div style="margin-top:12px;"><label style="display:block;font-size:12.5px;font-weight:700;color:var(--text-body);margin-bottom:6px;">Category</label><select onchange="apprCategory('${esc(a.name)}',this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 12px;font-size:13.5px;color:var(--text-strong);background:var(--surface-card);outline:none;">${a.category_options.map(c=>`<option value="${esc(c.value)}" ${apprCats[a.name]===c.value?'selected':''}>${c.value===''?'🧾 ':''}${esc(c.label)}</option>`).join('')}</select><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Same categories as New bill / expense. Reclassifying as an expense skips stock receipt and buying-price updates.</div></div>`:''}${a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:12px;">
               <span style="font-size:12.5px;font-weight:700;color:var(--text-body);white-space:nowrap;">Discount Rs</span>
               <input type="text" inputmode="decimal" value="${esc(apprDiscs[a.name]||'')}" oninput="apprDisc('${esc(a.name)}',this.value)" placeholder="0" style="flex:1;min-width:0;box-sizing:border-box;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px 12px;font-size:14px;color:var(--text-strong);outline:none;background:var(--surface-card);">
             </div><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Comes off this bill's total. The items keep the prices they were bought at.</div>`:''}<input type="text" value="${esc(apprCmts[a.name]||'')}" oninput="apprCmt('${esc(a.name)}',this.value)" placeholder="Comment (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;background:var(--surface-card);">
@@ -974,6 +978,7 @@ function lfPoll(fn, ms){
   async function resolveAppr(name,decision,btn){
     const card=btn&&btn.parentElement; if(card) card.querySelectorAll('button').forEach(x=>x.disabled=true);
     const payload={name:name,decision:decision,comment:(apprCmts[name]||'').trim()};
+    if(decision==='approved' && apprCats[name]!==undefined) payload.category=apprCats[name];
     // Only on approve, and only when something was typed — rejecting a bill
     // with a figure still in the box must not write it.
     const disc=parseFloat(apprDiscs[name]);
@@ -981,7 +986,7 @@ function lfPoll(fn, ms){
     try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',payload);
       if(!r){ if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); return; }
       const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ delete apprCmts[name]; delete apprTicks[name]; delete apprDiscs[name]; toast(decision==='approved'?'Approved ✓':'Rejected'); loadApprovals(); loadBills(); }
+      if(r.ok && d.message && d.message.ok){ const done=d.message.executed==='purchase_reclassified_as_expense'?'Approved as expense ✓':(decision==='approved'?'Approved ✓':'Rejected'); delete apprCmts[name]; delete apprTicks[name]; delete apprDiscs[name]; delete apprCats[name]; toast(done); loadApprovals(); loadBills(); loadExpenses(); }
       else { toast(srvMsg(d,'Could not resolve')); if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); }
     }catch(e){ toast('Connection error'); if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); } }
 
