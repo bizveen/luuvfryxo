@@ -83,7 +83,7 @@
       badge.classList.add('lf-branch-switchable');
       badge.setAttribute('role', 'button');
       badge.setAttribute('tabindex', '0');
-      badge.setAttribute('aria-label', 'Switch restaurant. Current: ' + (choice.viewing || 'none'));
+      badge.setAttribute('aria-label', 'Switch restaurant. Current: ' + (choice.viewing_label || choice.viewing || 'none'));
       badge.title = 'Switch restaurant';
       badge.addEventListener('click', openSheet);
       badge.addEventListener('keydown', (event) => {
@@ -115,13 +115,14 @@
       '<button type="button" class="lf-branch-cancel">Cancel</button>';
     const list = panel.querySelector('.lf-branch-list');
     choice.restaurants.forEach((restaurant) => {
+      const label = choice.restaurant_labels?.[restaurant] || restaurant;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'lf-branch-option';
       button.setAttribute('aria-current', restaurant === choice.viewing ? 'true' : 'false');
       button.innerHTML = '<span class="lf-branch-icon">🏪</span><span class="lf-branch-name"></span>' +
         (restaurant === choice.viewing ? '<span class="lf-branch-check">✓</span>' : '');
-      button.querySelector('.lf-branch-name').textContent = restaurant;
+      button.querySelector('.lf-branch-name').textContent = label;
       button.addEventListener('click', () => selectRestaurant(restaurant));
       list.appendChild(button);
     });

@@ -50,4 +50,14 @@ class TestOperationalBranchSwitcher(FrappeTestCase):
         result = get_branch_choice()
         self.assertEqual(result["restaurants"], branch.available_restaurants())
         self.assertEqual(result["can_choose"], len(result["restaurants"]) > 1)
+        self.assertEqual(result["viewing_label"], branch.display_label(result["viewing"]))
+        self.assertEqual(result["restaurant_labels"], {
+            name: branch.display_label(name) for name in result["restaurants"]
+        })
+
+    def test_the_sheet_shows_display_name_and_location_without_changing_the_id(self):
+        source = (Path(frappe.get_app_path("luuvcrm")) /
+                  "templates" / "includes" / "branch_switcher.html").read_text()
+        self.assertIn("choice.restaurant_labels?.[restaurant] || restaurant", source)
+        self.assertIn("selectRestaurant(restaurant)", source)
 

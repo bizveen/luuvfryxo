@@ -209,11 +209,19 @@ def get_branch_choice():
     if not roles.has_any(roles.KITCHEN_ROLES | roles.PURCHASE_ROLES):
         frappe.throw("You are not permitted to use an operational app",
                      frappe.PermissionError)
+    restaurants = branch.available_restaurants()
+    viewing = branch.viewing()
     return {
-        "viewing": branch.viewing(),
+        "viewing": viewing,
+        "viewing_label": branch.display_label(viewing),
         "chosen": branch.selected(),
         "can_choose": branch.can_choose(),
-        "restaurants": branch.available_restaurants(),
+        # Keep record IDs as the selection values; labels are presentation only.
+        # A branch such as `Luuv Fryxo` may be branded `Rangiri Luuv` and located
+        # in Dambulla, so the operator sees `Rangiri Luuv — Dambulla` without
+        # changing what gets written to links and user defaults.
+        "restaurants": restaurants,
+        "restaurant_labels": {name: branch.display_label(name) for name in restaurants},
     }
 
 
