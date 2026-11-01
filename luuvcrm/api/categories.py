@@ -103,3 +103,35 @@ def get_category_bills(category=None, days=7, start=None, end=None):
     out["count"] = len(found)
     out["total"] = round(sum(float(a or 0) for a in amounts), 2)
     return out
+
+
+@frappe.whitelist()
+def get_purchase_status_bills(status=None, days=7, start=None, end=None):
+    """Bills behind a row in Manager > Purchases > Not in the chart.
+
+    Only pending and rejected belong here: approved bills already have their
+    category drill-down above. Return the same whole-row shape as that sheet so
+    tapping a result opens the normal bill popup, receipt and audit trail.
+    """
+    roles.require_manager()
+    status = (status or "").strip().lower()
+    if status not in ("pending", "rejected"):
+        frappe.throw(_("Status must be pending or rejected"))
+    start, end, days = _report_range(days, start, end)
+    out = {"status": status, "start": str(start), "end": str(end),
+           "kind": "bill", "count": 0, "total": 0.0, "rows": []}
+    if not frappe.db.exists("DocType", "Purchase Bill"):
+        return out
+
+    restaurant_cond, restaurant_params = branch.sql_restaurant("pb")
+    found = frappe.db.sql(f"""
+        SELECT pb.name, pb.total
+        FROM `tabPurchase Bill` pb
+        WHERE pb.status = %s
+          AND pb.purchase_date BETWEEN %s AND %s{restaurant_cond}
+        ORDER BY pb.purchase_date DESC, pb.requested_at DESC
+    """, (status, str(start), str(end)) + restaurant_params, as_dict=True)
+    out["rows"] = [_bill_dict(row.name) for row in found[:SHEET_LIMIT]]
+    out["count"] = len(found)
+    out["total"] = round(sum(float(row.total or 0) for row in found), 2)
+    return out

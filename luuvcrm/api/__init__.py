@@ -45,6 +45,7 @@ from luuvcrm.api.categories import (
     _expenses_where,
     get_category_bills,
     get_category_spend,
+    get_purchase_status_bills,
     PURCHASE_CATEGORY,
     SHEET_LIMIT,
 )

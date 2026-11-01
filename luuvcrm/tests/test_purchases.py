@@ -26,10 +26,55 @@ class TestManagerPurchaseBillUI(FrappeTestCase):
         self.assertIn('data-bf="approved"', html)
         self.assertIn("setBillFilter('approved')", html)
 
-    def test_an_approved_bill_names_its_approver_in_the_sheet(self):
+    def test_a_settled_bill_names_its_approver_and_time_in_the_sheet(self):
         html = self.manager_page()
-        self.assertIn("Approved by ${esc(b.resolved_by)}", html)
-        self.assertIn("b.status==='approved'&&b.resolved_by", html)
+        self.assertIn("`${action} by ${esc(b.resolved_by)}`", html)
+        self.assertIn("b.resolved_when", html)
+        self.assertIn("Decision time not recorded", html)
+        self.assertIn('id="billAudit"', html)
+        self.assertIn("document.getElementById('billAudit').innerHTML=billDecisionAudit(b)", html)
+        self.assertIn("document.getElementById('billBody').scrollTop=0", html)
+
+    def test_expense_sheet_titles_it_with_the_payee(self):
+        html = self.manager_page()
+        self.assertIn("textContent=e.payee||e.category||'Expense'", html)
+        self.assertIn("[e.category||'',day?('Paid '+day):''", html)
+
+    def test_bill_popup_shows_approval_note_and_discount(self):
+        manager = self.manager_page()
+        purchases = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
+        for html in (manager, purchases):
+            self.assertIn("manager_comment", html)
+            self.assertIn("Discount", html)
+
+    def test_not_in_chart_rows_open_a_bill_list(self):
+        html = self.manager_page()
+        self.assertIn("loadPurchaseStatusSheet('pending')", html)
+        self.assertIn("loadPurchaseStatusSheet('rejected')", html)
+        self.assertIn("luuvcrm.api.get_purchase_status_bills", html)
+
+    def test_approver_details_stay_out_of_bill_list_rows(self):
+        html = self.manager_page()
+        sections = (
+            ("function pdayRow", "function openPDayBill"),
+            ("function renderPurchaseBills", "function openBill"),
+            ("function renderCategorySheet", "function openCategoryRow"),
+            ("function vendorBillRow", "function vendorSection"),
+        )
+        for start, end in sections:
+            row_renderer = html[html.index(start):html.index(end, html.index(start))]
+            self.assertNotIn("resolved_by", row_renderer,
+                             f"approver details leaked into list renderer {start}")
+
+    def test_both_approval_screens_use_the_new_bill_category_list(self):
+        manager = self.manager_page()
+        purchases = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
+        for html in (manager, purchases):
+            self.assertIn("category_options", html)
+            self.assertIn("apprCategory", html)
+            self.assertIn("payload.category", html)
+        self.assertIn("billDecisionAudit(e)", manager)
+        self.assertIn("rec.resolved_when", purchases)
 
 
 class PurchaseTestCase(FrappeTestCase):
@@ -196,6 +241,36 @@ class TestResolvingABill(PurchaseTestCase):
                 with self.assertRaises(frappe.ValidationError):
                     self.call(api.resolve_purchase_bill, name=name, decision=decision)
 
+    def test_bill_dict_carries_the_exact_decision_time(self):
+        self.as_user(self.user_with(roles.PURCHASER, "auditbuyer"))
+        name = self.enter()
+        frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "auditmanager"))
+        self.call(api.resolve_purchase_bill, name=name, decision="approved")
+
+        row = api._bill_dict(name)
+        self.assertTrue(row["resolved_by"])
+        self.assertTrue(row["resolved_at"])
+        self.assertTrue(row["resolved_when"])
+
+    def test_old_bill_recovers_its_decision_trail_from_the_approval(self):
+        """Historical bills can lack the duplicated Purchase Bill audit fields;
+        their linked approval is still the source of truth for the manager sheet."""
+        self.as_user(self.user_with(roles.PURCHASER, "oldbuyer"))
+        name = self.enter()
+        approval = _find_pending_card("purchase_bill", "bill", name)
+        manager = self.user_with(roles.RESTAURANT_MANAGER, "oldmanager")
+        decided = frappe.utils.now_datetime()
+        frappe.db.set_value("Purchase Bill", name, "status", "approved")
+        frappe.db.set_value("Purchase Bill", name, {"resolved_by": None, "resolved_at": None})
+        frappe.db.set_value("POS Approval", approval, {
+            "status": "approved", "resolved_by": manager, "resolved_at": decided,
+        })
+
+        row = api._bill_dict(name)
+        self.assertEqual(row["resolved_by"], frappe.get_value("User", manager, "full_name"))
+        self.assertEqual(row["resolved_at"], str(decided))
+        self.assertTrue(row["resolved_when"])
+
     def test_the_buyer_cannot_approve_their_own_bill(self):
         """Approving rewrites the buying price book, so one person must not be
         able to both enter a purchase and wave it through."""
@@ -205,6 +280,90 @@ class TestResolvingABill(PurchaseTestCase):
             self.call(api.resolve_purchase_bill, name=name, decision="approved")
         self.assertIn("someone else has to answer", str(caught.exception))
         self.assertEqual(frappe.db.get_value("Purchase Bill", name, "status"), "pending")
+
+
+class TestCategoryCorrectionAtApproval(PurchaseTestCase):
+    def categories(self):
+        return frappe.get_all("Expense Category", filters={"disabled": 0}, pluck="name",
+                              order_by="name")
+
+    def approval_for(self, action, key, name):
+        approval = _find_pending_card(action, key, name)
+        self.assertTrue(approval)
+        return approval
+
+    def clean_converted(self, approval, expense):
+        def clean():
+            here = frappe.session.user
+            frappe.set_user("Administrator")
+            try:
+                if frappe.db.exists("POS Approval", approval):
+                    frappe.delete_doc("POS Approval", approval, force=True, ignore_permissions=True)
+                if frappe.db.exists("Expense", expense):
+                    frappe.delete_doc("Expense", expense, force=True, ignore_permissions=True)
+            finally:
+                frappe.set_user(here)
+        self.addCleanup(clean)
+
+    def test_purchase_approval_offers_the_create_form_categories(self):
+        bill = self.enter()
+        approval = self.approval_for("purchase_bill", "bill", bill)
+        row = next(r for r in api._format_approvals(api._pending_and_recent_approvals("purchase_bill"))
+                   if r["name"] == approval)
+        self.assertEqual(row["category_options"][0],
+                         {"value": "", "label": "Purchase Bill (stock items)"})
+        self.assertEqual([o["value"] for o in row["category_options"]][1:], self.categories())
+
+    def test_a_stock_bill_can_be_reclassified_as_an_expense_before_approval(self):
+        category = self.categories()[0]
+        self.as_user(self.user_with(roles.PURCHASER, "reclass-buyer"))
+        bill = self.enter(vendor="_LFT-Reclass Vendor",
+                          lines=[{"item": self.tomato, "qty": 2, "price": 175}])
+        approval = self.approval_for("purchase_bill", "bill", bill)
+        frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "reclass-manager"))
+
+        result = self.call(api.resolve_approval, name=approval, decision="approved",
+                           category=category, discount=25, comment="Approved after discount")
+        payload = json.loads(frappe.db.get_value("POS Approval", approval, "action_payload"))
+        expense = payload["expense"]
+        self.clean_converted(approval, expense)
+
+        self.assertEqual(result["executed"], "purchase_reclassified_as_expense")
+        self.assertEqual(frappe.db.get_value("Purchase Bill", bill, "status"), "rejected")
+        converted = frappe.get_doc("Expense", expense)
+        self.assertEqual(converted.status, "approved")
+        self.assertEqual(converted.category, category)
+        self.assertEqual(converted.payee, "_LFT-Reclass Vendor")
+        self.assertEqual(float(converted.amount), 325)
+        expense_row = api._expense_dict(expense)
+        self.assertEqual(expense_row["manager_comment"], "Approved after discount")
+        self.assertEqual(expense_row["source_subtotal"], 350)
+        self.assertEqual(expense_row["discount"], 25)
+        bill_row = api._bill_dict(bill)
+        self.assertEqual(bill_row["manager_comment"], "Approved after discount")
+        self.assertEqual(bill_row["discount"], 25)
+        self.assertFalse(frappe.db.exists(
+            "Item Price", {"item_code": self.tomato, "price_list": api._buying_price_list()},
+        ), "an expense must not rewrite the stock buying price")
+
+    def test_an_expense_category_can_be_corrected_as_it_is_approved(self):
+        categories = self.categories()
+        self.assertGreaterEqual(len(categories), 2)
+        self.as_user(self.user_with(roles.CASHIER, "expense-buyer"))
+        created = self.call(api.create_expense, category=categories[0], amount=425,
+                            payee="_LFT-Utility")
+        expense = created["name"]
+        approval = self.approval_for("expense", "expense", expense)
+        self.clean_converted(approval, expense)
+        frappe.set_user(self.user_with(roles.RESTAURANT_MANAGER, "expense-manager"))
+
+        self.call(api.resolve_approval, name=approval, decision="approved",
+                  category=categories[1])
+        self.assertEqual(frappe.db.get_value("Expense", expense, "status"), "approved")
+        self.assertEqual(frappe.db.get_value("Expense", expense, "category"), categories[1])
+        row = api._expense_dict(expense)
+        self.assertTrue(row["resolved_by"])
+        self.assertTrue(row["resolved_when"])
 
 
 class TestOwingTheVendor(PurchaseTestCase):

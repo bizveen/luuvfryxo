@@ -670,6 +670,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       </div>
       <button onclick="hideBill()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
+    <div id="billAudit" style="flex:none;"></div>
     <div id="billBody" style="overflow-y:auto;"></div>
   </div>
 </div>
@@ -951,7 +952,7 @@ function lfPoll(fn, ms){
       const all=m.approvals||[];
       // Don't yank the cash/comment box out from under the manager on the 8s poll.
       const ae=document.activeElement;
-      if(ae&&feed.contains(ae)&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA')) return;
+      if(ae&&feed.contains(ae)&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT')) return;
       if(!all.length){ feed.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;padding:64px 20px;text-align:center;color:var(--text-faint);"><span style="width:64px;height:64px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:30px;height:30px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-body);">All caught up 🎉</div><div style="font-size:13.5px;max-width:240px;line-height:1.5;">Nothing waiting on you. New requests from the POS will pop up here.</div></div>'; icons(); return; }
 
       _apprView.all=all;
@@ -996,6 +997,7 @@ function lfPoll(fn, ms){
   function renderApprovalCard(a){
     const t=TONE[a.type]||TONE.item; const pending=a.status==='pending';
     const st=pending?(apprState[a.name]=apprState[a.name]||{ticks:{},comment:''}):{ticks:{},comment:''};
+    if(pending&&(a.type==='bill'||a.type==='expense')&&st.category===undefined) st.category=a.category_value||'';
     const nLines=(a.lines||[]).length;
     // Your own card is not yours to answer — except a bill edit, which a
     // manager may. `self_ok` is the server's own answer to that question
@@ -1019,11 +1021,12 @@ function lfPoll(fn, ms){
     if(locked){
       actions=`<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-md);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`; }
     else if(pending){ const ticked=Object.values(st.ticks).filter(Boolean).length; const ok=!nLines||ticked>=nLines;
+      const catBox=(a.category_options||[]).length?`<div style="margin-top:10px;"><label style="display:block;font-size:12.5px;font-weight:700;color:var(--text-body);margin-bottom:6px;">Category</label><select onchange="apprCategory('${a.name}',this.value)" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 12px;font-size:13.5px;color:var(--text-strong);background:var(--surface-card);outline:none;">${a.category_options.map(c=>`<option value="${esc(c.value)}" ${st.category===c.value?'selected':''} ${a.type==='expense'&&c.value===''?'disabled':''}>${c.value===''?'🧾 ':''}${esc(c.label)}</option>`).join('')}</select><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Same categories as New bill / expense. A stock bill changed to an expense will not receive stock or update buying prices.</div></div>`:'';
       const discBox=a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;">
         <span style="font-size:12.5px;font-weight:700;color:var(--text-body);white-space:nowrap;">Discount Rs</span>
         <input type="text" inputmode="decimal" value="${esc(st.discount||'')}" oninput="apprDisc('${a.name}',this.value)" placeholder="0" style="flex:1;min-width:0;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px 12px;font-size:14px;font-family:var(--font-mono);color:var(--text-strong);outline:none;">
       </div><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Comes off this bill's total. The items keep the prices they were bought at.</div>`:'';
-      actions=`${discBox}<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
+      actions=`${catBox}${discBox}<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
       ${nLines?`<div id="cnt_${a.name}" style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">Tick every line to enable Approve · ${ticked}/${nLines} checked</div>`:''}
       <div style="display:flex;gap:9px;margin-top:10px;"><button id="app_${a.name}" ${ok?'':'disabled'} onclick="resolve('${a.name}','approved')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check" style="width:16px;height:16px;"></i> Approve</button><button onclick="resolve('${a.name}','rejected')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject</button></div>`; }
     else if(a.status==='approved') actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-success);background:var(--color-success-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approved · sent back to POS</div>`;
@@ -1042,6 +1045,7 @@ function lfPoll(fn, ms){
     const btn=document.getElementById('app_'+name); if(btn) btn.disabled=ticked<total;
     const cnt=document.getElementById('cnt_'+name); if(cnt) cnt.textContent='Tick every line to enable Approve · '+ticked+'/'+total+' checked'; }
   function apprCmt(name,v){ (apprState[name]=apprState[name]||{ticks:{},comment:''}).comment=v; }
+  function apprCategory(name,v){ (apprState[name]=apprState[name]||{ticks:{},comment:''}).category=v; }
   // What the vendor took off the whole bill. Asked for here because approving is
   // the moment somebody is holding the paper and can read the figure off it.
   // It reduces the bill's total and nothing else — the items keep the prices
@@ -1051,6 +1055,7 @@ function lfPoll(fn, ms){
     const st=apprState[name]||{};
     const comment=(st.comment||'').trim();
     const payload={name:name,decision:decision,comment:comment};
+    if(decision==='approved' && st.category!==undefined) payload.category=st.category;
     // Only on approve, and only when something was typed: rejecting a bill with
     // a discount in the box should not quietly write the discount.
     const disc=parseFloat(st.discount);
@@ -1060,7 +1065,7 @@ function lfPoll(fn, ms){
         // The server may close an approved card as rejected with a reason (bill
         // already paid / voided / gone, or replaced by a newer change): say so,
         // instead of a green "Approved" for a change that never happened.
-        const m=d.message; toast(m.note?('Not applied: '+m.note):(decision==='approved'?'Approved':'Rejected'),m.note?5000:0); loadApprovals(); loadDashboard(); }
+        const m=d.message; const done=m.executed==='purchase_reclassified_as_expense'?'Approved as expense':(decision==='approved'?'Approved':'Rejected'); toast(m.note?('Not applied: '+m.note):done,m.note?5000:0); loadApprovals(); loadDashboard(); }
       else toast('Could not resolve: '+_smsg(d,'server error'),5000); }catch(e){ toast('Connection error'); } }
 
   // ── Month picker (shared by the Reports and Purchases range toggles) ──
@@ -1639,8 +1644,8 @@ function lfPoll(fn, ms){
     const any=p.count||r.count||turn;
     showCard('purchWaitingCard',!!any); if(!any) return;
     let html='';
-    if(p.count) html+=purchRow('clock','var(--color-warning)','var(--color-warning-subtle)','Waiting for approval',p.count+' bill'+(p.count===1?'':'s'),'Rs '+nfmt(p.amount),'not counted above');
-    if(r.count) html+=purchRow('x-circle','var(--color-danger)','var(--color-danger-subtle)','Rejected',r.count+' bill'+(r.count===1?'':'s'),'Rs '+nfmt(r.amount),'refused');
+    if(p.count) html+=purchRow('clock','var(--color-warning)','var(--color-warning-subtle)','Waiting for approval',p.count+' bill'+(p.count===1?'':'s'),'Rs '+nfmt(p.amount),'tap to view',"loadPurchaseStatusSheet('pending')");
+    if(r.count) html+=purchRow('x-circle','var(--color-danger)','var(--color-danger-subtle)','Rejected',r.count+' bill'+(r.count===1?'':'s'),'Rs '+nfmt(r.amount),'tap to view',"loadPurchaseStatusSheet('rejected')");
     if(turn) html+=purchRow('timer','var(--color-info)','var(--color-info-subtle)','Time to a decision',turn.count+' bill'+(turn.count===1?'':'s')+' decided',hoursLabel(turn.avg_hours),'slowest '+hoursLabel(turn.max_hours));
     document.getElementById('purchWaiting').innerHTML=html; icons();
   }
@@ -1888,10 +1893,7 @@ function lfPoll(fn, ms){
       </div>`; }).join('');
   }
   function pdayRow(b,i){
-    const t=BILL_TONE[b.status]||BILL_TONE.pending;
     const n=(b.lines||[]).length;
-    // a settled bill names its approver; a pending one only has whoever entered it
-    const settled=b.status!=='pending'&&b.resolved_by;
     return `<div onclick="openPDayBill(${i})" style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
       <span style="width:36px;height:36px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:'🏪'}</span>
       <div style="flex:1;min-width:0;">
@@ -1900,7 +1902,6 @@ function lfPoll(fn, ms){
       </div>
       <div style="flex:none;text-align:right;">
         <div class="mono" style="font-size:13.5px;color:var(--text-strong);">Rs ${nfmt(b.total)}</div>
-        ${settled?`<div style="font-size:11px;font-weight:700;color:${t[0]};margin-top:2px;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.status==='approved'?'✅':'✕'} ${esc(b.resolved_by)}</div>`:''}
       </div>
     </div>`;
   }
@@ -1910,6 +1911,17 @@ function lfPoll(fn, ms){
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   let purchBills=[];
   const BILL_TONE={approved:['var(--color-success)','var(--color-success-subtle)','Approved'],pending:['#9a6207','var(--color-warning-subtle)','Pending'],rejected:['var(--color-danger)','var(--color-danger-subtle)','Rejected']};
+  function billDecisionAudit(b){
+    const t=BILL_TONE[b.status]||BILL_TONE.pending;
+    if((b.status||'pending')==='pending') return `<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;"><i data-lucide="clock-3" style="width:16px;height:16px;flex:none;"></i> Waiting for approval</div>`;
+    const action=b.status==='approved'?'Approved':'Rejected';
+    const icon=b.status==='approved'?'check-circle':'x-circle';
+    const who=b.resolved_by?`${action} by ${esc(b.resolved_by)}`:`${action} · approver not recorded`;
+    const exact=b.resolved_when||'';
+    const relative=b.resolved_time||'';
+    const when=[exact,relative&&relative!==exact?relative:''].filter(Boolean).join(' · ')||'Decision time not recorded';
+    return `<div style="display:flex;align-items:flex-start;gap:8px;color:${t[0]};background:${t[1]};border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;"><i data-lucide="${icon}" style="width:16px;height:16px;flex:none;margin-top:1px;"></i><div style="min-width:0;"><div style="font-size:12.5px;font-weight:800;line-height:1.35;">${who}</div><div style="font-size:11.5px;font-weight:600;line-height:1.4;margin-top:2px;opacity:.85;">${esc(when)}</div></div></div>`;
+  }
   async function loadPurchaseBills(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       purchBills=m.bills||[];
@@ -1953,11 +1965,12 @@ function lfPoll(fn, ms){
   function openBill(i){ showBill(purchBills[i]); }
   let billShown=null;
   function showBill(b){
-    if(!b) return; billShown=b; const t=BILL_TONE[b.status]||BILL_TONE.pending;
+    if(!b) return; billShown=b;
     document.getElementById('billTitle').textContent=b.vendor||'Purchase bill';
     // The day it was bought first — the day every report counts it under — then
     // who typed it in and when.
-    document.getElementById('billMeta').textContent=[b.date?('Bought '+b.date):'',b.by,b.time?('entered '+b.time):''].filter(Boolean).join(' · ');
+    document.getElementById('billMeta').textContent=[b.date?('Bought '+b.date):'',b.by?('Entered by '+b.by):'',b.time||''].filter(Boolean).join(' · ');
+    document.getElementById('billAudit').innerHTML=billDecisionAudit(b);
     const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const changed=l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;
       return `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
         <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;">${emojiFor(l.name)}</span>
@@ -1968,13 +1981,15 @@ function lfPoll(fn, ms){
         <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(lt)}</span>
       </div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No items on this bill.</div>';
     document.getElementById('billBody').innerHTML=`
-      <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-pill);padding:6px 13px;margin-bottom:12px;">${b.status==='approved'&&b.resolved_by?`Approved by ${esc(b.resolved_by)}${b.resolved_time?` · ${esc(b.resolved_time)}`:''}`:(t[2]==='Pending'?'Waiting for approval':t[2])}</div>
       ${b.receipt_image?`<img src="${esc(b.receipt_image)}" onclick="viewImg('${esc(b.receipt_image)}')" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:6px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:12px;text-align:center;">Tap the photo to open it full size</div>`:''}
-      ${b.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;">📝 ${esc(b.note)}</div>`:''}
+      ${b.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;"><b>Bill note</b><div style="margin-top:3px;">${esc(b.note)}</div></div>`:''}
+      ${b.manager_comment?`<div style="font-size:13px;color:var(--text-body);background:var(--color-info-subtle);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-bottom:12px;"><b>Approval note</b><div style="margin-top:3px;">${esc(b.manager_comment)}</div></div>`:''}
       <div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin-bottom:2px;">Items</div>
       ${linesHtml}
+      ${b.discount?`<div style="display:flex;justify-content:space-between;padding:10px 0 2px;font-size:13px;color:var(--text-muted);"><span>Subtotal</span><span class="mono">Rs ${nfmt(b.subtotal)}</span></div><div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(b.discount)}</span></div>`:''}
       <div style="display:flex;justify-content:space-between;padding:13px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(b.total)}</span></div>
       ${b.name?`<button onclick="editShownBill()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit vendor, date, photo or note</button>`:''}`;
+    document.getElementById('billBody').scrollTop=0;
     document.getElementById('billOverlay').style.display='flex'; icons();
   }
   function hideBill(){ document.getElementById('billOverlay').style.display='none'; }
@@ -2012,6 +2027,18 @@ function lfPoll(fn, ms){
       renderCategorySheet(m);
     }catch(e){ document.getElementById('catBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Connection error.</div>'; }
   }
+  async function loadPurchaseStatusSheet(status){
+    const pending=status==='pending'; catSheet=null;
+    document.getElementById('catTitle').textContent=pending?'⏳ Waiting for approval':'✕ Rejected';
+    document.getElementById('catMeta').textContent=pMonth?monthRange(pMonth).label:('Last '+pDays+' days');
+    document.getElementById('catBody').innerHTML='<div style="padding:36px 0;text-align:center;color:var(--text-faint);font-size:13px;">Loading…</div>';
+    document.getElementById('catOverlay').style.display='flex'; icons();
+    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_status_bills',Object.assign({status:status},pArgs())); if(!r) return;
+      const d=await r.json(); const m=d.message;
+      if(!m){ document.getElementById('catBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Could not load these bills.</div>'; return; }
+      renderCategorySheet(m);
+    }catch(e){ document.getElementById('catBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Connection error.</div>'; }
+  }
   function renderCategorySheet(m){
     const exp=m.kind==='expense'; catSheetRows=m.rows||[];
     document.getElementById('catMeta').textContent=(pMonth?monthRange(pMonth).label:('Last '+pDays+' days'))+' · '+m.count+' bill'+(m.count===1?'':'s')+' · Rs '+nfmt(m.total);
@@ -2021,7 +2048,7 @@ function lfPoll(fn, ms){
       const sub=exp?[when(b.date),b.bill_ref?('#'+b.bill_ref):'',b.by].filter(Boolean).join(' · ')
                    :[b.date,(b.lines||[]).length+' item'+((b.lines||[]).length===1?'':'s'),b.by].filter(Boolean).join(' · ');
       return `<div onclick="openCategoryRow(${i})" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
-        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:catEmoji(m.category)}</span>
+        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:catEmoji(exp?m.category:'Purchase Bill')}</span>
         <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(title)||'—'}</div><div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(sub)}</div></div>
         <span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(exp?b.amount:b.total)}</span></div>`; }).join('')
       +(m.count>catSheetRows.length?`<div style="font-size:12px;color:var(--text-faint);padding:8px 0;">Showing ${catSheetRows.length} of ${m.count}.</div>`:'')
@@ -2035,18 +2062,23 @@ function lfPoll(fn, ms){
 
   // An expense in the same sheet a bill opens in — no items, one amount.
   let expShown=null;
-  function showExpense(e){ if(!e) return; expShown=e; billShown=null; const t=BILL_TONE[e.status]||BILL_TONE.pending;
-    document.getElementById('billTitle').textContent=e.category||'Expense';
+  function showExpense(e){ if(!e) return; expShown=e; billShown=null;
+    // A person recognises the bill by who was paid ("Home", "CEB"), not by
+    // the reporting bucket. The category remains visible in the details below.
+    document.getElementById('billTitle').textContent=e.payee||e.category||'Expense';
     const day=e.date?new Date(e.date+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'';
-    document.getElementById('billMeta').textContent=[day?('Paid '+day):'',e.by,e.when?('entered '+e.when):''].filter(Boolean).join(' · ');
+    document.getElementById('billMeta').textContent=[e.category||'',day?('Paid '+day):'',e.by?('Entered by '+e.by):'',e.when||''].filter(Boolean).join(' · ');
+    document.getElementById('billAudit').innerHTML=billDecisionAudit(e);
     const row=(k,v)=>v?`<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:13.5px;"><span style="color:var(--text-muted);flex:none;">${k}</span><span style="color:var(--text-strong);font-weight:600;text-align:right;overflow-wrap:anywhere;">${esc(v)}</span></div>`:'';
     document.getElementById('billBody').innerHTML=`
-      <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:${t[0]};background:${t[1]};border-radius:var(--radius-pill);padding:6px 13px;margin-bottom:12px;">${t[2]==='Pending'?'Waiting for approval':t[2]}</div>
       ${e.receipt_image?`<img src="${esc(e.receipt_image)}" onclick="viewImg('${esc(e.receipt_image)}')" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:6px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:12px;text-align:center;">Tap the photo to open it full size</div>`:''}
       ${row('Category',e.category)}${row('Paid to',e.payee)}${row('Date',day)}${row('Bill / account no',e.bill_ref)}${row('Outlet',e.outlet)}
       ${e.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-top:12px;">📝 ${esc(e.note)}</div>`:''}
+      ${e.manager_comment?`<div style="font-size:13px;color:var(--text-body);background:var(--color-info-subtle);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-top:12px;"><b>Approval note</b><div style="margin-top:3px;">${esc(e.manager_comment)}</div></div>`:''}
+      ${e.discount?`<div style="display:flex;justify-content:space-between;padding:12px 0 2px;font-size:13px;color:var(--text-muted);"><span>Original subtotal</span><span class="mono">Rs ${nfmt(e.source_subtotal)}</span></div><div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(e.discount)}</span></div>`:''}
       <div style="display:flex;justify-content:space-between;padding:13px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(e.amount)}</span></div>
       <button onclick="editShownExpense()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit category, payee, date, photo or note</button>`;
+    document.getElementById('billBody').scrollTop=0;
     document.getElementById('billOverlay').style.display='flex'; icons();
   }
   function editShownExpense(){ const e=expShown; if(!e) return;
