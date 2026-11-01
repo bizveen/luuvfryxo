@@ -72,6 +72,8 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 .dpD.today{border-color:var(--color-primary);color:var(--color-primary);}
 .dpD.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;box-shadow:var(--shadow-xs);}
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
+.apprReqDesktop{display:none;}
+.apprReqMobile{display:block;}
 
 /* ── Desktop / tablet-landscape (≥900px): widen the shell, two-column content.
      Phones are untouched — everything below only applies on large screens. ── */
@@ -82,6 +84,8 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   #tabToday>*,#tabReports>*,#tabCash>*,#tabPurchases>*,#tabSettings>*{break-inside:avoid;}
   /* approvals feed becomes a two-column grid of cards */
   .apprGrid{display:grid !important;grid-template-columns:1fr 1fr;gap:14px !important;align-items:start;}
+  .apprReqDesktop{display:block;text-align:right;flex:none;max-width:180px;}
+  .apprReqMobile{display:none;}
   /* bottom nav: keep the buttons phone-sized and centred instead of stretching */
   .navb{flex:0 1 150px;}
   .navb:first-child{margin-left:auto;}
@@ -1012,6 +1016,11 @@ function lfPoll(fn, ms){
       return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
     }).join('');
     const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
+    const orderLines=(a.order_lines||[]).map(li=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span class="mono" style="color:var(--text-muted);flex:none;">${esc(li.qtyStr||'')}</span><span style="color:var(--text-strong);flex:1;min-width:0;">${esc(li.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">${esc(li.totalStr||'')}</span></div>`).join('');
+    const orderBox=orderLines?`<div style="margin-top:11px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);padding:10px 12px;"><div style="font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);margin-bottom:7px;">Order items</div><div style="display:flex;flex-direction:column;gap:6px;">${orderLines}</div>${a.order_total?`<div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:8px;border-top:1px solid var(--border-subtle);font-size:13.5px;font-weight:800;color:var(--text-strong);"><span>Current order total</span><span class="mono">${esc(a.order_total)}</span></div>`:''}</div>`:'';
+    const missingOrder=a.order_context_missing?`<div style="margin-top:11px;padding:9px 11px;border-radius:var(--radius-md);background:var(--color-warning-subtle);color:var(--color-warning);font-size:12px;font-weight:700;line-height:1.4;">Order details unavailable for this older request. Check the order before approving.</div>`:'';
+    const requester=a.by?('Requested by '+esc(a.by)):'Requester not recorded';
+    const requested=[requester,a.time||''].filter(Boolean).join(' · ');
     const flag=a.flag_text?`<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--color-danger);background:var(--color-danger-subtle);border-radius:var(--radius-pill);padding:6px 12px;">${a.flag_text}</div>`:'';
     const img=a.image?`<img src="${esc(a.image)}" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;margin-top:11px;"><div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;text-align:center;">Tap the photo to inspect it full screen</div>`:'';
     let actions='';
@@ -1034,7 +1043,8 @@ function lfPoll(fn, ms){
     if(!pending&&a.manager_comment) actions+=`<div style="margin-top:8px;font-size:12.5px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:8px 12px;">💬 ${esc(a.manager_comment)}</div>`;
     return `<div style="background:var(--surface-card);border:1px solid ${pending?'var(--border-default)':'var(--border-subtle)'};border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow-sm);animation:mgrUp var(--duration-base) var(--ease-out);">
       <div style="display:flex;gap:12px;"><span style="width:42px;height:42px;border-radius:11px;background:${t[1]};color:${t[2]};display:inline-flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="${t[0]}" style="width:20px;height:20px;"></i></span>
-      <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);">${a.title}</span><span style="font-size:11.5px;color:var(--text-faint);flex:none;">${a.time||''}</span></div><div style="font-size:12.5px;color:var(--text-muted);line-height:1.4;margin-top:2px;">${a.subhead||''}</div></div></div>
+      <div style="flex:1;min-width:0;"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;"><div style="font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);min-width:0;">${a.title}</div><div class="apprReqDesktop"><div style="font-size:11.5px;font-weight:700;color:var(--text-muted);line-height:1.35;">${requester}</div>${a.time?`<div style="font-size:11px;color:var(--text-faint);line-height:1.35;margin-top:2px;">${esc(a.time)}</div>`:''}</div></div><div style="font-size:12.5px;color:var(--text-muted);line-height:1.4;margin-top:2px;">${a.subhead||''}</div>${a.order_context?`<div style="font-size:11.5px;color:var(--text-faint);line-height:1.4;margin-top:2px;">${esc(a.order_context)}</div>`:''}<div class="apprReqMobile" style="font-size:11.5px;color:var(--text-faint);line-height:1.4;margin-top:3px;">${requested}</div></div></div>
+      ${orderBox}${missingOrder}
       ${(lines||footer)?`<div style="margin-top:11px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);padding:10px 12px;display:flex;flex-direction:column;gap:6px;">${lines}${footer}</div>`:''}
       ${img}${flag}${actions}</div>`;
   }

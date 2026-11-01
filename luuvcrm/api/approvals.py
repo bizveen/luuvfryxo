@@ -25,6 +25,35 @@ from luuvcrm.api.schema import (
 )
 
 
+def _discount_order_snapshot(details_json, pos_order):
+    """Keep the order behind a discount request readable after it changes.
+
+    A manager is deciding whether *this particular meal* deserves a discount,
+    so the card needs the items and current total, not only "10%".  Store a
+    snapshot on the request: reading the live order later would make the card's
+    evidence change while it waits, or disappear after the order is paid.
+    """
+    try:
+        details = json.loads(details_json or "{}")
+    except (TypeError, ValueError):
+        details = {}
+    if details.get("order_lines") or not pos_order or not frappe.db.exists("POS Order", pos_order):
+        return details
+    order = frappe.get_doc("POS Order", pos_order)
+    details["order_lines"] = [{
+        "qtyStr": "%s×" % (int(row.qty) if float(row.qty or 0).is_integer() else row.qty),
+        "name": row.item_name or row.item,
+        "totalStr": "Rs %s" % f"{float(row.qty or 0) * float(row.rate or 0):,.0f}",
+    } for row in (order.get("items") or [])]
+    details["order_total"] = "Rs %s" % f"{float(order.grand_total or 0):,.0f}"
+    details["order_context"] = " · ".join(filter(None, [
+        order.order_type or "",
+        ("Waiter " + order.waiter_name) if order.waiter_name else "",
+        ("Customer " + order.customer_name) if order.customer_name else "",
+    ]))
+    return details
+
+
 @frappe.whitelist(methods=["POST"])
 def create_approval():
     """POS raises an approval request for a bill change that needs a manager."""
@@ -38,6 +67,9 @@ def create_approval():
         branch.require_access("POS Order", pos_order)
     action = data.get("action", "")
     action_payload = data.get("action_payload", "") or ""
+    details_json = data.get("details_json", "") or ""
+    if approval_type == "discount":
+        details_json = json.dumps(_discount_order_snapshot(details_json, pos_order))
 
     # Dedupe. The POS leaves a removed or edited item on screen until the manager
     # approves, so nothing visibly changes after a tap and the cashier taps again
@@ -73,7 +105,7 @@ def create_approval():
         "pos_order": pos_order,
         "title": data.get("title", "") or "Approval request",
         "subhead": data.get("subhead", ""),
-        "details_json": data.get("details_json", "") or "",
+        "details_json": details_json,
         "flag_text": data.get("flag_text", ""),
         "action": action,
         "action_payload": action_payload,
@@ -287,6 +319,11 @@ def _format_approvals(rows):
             details = json.loads(r.get("details_json") or "{}")
         except Exception:
             details = {}
+        if (r.get("approval_type") or "") == "discount" and not details.get("order_lines"):
+            # Enrich requests raised just before this feature was deployed while
+            # their linked order still exists. Truly old/orphaned cards remain
+            # explicit about missing evidence instead of inventing it.
+            details = _discount_order_snapshot(r.get("details_json"), r.get("pos_order"))
         # Purchase-bill / expense approvals carry a receipt photo on the linked
         # doc — surface it so the approver can inspect the actual bill.
         image = ""
@@ -328,6 +365,11 @@ def _format_approvals(rows):
             "lines": lines,
             "footer_label": details.get("footer_label") or "",
             "footer_value": details.get("footer_value") or "",
+            "order_lines": details.get("order_lines") or [],
+            "order_total": details.get("order_total") or "",
+            "order_context": details.get("order_context") or "",
+            "order_context_missing": ((r.get("approval_type") or "") == "discount"
+                                      and not details.get("order_lines")),
             "flag_text": r.get("flag_text") or "",
             "status": r.get("status") or "pending",
             "time": frappe.utils.pretty_date(r.get("requested_at")),
