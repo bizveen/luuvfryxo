@@ -1732,9 +1732,23 @@ function lfPoll(fn, ms){
   function toggleShift(){ if(shiftOpen) openCloseModal(); else openShiftModal(); }
   // Logout is tied to the shift: a shift must be closed before logging out. From the header,
   // an open shift routes to the close-shift flow; after close the open-shift modal offers Log out.
-  function doLogout(fromModal){
+  async function doLogout(fromModal){
     if(!fromModal && shiftOpen){ toast('Close the shift to log out'); hide('shiftOpenModal'); openCloseModal(); return; }
-    if(confirm('Log out?')) location.href='/api/method/luuvcrm.launcher.sign_out'; }
+    // The native confirm() dialog is suppressed by the iMin WebView. Reuse the
+    // in-page confirmation dialog after the shift has closed instead.
+    if(!(await lfConfirm('Log out?',
+      'The shift is closed. You will return to the staff login screen.',
+      'Log out','Cancel'))) return;
+    // End the session as a request, then navigate explicitly: the WebView does
+    // not reliably follow the redirect from an /api/method URL as a page load.
+    try{
+      const res=await fetch('/api/method/luuvcrm.launcher.sign_out',{
+        credentials:'include',cache:'no-store',redirect:'follow'
+      });
+      if(!res.ok) throw new Error('logout failed');
+      window.location.replace('/pos-login');
+    }catch(e){ toast('Could not log out — check your connection and try again'); }
+  }
 
   function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
 

@@ -280,6 +280,14 @@ class TestWhatTheScreensShow(FloorTestCase):
         order = self.order()
         self.assertIn(order.name, [o["name"] for o in self.call(api.get_my_orders)["orders"]])
 
+    def test_the_orders_tab_is_shared_between_waiters(self):
+        order = self.order()
+        frappe.db.set_value("POS Order", order.name, "owner", "another.waiter@example.com")
+        rows = self.call(api.get_my_orders)["orders"]
+        mine = [o for o in rows if o["name"] == order.name]
+        self.assertEqual(len(mine), 1)
+        self.assertIn("waiter_name", mine[0])
+
     def test_the_kitchen_sees_a_new_ticket(self):
         order = self.order()
         names = [o["name"] for o in self.call(api.get_kitchen_orders)["orders"]]

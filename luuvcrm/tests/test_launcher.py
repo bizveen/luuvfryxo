@@ -290,3 +290,20 @@ class TestSigningOut(LauncherTestCase):
             with self.subTest(page=page):
                 self.assertNotIn("/api/method/logout", html)
                 self.assertIn("/api/method/luuvcrm.launcher.sign_out", html)
+
+    def test_the_pos_webview_navigates_to_login_after_sign_out(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos.html"))
+        self.assertIn("fetch('/api/method/luuvcrm.launcher.sign_out'", html)
+        self.assertIn("window.location.replace('/pos-login')", html)
+        logout = html[html.index("async function doLogout"):html.index("function tick")]
+        self.assertIn("await lfConfirm('Log out?'", logout)
+        self.assertNotIn("window.confirm(", logout)
+        self.assertNotIn("if(confirm(", logout)
+
+    def test_the_waiter_webview_uses_an_in_page_logout_confirmation(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "waiter.html"))
+        self.assertIn('id="logoutConfirm"', html)
+        self.assertIn("fetch('/api/method/luuvcrm.launcher.sign_out'", html)
+        self.assertIn("window.location.replace('/pos-login')", html)
+        logout = html[html.index("function openLogoutConfirm"):html.index("// ─── WhatsApp")]
+        self.assertNotIn("confirm(", logout)

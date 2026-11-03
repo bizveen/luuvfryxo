@@ -12,7 +12,7 @@ import json
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from luuvcrm import api, roles
+from luuvcrm import api, branch, roles
 from luuvcrm.tests import fixtures as fx
 
 
@@ -32,6 +32,11 @@ class OrderTestCase(FrappeTestCase):
         for name in getattr(self, "_orders", []):
             if frappe.db.exists("POS Order", name):
                 frappe.delete_doc("POS Order", name, force=True, ignore_permissions=True)
+        for name in getattr(self, "_tables", []):
+            if frappe.db.exists("Restaurant Table", name):
+                frappe.delete_doc(
+                    "Restaurant Table", name, force=True, ignore_permissions=True
+                )
 
     def call(self, endpoint, **kwargs):
         """Invoke an endpoint the way a request would."""
@@ -197,6 +202,42 @@ class TestWaiterAppendItems(OrderTestCase):
         with self.assertRaises(Exception):
             self.call(api.waiter_append_items, order_name="_LFT-NOPE",
                       items=json.dumps([{"item": self.cola, "qty": 1}]))
+
+    def test_a_second_waiter_ticket_on_the_table_appends_to_the_open_order(self):
+        restaurant = branch.viewing()
+        if not restaurant:
+            self.skipTest("no active Restaurant")
+        table = "_LFT-ORD-MERGE-" + frappe.generate_hash(length=6)
+        row = {
+            "doctype": "Restaurant Table",
+            "__newname": table,
+            "restaurant": restaurant,
+            "no_of_seats": 4,
+        }
+        if frappe.db.has_column("Restaurant Table", "enabled"):
+            row["enabled"] = 1
+        table = frappe.get_doc(row).insert(
+            ignore_permissions=True, ignore_mandatory=True
+        ).name
+        self._tables = [table]
+
+        first = self.order(
+            [{"item": self.burger, "qty": 1}],
+            table=table,
+            order_source="Waiter",
+        )
+        frappe.db.set_value("POS Order Item", first.items[0].name, "sent_qty", 1)
+        second = self.call(
+            api.send_to_kitchen,
+            items=json.dumps([{"item": self.cola, "qty": 1}]),
+            table=table,
+            order_source="Waiter",
+        )
+
+        self.assertEqual(second["name"], first.name)
+        self.assertTrue(second["appended"])
+        first.reload()
+        self.assertEqual([i.item for i in first.items], [self.burger, self.cola])
 
 
 class TestOrderEndpointsRefuseOutsiders(OrderTestCase):

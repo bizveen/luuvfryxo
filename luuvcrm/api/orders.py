@@ -182,6 +182,35 @@ def send_to_kitchen():
                     "deduped": True,
                 }
 
+    # A waiter serves the table's bill, not a private ticket belonging to one
+    # device or one staff member.  Lock the table while resolving its open bill
+    # so two waiters sending at the same time cannot both create a second order.
+    # POS-created orders count too: floor staff must be able to add a customer's
+    # later request to the same unpaid bill regardless of who opened it.
+    if order_source == "Waiter" and table and not is_draft and not amended_from:
+        frappe.db.sql(
+            "select name from `tabRestaurant Table` where name=%s for update",
+            (table,),
+        )
+        open_orders = frappe.get_list(
+            "POS Order",
+            filters=[
+                ["docstatus", "=", 0],
+                ["restaurant_table", "=", table],
+                ["pos_invoice", "is", "not set"],
+                [branch.FIELD, "=", branch.viewing()],
+            ],
+            order_by="creation asc",
+            pluck="name",
+            limit_page_length=2,
+        )
+        if len(open_orders) > 1:
+            frappe.throw(
+                _("This table has more than one open order. Select the correct order from Orders.")
+            )
+        if open_orders:
+            return _append_waiter_items(open_orders[0], items)
+
     pos_order = frappe.get_doc({
         "doctype": "POS Order",
         "naming_series": "POS-",
@@ -669,16 +698,21 @@ def get_table_orders():
     return {"orders": orders}
 @frappe.whitelist()
 def get_my_orders():
-    """The logged-in waiter's OWN orders for today (not the whole restaurant, unlike
-    get_kitchen_orders which the kitchen display needs). Powers the waiter app's 'My Orders'
-    tab: shows status, lets the waiter add more items (Add items) or mark served."""
+    """Today's orders for the active restaurant, shared by all floor staff.
+
+    A table remains the same table when the waiter changes.  This powers the
+    waiter app's ``Orders`` tab, where any waiter can add a later request to the
+    existing unpaid order or mark it served.
+    """
+    roles.require_waiter()
     today = frappe.utils.today()
     orders = frappe.get_list("POS Order",
-        filters={"owner": frappe.session.user, "creation": [">=", today],
+        filters={"creation": [">=", today],
                  branch.FIELD: branch.viewing()},
         fields=["name", "restaurant_table", "kitchen_status", "grand_total", "creation",
-                "order_source", "notes", "pos_invoice"],
-        order_by="creation desc"
+                "order_source", "waiter_name", "notes", "pos_invoice"],
+        order_by="creation desc",
+        limit_page_length=SCREEN_ORDER_CEILING,
     )
     lines = lines_by_order([o.name for o in orders])
     for o in orders:
@@ -704,6 +738,11 @@ def waiter_append_items():
         frappe.throw(_("At least one item is required"))
 
     branch.require_access("POS Order", order_name)
+    return _append_waiter_items(order_name, items)
+
+
+def _append_waiter_items(order_name, items):
+    """Append priced lines to one branch-visible, unpaid order."""
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Only draft orders can be added to"))
@@ -756,7 +795,11 @@ def waiter_append_items():
         amount=float(pos_order.grand_total or 0) - before_total,
         total_before=before_total, total_after=float(pos_order.grand_total or 0),
         detail={"added": [it.get("item") for it in items]})
-    return {"name": pos_order.name, "grand_total": pos_order.grand_total}
+    return {
+        "name": pos_order.name,
+        "grand_total": pos_order.grand_total,
+        "appended": True,
+    }
 @frappe.whitelist()
 def compare_orders():
     """Return details for two orders side by side (cancelled + re-created)."""

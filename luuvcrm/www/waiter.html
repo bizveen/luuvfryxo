@@ -125,7 +125,7 @@
     .wp-confirm:disabled { opacity:0.6; cursor:not-allowed; }
     .wp-confirm:active { transform:scale(0.98); }
 
-    /* ── My Orders Tab ── */
+    /* ── Orders Tab ── */
     .w-orders-tab { display:none; position:fixed; top:calc(var(--header-h) + 40px); left:0; right:0; bottom:0; background:#F0FDF4; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:12px; z-index:10; }
     .w-orders-tab.show { display:block; }
     .wo-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
@@ -273,7 +273,7 @@
     .w-resume-banner .wrb-existing { font-size:0.72rem; font-weight:500; color:#6366F1; margin-top:2px; }
     .w-resume-banner .wrb-cancel { border:none; background:#C7D2FE; color:#3730A3; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:8px; cursor:pointer; font-family:inherit; }
 
-    /* ── Takeaway badge (cart lines / preview / My Orders) ── */
+    /* ── Takeaway badge (cart lines / preview / Orders) ── */
     .ta-badge { display:inline-flex; align-items:center; gap:3px; font-size:0.62rem; font-weight:700; color:#9a6207; background:#FEF3C7; padding:1px 7px; border-radius:10px; }
 
     /* ── Item-detail takeaway toggle ── */
@@ -284,7 +284,7 @@
     .id-ta-switch::after { content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:left 0.15s; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
     .id-ta-switch.on::after { left:23px; }
 
-    /* ── My Orders card enhancements ── */
+    /* ── Orders card enhancements ── */
     .wo-card.status-served { border-left-color:#9CA3AF; opacity:0.75; }
     .wo-card.paid { border-left-color:#6366F1; }
     .wo-card-status.served { background:#F3F4F6; color:#6B7280; }
@@ -341,7 +341,25 @@
     <div class="wup-name">{{ current_user_full }}</div>
     <div class="wup-item" onclick="window.location='/pos'">🛒 POS</div>
     <div class="wup-item" onclick="window.location='/kitchen'">🍳 Kitchen</div>
-    <div class="wup-item wup-logout" onclick="if(confirm('Logout?')) window.location='/api/method/luuvcrm.launcher.sign_out'">🚪 Logout</div>
+    <div class="wup-item wup-logout" onclick="openLogoutConfirm()">🚪 Logout</div>
+  </div>
+</div>
+
+<!-- Native confirm() dialogs are suppressed by the Android WebView. -->
+<div class="ws-confirm" id="logoutConfirm">
+  <div class="ws-confirm-card">
+    <div class="wsc-handle"></div>
+    <div class="wsc-body">
+      <div class="wsc-title">Sign out</div>
+      <div class="wsc-table">🚪 Log out?</div>
+      <div class="wsc-items-list" style="color:#4B5563;font-size:0.84rem;">
+        You will return to the staff login screen.
+      </div>
+    </div>
+    <div class="wsc-footer">
+      <button class="wsc-cancel" onclick="closeLogoutConfirm()">Cancel</button>
+      <button class="wsc-ok" id="logoutConfirmBtn" onclick="confirmLogout()">Log out</button>
+    </div>
   </div>
 </div>
 
@@ -349,7 +367,7 @@
 <div class="w-tab-bar" id="tabBar">
   <button class="w-tab-btn active" id="tabMenu" onclick="switchTab('menu')">🍽️ Menu</button>
   <button class="w-tab-btn" id="tabOrders" onclick="switchTab('orders')">
-    📋 My Orders
+    📋 Orders
     <span class="wb-count" id="myOrdersBadge" style="display:none">0</span>
   </button>
 </div>
@@ -412,10 +430,10 @@
   </button>
 </div>
 
-<!-- My Orders Tab -->
+<!-- Orders Tab -->
 <div class="w-orders-tab" id="ordersTab">
   <div class="wo-header">
-    <span class="wo-title">My Orders</span>
+    <span class="wo-title">Orders</span>
     <button class="wo-refresh" onclick="loadMyOrders()">↻ Refresh</button>
   </div>
   <div id="myOrdersList">
@@ -772,10 +790,12 @@ async function confirmSend() {
     if (!res) { btn.disabled=false; btn.textContent='🍳 Confirm & Send to Kitchen'; return; }
     const data = await res.json();
     if (data.message && data.message.name) {
-      window._appendMode = false;
+      const appended = !!data.message.appended;
+      window._appendMode = appended;
       window._lastWhatsAppDial = dial;   // for the wa.me button (international format)
       closePreview();
-      showSuccess(data.message, table, items, rateMap, data.message.mobile, data.message.customer_name);
+      showSuccess(data.message, table, items, rateMap, data.message.mobile,
+                  data.message.customer_name, appended);
     } else {
       alert('Error: ' + (data.message || JSON.stringify(data)));
       btn.disabled=false; btn.textContent='🍳 Confirm & Send to Kitchen';
@@ -824,12 +844,14 @@ function resetOrder() {
 }
 
 // ── Add-to-bill: resume an existing order to append items ──
-async function resumeOrder(name, table) {
+async function resumeOrder(name, table, keepCart=false) {
   try {
     const res = await _post('/api/method/luuvcrm.api.get_order_items', { order_name: name });
     let its = [];
     if (res) { const d = await res.json(); its = (d.message && d.message.items) || []; }
-    currentOrder = name; existingItems = its; cart = []; window._appendMode = true;
+    currentOrder = name; existingItems = its;
+    if (!keepCart) cart = [];
+    window._appendMode = true;
     if (table) document.getElementById('tableSelect').value = table;
     const nameMap = getNameMap();
     const existTxt = its.map(i => `${(nameMap[i.item]||i.item)} ×${i.qty}${i.takeaway?' 🛍️':''}`).join(' · ') || '—';
@@ -847,20 +869,22 @@ function cancelResume() {
   render();
 }
 
-// When a table is picked on a fresh empty ticket, offer to add to its open order (if any).
+// Selecting an occupied table binds this ticket to its existing bill. Keep any
+// items already picked: waiters commonly take the request first and select the
+// table afterwards, which used to skip this check and create a second order.
 async function onTablePick() {
   const table = document.getElementById('tableSelect').value;
-  if (!table || currentOrder || cart.length) return;   // only on a fresh, empty ticket
+  if (!table || currentOrder) return;
   try {
     const res = await _post('/api/method/luuvcrm.api.get_table_orders', { table });
     if (!res) return;
     const d = await res.json();
     const orders = (d.message && d.message.orders) || [];
-    if (orders.length) {
-      const o = orders[0];
-      if (confirm(`${shortTable(table)} already has open order #${o.name}.\nAdd items to it?`)) {
-        resumeOrder(o.name, table);
-      }
+    if (orders.length === 1) {
+      await resumeOrder(orders[0].name, table, true);
+    } else if (orders.length > 1) {
+      alert(`${shortTable(table)} has ${orders.length} open orders. Select the correct one from Orders.`);
+      switchTab('orders');
     }
   } catch(e) {}
 }
@@ -870,6 +894,36 @@ function toggleUserMenu() {
 }
 function closeUserMenu() {
   document.getElementById('userMenu').classList.remove('open');
+}
+
+function openLogoutConfirm() {
+  closeUserMenu();
+  const btn = document.getElementById('logoutConfirmBtn');
+  btn.disabled = false;
+  btn.textContent = 'Log out';
+  document.getElementById('logoutConfirm').classList.add('show');
+}
+
+function closeLogoutConfirm() {
+  document.getElementById('logoutConfirm').classList.remove('show');
+}
+
+async function confirmLogout() {
+  const btn = document.getElementById('logoutConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Signing out...';
+  try {
+    const res = await fetch('/api/method/luuvcrm.launcher.sign_out', {
+      credentials: 'include', cache: 'no-store', redirect: 'follow'
+    });
+    if (!res.ok) throw new Error('logout failed');
+    window.location.replace('/pos-login');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Log out';
+    closeLogoutConfirm();
+    alert('Could not log out. Check your connection and try again.');
+  }
 }
 
   // ─── WhatsApp ─────────────────────────────────────
@@ -910,13 +964,13 @@ function switchTab(tab) {
   if (tab==='orders') loadMyOrders();
 }
 
-// ─── My Orders ───────────────────────────────────────
+// ─── Restaurant Orders ───────────────────────────────
 let myOrderIds = new Set();
 let readyNotifiedIds = new Set();
 
 async function loadMyOrders() {
   try {
-    const res = await _post('/api/method/luuvcrm.api.get_my_orders');   // THIS waiter's own orders (today)
+    const res = await _post('/api/method/luuvcrm.api.get_my_orders');
     if (!res) return;
     const data = await res.json();
     const orders = (data.message?.orders || []);
@@ -963,9 +1017,10 @@ async function loadMyOrders() {
           <span class="wo-card-status ${statusClass}">${statusLabel}</span>
         </div>
         <div class="wo-card-items">${itemsText || '—'}</div>
+        ${o.waiter_name ? `<div class="wo-card-notes">🙋 ${escHtml(o.waiter_name)}</div>` : ''}
         ${o.notes ? `<div class="wo-card-notes">📝 ${escHtml(o.notes)}</div>` : ''}
         <div class="wo-card-actions">
-          ${active ? `<button class="wo-add-btn" onclick="resumeOrder('${o.name}','${tableSafe}')">➕ Add items</button>
+          ${active ? `<button class="wo-add-btn" onclick="resumeOrder('${o.name}','${tableSafe}',true)">➕ Add items</button>
                       <button class="wo-serve-btn ${o.kitchen_status==='Ready'?'ready':''}" onclick="openServeConfirm('${orderData}')">🍽️ Served</button>`
                    : `<div style="flex:1;text-align:center;color:#9CA3AF;font-size:0.8rem;padding:8px;">${o.paid?'Paid & closed':'Served'}</div>`}
         </div>
