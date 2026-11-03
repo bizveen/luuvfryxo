@@ -583,6 +583,15 @@ class TestThePurchaseCardShowsThePriceMove(FrappeTestCase):
                     None)
         self.assertTrue(card["lines"][0].get("unit"))
 
+    def test_the_spend_category_comes_across_too(self):
+        bill = self.enter(300)
+        cards = api._format_approvals(api._pending_and_recent_approvals(action="purchase_bill"))
+        card = next((c for c in cards
+                     if json.loads(frappe.db.get_value("POS Approval", c["name"],
+                                                       "action_payload") or "{}").get("bill") == bill),
+                    None)
+        self.assertEqual(card["lines"][0].get("category"), api.FOOD_PURCHASE_CATEGORY)
+
 
 class TestBillChangesLand(ApprovalTestCase):
     """Approving a bill change has to change the bill — or say why it could not.

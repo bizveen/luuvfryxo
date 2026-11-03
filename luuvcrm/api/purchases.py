@@ -10,6 +10,7 @@ import json
 from frappe.utils import now_datetime
 from luuvcrm import activity, branch, roles
 
+from luuvcrm.api.expenses import FOOD_PURCHASE_CATEGORY, _install_expenses
 from luuvcrm.api.schema import _install_pos_approval
 
 
@@ -34,6 +35,8 @@ def _install_purchase_bill():
         "fields": [
             {"fieldname": "item", "label": "Item", "fieldtype": "Link", "options": "Item", "in_list_view": 1},
             {"fieldname": "item_name", "label": "Item Name", "fieldtype": "Data", "in_list_view": 1},
+            {"fieldname": "category", "label": "Category", "fieldtype": "Link",
+             "options": "Expense Category", "in_list_view": 1, "search_index": 1},
             {"fieldname": "uom", "label": "UOM", "fieldtype": "Data"},
             {"fieldname": "qty", "label": "Qty", "fieldtype": "Float", "in_list_view": 1},
             {"fieldname": "price", "label": "Price", "fieldtype": "Currency", "in_list_view": 1},
@@ -323,6 +326,24 @@ def _canonical_vendor(typed):
     return tidy
 
 
+def _purchase_line_category(value=None):
+    """A live, enabled category for one item on a supplier bill.
+
+    Older clients do not send the new field, so they land in the food bucket
+    instead of failing after a deploy. Unknown and disabled values are refused:
+    silently accepting a typo would create a report bucket nobody can select.
+    """
+    if not frappe.db.exists("DocType", "Expense Category"):
+        _install_expenses()
+    category = " ".join((value or FOOD_PURCHASE_CATEGORY).split())
+    row = frappe.db.get_value(
+        "Expense Category", category, ["name", "disabled"], as_dict=True
+    )
+    if not row or row.disabled:
+        frappe.throw(_("Pick a valid category for every item"))
+    return row.name
+
+
 def _bill_approval(doc):
     """The approval that decided a bill, including a bill reclassified later."""
     if not frappe.db.exists("DocType", "POS Approval"):
@@ -391,7 +412,9 @@ def get_purchase_vendors():
 def _bill_dict(name):
     doc = frappe.get_doc("Purchase Bill", name)
     approval = _bill_approval(doc)
-    lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",
+    lines = [{"item": i.item, "name": i.item_name or i.item,
+              "category": i.get("category") or FOOD_PURCHASE_CATEGORY,
+              "unit": i.uom or "Nos",
               "qty": float(i.qty or 0), "price": float(i.price or 0),
               "old_price": float(i.old_price or 0)} for i in (doc.get("items") or [])]
     subtotal = sum(l["qty"] * l["price"] for l in lines)
@@ -452,16 +475,19 @@ def create_purchase_bill():
     appr_lines = []
     for ln in lines:
         item = ln.get("item")
+        category = _purchase_line_category(ln.get("category"))
         qty = float(ln.get("qty") or 0)
         price = float(ln.get("price") or 0)
         old_price = frappe.db.get_value("Item Price",
             {"item_code": item, "price_list": _buying_price_list()}, "price_list_rate") or 0
         name = frappe.db.get_value("Item", item, "item_name") or item
         uom = ln.get("unit") or frappe.db.get_value("Item", item, "stock_uom") or "Nos"
-        doc.append("items", {"item": item, "item_name": name, "uom": uom, "qty": qty,
+        doc.append("items", {"item": item, "item_name": name, "category": category,
+                             "uom": uom, "qty": qty,
                              "price": price, "old_price": float(old_price)})
         total += qty * price
         appr_lines.append({"qtyStr": f"{qty:g} {uom}", "name": name,
+                           "category": category,
                            "totalStr": f"Rs {int(round(qty * price)):,}"})
     doc.total = total
     doc.flags.ignore_permissions = True
@@ -629,7 +655,8 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
         params["like"] = "%" + q + "%"
         where.append("""(b.vendor LIKE %(like)s OR b.note LIKE %(like)s
             OR EXISTS (SELECT 1 FROM `tabPurchase Bill Item` i
-                       WHERE i.parent = b.name AND i.item_name LIKE %(like)s))""")
+                       WHERE i.parent = b.name
+                         AND (i.item_name LIKE %(like)s OR i.category LIKE %(like)s)))""")
     if status in ("pending", "approved", "rejected"):
         params["status"] = status
         where.append("b.status = %(status)s")

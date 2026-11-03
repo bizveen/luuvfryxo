@@ -19,7 +19,13 @@ from luuvcrm.api.shifts import _open_shift_name, _resolve_pos_profile_name
 # feed the price book. Like the rest of this app it is not GL-integrated, and by design it does not
 # touch the cash drawer either (see create_expense) — it is a record with a manager sign-off.
 
+FOOD_PURCHASE_CATEGORY = "Food / Ingredients"
+
 EXPENSE_CATEGORIES = [
+    # Default for itemised supplier bills. Keeping it in the shared category
+    # master lets one Food City receipt split cleanly between ingredients,
+    # staff meals and office supplies without inventing a second taxonomy.
+    FOOD_PURCHASE_CATEGORY,
     "Electricity", "Water", "Gas (LP)", "Rent", "Internet/Phone", "Salaries/Wages",
     "Repairs & Maintenance", "Transport/Fuel", "Cleaning & Consumables", "Licences/Fees", "Other",
     # The lines of the printed profit-and-loss statement that had no category.
@@ -33,8 +39,12 @@ EXPENSE_CATEGORIES = [
     "Packaging",
 ]
 # The eight P&L categories above, for their patch: a site that already has
-# categories is topped up with these and nothing else.
-PNL_EXPENSE_CATEGORIES = EXPENSE_CATEGORIES[11:19]
+# categories is topped up with these and nothing else. Keep the names explicit;
+# inserting a new default earlier in EXPENSE_CATEGORIES must not shift this set.
+PNL_EXPENSE_CATEGORIES = [
+    "Advertising", "Office Supplies", "Employee Houses Rent", "Staff Meals",
+    "Staff Medical", "Municipal Council", "Taxes", "Charities",
+]
 PACKAGING_CATEGORY = "Packaging"
 def _ensure_select_option(doctype, fieldname, option):
     """Append an option to a Select on an existing custom DocType — Frappe rejects a value that

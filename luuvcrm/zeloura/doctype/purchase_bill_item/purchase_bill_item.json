@@ -8,6 +8,7 @@
  "field_order": [
   "item",
   "item_name",
+  "category",
   "uom",
   "qty",
   "price",
@@ -26,6 +27,14 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Item Name"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Category",
+   "options": "Expense Category",
+   "search_index": 1
   },
   {
    "fieldname": "uom",

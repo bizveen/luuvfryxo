@@ -76,6 +76,12 @@ class TestManagerPurchaseBillUI(FrappeTestCase):
         self.assertIn("billDecisionAudit(e)", manager)
         self.assertIn("rec.resolved_when", purchases)
 
+    def test_add_bill_sends_a_category_for_every_item(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
+        self.assertIn("function setLineCategory", html)
+        self.assertIn("category:l.category", html)
+        self.assertIn("One receipt can use several categories", html)
+
 
 class PurchaseTestCase(FrappeTestCase):
     def setUp(self):
@@ -152,6 +158,29 @@ class TestEnteringABill(PurchaseTestCase):
         name = self.enter([{"item": self.tomato, "qty": 5, "price": 300},
                            {"item": self.onion, "qty": 2, "price": 250}])
         self.assertEqual(frappe.db.get_value("Purchase Bill", name, "total"), 2000)
+
+    def test_one_bill_can_carry_several_spend_categories(self):
+        name = self.enter([
+            {"item": self.tomato, "qty": 5, "price": 300,
+             "category": api.FOOD_PURCHASE_CATEGORY},
+            {"item": self.onion, "qty": 2, "price": 250,
+             "category": "Staff Meals"},
+        ])
+        doc = frappe.get_doc("Purchase Bill", name)
+        self.assertEqual([row.category for row in doc.items],
+                         [api.FOOD_PURCHASE_CATEGORY, "Staff Meals"])
+        self.assertEqual([row["category"] for row in api._bill_dict(name)["lines"]],
+                         [api.FOOD_PURCHASE_CATEGORY, "Staff Meals"])
+
+    def test_an_older_client_defaults_each_line_to_food(self):
+        doc = frappe.get_doc("Purchase Bill", self.enter())
+        self.assertEqual(doc.items[0].category, api.FOOD_PURCHASE_CATEGORY)
+
+    def test_an_unknown_line_category_is_refused(self):
+        with self.assertRaises(frappe.ValidationError) as caught:
+            self.enter([{"item": self.tomato, "qty": 1, "price": 300,
+                         "category": "_LFT Not A Category"}])
+        self.assertIn("valid category", str(caught.exception))
 
     def test_the_price_being_replaced_is_recorded_on_the_line(self):
         """The approve screen shows what the price was, so the manager can see a

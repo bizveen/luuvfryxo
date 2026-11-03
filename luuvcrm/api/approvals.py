@@ -308,9 +308,12 @@ def _format_approvals(rows):
                 bill_of[r.get("name")] = bill
     bill_items = {}
     if bill_of:
+        item_fields = ["parent", "idx", "qty", "price", "old_price", "uom"]
+        if frappe.db.has_column("Purchase Bill Item", "category"):
+            item_fields.append("category")
         for it in frappe.get_all("Purchase Bill Item",
                                  filters={"parent": ["in", list(set(bill_of.values()))]},
-                                 fields=["parent", "idx", "qty", "price", "old_price", "uom"],
+                                 fields=item_fields,
                                  order_by="parent asc, idx asc", limit_page_length=0):
             bill_items.setdefault(it.parent, []).append(it)
 
@@ -355,6 +358,8 @@ def _format_approvals(rows):
                     line["price"] = it.price
                     line["old_price"] = it.old_price
                     line["unit"] = it.uom
+                    if it.get("category"):
+                        line["category"] = it.category
 
         out.append({
             "name": r.get("name"),

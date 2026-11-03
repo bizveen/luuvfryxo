@@ -149,7 +149,7 @@ input,button{font-family:inherit;}
     <div id="addTitle" style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New bill</div>
     <div id="addSubtitle" style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Add each item and its purchase price — it goes to the manager for approval.</div>
 
-    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Category</div>
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Entry type</div>
     <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()" style="margin-bottom:20px;"></select>
 
     <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;"><span id="photoStepLabel">1 · Receipt photo</span> <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
@@ -284,7 +284,9 @@ function lfPoll(fn, ms){
 }
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   const CAN_EDIT={{ "true" if can_edit_bills else "false" }};
+  const DEFAULT_PURCHASE_CATEGORY='Food / Ingredients';
   let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='', priceItems=[], recipeItems=[], ACTIVE_RECIPE=null;
+  let lastLineCategory=DEFAULT_PURCHASE_CATEGORY;
   let expStats={}, billStats={}, expCats=[];
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
@@ -365,14 +367,16 @@ function lfPoll(fn, ms){
   async function loadExpCats(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); if(!r) return; const d=await r.json();
     expCats=(d.message&&d.message.categories)||[];
     renderCategoryOptions();
+    if(document.getElementById('fCategory').value==='') renderLines();
   }catch(e){} }
 
-  // First option ("") means "this is a stock Purchase Bill" — everything else is
-  // one of the manager's Expense Categories. Keeps the selection across a
+  // First option ("") means "this is an itemised Purchase Bill" — everything
+  // else is a simple one-amount Expense. Purchase Bill lines choose their own
+  // categories further down. Keeps the selection across a
   // background refresh of the category list.
   function renderCategoryOptions(){ const sel=document.getElementById('fCategory'); if(!sel) return;
     const cur=sel.value;
-    sel.innerHTML='<option value="">🧾 Purchase Bill (stock items)</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    sel.innerHTML='<option value="">🧾 Purchase Bill (categorise each item)</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
     if(cur && expCats.includes(cur)) sel.value=cur; }
 
   // Swaps the sheet between Bill mode (items + vendor) and Expense mode
@@ -387,7 +391,7 @@ function lfPoll(fn, ms){
     document.getElementById('addTitle').textContent=isExp?'New expense':'New bill';
     document.getElementById('addSubtitle').textContent=isExp
       ?'A utility bill, gas, rent — anything that isn’t a stock purchase. It goes to the manager for approval.'
-      :'Add each item and its purchase price — it goes to the manager for approval.';
+      :'Add each item, choose its category, and enter the purchase price. One receipt can use several categories.';
     document.getElementById('photoStepLabel').textContent=isExp?'1 · Bill photo':'1 · Receipt photo';
     if(document.getElementById('photoImg').style.display==='none'){
       document.getElementById('photoHint').textContent=isExp?'📷 Tap to snap the bill':'📷 Tap to snap receipt'; }
@@ -401,7 +405,7 @@ function lfPoll(fn, ms){
   // Filtering happens here, not at the server: the whole owed list is already in hand.
   let dueRows=[], dueQ='';
   function onDueSearch(v){ dueQ=(v||'').trim().toLowerCase(); renderDue(); }
-  function billHay(b){ return [b.vendor, b.by, ...(b.lines||[]).map(l=>l.name)].join(' ').toLowerCase(); }
+  function billHay(b){ return [b.vendor, b.by, ...(b.lines||[]).flatMap(l=>[l.name,l.category])].join(' ').toLowerCase(); }
   async function loadDue(){ try{ const r=await _post('/api/method/luuvcrm.api.get_due_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
     document.getElementById('dueTotal').textContent=nfmt(m.total_due||0);
     document.getElementById('dueCount').textContent=m.count||0;
@@ -600,7 +604,7 @@ function lfPoll(fn, ms){
   function pickVendor(i){ const v=vendorShown[i]; if(!v) return; const el=document.getElementById('fVendor'); el.value=v.name; hideVendorSug(); el.blur(); onVendorInput(); saveDraft(); }
 
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
-  function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
+  function openAdd(){ formLines=[]; lastLineCategory=DEFAULT_PURCHASE_CATEGORY; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
     document.getElementById('fAmount').value=''; document.getElementById('fBillRef').value='';
     document.getElementById('fDate').value=localToday();
     document.getElementById('vendorHint').style.display='none'; hideVendorSug(); loadVendors();
@@ -616,7 +620,7 @@ function lfPoll(fn, ms){
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
   function closeAdd(){ document.getElementById('addOverlay').style.display='none'; clearDraft(); }
   function togglePicker(){ pickerOpen=!pickerOpen; renderPicker(); }
-  function addLine(item){ const c=catalog.find(x=>x.item===item); if(!c) return; formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,qty:'1',price:String(c.price)}); renderLines(); renderPicker(); saveDraft(); }
+  function addLine(item){ const c=catalog.find(x=>x.item===item); if(!c) return; formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,category:lastLineCategory,qty:'1',price:String(c.price)}); renderLines(); renderPicker(); saveDraft(); }
   function removeLine(i){ formLines.splice(i,1); renderLines(); renderPicker(); saveDraft(); }
   // NB: oninput must NOT re-render the line list — rebuilding wrap.innerHTML while the
   // user types destroys the focused input, so the mobile keyboard closes after every digit.
@@ -624,10 +628,14 @@ function lfPoll(fn, ms){
   // total on blur via onchange="renderLines()" on the inputs (focus already gone by then).
   function setQty(i,v){ formLines[i].qty=v; updateTotal(); saveDraft(); }
   function setPrice(i,v){ formLines[i].price=v; updateTotal(); saveDraft(); }
+  function setLineCategory(i,v){ formLines[i].category=v||DEFAULT_PURCHASE_CATEGORY; lastLineCategory=formLines[i].category; saveDraft(); }
   function renderLines(){ const wrap=document.getElementById('lineRows');
-    wrap.innerHTML=formLines.map((l,i)=>{ const price=parseFloat(l.price)||0; const changed=l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
+    const cats=expCats.includes(DEFAULT_PURCHASE_CATEGORY)?expCats:[DEFAULT_PURCHASE_CATEGORY,...expCats];
+    wrap.innerHTML=formLines.map((l,i)=>{ l.category=l.category||DEFAULT_PURCHASE_CATEGORY; const price=parseFloat(l.price)||0; const changed=l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
       return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 12px;background:var(--surface-card);">
         <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${l.name}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${l.unit}</div></div><button onclick="removeLine(${i})" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Category</div>
+        <select class="inp" onchange="setLineCategory(${i},this.value)" style="padding:9px 11px;margin-bottom:9px;">${cats.map(c=>`<option value="${esc(c)}" ${c===l.category?'selected':''}>${esc(c)}</option>`).join('')}</select>
         <div style="display:flex;gap:8px;align-items:flex-end;">
           <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${l.unit})</div><input value="${l.qty}" oninput="setQty(${i},this.value)" onchange="renderLines()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
           <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">New price / ${l.unit}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${l.price}" oninput="setPrice(${i},this.value)" onchange="renderLines()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
@@ -700,7 +708,8 @@ function lfPoll(fn, ms){
     try{
       openAdd();
       document.getElementById('fCategory').value=d.category||''; onCategoryChange();
-      formLines=Array.isArray(d.lines)?d.lines:[]; newReceipt=d.receipt||'';
+      formLines=Array.isArray(d.lines)?d.lines.map(l=>Object.assign({category:DEFAULT_PURCHASE_CATEGORY},l)):[]; newReceipt=d.receipt||'';
+      if(formLines.length) lastLineCategory=formLines[formLines.length-1].category||DEFAULT_PURCHASE_CATEGORY;
       document.getElementById('fVendor').value=d.vendor||'';
       document.getElementById('fNote').value=d.note||'';
       if(d.date) document.getElementById('fDate').value=d.date;
@@ -744,8 +753,8 @@ function lfPoll(fn, ms){
       hint.style.display='none'; toast('Receipt added'); saveDraft();
     }catch(e){ hint.textContent=hintIdle; toast('Upload failed'); } }
 
-  // Category "" (Purchase Bill) posts to create_purchase_bill; any Expense
-  // Category posts to create_expense instead. Photo, date and note are shared.
+  // Entry type "" (Purchase Bill) posts categorised item lines to
+  // create_purchase_bill; any other value posts one simple Expense instead.
   async function submitBill(){ const err=document.getElementById('formErr'); const em=document.getElementById('formErrMsg');
     const category=document.getElementById('fCategory').value;
     const isExp=category!=='';
@@ -759,7 +768,8 @@ function lfPoll(fn, ms){
       if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
       if(!paidTo){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
       if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
-      const lines=formLines.map(l=>({item:l.item,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
+      if(formLines.some(l=>!l.category)){ em.textContent='Choose a category for every item.'; err.style.display='flex'; return; }
+      const lines=formLines.map(l=>({item:l.item,category:l.category,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
       btn.disabled=true; err.style.display='none';
       try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:paidTo,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
         if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); loadVendors(); }
@@ -873,7 +883,7 @@ function lfPoll(fn, ms){
     document.getElementById('detMeta').textContent=exp?['Expense',rec.category].filter(Boolean).join(' · '):'Purchase bill';
     const photo=rec.receipt_image?`<img src="${esc(rec.receipt_image)}" onclick="viewImg('${esc(rec.receipt_image)}')" style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:4px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:10px;text-align:center;">Tap the photo to open it full size</div>`:'';
     const dateTxt=exp?(rec.date?new Date(rec.date+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):''):rec.date;
-    let rows=detRow('Category',esc(exp?rec.category:'Purchase Bill'))
+    let rows=detRow('Category',esc(exp?rec.category:'Mixed item categories'))
       +detRow(exp?'Paid to':'Vendor',esc(exp?rec.payee:rec.vendor))
       +detRow(exp?'Date':'Bought on',esc(dateTxt))
       +(exp?detRow('Bill / account no',esc(rec.bill_ref)):'')
@@ -883,7 +893,7 @@ function lfPoll(fn, ms){
     let money='';
     if(exp){ money=(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0 0;color:var(--text-muted);"><span>Original subtotal</span><span class="mono">Rs ${nfmt(rec.source_subtotal)}</span></div><div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0 0;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')+`<div style="display:flex;justify-content:space-between;padding:14px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(rec.amount)}</span></div>`; }
     else {
-      const lines=(rec.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;"><span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> ${esc(l.name||'')} <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span></span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`).join('');
+      const lines=(rec.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;"><span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> ${esc(l.name||'')} <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span><span style="display:block;color:var(--color-primary);font-size:11px;margin-top:2px;">${esc(l.category||DEFAULT_PURCHASE_CATEGORY)}</span></span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`).join('');
       money=`<div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:14px 0 2px;">Items</div>${lines||'<div style="color:var(--text-faint);font-size:13px;padding:8px 0;">No items on this bill.</div>'}`
         +(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0 0;color:var(--text-muted);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')
         +`<div style="display:flex;justify-content:space-between;padding:12px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(rec.total)}</span></div>`;
@@ -905,7 +915,7 @@ function lfPoll(fn, ms){
   const apprCmts={};   // typed comment per approval, kept across the 20s poll re-render
   let apprRows=[], apprQ='';
   function onApprSearch(v){ apprQ=(v||'').trim().toLowerCase(); renderAppr(); }
-  function apprHay(a){ return [a.title, a.by, a.flag_text, ...(a.lines||[]).map(l=>l.name)].join(' ').toLowerCase(); }
+  function apprHay(a){ return [a.title, a.by, a.flag_text, ...(a.lines||[]).flatMap(l=>[l.name,l.category])].join(' ').toLowerCase(); }
   function apprCmt(name,v){ apprCmts[name]=v; }
   // What the vendor took off the whole bill, entered at the moment somebody is
   // holding the paper. It reduces the total and nothing else — the items keep
@@ -942,7 +952,7 @@ function lfPoll(fn, ms){
         const col=up?'var(--color-danger)':'var(--color-success)';
         return `<label style="display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 0;border-top:1px dashed var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
         <input type="checkbox" ${tk[ix]?'checked':''} onchange="apprTick('${esc(a.name)}',${ix},this,${nl})" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;">
-        <span style="flex:1;min-width:0;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="mono" style="color:var(--text-faint);">${esc(l.qtyStr||'')}</span> ${esc(l.name||'')}</span>
+        <span style="flex:1;min-width:0;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="mono" style="color:var(--text-faint);">${esc(l.qtyStr||'')}</span> ${esc(l.name||'')}${l.category?` <span style="color:var(--color-primary);font-size:10.5px;font-weight:700;">${esc(l.category)}</span>`:''}</span>
         ${note?`<span style="color:${col};font-weight:700;font-size:10.5px;flex:none;">${note}</span>`:''}
         <span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></label>`;
       }).join('');

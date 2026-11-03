@@ -1013,7 +1013,7 @@ function lfPoll(fn, ms){
       const up=op>0&&pr>op, down=op>0&&pr<op;
       const note=up?('↑ was Rs '+nfmt(op)):(down?('↓ was Rs '+nfmt(op)):'');
       const col=up?'var(--color-danger)':'var(--color-success)';
-      return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}${li.category?` <span style="color:var(--color-primary);font-weight:700;font-size:10.5px;">${esc(li.category)}</span>`:''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
     }).join('');
     const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
     const orderLines=(a.order_lines||[]).map(li=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span class="mono" style="color:var(--text-muted);flex:none;">${esc(li.qtyStr||'')}</span><span style="color:var(--text-strong);flex:1;min-width:0;">${esc(li.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">${esc(li.totalStr||'')}</span></div>`).join('');
@@ -1987,6 +1987,7 @@ function lfPoll(fn, ms){
         <div style="flex:1;min-width:0;">
           <div style="font-size:13.5px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div>
           <div style="font-size:12px;color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit)} × Rs ${nfmt(l.price)}${changed?` <span style="color:${up?'var(--color-danger)':'var(--color-success)'};font-weight:700;">${up?'↑':'↓'} was Rs ${nfmt(l.old_price)}</span>`:''}</div>
+          <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-top:2px;">${esc(l.category||'Food / Ingredients')}</div>
         </div>
         <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(lt)}</span>
       </div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No items on this bill.</div>';
@@ -2013,7 +2014,7 @@ function lfPoll(fn, ms){
   function catEmoji(c){ if(c==='Purchase Bill') return '🧾'; const n=(c||'').toLowerCase();
     const M={electric:'⚡',water:'💧',gas:'🔥',rent:'🏠',internet:'📶',phone:'📶',salar:'👥',wage:'👥',repair:'🔧',mainten:'🔧',transport:'🚚',fuel:'⛽',clean:'🧽',licen:'📄',fee:'📄',advert:'📣',office:'🗂️',meal:'🍛',medical:'💊',tax:'🏛️',municipal:'🏛️',charit:'🤝'};
     for(const k in M){ if(n.includes(k)) return M[k]; } return '💸'; }
-  function catLabel(c){ return c==='Purchase Bill'?'Purchase bills (stock)':c; }
+  function catLabel(c){ return c==='Purchase Bill'?'Legacy uncategorised purchases':c; }
   async function loadCategorySpend(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_category_spend',pArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       catRows=m.categories||[]; const tot=m.total||0;
@@ -2050,22 +2051,23 @@ function lfPoll(fn, ms){
     }catch(e){ document.getElementById('catBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Connection error.</div>'; }
   }
   function renderCategorySheet(m){
-    const exp=m.kind==='expense'; catSheetRows=m.rows||[];
+    catSheetRows=m.rows||[];
     document.getElementById('catMeta').textContent=(pMonth?monthRange(pMonth).label:('Last '+pDays+' days'))+' · '+m.count+' bill'+(m.count===1?'':'s')+' · Rs '+nfmt(m.total);
     const when=iso=>iso?new Date(iso+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}):'';
     document.getElementById('catBody').innerHTML=catSheetRows.length?catSheetRows.map((b,i)=>{
+      const exp=(b.record_kind||m.kind)==='expense';
       const title=exp?(b.payee||b.category):b.vendor;
       const sub=exp?[when(b.date),b.bill_ref?('#'+b.bill_ref):'',b.by].filter(Boolean).join(' · ')
                    :[b.date,(b.lines||[]).length+' item'+((b.lines||[]).length===1?'':'s'),b.by].filter(Boolean).join(' · ');
       return `<div onclick="openCategoryRow(${i})" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
-        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:catEmoji(exp?m.category:'Purchase Bill')}</span>
+        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:catEmoji(m.category||b.category||'Purchase Bill')}</span>
         <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(title)||'—'}</div><div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(sub)}</div></div>
-        <span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(exp?b.amount:b.total)}</span></div>`; }).join('')
+        <span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.category_total!==undefined?b.category_total:(exp?b.amount:b.total))}</span></div>`; }).join('')
       +(m.count>catSheetRows.length?`<div style="font-size:12px;color:var(--text-faint);padding:8px 0;">Showing ${catSheetRows.length} of ${m.count}.</div>`:'')
       :'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No approved bills in this category this period.</div>';
     catSheet=m.category; catSheetKind=m.kind; icons();
   }
-  function openCategoryRow(i){ const b=catSheetRows[i]; if(!b) return; if(catSheetKind==='expense') showExpense(b); else showBill(b); }
+  function openCategoryRow(i){ const b=catSheetRows[i]; if(!b) return; if((b.record_kind||catSheetKind)==='expense') showExpense(b); else showBill(b); }
   function hideCategory(){ document.getElementById('catOverlay').style.display='none'; catSheet=null; }
   // After an edit: the card's totals and, if it is open, the sheet behind the bill.
   function refreshCategories(){ loadCategorySpend(); if(catSheet&&document.getElementById('catOverlay').style.display==='flex') loadCategorySheet(catSheet); }
