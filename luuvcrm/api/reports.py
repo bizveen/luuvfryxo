@@ -10,6 +10,7 @@ from luuvcrm import branch, roles
 
 from luuvcrm.api import menu
 from luuvcrm.api.approvals import _format_approvals, _pending_and_recent_approvals
+from luuvcrm.api.expenses import FOOD_PURCHASE_CATEGORY
 
 
 # ─── A note on limits (P3) ─────────────────────────────────────────────────
@@ -647,8 +648,9 @@ def get_manager_purchase_report(days=7, start=None, end=None):
 
     The item breakdown is the one place that cannot just read `total`: the
     discount belongs to the bill, not to any line on it. It is pro-rated down
-    the lines by value, which is the only split that leaves the item list adding
-    up to the same money as every other card here.
+    the lines by value. Only lines whose category is marked ``in_stock`` belong
+    in item/quantity/price analysis; utility descriptions remain part of the
+    bill and spend totals, but are not things the kitchen bought into stock.
     """
     roles.require_manager()
     from frappe.utils import getdate, add_days, formatdate, today as _today
@@ -750,11 +752,14 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         ) sub ON sub.parent = pbi.parent
         WHERE pb.status = 'approved'
           AND pb.purchase_date >= %s AND pb.purchase_date < %s
+          AND COALESCE(NULLIF(pbi.category, ''), %s) IN (
+              SELECT ec.name FROM `tabExpense Category` ec WHERE ec.in_stock = 1
+          )
         """ + _pb_cond + """
         GROUP BY name, pbi.uom
         ORDER BY spend DESC
         """,
-        (range_start, range_end) + _pb_params, as_dict=True)
+        (range_start, range_end, FOOD_PURCHASE_CATEGORY) + _pb_params, as_dict=True)
     # Grouped by unit as well as name: summing 50 Kg of beef with 50 Nos of eggs
     # into one quantity would be a number that means nothing. `bills` — how many
     # bills the item appeared on — is the one measure of "how much we use this"
@@ -777,11 +782,14 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
         WHERE pb.status = 'approved' AND pbi.price > 0
           AND pb.purchase_date >= %s AND pb.purchase_date < %s
+          AND COALESCE(NULLIF(pbi.category, ''), %s) IN (
+              SELECT ec.name FROM `tabExpense Category` ec WHERE ec.in_stock = 1
+          )
         """ + _pb_cond + """
         GROUP BY name, pbi.uom
         HAVING COUNT(DISTINCT pb.vendor) > 1 AND MAX(pbi.price) > MIN(pbi.price)
         """,
-        (range_start, range_end) + _pb_params, as_dict=True)
+        (range_start, range_end, FOOD_PURCHASE_CATEGORY) + _pb_params, as_dict=True)
     price_spread = []
     for r in cmp_rows:
         lo, hi, qty = float(r.lo or 0), float(r.hi or 0), float(r.qty or 0)
@@ -810,10 +818,13 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         WHERE pb.status = 'approved' AND pbi.old_price > 0 AND pbi.price > 0
           AND pbi.price <> pbi.old_price
           AND pb.purchase_date >= %s AND pb.purchase_date < %s
+          AND COALESCE(NULLIF(pbi.category, ''), %s) IN (
+              SELECT ec.name FROM `tabExpense Category` ec WHERE ec.in_stock = 1
+          )
         """ + _pb_cond + """
         ORDER BY pb.purchase_date ASC, pb.requested_at ASC
         """,
-        (range_start, range_end) + _pb_params, as_dict=True)
+        (range_start, range_end, FOOD_PURCHASE_CATEGORY) + _pb_params, as_dict=True)
     # One row per item: the first price it carried in the window against the
     # last. Every wobble in between is noise a manager cannot act on.
     first_last = {}
@@ -990,10 +1001,13 @@ def get_manager_vendor_detail(vendor=None, days=7, start=None, end=None):
         ) sub ON sub.parent = pbi.parent
         WHERE pb.vendor = %s AND pb.status = 'approved'
           AND pb.purchase_date BETWEEN %s AND %s
+          AND COALESCE(NULLIF(pbi.category, ''), %s) IN (
+              SELECT ec.name FROM `tabExpense Category` ec WHERE ec.in_stock = 1
+          )
         """ + cond + """
         GROUP BY name, pbi.uom
         ORDER BY spend DESC
-    """, (vendor, start, end) + params, as_dict=True) if r.name]
+    """, (vendor, start, end, FOOD_PURCHASE_CATEGORY) + params, as_dict=True) if r.name]
 
     if frappe.db.has_column("Purchase Bill", "payment_status"):
         unpaid = frappe.db.sql("""

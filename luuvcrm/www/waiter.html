@@ -144,6 +144,13 @@
     @keyframes readyPulse { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.4)} 50%{box-shadow:0 0 0 6px rgba(16,185,129,0)} }
     .wo-card-items { font-size:0.82rem; color:#4B5563; line-height:1.6; }
     .wo-card-notes { font-size:0.78rem; color:#92400E; background:#FFFBEB; padding:5px 10px; border-radius:6px; margin-top:6px; }
+    .wo-card-audit { margin-top:8px; padding:8px 10px; border-radius:9px; background:#F8FAFC; border:1px solid #E2E8F0; }
+    .wo-audit-row { display:flex; align-items:center; gap:7px; font-size:0.72rem; color:#475569; line-height:1.5; }
+    .wo-audit-row + .wo-audit-row { margin-top:3px; }
+    .wo-audit-dot { width:7px; height:7px; border-radius:50%; background:#10B981; flex:none; }
+    .wo-audit-row.added .wo-audit-dot { background:#6366F1; }
+    .wo-audit-user { font-weight:800; color:#334155; }
+    .wo-audit-time { color:#94A3B8; margin-left:auto; white-space:nowrap; }
     .wo-empty { text-align:center; padding:50px 20px; color:#9CA3AF; }
     .wo-empty-icon { font-size:2.5rem; margin-bottom:8px; }
 
@@ -856,7 +863,7 @@ async function resumeOrder(name, table, keepCart=false) {
     const nameMap = getNameMap();
     const existTxt = its.map(i => `${(nameMap[i.item]||i.item)} ×${i.qty}${i.takeaway?' 🛍️':''}`).join(' · ') || '—';
     document.getElementById('wrbTitle').textContent = '➕ Adding to Order #' + name + ' · ' + shortTable(table || document.getElementById('tableSelect').value);
-    document.getElementById('wrbExisting').textContent = 'Already ordered: ' + existTxt;
+    document.getElementById('wrbExisting').textContent = 'Already ordered (locked): ' + existTxt;
     document.getElementById('resumeBanner').classList.add('show');
     switchTab('menu');
     render();
@@ -1010,6 +1017,15 @@ async function loadMyOrders() {
       const active = !o.paid && o.kitchen_status !== 'Served';
       const orderData = encodeURIComponent(JSON.stringify({ name:o.name, table:o.restaurant_table||'—', items, notes:o.notes||'' }));
       const tableSafe = (o.restaurant_table||'').replace(/'/g,'');
+      const staffLog = o.staff_log || [];
+      const auditHtml = staffLog.map(e => {
+        const added = e.action === 'added';
+        const what = added ? `Added${e.lines ? ` ${e.lines} line${e.lines===1?'':'s'}` : ' items'} by` : 'Created by';
+        return `<div class="wo-audit-row ${added?'added':''}">
+          <span class="wo-audit-dot"></span><span>${what} <span class="wo-audit-user">${escHtml(e.user_full||e.user||'—')}</span></span>
+          <span class="wo-audit-time">${escHtml(e.time_ago||'')}</span>
+        </div>`;
+      }).join('');
       return `<div class="wo-card ${cardCls}" id="wocard-${o.name}">
         <div class="wo-card-top">
           <span class="wo-card-table">${escHtml(shortTable(o.restaurant_table))} · #${escHtml(o.name)}</span>
@@ -1017,7 +1033,7 @@ async function loadMyOrders() {
           <span class="wo-card-status ${statusClass}">${statusLabel}</span>
         </div>
         <div class="wo-card-items">${itemsText || '—'}</div>
-        ${o.waiter_name ? `<div class="wo-card-notes">🙋 ${escHtml(o.waiter_name)}</div>` : ''}
+        ${auditHtml ? `<div class="wo-card-audit">${auditHtml}</div>` : ''}
         ${o.notes ? `<div class="wo-card-notes">📝 ${escHtml(o.notes)}</div>` : ''}
         <div class="wo-card-actions">
           ${active ? `<button class="wo-add-btn" onclick="resumeOrder('${o.name}','${tableSafe}',true)">➕ Add items</button>
@@ -1282,11 +1298,13 @@ async function _loadItemReviews(code) {
 
 function _updateDetailCartState() {
   document.getElementById('idQty').textContent = _detailQty;
-  const existing = qtyForCode(_detailCode);   // how many of this code are already on the ticket
-  document.getElementById('idAddBtn').textContent = existing > 0 ? 'Add another line' : 'Add to Order';
+  // Only the not-yet-sent cart is removable here. Existing/fired order lines
+  // never enter `cart`, and the waiter backend has no remove/rebuild endpoint.
+  const pending = qtyForCode(_detailCode);
+  document.getElementById('idAddBtn').textContent = pending > 0 ? 'Add another line' : 'Add to Order';
   const rm = document.getElementById('idRemoveBtn');
-  rm.style.display = existing > 0 ? 'inline-block' : 'none';
-  rm.textContent = existing > 0 ? ('Remove (' + existing + ')') : 'Remove';
+  rm.style.display = pending > 0 ? 'inline-block' : 'none';
+  rm.textContent = pending > 0 ? ('Remove pending (' + pending + ')') : 'Remove pending';
 }
 
 // The +/- stepper adjusts the PENDING qty for the line being added — it does not touch the cart

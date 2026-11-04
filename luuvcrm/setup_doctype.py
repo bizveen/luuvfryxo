@@ -55,6 +55,7 @@ import frappe
 
 from luuvcrm import branch, roles
 from luuvcrm.api import EXPENSE_CATEGORIES, GUIDE_DEFAULT_PERCENT
+from luuvcrm.api.expenses import STOCK_EXPENSE_CATEGORIES
 from luuvcrm.api.errors import _install_client_errors
 from luuvcrm.patches.v1_0.allow_fractional_nos import execute as allow_fractional_nos
 
@@ -613,7 +614,9 @@ def seed_expense_categories():
     if not frappe.db.exists("DocType", "Expense Category") or frappe.db.count("Expense Category"):
         return
     for c in EXPENSE_CATEGORIES:
-        frappe.get_doc({"doctype": "Expense Category", "category_name": c}).insert(ignore_permissions=True)
+        frappe.get_doc({"doctype": "Expense Category", "category_name": c,
+                        "in_stock": int(c in STOCK_EXPENSE_CATEGORIES)}).insert(
+                            ignore_permissions=True)
     print(f"  + {len(EXPENSE_CATEGORIES)} expense categories")
 
 

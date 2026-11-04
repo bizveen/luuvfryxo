@@ -200,12 +200,13 @@ class TestADiscountReachesThePurchaseReport(FrappeTestCase):
         self.assertAlmostEqual(self.spend_for(self.report()["items"], "name", "Rice"),
                                self.AMOUNT - self.DISCOUNT, 2)
 
-    def test_every_breakdown_agrees_with_the_total(self):
+    def test_vendor_breakdown_agrees_and_item_breakdown_is_stock_only(self):
         self.discount(self.DISCOUNT)
         report = self.report()
-        for key in ("vendors", "items"):
-            self.assertAlmostEqual(sum(r["spend"] for r in report[key]),
-                                   report["total_spend"], 2, key)
+        self.assertAlmostEqual(sum(r["spend"] for r in report["vendors"]),
+                               report["total_spend"], 2)
+        self.assertLessEqual(sum(r["spend"] for r in report["items"]),
+                             report["total_spend"])
 
     def test_a_bill_with_no_discount_is_unchanged(self):
         report = self.report()
@@ -335,6 +336,28 @@ class TestWhatThePurchaseReportNowSays(FrappeTestCase):
         self.assertEqual(sorted(r["uom"] for r in rows), ["Kg", "Nos"])
         for r in rows:
             self.assertEqual(r["qty"], 10)
+
+    def test_a_nonstock_bill_line_is_not_an_item_bought(self):
+        """Electricity is bill spend, but it is not kitchen stock. Its child
+        row keeps a mixed bill itemised without putting it on item reports."""
+        name = "_LFT Report Electricity"
+        vendor = "_LFT Utility Vendor"
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill", "vendor": vendor, "status": "approved",
+            "requested_at": frappe.utils.now_datetime(), "total": 8400,
+            "items": [{"item_name": name, "category": "Electricity", "uom": "Bill",
+                       "qty": 1, "price": 8400}],
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        frappe.db.commit()
+        self._bills.append(doc.name)
+
+        report = self.report()
+        self.assertIsNone(self.row(report["items"], name))
+        self.assertGreaterEqual(report["total_spend"], 8400)
+        detail = api.get_manager_vendor_detail(vendor=vendor, days=1)
+        self.assertFalse(any(row["name"] == name for row in detail["items"]))
 
     # ── spend against sales ──
     def test_spend_is_shown_against_the_period_s_revenue(self):

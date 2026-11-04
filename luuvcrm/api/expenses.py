@@ -20,6 +20,10 @@ from luuvcrm.api.shifts import _open_shift_name, _resolve_pos_profile_name
 # touch the cash drawer either (see create_expense) — it is a record with a manager sign-off.
 
 FOOD_PURCHASE_CATEGORY = "Food / Ingredients"
+# Only the purchase/ingredients bucket creates reusable Item records and stock
+# movements. Every other category is an expense line, even when it shares one
+# supplier receipt with stock purchases.
+STOCK_EXPENSE_CATEGORIES = frozenset({FOOD_PURCHASE_CATEGORY})
 
 EXPENSE_CATEGORIES = [
     # Default for itemised supplier bills. Keeping it in the shared category
@@ -74,6 +78,9 @@ def _install_expenses():
             "fields": [
                 {"fieldname": "category_name", "label": "Category", "fieldtype": "Data",
                  "reqd": 1, "unique": 1, "in_list_view": 1},
+                {"fieldname": "in_stock", "label": "In Stock", "fieldtype": "Check",
+                 "default": "0", "in_list_view": 1,
+                 "description": "On = supplier-bill lines become Items and stock."},
                 {"fieldname": "disabled", "label": "Disabled", "fieldtype": "Check",
                  "default": "0", "in_list_view": 1},
             ],
@@ -88,8 +95,9 @@ def _install_expenses():
     # the table is completely empty.
     if not frappe.db.count("Expense Category"):
         for c in EXPENSE_CATEGORIES:
-            frappe.get_doc({"doctype": "Expense Category", "category_name": c}).insert(
-                ignore_permissions=True)
+            frappe.get_doc({"doctype": "Expense Category", "category_name": c,
+                            "in_stock": int(c in STOCK_EXPENSE_CATEGORIES)}).insert(
+                                ignore_permissions=True)
 
     if not frappe.db.exists("DocType", "Expense"):
         frappe.get_doc({
@@ -144,8 +152,29 @@ def get_expense_categories():
     roles.require_expenses()
     if not frappe.db.exists("DocType", "Expense Category"):
         _install_expenses()
-    return {"categories": [r.name for r in frappe.get_all(
-        "Expense Category", filters={"disabled": 0}, fields=["name"], order_by="name")]}
+    fields = ["name"]
+    has_flag = frappe.db.has_column("Expense Category", "in_stock")
+    if has_flag:
+        fields.append("in_stock")
+    rows = frappe.get_all("Expense Category", filters={"disabled": 0},
+                          fields=fields, order_by="name")
+    details = [{"name": r.name,
+                "in_stock": int(r.in_stock if has_flag else
+                                r.name in STOCK_EXPENSE_CATEGORIES)} for r in rows]
+    return {"categories": [r["name"] for r in details],
+            "category_details": details}
+
+
+def category_is_stock(category):
+    """Whether a supplier-bill line belongs in Items/BOM/stock.
+
+    The fallback keeps Food / Ingredients working during the short deploy
+    window before migrate adds the flag. Blank legacy bill lines are purchases.
+    """
+    category = category or FOOD_PURCHASE_CATEGORY
+    if not frappe.db.has_column("Expense Category", "in_stock"):
+        return category in STOCK_EXPENSE_CATEGORIES
+    return bool(frappe.db.get_value("Expense Category", category, "in_stock"))
 
 
 def _expense_approval(doc):

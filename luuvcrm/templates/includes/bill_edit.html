@@ -21,6 +21,7 @@
     <div class="be-lbl">Category</div>
     <div id="beCatFixed" class="be-inp" style="color:var(--text-muted);">🧾 Purchase Bill (stock items)</div>
     <select id="beCat" class="be-inp"></select>
+    <div id="beBillCats" style="display:none;margin-bottom:16px;"></div>
 
     <div class="be-lbl" id="beNameLbl">Vendor</div>
     <input id="beName" class="be-inp" autocomplete="off">
@@ -53,7 +54,7 @@
 </div>
 <script>
 (function(){
-  const S={kind:null,name:null,photo:'',onSaved:null,cats:null,busy:false};
+  const S={kind:null,name:null,photo:'',onSaved:null,cats:null,catDetails:null,rec:null,busy:false};
   function el(id){ return document.getElementById(id); }
   function today(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
   function err(m){ const e=el('beErr'); e.textContent=m||''; e.style.display=m?'block':'none'; }
@@ -62,11 +63,26 @@
       if(d&&d.exception){ const t=String(d.exception); const i=t.indexOf(':'); return (i>-1?t.slice(i+1):t).trim().slice(0,160)||fallback; }
     }catch(e){} return fallback; }
 
-  async function loadCats(current){
-    if(!S.cats){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); const d=r&&await r.json(); S.cats=(d&&d.message&&d.message.categories)||[]; }catch(e){ S.cats=[]; } }
+  async function ensureCats(){
+    if(!S.cats){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); const d=r&&await r.json(); S.cats=(d&&d.message&&d.message.categories)||[]; S.catDetails=(d&&d.message&&d.message.category_details)||[]; }catch(e){ S.cats=[]; S.catDetails=[]; } }
+  }
+  function catOptions(current,hasItem){
     const list=S.cats.slice(); if(current&&!list.includes(current)) list.unshift(current);   // a since-disabled category still shows
-    el('beCat').innerHTML=list.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    return list.map(c=>{ const d=(S.catDetails||[]).find(x=>x.name===c), blocked=d&&d.in_stock&&!hasItem; return `<option value="${esc(c)}" ${c===current?'selected':''} ${blocked?'disabled':''}>${esc(c)}</option>`; }).join('');
+  }
+  async function loadCats(current){
+    await ensureCats();
+    el('beCat').innerHTML=catOptions(current,true);
     el('beCat').value=current||'';
+  }
+  async function renderBillCats(rec){
+    await ensureCats();
+    if(S.kind!=='bill'||S.name!==rec.name) return;
+    const lines=rec.lines||[], unique=[...new Set(lines.map(l=>l.category||'').filter(Boolean))];
+    if(!lines.length){ el('beBillCats').innerHTML='<div class="be-inp" style="color:var(--text-muted);">No bill lines</div>'; return; }
+    if(unique.length<=1){ const current=unique[0]||''; const canStock=lines.every(l=>!!l.item);
+      el('beBillCats').innerHTML=`<select id="beBillCatOne" class="be-inp" style="margin-bottom:0;">${catOptions(current,canStock)}</select><div style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">Applies to every item on this bill.</div>`; return; }
+    el('beBillCats').innerHTML=`<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px;">This bill has several categories. Change each item separately.</div>`+lines.map((l,i)=>`<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid var(--border-subtle);"><div style="flex:1;min-width:0;font-size:13px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.name||('Item '+(i+1)))}</div><select class="be-inp be-line-cat" data-row="${esc(l.row_name||'')}" style="width:46%;margin:0;padding:9px 10px;font-size:13px;">${catOptions(l.category||'',!!l.item)}</select></div>`).join('');
   }
 
   window.beSetPhoto=function(url){ S.photo=url||''; const img=el('bePhotoImg');
@@ -76,14 +92,16 @@
     el('beRemove').style.display=S.photo?'inline-flex':'none'; };
 
   window.openBillEdit=function(kind,rec,onSaved){ if(!rec||!rec.name) return;
-    S.kind=kind; S.name=rec.name; S.onSaved=onSaved||null; err('');
+    S.kind=kind; S.name=rec.name; S.rec=rec; S.onSaved=onSaved||null; err('');
     const exp=kind==='expense';
     el('beTitle').textContent=exp?'Edit expense':'Edit bill';
     el('beSub').textContent=exp?'The amount stays as entered — to change it, reject this and add it again.'
-                               :'The items and prices stay as entered — to change those, reject this bill and add it again.';
-    el('beCatFixed').style.display=exp?'none':'block';
+                               :'Vendor details and each item’s category can be corrected while the bill is pending.';
+    el('beCatFixed').style.display='none';
     el('beCat').style.display=exp?'block':'none';
+    el('beBillCats').style.display=exp?'none':'block';
     if(exp) loadCats(rec.category);
+    else renderBillCats(rec);
     el('beNameLbl').textContent=exp?'Paid to':'Vendor';
     el('beName').placeholder=exp?'e.g. CEB, landlord':'Vendor name';
     el('beName').value=(exp?rec.payee:rec.vendor)||'';
@@ -114,9 +132,13 @@
     if(exp&&!el('beCat').value){ err('Pick a category.'); return; }
     if(!date){ err('Pick a date.'); return; }
     if(date>today()){ err('The date cannot be in the future.'); return; }
+    let lineCategories=[];
+    if(!exp){ const one=el('beBillCatOne');
+      if(one) lineCategories=(S.rec.lines||[]).map(l=>({row_name:l.row_name,category:one.value}));
+      else lineCategories=[...document.querySelectorAll('#beBillCats .be-line-cat')].map(s=>({row_name:s.dataset.row,category:s.value})); }
     const body=exp
       ?{name:S.name,category:el('beCat').value,payee:name,expense_date:date,receipt_image:S.photo,note:el('beNote').value.trim()}
-      :{name:S.name,vendor:name,purchase_date:date,receipt_image:S.photo,note:el('beNote').value.trim()};
+      :{name:S.name,vendor:name,purchase_date:date,receipt_image:S.photo,note:el('beNote').value.trim(),line_categories:JSON.stringify(lineCategories)};
     S.busy=true; err(''); const btn=el('beSave'); btn.disabled=true; btn.textContent='Saving…';
     try{ const r=await _post('/api/method/luuvcrm.api.'+(exp?'update_expense':'update_purchase_bill'),body);
       const d=r&&await r.json();

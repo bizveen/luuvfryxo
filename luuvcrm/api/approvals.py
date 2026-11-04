@@ -17,7 +17,12 @@ from luuvcrm.api.pricing import (
     _server_item_rate,
     _service_charge_on,
 )
-from luuvcrm.api.purchases import _apply_bill_discount, _decide_purchase_bill
+from luuvcrm.api.purchases import (
+    _apply_bill_discount,
+    _apply_purchase_line_categories,
+    _decide_purchase_bill,
+)
+from luuvcrm.api.expenses import category_is_stock
 from luuvcrm.api.schema import (
     _clean_item_note,
     _ensure_item_notes_field,
@@ -284,12 +289,17 @@ def _format_approvals(rows):
     # roles, so ask once rather than per row — same reason as `names` above.
     self_ok_types = roles.SELF_APPROVABLE_TYPES if roles.is_manager() else frozenset()
     category_options = []
+    line_category_options = []
     if any((r.get("action") or "") in ("purchase_bill", "expense") for r in rows):
         category_options = [{"value": "", "label": "Purchase Bill (stock items)"}]
         if frappe.db.exists("DocType", "Expense Category"):
-            category_options += [{"value": r.name, "label": r.name} for r in frappe.get_all(
+            category_rows = frappe.get_all(
                 "Expense Category", filters={"disabled": 0}, fields=["name"], order_by="name",
-            )]
+            )
+            category_options += [{"value": r.name, "label": r.name} for r in category_rows]
+            line_category_options = [{"value": r.name, "label": r.name,
+                                      "in_stock": 1 if category_is_stock(r.name) else 0}
+                                     for r in category_rows]
 
     # Purchase-bill cards show each line's price with a "was Rs X" delta when the
     # buying price moved — the one number that says whether a supplier put their
@@ -308,7 +318,7 @@ def _format_approvals(rows):
                 bill_of[r.get("name")] = bill
     bill_items = {}
     if bill_of:
-        item_fields = ["parent", "idx", "qty", "price", "old_price", "uom"]
+        item_fields = ["name", "parent", "idx", "item", "qty", "price", "old_price", "uom"]
         if frappe.db.has_column("Purchase Bill Item", "category"):
             item_fields.append("category")
         for it in frappe.get_all("Purchase Bill Item",
@@ -358,8 +368,14 @@ def _format_approvals(rows):
                     line["price"] = it.price
                     line["old_price"] = it.old_price
                     line["unit"] = it.uom
+                    line["row_name"] = it.name
+                    line["has_item"] = 1 if it.item else 0
                     if it.get("category"):
                         line["category"] = it.category
+                    line["qtyStr"] = (f"{float(it.qty or 0):g} {it.uom or 'Nos'}"
+                                      if category_is_stock(it.get("category")) else "")
+
+        bill_categories = {line.get("category") for line in lines if line.get("category")}
 
         out.append({
             "name": r.get("name"),
@@ -385,6 +401,10 @@ def _format_approvals(rows):
             "category_value": expense_category if (r.get("action") or "") == "expense" else "",
             "category_options": (category_options
                                  if (r.get("action") or "") in ("purchase_bill", "expense") else []),
+            "line_category_options": (line_category_options
+                                      if (r.get("action") or "") == "purchase_bill" else []),
+            "multi_category": ((r.get("action") or "") == "purchase_bill"
+                               and len(bill_categories) > 1),
             "manager_comment": r.get("manager_comment") or "",
             "by": names.get(r.get("requested_by"), ""),
             # Whoever raised it cannot resolve it — the UI locks the card,
@@ -533,6 +553,12 @@ def resolve_approval():
             # they approve, which is the only moment anybody can read that
             # figure off it.
             category = (data.get("category") or "").strip()
+            line_categories = data.get("line_categories")
+            if decision == "approved" and category and line_categories:
+                frappe.throw(_("Choose either one bill category or per-line categories, not both"))
+            if decision == "approved" and line_categories:
+                purchase_doc = frappe.get_doc("Purchase Bill", bill)
+                _apply_purchase_line_categories(purchase_doc, line_categories)
             if decision == "approved" and category:
                 _purchase_bill_to_expense(
                     bill, category, doc, discount=data.get("discount"),

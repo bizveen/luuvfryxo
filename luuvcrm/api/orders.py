@@ -710,16 +710,74 @@ def get_my_orders():
         filters={"creation": [">=", today],
                  branch.FIELD: branch.viewing()},
         fields=["name", "restaurant_table", "kitchen_status", "grand_total", "creation",
-                "order_source", "waiter_name", "notes", "pos_invoice"],
+                "order_source", "waiter_name", "notes", "pos_invoice", "owner"],
         order_by="creation desc",
         limit_page_length=SCREEN_ORDER_CEILING,
     )
     lines = lines_by_order([o.name for o in orders])
+    staff_logs = _waiter_order_staff_logs(orders)
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
         o["paid"] = 1 if o.get("pos_invoice") else 0
         o["items"] = [_line_dict(i) for i in lines.get(o.name, [])]
+        o["staff_log"] = staff_logs.get(o.name, [])
     return {"orders": orders}
+
+
+def _waiter_order_staff_logs(orders):
+    """Return the small, order-scoped audit trail shown to floor staff.
+
+    The order document is the authority for who created the ticket.  Every
+    later waiter append already writes one ``order.append`` LF Activity Log row
+    with the authenticated session user, so this only reads and groups those
+    rows; it does not invent a second audit mechanism.
+    """
+    logs = {}
+    order_names = [o.name for o in orders]
+    if not order_names:
+        return logs
+
+    # Creation is not a Version row in Frappe, so make it the first visible
+    # event from the immutable document owner/creation fields.
+    for o in orders:
+        creator = o.get("waiter_name") or activity._full_name(o.get("owner")) or o.get("owner")
+        logs[o.name] = [{
+            "action": "created",
+            "user": o.get("owner") or "",
+            "user_full": creator or "",
+            "created": str(o.get("creation") or ""),
+            "time_ago": frappe.utils.pretty_date(o.get("creation")),
+        }]
+
+    # A partially migrated site must still be able to open the waiter screen.
+    if not frappe.db.exists("DocType", activity.DOCTYPE):
+        return logs
+
+    appends = frappe.get_all(
+        activity.DOCTYPE,
+        filters={
+            "ref_doctype": "POS Order",
+            "ref_name": ["in", order_names],
+            "action": "order.append",
+            # Test databases can recycle a rolled-back naming-series value;
+            # production restores can also leave an orphaned old activity row.
+            # Neither belongs to this incarnation of the order.
+            "creation": [">=", min(o.get("creation") for o in orders)],
+        },
+        fields=["ref_name", "creation", "user", "user_full", "qty"],
+        order_by="creation asc",
+        limit_page_length=1000,
+    )
+    for row in appends:
+        logs.setdefault(row.ref_name, []).append({
+            "action": "added",
+            "user": row.user or "",
+            "user_full": row.user_full or row.user or "",
+            "created": str(row.creation or ""),
+            "time_ago": frappe.utils.pretty_date(row.creation),
+            "lines": int(row.qty or 0),
+        })
+    return logs
 @frappe.whitelist(methods=["POST"])
 def waiter_append_items():
     """Append NEW item lines to an existing unpaid draft order (waiter 'add to the bill').

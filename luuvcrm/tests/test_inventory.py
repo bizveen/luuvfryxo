@@ -320,3 +320,17 @@ class TestPurchaseStockReceipt(InventoryTestCase):
             0.5,
             places=6,
         )
+
+    def test_an_expense_category_on_a_mixed_bill_does_not_receive_stock(self):
+        before = self.balance()
+        result = self.call(
+            api.create_purchase_bill,
+            vendor="_LFT-Electricity Vendor",
+            lines=json.dumps([{"name": "Electricity", "category": "Electricity",
+                               "qty": 1, "price": 5000, "unit": "Bill"}]),
+        )
+        self.bills.append(result["name"])
+        api._decide_purchase_bill(result["name"], "approved")
+        bill = frappe.get_doc("Purchase Bill", result["name"])
+        self.assertFalse(bill.stock_entry)
+        self.assertAlmostEqual(self.balance(), before, places=6)

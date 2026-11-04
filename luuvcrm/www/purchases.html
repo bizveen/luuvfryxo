@@ -142,17 +142,14 @@ input,button{font-family:inherit;}
   </div>
 </div></div>
 
-<!-- Add sheet — Category decides whether this becomes a Purchase Bill or an Expense -->
+<!-- Add sheet — the active Bills/Expenses tab chooses the starting mode -->
 <div id="addOverlay" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeAdd()">
   <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
     <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
     <div id="addTitle" style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New bill</div>
     <div id="addSubtitle" style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Add each item and its purchase price — it goes to the manager for approval.</div>
 
-    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Entry type</div>
-    <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()" style="margin-bottom:20px;"></select>
-
-    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;"><span id="photoStepLabel">1 · Receipt photo</span> <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;"><span id="photoStepLabel">Receipt photo</span> <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
     <label id="photoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:8px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
       <span id="photoHint">📷 Tap to snap receipt</span>
       <img id="photoImg" style="display:none;width:100%;height:100%;object-fit:cover;">
@@ -162,18 +159,21 @@ input,button{font-family:inherit;}
       <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this)">
     </label>
 
-    <div id="billModeFields">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">2 · Items &amp; purchase prices</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
-      <div id="lineRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
+    <div id="entryTypeFields" style="display:none;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Expense category</div>
+      <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()"></select>
+    </div>
 
-      <button onclick="togglePicker()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="plus" id="pickerIcon" style="width:17px;height:17px;"></i> <span id="pickerLabel">Add item from list</span></button>
-      <div id="pickerWrap" style="display:none;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:10px;overflow:hidden;"></div>
+    <div id="billModeFields">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">Categories &amp; items</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
+      <div id="categoryCards" style="display:flex;flex-direction:column;gap:12px;"></div>
+      <button onclick="addCategoryCard()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:12px;"><i data-lucide="plus" style="width:17px;height:17px;"></i> Add category</button>
 
       <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Bill total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="billTotal">0</span></span></div>
     </div>
 
     <div id="expModeFields" style="display:none;">
-      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">2 · Amount</div>
+      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">Amount</div>
       <div style="display:flex;align-items:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-sunken);border-radius:var(--radius-md);padding:13px 15px;margin-bottom:14px;">
         <span class="mono" style="font-size:14px;color:var(--text-muted);">Rs</span>
         <input id="fAmount" type="number" inputmode="decimal" placeholder="0" oninput="saveDraft()" style="flex:1;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:16px;color:var(--text-strong);">
@@ -285,9 +285,8 @@ function lfPoll(fn, ms){
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   const CAN_EDIT={{ "true" if can_edit_bills else "false" }};
   const DEFAULT_PURCHASE_CATEGORY='Food / Ingredients';
-  let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='', priceItems=[], recipeItems=[], ACTIVE_RECIPE=null;
-  let lastLineCategory=DEFAULT_PURCHASE_CATEGORY;
-  let expStats={}, billStats={}, expCats=[];
+  let tab='list', catalog=[], formLines=[], categoryCards=[], nextCategoryCardId=1, newReceipt='', priceItems=[], recipeItems=[], ACTIVE_RECIPE=null;
+  let expStats={}, billStats={}, expCats=[], stockCats=[];
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
   // The phone's own calendar day. toISOString() is UTC, which in Sri Lanka is
@@ -366,14 +365,16 @@ function lfPoll(fn, ms){
 
   async function loadExpCats(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); if(!r) return; const d=await r.json();
     expCats=(d.message&&d.message.categories)||[];
+    stockCats=((d.message&&d.message.category_details)||[]).filter(c=>c.in_stock).map(c=>c.name);
+    if(!stockCats.length&&expCats.includes(DEFAULT_PURCHASE_CATEGORY)) stockCats=[DEFAULT_PURCHASE_CATEGORY];
     renderCategoryOptions();
-    if(document.getElementById('fCategory').value==='') renderLines();
+    const sel=document.getElementById('fCategory');
+    if(tab==='expenses'&&sheetOpen('addOverlay')&&sel.value===''&&expCats.length){ sel.value=expCats[0]; onCategoryChange(); }
+    else if(sel.value==='') renderCategoryCards();
   }catch(e){} }
 
-  // First option ("") means "this is an itemised Purchase Bill" — everything
-  // else is a simple one-amount Expense. Purchase Bill lines choose their own
-  // categories further down. Keeps the selection across a
-  // background refresh of the category list.
+  // Blank means the category-card Purchase Bill flow; an actual category is
+  // the one-amount Expense flow opened from the Expenses tab.
   function renderCategoryOptions(){ const sel=document.getElementById('fCategory'); if(!sel) return;
     const cur=sel.value;
     sel.innerHTML='<option value="">🧾 Purchase Bill (categorise each item)</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
@@ -383,6 +384,7 @@ function lfPoll(fn, ms){
   // (amount + payee) — the photo, date and note fields stay put either way.
   function onCategoryChange(){
     const isExp=document.getElementById('fCategory').value!=='';
+    document.getElementById('entryTypeFields').style.display=isExp?'block':'none';
     document.getElementById('billModeFields').style.display=isExp?'none':'block';
     document.getElementById('expModeFields').style.display=isExp?'block':'none';
     document.getElementById('fVendorLabel').textContent=isExp?'Paid to':'Vendor / paid to';
@@ -391,8 +393,8 @@ function lfPoll(fn, ms){
     document.getElementById('addTitle').textContent=isExp?'New expense':'New bill';
     document.getElementById('addSubtitle').textContent=isExp
       ?'A utility bill, gas, rent — anything that isn’t a stock purchase. It goes to the manager for approval.'
-      :'Add each item, choose its category, and enter the purchase price. One receipt can use several categories.';
-    document.getElementById('photoStepLabel').textContent=isExp?'1 · Bill photo':'1 · Receipt photo';
+      :'Choose a category, add all its items, then add another category if this receipt needs one.';
+    document.getElementById('photoStepLabel').textContent=isExp?'Bill photo':'Receipt photo';
     if(document.getElementById('photoImg').style.display==='none'){
       document.getElementById('photoHint').textContent=isExp?'📷 Tap to snap the bill':'📷 Tap to snap receipt'; }
     const fd=document.getElementById('fDate');
@@ -604,7 +606,12 @@ function lfPoll(fn, ms){
   function pickVendor(i){ const v=vendorShown[i]; if(!v) return; const el=document.getElementById('fVendor'); el.value=v.name; hideVendorSug(); el.blur(); onVendorInput(); saveDraft(); }
 
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
-  function openAdd(){ formLines=[]; lastLineCategory=DEFAULT_PURCHASE_CATEGORY; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
+  // Expense Category.in_stock is the only switch between catalogue/stock
+  // purchase lines and simple descriptive bill lines.
+  function isStockCategory(category){ return stockCats.includes(category)||(!stockCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
+  function makeCategoryCard(category){ const chosen=category===undefined?DEFAULT_PURCHASE_CATEGORY:category; return {id:nextCategoryCardId++,category:chosen,pickerOpen:!!chosen,query:''}; }
+  function categoryCard(id){ return categoryCards.find(c=>c.id===Number(id)); }
+  function openAdd(){ formLines=[]; categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)]; newReceipt=''; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
     document.getElementById('fAmount').value=''; document.getElementById('fBillRef').value='';
     document.getElementById('fDate').value=localToday();
     document.getElementById('vendorHint').style.display='none'; hideVendorSug(); loadVendors();
@@ -616,70 +623,99 @@ function lfPoll(fn, ms){
     renderCategoryOptions();
     document.getElementById('fCategory').value=(tab==='expenses'?(expCats[0]||''):'');
     onCategoryChange();
-    if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
+    if(!catalog.length) loadCatalog().then(renderCategoryCards); renderCategoryCards();
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
   function closeAdd(){ document.getElementById('addOverlay').style.display='none'; clearDraft(); }
-  function togglePicker(){ pickerOpen=!pickerOpen; renderPicker(); }
-  function addLine(item){ const c=catalog.find(x=>x.item===item); if(!c) return; formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,category:lastLineCategory,qty:'1',price:String(c.price)}); renderLines(); renderPicker(); saveDraft(); }
-  function removeLine(i){ formLines.splice(i,1); renderLines(); renderPicker(); saveDraft(); }
+  function addCategoryCard(){ categoryCards.push(makeCategoryCard('')); renderCategoryCards(); saveDraft(); }
+  function removeCategoryCard(id){ const card=categoryCard(id); if(!card) return;
+    formLines=formLines.filter(l=>l.cardId!==card.id); categoryCards=categoryCards.filter(c=>c.id!==card.id);
+    if(!categoryCards.length) categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)];
+    renderCategoryCards(); saveDraft(); }
+  function setCardCategory(id,value){ const card=categoryCard(id); if(!card||!value) return; const lines=formLines.filter(l=>l.cardId===card.id);
+    const wasStock=isStockCategory(card.category), willStock=isStockCategory(value);
+    if(lines.length&&wasStock!==willStock){ toast('Remove this category’s lines before changing its stock type'); renderCategoryCards(); return; }
+    card.category=value; card.pickerOpen=willStock; lines.forEach(l=>l.category=value);
+    if(!willStock&&!lines.length) addExpenseLine('', 'Bill', id, false);
+    renderCategoryCards(); saveDraft(); }
+  function toggleCardPicker(id){ const card=categoryCard(id); if(!card) return; if(!card.category){ toast('Choose a category first'); return; } card.pickerOpen=!card.pickerOpen; renderCategoryCards(); }
+  function setCardQuery(id,value){ const card=categoryCard(id); if(!card) return; card.query=value; renderCardPickerList(id); }
+  function addLine(item,cardId){ const c=catalog.find(x=>x.item===item), card=categoryCard(cardId); if(!c||!card) return;
+    formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,category:card.category,cardId:card.id,cataloged:true,qty:'1',price:String(c.price)}); renderCategoryCards(); saveDraft(); }
+  function addExpenseLine(name,unit,cardId,rerender=true){ const card=categoryCard(cardId); if(!card) return;
+    formLines.push({item:'',name:name,unit:unit,cur:0,category:card.category,cardId:card.id,cataloged:false,qty:'1',price:''});
+    if(rerender){ renderCategoryCards(); saveDraft(); } }
+  function addExpenseTextField(cardId){ addExpenseLine('', 'Bill', cardId); const i=formLines.length-1; setTimeout(()=>document.getElementById('expName-'+i)?.focus(),0); }
+  function removeLine(i){ formLines.splice(i,1); renderCategoryCards(); saveDraft(); }
   // NB: oninput must NOT re-render the line list — rebuilding wrap.innerHTML while the
   // user types destroys the focused input, so the mobile keyboard closes after every digit.
   // Keep typing light (model + total only); refresh the Up/Down badge, border and line
-  // total on blur via onchange="renderLines()" on the inputs (focus already gone by then).
+  // total on blur via onchange="renderCategoryCards()" on the inputs (focus already gone by then).
   function setQty(i,v){ formLines[i].qty=v; updateTotal(); saveDraft(); }
   function setPrice(i,v){ formLines[i].price=v; updateTotal(); saveDraft(); }
-  function setLineCategory(i,v){ formLines[i].category=v||DEFAULT_PURCHASE_CATEGORY; lastLineCategory=formLines[i].category; saveDraft(); }
-  function renderLines(){ const wrap=document.getElementById('lineRows');
-    const cats=expCats.includes(DEFAULT_PURCHASE_CATEGORY)?expCats:[DEFAULT_PURCHASE_CATEGORY,...expCats];
-    wrap.innerHTML=formLines.map((l,i)=>{ l.category=l.category||DEFAULT_PURCHASE_CATEGORY; const price=parseFloat(l.price)||0; const changed=l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
-      return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 12px;background:var(--surface-card);">
-        <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${l.name}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${l.unit}</div></div><button onclick="removeLine(${i})" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Category</div>
-        <select class="inp" onchange="setLineCategory(${i},this.value)" style="padding:9px 11px;margin-bottom:9px;">${cats.map(c=>`<option value="${esc(c)}" ${c===l.category?'selected':''}>${esc(c)}</option>`).join('')}</select>
-        <div style="display:flex;gap:8px;align-items:flex-end;">
-          <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${l.unit})</div><input value="${l.qty}" oninput="setQty(${i},this.value)" onchange="renderLines()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
-          <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">New price / ${l.unit}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${l.price}" oninput="setPrice(${i},this.value)" onchange="renderLines()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
-          <div style="flex:none;text-align:right;padding-bottom:9px;min-width:72px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Line</div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt((parseFloat(l.qty)||0)*price)}</div></div>
-        </div>
-        ${changed?`<div style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:${up?'var(--color-danger)':'var(--color-success)'};margin-top:9px;background:${up?'var(--color-danger-subtle)':'var(--color-success-subtle)'};border-radius:var(--radius-pill);padding:3px 10px;"><i data-lucide="${up?'trending-up':'trending-down'}" style="width:12px;height:12px;"></i> ${up?'Up':'Down'} Rs ${nfmt(diff)} from current</div>`:''}
-      </div>`; }).join('');
-    document.getElementById('lineCount').textContent=formLines.length+(formLines.length===1?' item':' items'); updateTotal(); icons(); }
-  function updateTotal(){ const t=formLines.reduce((a,l)=>a+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); document.getElementById('billTotal').textContent=nfmt(t); }
-  function renderPicker(){ const wrap=document.getElementById('pickerWrap'); const ic=document.getElementById('pickerIcon'); const lb=document.getElementById('pickerLabel');
-    lb.textContent=pickerOpen?'Hide item list':'Add item from list'; ic.setAttribute('data-lucide',pickerOpen?'chevron-up':'plus');
-    if(!pickerOpen){ wrap.style.display='none'; icons(); return; } wrap.style.display='block';
-    // Shell built once per open; the search input keeps focus because only #pickerList/#pickerNew re-render.
-    wrap.innerHTML=`
-      <div style="padding:9px 10px;border-bottom:1px solid var(--border-subtle);background:var(--surface-sunken);">
-        <input id="pickerSearch" value="${esc(pickerQuery)}" oninput="pickerQuery=this.value; renderPickerList()" placeholder="Search items…" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);">
+  function setLineName(i,v){ formLines[i].name=v; saveDraft(); }
+  function expenseLineHtml(l,i){ l.item=''; l.cataloged=false; l.unit='Bill'; l.qty='1';
+    return `<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:10px;">
+      <div style="display:flex;align-items:flex-end;gap:7px;">
+        <div style="flex:1.4;min-width:0;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Item</div><input id="expName-${i}" value="${esc(l.name||'')}" oninput="setLineName(${i},this.value)" placeholder="e.g. April bill" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:10px 11px;font-size:14px;color:var(--text-strong);"></div>
+        <div style="flex:1;min-width:0;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Amount</div><div style="display:flex;align-items:center;gap:4px;border:1.5px solid var(--border-default);background:var(--surface-sunken);border-radius:var(--radius-sm);padding:10px 9px;"><span class="mono" style="font-size:11px;color:var(--text-muted);">Rs</span><input value="${esc(String(l.price))}" oninput="setPrice(${i},this.value)" type="number" inputmode="decimal" placeholder="0" style="width:100%;min-width:0;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:14px;color:var(--text-strong);"></div></div>
+        <button onclick="removeLine(${i})" aria-label="Remove description" style="width:34px;height:38px;border-radius:var(--radius-sm);border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></button>
       </div>
-      <div id="pickerList" style="max-height:240px;overflow-y:auto;"></div>
-      <div id="pickerNew" style="border-top:1px solid var(--border-subtle);"></div>`;
-    renderPickerList(); }
-  function renderPickerList(){ const list=document.getElementById('pickerList'); const nw=document.getElementById('pickerNew'); if(!list) return;
-    const q=(pickerQuery||'').trim().toLowerCase(); const added=formLines.map(l=>l.item);
+    </div>`; }
+  function billLineHtml(l,i,card){ l.category=card.category; if(!isStockCategory(card.category)) return expenseLineHtml(l,i); if(l.cataloged===undefined) l.cataloged=!!l.item; const price=parseFloat(l.price)||0; const stockLine=l.cataloged; const changed=stockLine&&l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
+    return `<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:10px;">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">${stockLine?`current Rs ${nfmt(l.cur)} / ${esc(l.unit)}`:'expense line · stock not affected'}</div></div><button onclick="removeLine(${i})" aria-label="Remove item" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${esc(l.unit)})</div><input value="${esc(String(l.qty))}" oninput="setQty(${i},this.value)" onchange="renderCategoryCards()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
+        <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Price / ${esc(l.unit)}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${esc(String(l.price))}" oninput="setPrice(${i},this.value)" onchange="renderCategoryCards()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
+        <div style="flex:none;text-align:right;padding-bottom:9px;min-width:72px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Line</div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt((parseFloat(l.qty)||0)*price)}</div></div>
+      </div>
+      ${changed?`<div style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:${up?'var(--color-danger)':'var(--color-success)'};margin-top:9px;background:${up?'var(--color-danger-subtle)':'var(--color-success-subtle)'};border-radius:var(--radius-pill);padding:3px 10px;"><i data-lucide="${up?'trending-up':'trending-down'}" style="width:12px;height:12px;"></i> ${up?'Up':'Down'} Rs ${nfmt(diff)} from current</div>`:''}
+    </div>`; }
+  function renderCategoryCards(){ const wrap=document.getElementById('categoryCards'); if(!wrap) return;
+    const cats=expCats.includes(DEFAULT_PURCHASE_CATEGORY)?expCats:[DEFAULT_PURCHASE_CATEGORY,...expCats];
+    categoryCards.forEach(card=>{ if(card.category&&!isStockCategory(card.category)&&!formLines.some(l=>l.cardId===card.id)) addExpenseLine('', 'Bill', card.id, false); });
+    const used=new Set(categoryCards.map(c=>c.category).filter(Boolean));
+    wrap.innerHTML=categoryCards.map((card,cardIndex)=>{ const lines=formLines.map((l,i)=>[l,i]).filter(([l])=>l.cardId===card.id); const stock=isStockCategory(card.category); const cardSubtotal=lines.reduce((sum,[l])=>sum+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); const opts=`<option value="" ${card.category?'':'selected'} disabled>Choose category</option>`+cats.map(c=>`<option value="${esc(c)}" ${c===card.category?'selected':''} ${c!==card.category&&used.has(c)?'disabled':''}>${esc(c)}</option>`).join('');
+      return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-lg);padding:13px;background:var(--surface-card);box-shadow:var(--shadow-xs);">
+        <div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:700;margin-bottom:4px;">CATEGORY ${cardIndex+1}</div><select class="inp" onchange="setCardCategory(${card.id},this.value)" style="padding:10px 11px;">${opts}</select></div><button onclick="removeCategoryCard(${card.id})" aria-label="Remove category" style="width:34px;height:34px;margin-top:17px;border-radius:50%;border:1px solid var(--border-default);background:var(--surface-sunken);color:var(--color-danger);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></button></div>
+        <div>${lines.map(([l,i])=>billLineHtml(l,i,card)).join('')}</div>
+        ${stock?`<button onclick="toggleCardPicker(${card.id})" ${card.category?'':'disabled'} style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:${card.category?'var(--color-primary)':'var(--text-faint)'};border-radius:var(--radius-md);padding:11px;cursor:${card.category?'pointer':'not-allowed'};font-family:var(--font-display);font-size:13.5px;font-weight:700;margin-top:11px;"><i data-lucide="${card.pickerOpen?'chevron-up':'plus'}" style="width:16px;height:16px;"></i> ${card.category?(card.pickerOpen?'Hide items':'Add item'):'Choose category first'}</button>
+        <div id="pickerWrap-${card.id}" style="${card.pickerOpen?'':'display:none;'}border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:9px;overflow:hidden;">
+          <div style="padding:9px 10px;border-bottom:1px solid var(--border-subtle);background:var(--surface-sunken);"><input id="pickerSearch-${card.id}" value="${esc(card.query||'')}" oninput="setCardQuery(${card.id},this.value)" placeholder="Search items…" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"></div>
+          <div id="pickerList-${card.id}" style="max-height:220px;overflow-y:auto;"></div><div id="pickerNew-${card.id}" style="border-top:1px solid var(--border-subtle);"></div>
+        </div>`:`<button onclick="addExpenseTextField(${card.id})" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:13.5px;font-weight:700;margin-top:11px;"><i data-lucide="plus" style="width:16px;height:16px;"></i> Add another item</button>`}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:11px;border-top:1px solid var(--border-subtle);"><span style="font-size:12px;font-weight:700;color:var(--text-muted);">Category subtotal</span><span class="mono" style="font-size:15px;font-weight:700;color:var(--text-strong);">Rs ${nfmt(cardSubtotal)}</span></div>
+      </div>`; }).join('');
+    document.getElementById('lineCount').textContent=formLines.length+(formLines.length===1?' item':' items'); updateTotal();
+    categoryCards.filter(c=>c.pickerOpen&&isStockCategory(c.category)).forEach(c=>renderCardPickerList(c.id)); icons(); }
+  function updateTotal(){ const t=formLines.reduce((a,l)=>a+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); document.getElementById('billTotal').textContent=nfmt(t); }
+  function renderCardPickerList(id){ const card=categoryCard(id), list=document.getElementById('pickerList-'+id), nw=document.getElementById('pickerNew-'+id); if(!card||!list) return;
+    const q=(card.query||'').trim().toLowerCase(); const added=formLines.map(l=>l.item).filter(Boolean);
     let avail=catalog.filter(c=>!added.includes(c.item)); if(q) avail=avail.filter(c=>(c.name||'').toLowerCase().includes(q));
-    list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine('${c.item}')" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${c.unit}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
-    nw.innerHTML=`<button onclick="openNewItem()" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(pickerQuery.trim())}”`:''}</button>`;
+    list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine('${c.item}',${card.id})" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${esc(c.unit)}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
+    nw.innerHTML=`<button onclick="openNewItem(${card.id})" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(card.query.trim())}”`:''}</button>`;
     icons(); }
-  function openNewItem(){ const nm=(pickerQuery||'').trim();
-    document.getElementById('pickerNew').innerHTML=`
+  function openNewItem(id){ const card=categoryCard(id); if(!card) return; const nm=(card.query||'').trim(), target=document.getElementById('pickerNew-'+id); if(!target) return;
+    target.innerHTML=`
       <div style="padding:12px;background:var(--surface-sunken);border-top:1px solid var(--border-subtle);">
         <div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">New item</div>
-        <input id="niName" value="${esc(nm)}" placeholder="Item name" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);margin-bottom:8px;">
+        <input id="niName-${id}" value="${esc(nm)}" placeholder="Item name" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);margin-bottom:8px;">
         <div style="display:flex;gap:8px;">
-          <select id="niUnit" style="flex:1;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"><option>Nos</option><option>Kg</option><option>g</option><option>L</option><option>ml</option><option>Pkt</option><option>Box</option><option>Dozen</option></select>
-          <button id="niBtn" onclick="createNewItem()" style="flex:none;padding:0 16px;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:14px;">Create &amp; add</button>
+          <select id="niUnit-${id}" style="flex:1;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"><option>Nos</option><option>Kg</option><option>g</option><option>L</option><option>ml</option><option>Pkt</option><option>Box</option><option>Dozen</option><option>Bill</option></select>
+          <button id="niBtn-${id}" onclick="createNewItem(${id})" style="flex:none;padding:0 16px;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:14px;">Create & add</button>
         </div>
+        <div style="font-size:11px;color:var(--text-faint);margin-top:7px;">Saved to Items and received into stock after approval.</div>
       </div>`;
-    const el=document.getElementById('niName'); if(el){ el.focus(); } icons(); }
-  async function createNewItem(){ const name=(document.getElementById('niName').value||'').trim(); const unit=document.getElementById('niUnit').value||'Nos';
+    const el=document.getElementById('niName-'+id); if(el){ el.focus(); } icons(); }
+  async function createNewItem(id){ const card=categoryCard(id), nameEl=document.getElementById('niName-'+id), unitEl=document.getElementById('niUnit-'+id); if(!card||!nameEl||!unitEl) return;
+    const name=(nameEl.value||'').trim(), unit=unitEl.value||'Nos', category=card.category;
     if(!name){ toast('Enter an item name'); return; }
-    const btn=document.getElementById('niBtn'); btn.disabled=true;
-    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+    if(!isStockCategory(category)){ toast('This category uses descriptions, not Items'); return; }
+    const btn=document.getElementById('niBtn-'+id); btn.disabled=true;
+    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit,category:category}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ const it=d.message;
         if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:''});
-        pickerQuery=''; addLine(it.item); toast(it.existed?'Item already existed — added':'Item created & added'); }
+        card.query=''; addLine(it.item,id); toast(it.existed?'Item already existed — added':'Item created & added'); }
       else { toast((d.message&&d.message.message)||srvMsg(d,'Could not create item')); btn.disabled=false; } }
     catch(e){ toast('Connection error'); btn.disabled=false; } }
   // ── Draft persistence ──
@@ -694,7 +730,7 @@ function lfPoll(fn, ms){
       let d=null;
       if(sheetOpen('addOverlay')) d={sheet:'bill',
         category:document.getElementById('fCategory').value,
-        lines:formLines,receipt:newReceipt,
+        lines:formLines,cards:categoryCards,receipt:newReceipt,
         vendor:document.getElementById('fVendor').value,note:document.getElementById('fNote').value,
         date:document.getElementById('fDate').value,
         amount:document.getElementById('fAmount').value,billref:document.getElementById('fBillRef').value,
@@ -709,14 +745,18 @@ function lfPoll(fn, ms){
       openAdd();
       document.getElementById('fCategory').value=d.category||''; onCategoryChange();
       formLines=Array.isArray(d.lines)?d.lines.map(l=>Object.assign({category:DEFAULT_PURCHASE_CATEGORY},l)):[]; newReceipt=d.receipt||'';
-      if(formLines.length) lastLineCategory=formLines[formLines.length-1].category||DEFAULT_PURCHASE_CATEGORY;
+      if(!d.category){
+        if(Array.isArray(d.cards)&&d.cards.length){ categoryCards=d.cards.map(c=>({id:Number(c.id),category:c.category===undefined?DEFAULT_PURCHASE_CATEGORY:c.category,pickerOpen:!!c.pickerOpen,query:c.query||''})); nextCategoryCardId=Math.max(...categoryCards.map(c=>c.id))+1; }
+        else { categoryCards=[]; const byCategory=new Map(); formLines.forEach(l=>{ const cat=l.category||DEFAULT_PURCHASE_CATEGORY; if(!byCategory.has(cat)){ const card=makeCategoryCard(cat); byCategory.set(cat,card); categoryCards.push(card); } l.cardId=byCategory.get(cat).id; }); if(!categoryCards.length) categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)]; }
+        const fallback=categoryCards[0]; formLines.forEach(l=>{ if(!categoryCard(l.cardId)){ const card=categoryCards.find(c=>c.category===l.category)||fallback; l.cardId=card.id; l.category=card.category; } });
+      }
       document.getElementById('fVendor').value=d.vendor||'';
       document.getElementById('fNote').value=d.note||'';
       if(d.date) document.getElementById('fDate').value=d.date;
       document.getElementById('fAmount').value=d.amount||'';
       document.getElementById('fBillRef').value=d.billref||'';
       if(newReceipt){ const img=document.getElementById('photoImg'); img.src=newReceipt; img.style.display='block'; document.getElementById('photoHint').style.display='none'; }
-      renderLines(); renderPicker();
+      renderCategoryCards();
     }catch(e){}
     restoringDraft=false; saveDraft();
     toast('Draft restored — continue where you left off');
@@ -753,8 +793,7 @@ function lfPoll(fn, ms){
       hint.style.display='none'; toast('Receipt added'); saveDraft();
     }catch(e){ hint.textContent=hintIdle; toast('Upload failed'); } }
 
-  // Entry type "" (Purchase Bill) posts categorised item lines to
-  // create_purchase_bill; any other value posts one simple Expense instead.
+  // Bills post the lines assembled by category cards; Expenses post one amount.
   async function submitBill(){ const err=document.getElementById('formErr'); const em=document.getElementById('formErrMsg');
     const category=document.getElementById('fCategory').value;
     const isExp=category!=='';
@@ -767,9 +806,10 @@ function lfPoll(fn, ms){
       if(pdate<localDaysAgo(MAX_BACKDATE_DAYS)){ em.textContent='The purchase date cannot be more than '+MAX_BACKDATE_DAYS+' days ago.'; err.style.display='flex'; return; }
       if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
       if(!paidTo){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
+      if(formLines.some(l=>!(l.name||'').trim())){ em.textContent='Add a description for every line.'; err.style.display='flex'; return; }
       if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
       if(formLines.some(l=>!l.category)){ em.textContent='Choose a category for every item.'; err.style.display='flex'; return; }
-      const lines=formLines.map(l=>({item:l.item,category:l.category,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
+      const lines=formLines.map(l=>({item:l.item,name:l.name,category:l.category,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
       btn.disabled=true; err.style.display='none';
       try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:paidTo,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
         if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); loadVendors(); }
@@ -893,7 +933,7 @@ function lfPoll(fn, ms){
     let money='';
     if(exp){ money=(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0 0;color:var(--text-muted);"><span>Original subtotal</span><span class="mono">Rs ${nfmt(rec.source_subtotal)}</span></div><div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0 0;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')+`<div style="display:flex;justify-content:space-between;padding:14px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(rec.amount)}</span></div>`; }
     else {
-      const lines=(rec.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;"><span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> ${esc(l.name||'')} <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span><span style="display:block;color:var(--color-primary);font-size:11px;margin-top:2px;">${esc(l.category||DEFAULT_PURCHASE_CATEGORY)}</span></span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`).join('');
+      const lines=(rec.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;">${l.is_stock?`<span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> `:''}${esc(l.name||'')}${l.is_stock?` <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span>`:''}<span style="display:block;color:var(--color-primary);font-size:11px;margin-top:2px;">${esc(l.category||DEFAULT_PURCHASE_CATEGORY)}</span></span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`).join('');
       money=`<div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:14px 0 2px;">Items</div>${lines||'<div style="color:var(--text-faint);font-size:13px;padding:8px 0;">No items on this bill.</div>'}`
         +(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0 0;color:var(--text-muted);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')
         +`<div style="display:flex;justify-content:space-between;padding:12px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(rec.total)}</span></div>`;
@@ -958,7 +998,7 @@ function lfPoll(fn, ms){
       }).join('');
       const foot=(a.mine
           ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
-          : `${(a.category_options||[]).length?`<div style="margin-top:12px;"><label style="display:block;font-size:12.5px;font-weight:700;color:var(--text-body);margin-bottom:6px;">Category</label><select onchange="apprCategory('${esc(a.name)}',this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 12px;font-size:13.5px;color:var(--text-strong);background:var(--surface-card);outline:none;">${a.category_options.map(c=>`<option value="${esc(c.value)}" ${apprCats[a.name]===c.value?'selected':''}>${c.value===''?'🧾 ':''}${esc(c.label)}</option>`).join('')}</select><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Same categories as New bill / expense. Reclassifying as an expense skips stock receipt and buying-price updates.</div></div>`:''}${a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:12px;">
+          : `${a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:12px;">
               <span style="font-size:12.5px;font-weight:700;color:var(--text-body);white-space:nowrap;">Discount Rs</span>
               <input type="text" inputmode="decimal" value="${esc(apprDiscs[a.name]||'')}" oninput="apprDisc('${esc(a.name)}',this.value)" placeholder="0" style="flex:1;min-width:0;box-sizing:border-box;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px 12px;font-size:14px;color:var(--text-strong);outline:none;background:var(--surface-card);">
             </div><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Comes off this bill's total. The items keep the prices they were bought at.</div>`:''}<input type="text" value="${esc(apprCmts[a.name]||'')}" oninput="apprCmt('${esc(a.name)}',this.value)" placeholder="Comment (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;background:var(--surface-card);">
