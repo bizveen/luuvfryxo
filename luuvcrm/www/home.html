@@ -475,7 +475,7 @@ a.category-pill:focus-visible{outline:3px solid rgba(241,82,7,.2);outline-offset
         <a class="logo" href="/"><img src="{{ brand_logo }}" alt="" width="38" height="38"><span>{{ brand_name }}</span></a>
         <p class="footer-copy">Fresh food, bold flavour and a better way to order in Kurunegala and Dambulla.</p>
       </div>
-      <div><h4>Locations</h4><div class="footer-links">{% for location in locations %}<a href="{{ location.menu_url }}">{{ location.label }}</a>{% endfor %}</div></div>
+      <div><h4>Locations</h4><div class="footer-links">{% for location in locations %}{% if location.directions_url %}<a href="{{ location.directions_url }}" target="_blank" rel="noopener" aria-label="Get directions to {{ location.label }}">{{ location.city or location.display_name }} directions</a>{% endif %}{% endfor %}</div></div>
       <div><h4>Quick links</h4><div class="footer-links">{% if primary_location %}<a href="{{ primary_location.order_url }}">Order online</a><a href="{{ primary_location.rewards_url }}">Loyalty & rewards</a>{% endif %}<a href="tel:{{ contact_phone|replace(' ','') }}">{{ contact_phone }}</a></div></div>
     </div>
     <div class="footer-bottom"><span>© 2026 {{ brand_name }}. All rights reserved.</span><span>Kurunegala · Dambulla · Sri Lanka</span></div>
