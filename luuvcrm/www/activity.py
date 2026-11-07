@@ -1,6 +1,6 @@
 import frappe
 
-from luuvcrm import roles
+from luuvcrm import branch, roles
 
 no_cache = 1
 no_sitemap = 1
@@ -30,4 +30,11 @@ def get_context(context):
     # Deep link from /manager bill detail: /activity?bill=00941
     context.preset_bill = (frappe.form_dict.get("bill") or "").strip()
     context.preset_order = (frappe.form_dict.get("order") or "").strip()
+    restaurants = branch.available_restaurants(user)
+    if not restaurants:
+        all_restaurants = branch.all_restaurants()
+        restaurants = all_restaurants if len(all_restaurants) == 1 else []
+    context.restaurants = [frappe._dict(name=name, label=branch.display_label(name))
+                           for name in restaurants]
+    context.active_restaurant = branch.viewing(user) or ""
     return context

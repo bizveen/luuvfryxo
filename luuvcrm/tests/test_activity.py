@@ -8,6 +8,8 @@ anyone with the manager app, kept for ninety days.
 `_sanitize` is the only thing standing between the request and the row.
 """
 
+from unittest.mock import patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
@@ -81,6 +83,11 @@ class TestWhatIsLogged(FrappeTestCase):
     def test_the_two_lists_do_not_overlap(self):
         self.assertEqual(activity.SELF_LOGGED & activity.NEVER_LOGGED, set())
 
+    def test_the_page_sends_its_restaurant_filter_to_the_feed(self):
+        template = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "activity.html"))
+        self.assertIn('id="selRestaurant"', template)
+        self.assertIn("restaurant: document.getElementById('selRestaurant').value", template)
+
 
 class TestTheWriteIsCheap(FrappeTestCase):
     """P2. This runs on the request path of every POST to a luuvcrm method, so
@@ -129,6 +136,46 @@ class TestTheWriteIsCheap(FrappeTestCase):
         self.assertEqual(row.owner, frappe.session.user)
         self.assertEqual(row.modified_by, frappe.session.user)
         self.assertEqual(row.docstatus, 0)
+
+    def test_the_direct_insert_still_stamps_the_active_restaurant(self):
+        with patch.object(activity.branch, "current", return_value="Branch A"):
+            name = self.log(action="test_branch_stamp")
+        self.assertEqual(
+            frappe.db.get_value(activity.DOCTYPE, name, "restaurant"),
+            "Branch A",
+        )
+
+    def test_the_feed_only_returns_the_selected_restaurant(self):
+        action = "test_restaurant_filter"
+        with patch.object(activity.branch, "current", return_value="Branch A"):
+            first = self.log(action=action)
+        with patch.object(activity.branch, "current", return_value="Branch B"):
+            second = self.log(action=action)
+
+        shared = (
+            patch.object(activity.roles, "require_manager", return_value=None),
+            patch.object(activity.branch, "available_restaurants",
+                         return_value=["Branch A", "Branch B"]),
+            patch.object(activity.branch, "viewing", return_value="Branch A"),
+            patch.object(activity.branch, "display_label", side_effect=lambda name: name),
+        )
+        with shared[0], shared[1], shared[2], shared[3]:
+            default_rows = activity.get_activity(action=action)["rows"]
+            branch_b_rows = activity.get_activity(action=action, restaurant="Branch B")["rows"]
+            all_rows = activity.get_activity(action=action, restaurant="all")["rows"]
+            with self.assertRaises(frappe.PermissionError):
+                activity.get_activity(action=action, restaurant="Branch C")
+
+        self.assertEqual({row.name for row in default_rows}, {first})
+        self.assertEqual({row.name for row in branch_b_rows}, {second})
+        self.assertEqual({row.name for row in all_rows}, {first, second})
+
+        with patch.object(activity.roles, "require_manager", return_value=None), \
+                patch.object(activity.branch, "available_restaurants", return_value=[]), \
+                patch.object(activity.branch, "all_restaurants",
+                             return_value=["Branch A", "Branch B"]):
+            unassigned_rows = activity.get_activity(action=action)["rows"]
+        self.assertEqual(unassigned_rows, [])
 
     def test_the_doctype_check_is_asked_once_per_process(self):
         """`db.exists("DocType", ...)` ran on every logged request, for an answer
