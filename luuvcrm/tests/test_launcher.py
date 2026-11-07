@@ -9,6 +9,7 @@ URL of one installable staff PWA.
 """
 
 import importlib
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -188,6 +189,26 @@ class TestTheRestaurantComesFirst(LauncherTestCase):
         branch.select(other, email)
         self.as_user(email)
         self.assertEqual(self.land()[1].chosen, other)
+
+    def test_the_chooser_uses_the_restaurant_name_and_location(self):
+        other = _restaurant(self, "LAUNCH-LABEL")
+        email = _user(self, "own-label", roles.RESTAURANT_OWNER)
+        branch.select(other, email)
+        self.as_user(email)
+
+        with patch.object(branch, "display_label",
+                          side_effect=lambda name: f"Luuv Fryxo — {name}"):
+            where, context = self.land()
+
+        self.assertEqual(where, "chooser")
+        self.assertEqual(context.chosen_label, f"Luuv Fryxo — {other}")
+        self.assertEqual(
+            {row["name"]: row["label"] for row in context.branches}[other],
+            f"Luuv Fryxo — {other}",
+        )
+        template = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "staff.html"))
+        self.assertIn('<span class="lb">{{ b.label }}</span>', template)
+        self.assertIn('btn.dataset.label || btn.dataset.branch', template)
 
     def test_a_manager_pinned_to_a_branch_is_not_asked(self):
         """Their branch is not a preference; `branch.select` would refuse the

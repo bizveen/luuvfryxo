@@ -75,10 +75,10 @@ button.tile:disabled{opacity:.6;cursor:progress}
     <h1>{{ _("Which restaurant?") }}</h1>
     <div class="grid">
       {%- for b in branches %}
-      <button type="button" class="tile{% if b.name == chosen %} last{% endif %}" data-branch="{{ b.name }}">
+      <button type="button" class="tile{% if b.name == chosen %} last{% endif %}" data-branch="{{ b.name }}" data-label="{{ b.label }}">
         <span class="ic">🏪</span>
         <span>
-          <span class="lb">{{ b.name }}</span>
+          <span class="lb">{{ b.label }}</span>
           {%- if b.address %}<span class="ab">{{ b.address }}</span>{% endif %}
           {%- if b.name == chosen %}<span class="tag">{{ _("Last time") }}</span>{% endif %}
         </span>
@@ -91,7 +91,7 @@ button.tile:disabled{opacity:.6;cursor:progress}
   {#- Step 2 — the apps. -#}
   <section id="stepApps"{% if branches and not asked %} hidden{% endif %}>
     {%- if branches %}
-    <p class="cur">{{ _("Working on") }} <strong id="curName">{{ chosen or "—" }}</strong> · <a href="/staff">{{ _("change") }}</a></p>
+    <p class="cur">{{ _("Working on") }} <strong id="curName">{{ chosen_label or "—" }}</strong> · <a href="/staff">{{ _("change") }}</a></p>
     {%- endif %}
     <h1>{{ _("Where to?") }}</h1>
     <div class="grid">
@@ -130,7 +130,7 @@ document.querySelectorAll('[data-branch]').forEach(btn => btn.addEventListener('
   }
   if(!lfTilesHere()){ location.replace(DESK); return; }
   const cur = document.getElementById('curName');
-  if(cur) cur.textContent = btn.dataset.branch;
+  if(cur) cur.textContent = btn.dataset.label || btn.dataset.branch;
   document.getElementById('stepBranch').hidden = true;
   document.getElementById('stepApps').hidden = false;
   window.scrollTo(0, 0);
