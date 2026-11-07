@@ -1981,13 +1981,14 @@ function lfPoll(fn, ms){
     // who typed it in and when.
     document.getElementById('billMeta').textContent=[b.date?('Bought '+b.date):'',b.by?('Entered by '+b.by):'',b.time||''].filter(Boolean).join(' · ');
     document.getElementById('billAudit').innerHTML=billDecisionAudit(b);
-    const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const listed=l.has_item_list===undefined?l.is_stock:l.has_item_list; const changed=listed&&l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;
+    const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const listed=l.has_item_list===undefined?l.is_stock:l.has_item_list; const changed=listed&&!l.is_fixed_asset&&l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;
       return `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
-        <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;">${emojiFor(l.name)}</span>
+        <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;">${l.is_fixed_asset?'🏷️':emojiFor(l.name)}</span>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13.5px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div>
           ${listed?`<div style="font-size:12px;color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit)} × Rs ${nfmt(l.price)}${changed?` <span style="color:${up?'var(--color-danger)':'var(--color-success)'};font-weight:700;">${up?'↑':'↓'} was Rs ${nfmt(l.old_price)}</span>`:''}</div>`:''}
           <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-top:2px;">${esc(l.category||'Food / Ingredients')}</div>
+          ${l.asset?`<a href="/app/asset/${encodeURIComponent(l.asset)}" style="display:inline-flex;margin-top:4px;color:var(--color-success);font-size:11px;font-weight:700;text-decoration:none;">🏷 ${esc(l.asset)} · ${esc(l.asset_status||'Draft')}</a>`:(l.is_fixed_asset?'<span style="display:block;margin-top:4px;color:var(--color-warning);font-size:11px;font-weight:700;">Asset creates after approval</span>':'')}
         </div>
         <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(lt)}</span>
       </div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No items on this bill.</div>';

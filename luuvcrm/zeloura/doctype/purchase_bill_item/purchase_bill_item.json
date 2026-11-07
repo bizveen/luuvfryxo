@@ -12,7 +12,8 @@
   "uom",
   "qty",
   "price",
-  "old_price"
+  "old_price",
+  "asset"
  ],
  "fields": [
   {
@@ -57,6 +58,13 @@
    "fieldname": "old_price",
    "fieldtype": "Currency",
    "label": "Old Price"
+  },
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Created Asset",
+   "options": "Asset",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

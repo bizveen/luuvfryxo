@@ -243,13 +243,51 @@ def get_manager_sales_report(days=7, start=None, end=None):
     spend_by_date = {}
     if frappe.db.exists("DocType", "Purchase Bill"):
         _pb_cond, _pb_params = branch.sql_restaurant("pb")
-        for row in frappe.db.sql("""
+        if (frappe.db.has_column("Expense Category", "is_fixed_asset")
+                and frappe.db.has_column("Purchase Bill Item", "category")):
+            purchase_sql = """
+                SELECT pb.purchase_date AS d,
+                       COALESCE(SUM(pbi.qty * pbi.price * (
+                           CASE WHEN sub.subtotal > 0 THEN pb.total / sub.subtotal ELSE 1 END
+                       )), 0) AS amount
+                FROM `tabPurchase Bill Item` pbi
+                INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+                INNER JOIN (
+                    SELECT parent, SUM(qty * price) AS subtotal
+                    FROM `tabPurchase Bill Item` GROUP BY parent
+                ) sub ON sub.parent = pb.name
+                LEFT JOIN `tabExpense Category` ec ON ec.name = pbi.category
+                WHERE pb.status = 'approved' AND pb.purchase_date BETWEEN %s AND %s
+                  AND IFNULL(ec.is_fixed_asset, 0) = 0
+                """ + _pb_cond + " GROUP BY pb.purchase_date"
+        else:
+            purchase_sql = """
                 SELECT pb.purchase_date AS d, COALESCE(SUM(pb.total), 0) AS amount
                 FROM `tabPurchase Bill` pb
                 WHERE pb.status = 'approved' AND pb.purchase_date BETWEEN %s AND %s
-                """ + _pb_cond + " GROUP BY pb.purchase_date",
-                (start, end) + _pb_params, as_dict=True):
+                """ + _pb_cond + " GROUP BY pb.purchase_date"
+        for row in frappe.db.sql(purchase_sql, (start, end) + _pb_params, as_dict=True):
             spend_by_date[str(row.d)] = spend_by_date.get(str(row.d), 0) + float(row.amount or 0)
+        if (frappe.db.has_column("Expense Category", "is_fixed_asset")
+                and frappe.db.has_column("Purchase Bill Item", "category")):
+            # Imported/legacy headers can have no child rows. They pre-date the
+            # category split, so retain the historical food/operating treatment
+            # instead of silently dropping them from Overview.
+            for row in frappe.db.sql("""
+                    SELECT pb.purchase_date AS d,
+                           COALESCE(SUM(pb.total), 0) AS amount
+                    FROM `tabPurchase Bill` pb
+                    WHERE pb.status = 'approved'
+                      AND pb.purchase_date BETWEEN %s AND %s
+                      AND NOT EXISTS (
+                          SELECT 1 FROM `tabPurchase Bill Item` pbi
+                          WHERE pbi.parent = pb.name
+                      )
+                    """ + _pb_cond + " GROUP BY pb.purchase_date",
+                    (start, end) + _pb_params, as_dict=True):
+                spend_by_date[str(row.d)] = (
+                    spend_by_date.get(str(row.d), 0) + float(row.amount or 0)
+                )
     if frappe.db.exists("DocType", "Expense"):
         _e_cond, _e_params = branch.sql_restaurant("e")
         for row in frappe.db.sql("""

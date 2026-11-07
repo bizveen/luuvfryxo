@@ -22,7 +22,12 @@ from luuvcrm.api.purchases import (
     _apply_purchase_line_categories,
     _decide_purchase_bill,
 )
-from luuvcrm.api.expenses import category_has_item_list, category_is_stock
+from luuvcrm.api.expenses import (
+    category_asset_category,
+    category_has_item_list,
+    category_is_fixed_asset,
+    category_is_stock,
+)
 from luuvcrm.api.schema import (
     _clean_item_note,
     _ensure_item_notes_field,
@@ -296,10 +301,13 @@ def _format_approvals(rows):
             category_rows = frappe.get_all(
                 "Expense Category", filters={"disabled": 0}, fields=["name"], order_by="name",
             )
-            category_options += [{"value": r.name, "label": r.name} for r in category_rows]
+            category_options += [{"value": r.name, "label": r.name} for r in category_rows
+                                 if not category_is_fixed_asset(r.name)]
             line_category_options = [{"value": r.name, "label": r.name,
                                       "in_stock": 1 if category_is_stock(r.name) else 0,
-                                      "has_item_list": 1 if category_has_item_list(r.name) else 0}
+                                      "has_item_list": 1 if category_has_item_list(r.name) else 0,
+                                      "is_fixed_asset": 1 if category_is_fixed_asset(r.name) else 0,
+                                      "asset_category": category_asset_category(r.name) or ""}
                                      for r in category_rows]
 
     # Purchase-bill cards show each line's price with a "was Rs X" delta when the
@@ -457,6 +465,8 @@ def _purchase_bill_to_expense(bill_name, category, approval, discount=None):
     """
     if not frappe.db.exists("Expense Category", {"name": category, "disabled": 0}):
         frappe.throw(_("Pick an active expense category"))
+    if category_is_fixed_asset(category):
+        frappe.throw(_("Fixed assets must stay as itemised Purchase Bill lines"))
     bill = frappe.get_doc("Purchase Bill", bill_name)
     if bill.status != "pending":
         frappe.throw(_("This purchase bill has already been resolved"))
@@ -586,6 +596,8 @@ def resolve_approval():
             if decision == "approved" and category:
                 if not frappe.db.exists("Expense Category", {"name": category, "disabled": 0}):
                     frappe.throw(_("Pick an active expense category"))
+                if category_is_fixed_asset(category):
+                    frappe.throw(_("Fixed assets must be entered as an itemised Purchase Bill"))
                 expense_doc = frappe.get_doc("Expense", expense)
                 old_category = expense_doc.category or ""
                 if category != old_category:

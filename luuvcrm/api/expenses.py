@@ -30,6 +30,16 @@ STOCK_EXPENSE_CATEGORIES = frozenset({FOOD_PURCHASE_CATEGORY})
 # again, but it must not receive ingredients into the warehouse.
 ITEM_LIST_EXPENSE_CATEGORIES = frozenset({FOOD_PURCHASE_CATEGORY, STAFF_MEALS_CATEGORY})
 
+# Purchases that belong in ERPNext's fixed-asset register instead of the
+# restaurant's operating P&L.  They still use the same supplier-bill UI: the
+# category is what changes the accounting treatment at approval.
+FIXED_ASSET_PURCHASE_CATEGORIES = {
+    "Kitchen Equipment": "Kitchen Equipment",
+    "Electrical Equipment": "Electrical Equipment",
+    "Furniture & Fixtures": "Furniture & Fixtures",
+    "Signage": "Signage",
+}
+
 EXPENSE_CATEGORIES = [
     # Default for itemised supplier bills. Keeping it in the shared category
     # master lets one Food City receipt split cleanly between ingredients,
@@ -89,6 +99,12 @@ def _install_expenses():
                 {"fieldname": "has_item_list", "label": "Has Item List", "fieldtype": "Check",
                  "default": "0", "in_list_view": 1,
                  "description": "On = Add Bill shows the reusable item dropdown for this category."},
+                {"fieldname": "is_fixed_asset", "label": "Fixed Asset", "fieldtype": "Check",
+                 "default": "0", "in_list_view": 1,
+                 "description": "On = approval creates a draft ERPNext Asset, not an expense."},
+                {"fieldname": "asset_category", "label": "ERPNext Asset Category",
+                 "fieldtype": "Link", "options": "Asset Category",
+                 "depends_on": "is_fixed_asset", "mandatory_depends_on": "is_fixed_asset"},
                 {"fieldname": "disabled", "label": "Disabled", "fieldtype": "Check",
                  "default": "0", "in_list_view": 1},
             ],
@@ -148,6 +164,11 @@ def _install_expenses():
         _install_pos_approval()
     _ensure_select_option("POS Approval", "approval_type", "expense")
 
+    # Asset Categories must exist before the Link-valued purchase categories.
+    # Keep this local to avoid an import cycle at module load time.
+    from luuvcrm.api.assets import ensure_asset_purchase_categories
+    ensure_asset_purchase_categories()
+
     frappe.clear_cache()
     return {"created": created}
 @frappe.whitelist()
@@ -164,18 +185,30 @@ def get_expense_categories():
     fields = ["name"]
     has_stock_flag = frappe.db.has_column("Expense Category", "in_stock")
     has_list_flag = frappe.db.has_column("Expense Category", "has_item_list")
+    has_asset_flag = frappe.db.has_column("Expense Category", "is_fixed_asset")
+    has_asset_category = frappe.db.has_column("Expense Category", "asset_category")
     if has_stock_flag:
         fields.append("in_stock")
     if has_list_flag:
         fields.append("has_item_list")
+    if has_asset_flag:
+        fields.append("is_fixed_asset")
+    if has_asset_category:
+        fields.append("asset_category")
     rows = frappe.get_all("Expense Category", filters={"disabled": 0},
                           fields=fields, order_by="name")
     details = [{"name": r.name,
                 "in_stock": int(r.in_stock if has_stock_flag else
                                 r.name in STOCK_EXPENSE_CATEGORIES),
                 "has_item_list": int(r.has_item_list if has_list_flag else
-                                     r.name in ITEM_LIST_EXPENSE_CATEGORIES)} for r in rows]
+                                     r.name in ITEM_LIST_EXPENSE_CATEGORIES),
+                "is_fixed_asset": int(r.is_fixed_asset if has_asset_flag else
+                                      r.name in FIXED_ASSET_PURCHASE_CATEGORIES),
+                "asset_category": (r.asset_category if has_asset_category else
+                                   FIXED_ASSET_PURCHASE_CATEGORIES.get(r.name, "")) or ""}
+               for r in rows]
     return {"categories": [r["name"] for r in details],
+            "expense_categories": [r["name"] for r in details if not r["is_fixed_asset"]],
             "category_details": details}
 
 
@@ -201,6 +234,26 @@ def category_has_item_list(category):
     if not frappe.db.has_column("Expense Category", "has_item_list"):
         return category in ITEM_LIST_EXPENSE_CATEGORIES
     return bool(frappe.db.get_value("Expense Category", category, "has_item_list"))
+
+
+def category_is_fixed_asset(category):
+    """Whether a supplier-bill line becomes an ERPNext Asset at approval."""
+    if not category:
+        return False
+    if not frappe.db.has_column("Expense Category", "is_fixed_asset"):
+        return category in FIXED_ASSET_PURCHASE_CATEGORIES
+    return bool(frappe.db.get_value("Expense Category", category, "is_fixed_asset"))
+
+
+def category_asset_category(category):
+    """The ERPNext Asset Category mapped to a purchase category."""
+    if not category_is_fixed_asset(category):
+        return None
+    if frappe.db.has_column("Expense Category", "asset_category"):
+        mapped = frappe.db.get_value("Expense Category", category, "asset_category")
+        if mapped:
+            return mapped
+    return FIXED_ASSET_PURCHASE_CATEGORIES.get(category)
 
 
 def _expense_approval(doc):
@@ -304,6 +357,8 @@ def create_expense():
     category = (data.get("category") or "").strip()
     if not category or not frappe.db.exists("Expense Category", category):
         frappe.throw(_("Pick a category"))
+    if category_is_fixed_asset(category):
+        frappe.throw(_("Fixed assets must be entered as an itemised Purchase Bill"))
     amount = float(data.get("amount") or 0)
     if amount <= 0:
         frappe.throw(_("Amount must be greater than zero"))
@@ -366,6 +421,8 @@ def update_expense(name=None, category=None, payee=None, expense_date=None,
         category = category.strip()
         if not category or not frappe.db.exists("Expense Category", category):
             frappe.throw(_("Pick a category"))
+        if category_is_fixed_asset(category):
+            frappe.throw(_("Fixed assets must be entered as an itemised Purchase Bill"))
         after["category"] = category
     if payee is not None:
         after["payee"] = payee.strip()

@@ -84,15 +84,16 @@ input,button{font-family:inherit;}
     <div id="tabList">
       <div style="position:relative;margin-bottom:13px;">
         <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint);pointer-events:none;"></i>
-        <input id="billSearch" type="text" placeholder="Search any bill — vendor or item" oninput="onSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:11px 34px 11px 37px;font-size:14px;color:var(--text-strong);">
+        <input id="billSearch" type="text" placeholder="Search vendor, item or expense" oninput="onSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:11px 34px 11px 37px;font-size:14px;color:var(--text-strong);">
         <button id="billSearchX" onclick="clearSearch()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:7px;line-height:1;font-size:15px;">&times;</button>
       </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:7px;margin-bottom:13px;">
+        <select id="feedCategory" class="inp" onchange="setFeedFilter('category',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All categories</option></select>
+        <select id="feedStatus" class="inp" onchange="setFeedFilter('status',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
+        <select id="feedDate" class="inp" onchange="setFeedFilter('date',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All dates</option><option value="today">Today</option><option value="7">7 days</option><option value="30">30 days</option></select>
+      </div>
+      <div id="feedCount" style="font-size:11.5px;color:var(--text-faint);margin:0 3px 9px;"></div>
       <div id="expList"></div>
-      <div id="searchList" style="display:none;"></div>
-    </div>
-    <div id="tabExpenses" style="display:none;">
-      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="zap" style="width:16px;height:16px;color:var(--color-primary);"></i> Utility bills, rent and other non-stock payments.</div>
-      <div id="expenseList"></div>
     </div>
     <div id="tabDue" style="display:none;">
       <div style="background:var(--ink);color:#fff;border-radius:var(--radius-xl);padding:18px 20px;box-shadow:var(--shadow-lg);margin-bottom:16px;">
@@ -127,22 +128,21 @@ input,button{font-family:inherit;}
     </div>
   </div>
 
-  <!-- Add FAB — acts on whichever list you're looking at; hidden on the price book -->
+  <!-- Add FAB — one sheet creates either a supplier bill or an expense -->
   <div id="fab" style="position:fixed;left:50%;transform:translateX(-50%);width:390px;max-width:calc(100% - 40px);bottom:88px;z-index:25;">
-    <button class="lf-btn" id="fabBtn" onclick="fabClick()"><i data-lucide="camera" id="fabIcon" style="width:20px;height:20px;"></i> <span id="fabLabel">Add bill</span></button>
+    <button class="lf-btn" id="fabBtn" onclick="fabClick()"><i data-lucide="plus-circle" id="fabIcon" style="width:20px;height:20px;"></i> <span id="fabLabel">Add bill / expense</span></button>
   </div>
 
   <!-- bottom nav -->
   <div style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:10px 8px 14px;gap:4px;">
-    <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Bills</span></button>
+    <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Purchases</span></button>
     <button class="navb" data-tab="due" onclick="setTab('due')"><span style="position:relative;display:inline-flex;"><i data-lucide="alarm-clock"></i><span id="dueBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-danger);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Due</span></button>
     <button class="navb" data-tab="appr" onclick="setTab('appr')"><span style="position:relative;display:inline-flex;"><i data-lucide="stamp"></i><span id="apprBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-primary);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Approve</span></button>
-    <button class="navb" data-tab="expenses" onclick="setTab('expenses')"><span style="position:relative;display:inline-flex;"><i data-lucide="zap"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Expenses</span></button>
     <button class="navb" data-tab="prices" onclick="setTab('prices')"><span style="position:relative;display:inline-flex;"><i data-lucide="boxes"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Items</span></button>
   </div>
 </div></div>
 
-<!-- Add sheet — the active Bills/Expenses tab chooses the starting mode -->
+<!-- Add sheet — choose supplier bill or an expense category inside the sheet -->
 <div id="addOverlay" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeAdd()">
   <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
     <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
@@ -159,8 +159,8 @@ input,button{font-family:inherit;}
       <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this)">
     </label>
 
-    <div id="entryTypeFields" style="display:none;margin-bottom:20px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Expense category</div>
+    <div id="entryTypeFields" style="display:block;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Entry type / expense category</div>
       <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()"></select>
     </div>
 
@@ -286,7 +286,8 @@ function lfPoll(fn, ms){
   const CAN_EDIT={{ "true" if can_edit_bills else "false" }};
   const DEFAULT_PURCHASE_CATEGORY='Food / Ingredients';
   let tab='list', catalog=[], formLines=[], categoryCards=[], nextCategoryCardId=1, newReceipt='', priceItems=[], recipeItems=[], ACTIVE_RECIPE=null;
-  let expStats={}, billStats={}, expCats=[], stockCats=[], itemListCats=[];
+  let feedCategory='', feedStatus='', feedDate='', feedQuery='';
+  let expStats={}, billStats={}, expCats=[], expenseOnlyCats=[], stockCats=[], itemListCats=[], assetCats=[], assetCategoryMap={};
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
   // The phone's own calendar day. toISOString() is UTC, which in Sri Lanka is
@@ -310,26 +311,21 @@ function lfPoll(fn, ms){
   function setTab(t){ tab=t; document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
     document.getElementById('tabList').style.display=t==='list'?'block':'none';
     document.getElementById('tabDue').style.display=t==='due'?'block':'none';
-    document.getElementById('tabExpenses').style.display=t==='expenses'?'block':'none';
     document.getElementById('tabPrices').style.display=t==='prices'?'block':'none';
     document.getElementById('tabAppr').style.display=t==='appr'?'block':'none';
     document.getElementById('fab').style.display=(t==='prices'||t==='due'||t==='appr')?'none':'block';
-    document.getElementById('fabLabel').textContent=t==='expenses'?'Add expense':'Add bill';
-    document.getElementById('fabIcon').setAttribute('data-lucide',t==='expenses'?'zap':'camera');
     if(t==='prices') loadPriceBook();
-    if(t==='expenses') loadExpenses();
     if(t==='due') loadDue();
     if(t==='appr') loadApprovals();
     paintStats(); icons(); }
-  // One popup handles both — which tab you were on just picks its starting category.
+  // One popup handles both supplier bills and standalone expenses.
   function fabClick(){ openAdd(); }
 
-  // The three header tiles describe whichever list is on screen — bills and expenses are
-  // separate pots of money and summing them into one figure would mean nothing.
-  function paintStats(){ const m=(tab==='expenses'?expStats:billStats)||{};
-    document.getElementById('stApproved').textContent=nfmt(m.approved_today||0);
-    document.getElementById('stPending').textContent=nfmt(m.pending_amt||0);
-    document.getElementById('stWeek').textContent=nfmt(m.week||0); }
+  // Header totals now describe the unified purchase + expense feed.
+  function paintStats(){
+    document.getElementById('stApproved').textContent=nfmt((billStats.approved_today||0)+(expStats.approved_today||0));
+    document.getElementById('stPending').textContent=nfmt((billStats.pending_amt||0)+(expStats.pending_amt||0));
+    document.getElementById('stWeek').textContent=nfmt((billStats.week||0)+(expStats.week||0)); }
 
   function paintDueBadge(){ const n=(billStats&&billStats.due_count)||0; const b=document.getElementById('dueBadge');
     if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
@@ -337,57 +333,92 @@ function lfPoll(fn, ms){
     if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
   async function loadBills(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
     billStats=m; paintStats(); paintDueBadge(); paintApprBadge(); billRows=m.bills||[];
-    const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
-    document.getElementById('expList').innerHTML=(m.bills||[]).length?(m.bills||[]).map((b,i)=>{ const t=TONE[b.status]||TONE.pending;
-      return `<div onclick="openDetail('bill',billRows[${i}])" style="cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
-        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${b.receipt_image}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
-        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
-        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${esc(b.date||b.time)}</div>
-        <span class="badge ${t[0]}">${t[1]}</span></div></div>`; }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No bills yet. Tap “Add bill / expense”.</div>';
-    icons();
+    renderUnifiedFeed();
   }catch(e){} }
 
   const EXP_EMOJI={electric:'⚡',water:'💧',gas:'🔥',rent:'🏠',internet:'📶',phone:'📶',salar:'👥',wage:'👥',repair:'🔧',mainten:'🔧',transport:'🚚',fuel:'⛽',clean:'🧽',consum:'🧽',licen:'📄',fee:'📄'};
   function expEmoji(c){ const n=(c||'').toLowerCase(); for(const k in EXP_EMOJI){ if(n.includes(k)) return EXP_EMOJI[k]; } return '🧾'; }
 
-  async function loadExpenses(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expenses',{}); if(!r) return; const d=await r.json(); const m=d.message||{expenses:[]};
-    expStats=m; if(tab==='expenses') paintStats(); expRows=m.expenses||[];
+  function setFeedFilter(kind,value){
+    if(kind==='category') feedCategory=value||'';
+    if(kind==='status') feedStatus=value||'';
+    if(kind==='date') feedDate=value||'';
+    renderUnifiedFeed(); }
+  function openFeedRecord(kind,name){
+    const rows=kind==='bill'?billRows:expRows;
+    const rec=rows.find(r=>r.name===name); if(rec) openDetail(kind,rec); }
+  function renderUnifiedFeed(){
     const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
-    document.getElementById('expenseList').innerHTML=(m.expenses||[]).length?(m.expenses||[]).map((e,i)=>{ const t=TONE[e.status]||TONE.pending;
-      const sub=[e.payee,e.bill_ref?('#'+e.bill_ref):'',e.when].filter(Boolean).map(esc).join(' · ');
-      return `<div onclick="openDetail('expense',expRows[${i}])" style="cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
-        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${e.receipt_image?`<img src="${esc(e.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:expEmoji(e.category)}</div>
-        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.category)}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(e.amount)}</span></div>
-        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sub}</div>
-        <span class="badge ${t[0]}">${t[1]}</span></div></div>`; }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No expenses yet. Tap “Add expense”.</div>';
-    icons();
+    const all=[
+      ...billRows.map((rec,i)=>({kind:'bill',rec,date:rec.purchase_date||'',order:i})),
+      ...expRows.map((rec,i)=>({kind:'expense',rec,date:rec.date||'',order:i+billRows.length}))
+    ];
+    let cutoff='';
+    if(feedDate==='today') cutoff=localToday();
+    else if(feedDate==='7') cutoff=localDaysAgo(6);
+    else if(feedDate==='30') cutoff=localDaysAgo(29);
+    const q=feedQuery.toLowerCase();
+    const rows=all.filter(x=>{
+      const r=x.rec;
+      const cats=x.kind==='bill'?(r.categories||[...(r.lines||[]).map(l=>l.category)]):[r.category];
+      if(feedCategory&&!cats.includes(feedCategory)) return false;
+      if(feedStatus&&r.status!==feedStatus) return false;
+      if(cutoff&&(!x.date||x.date<cutoff)) return false;
+      if(q){ const hay=(x.kind==='bill'
+        ?[r.vendor,r.category_label,...(r.lines||[]).flatMap(l=>[l.name,l.category])]
+        :[r.payee,r.category,r.bill_ref,r.note]).filter(Boolean).join(' ').toLowerCase();
+        if(!hay.includes(q)) return false; }
+      return true;
+    }).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||a.order-b.order);
+    document.getElementById('feedCount').textContent=`${rows.length} of ${all.length} record${all.length===1?'':'s'}`;
+    document.getElementById('expList').innerHTML=rows.length?rows.map(x=>{ const r=x.rec,t=TONE[r.status]||TONE.pending,isBill=x.kind==='bill';
+      const amount=isBill?r.total:r.amount;
+      const title=isBill?r.vendor:(r.payee||r.category);
+      const category=isBill?(r.category_label||'Purchase bill'):r.category;
+      const date=isBill?(r.date||r.time):(r.date||r.when);
+      const icon=r.receipt_image?`<img src="${esc(r.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:(isBill?emojiFor(((r.lines||[])[0]||{}).name):expEmoji(r.category));
+      return `<div onclick="openFeedRecord('${x.kind}','${esc(r.name)}')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${icon}</div>
+        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(title)||'—'}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(amount)}</span></div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(category)} · ${esc(date)}</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:10.5px;font-weight:800;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;">${isBill?'Bill':'Expense'}</span><span class="badge ${t[0]}">${t[1]}</span></div></div></div>`;
+    }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No purchases match these filters.</div>';
+    icons(); }
+
+  async function loadExpenses(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expenses',{}); if(!r) return; const d=await r.json(); const m=d.message||{expenses:[]};
+    expStats=m; paintStats(); expRows=m.expenses||[]; renderUnifiedFeed();
   }catch(e){} }
 
   async function loadExpCats(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); if(!r) return; const d=await r.json();
     expCats=(d.message&&d.message.categories)||[];
+    expenseOnlyCats=(d.message&&d.message.expense_categories)||expCats;
     const details=(d.message&&d.message.category_details)||[];
     stockCats=details.filter(c=>c.in_stock).map(c=>c.name);
     itemListCats=details.filter(c=>c.has_item_list).map(c=>c.name);
+    assetCats=details.filter(c=>c.is_fixed_asset).map(c=>c.name);
+    assetCategoryMap={}; details.forEach(c=>{ if(c.is_fixed_asset) assetCategoryMap[c.name]=c.asset_category||''; });
+    const feedSel=document.getElementById('feedCategory');
+    if(feedSel){ const cur=feedSel.value; feedSel.innerHTML='<option value="">All categories</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join(''); feedSel.value=expCats.includes(cur)?cur:''; }
     if(!stockCats.length&&expCats.includes(DEFAULT_PURCHASE_CATEGORY)) stockCats=[DEFAULT_PURCHASE_CATEGORY];
     if(!itemListCats.length&&expCats.includes(DEFAULT_PURCHASE_CATEGORY)) itemListCats=[DEFAULT_PURCHASE_CATEGORY];
     renderCategoryOptions();
     const sel=document.getElementById('fCategory');
-    if(tab==='expenses'&&sheetOpen('addOverlay')&&sel.value===''&&expCats.length){ sel.value=expCats[0]; onCategoryChange(); }
-    else if(sel.value==='') renderCategoryCards();
+    if(sel.value==='') renderCategoryCards();
+    renderUnifiedFeed();
   }catch(e){} }
 
   // Blank means the category-card Purchase Bill flow; an actual category is
   // the one-amount Expense flow opened from the Expenses tab.
   function renderCategoryOptions(){ const sel=document.getElementById('fCategory'); if(!sel) return;
     const cur=sel.value;
-    sel.innerHTML='<option value="">🧾 Purchase Bill (categorise each item)</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
-    if(cur && expCats.includes(cur)) sel.value=cur; }
+    sel.innerHTML='<option value="">🧾 Purchase Bill (categorise each item)</option>'+expenseOnlyCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if(cur && expenseOnlyCats.includes(cur)) sel.value=cur; }
 
   // Swaps the sheet between Bill mode (items + vendor) and Expense mode
   // (amount + payee) — the photo, date and note fields stay put either way.
   function onCategoryChange(){
     const isExp=document.getElementById('fCategory').value!=='';
-    document.getElementById('entryTypeFields').style.display=isExp?'block':'none';
+    document.getElementById('entryTypeFields').style.display='block';
     document.getElementById('billModeFields').style.display=isExp?'none':'block';
     document.getElementById('expModeFields').style.display=isExp?'block':'none';
     document.getElementById('fVendorLabel').textContent=isExp?'Paid to':'Vendor / paid to';
@@ -612,6 +643,7 @@ function lfPoll(fn, ms){
   // Has Item List controls the picker; In Stock separately controls inventory.
   function isStockCategory(category){ return stockCats.includes(category)||(!stockCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
   function hasItemList(category){ return itemListCats.includes(category)||(!itemListCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
+  function isAssetCategory(category){ return assetCats.includes(category); }
   function makeCategoryCard(category){ const chosen=category===undefined?DEFAULT_PURCHASE_CATEGORY:category; return {id:nextCategoryCardId++,category:chosen,pickerOpen:!!chosen,query:''}; }
   function categoryCard(id){ return categoryCards.find(c=>c.id===Number(id)); }
   function openAdd(){ formLines=[]; categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)]; newReceipt=''; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
@@ -624,7 +656,7 @@ function lfPoll(fn, ms){
     // in the rest the moment the list arrives.
     if(!expCats.length) loadExpCats();
     renderCategoryOptions();
-    document.getElementById('fCategory').value=(tab==='expenses'?(expCats[0]||''):'');
+    document.getElementById('fCategory').value='';
     onCategoryChange();
     if(!catalog.length) loadCatalog().then(renderCategoryCards); renderCategoryCards();
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
@@ -639,7 +671,8 @@ function lfPoll(fn, ms){
     // Item-list categories and simple expense categories use different line
     // inputs. Switching between them starts that card clean, so the user can
     // change category directly instead of removing an auto-added blank line.
-    if(hadList!==willList) formLines=formLines.filter(l=>l.cardId!==card.id);
+    const assetTypeChanged=(assetCategoryMap[card.category]||'')!==(assetCategoryMap[value]||'');
+    if(hadList!==willList||assetTypeChanged) formLines=formLines.filter(l=>l.cardId!==card.id);
     card.category=value; card.pickerOpen=willList; lines.forEach(l=>l.category=value);
     if(!willList&&!formLines.some(l=>l.cardId===card.id)) addExpenseLine('', 'Bill', id, false);
     renderCategoryCards(); saveDraft(); }
@@ -670,9 +703,9 @@ function lfPoll(fn, ms){
         <button onclick="removeLine(${i})" aria-label="Remove description" style="width:34px;height:38px;border-radius:var(--radius-sm);border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></button>
       </div>
     </div>`; }
-  function billLineHtml(l,i,card){ l.category=card.category; if(!hasItemList(card.category)) return expenseLineHtml(l,i); if(l.cataloged===undefined) l.cataloged=!!l.item; const price=parseFloat(l.price)||0; const stockLine=l.cataloged; const changed=stockLine&&l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
+  function billLineHtml(l,i,card){ l.category=card.category; if(!hasItemList(card.category)) return expenseLineHtml(l,i); if(l.cataloged===undefined) l.cataloged=!!l.item; const price=parseFloat(l.price)||0; const stockLine=l.cataloged; const changed=stockLine&&!isAssetCategory(card.category)&&l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
     return `<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:10px;">
-        <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${esc(l.unit)}${isStockCategory(card.category)?'':' · stock not affected'}</div></div><button onclick="removeLine(${i})" aria-label="Remove item" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;"><span style="font-size:19px;flex:none;">${isAssetCategory(card.category)?'🏷️':emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">${isAssetCategory(card.category)?'Creates a draft ERPNext Asset after approval':('current Rs '+nfmt(l.cur)+' / '+esc(l.unit)+(isStockCategory(card.category)?'':' · stock not affected'))}</div></div><button onclick="removeLine(${i})" aria-label="Remove item" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
       <div style="display:flex;gap:8px;align-items:flex-end;">
         <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${esc(l.unit)})</div><input value="${esc(String(l.qty))}" oninput="setQty(${i},this.value)" onchange="renderCategoryCards()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
         <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Price / ${esc(l.unit)}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${esc(String(l.price))}" oninput="setPrice(${i},this.value)" onchange="renderCategoryCards()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
@@ -700,7 +733,10 @@ function lfPoll(fn, ms){
   function updateTotal(){ const t=formLines.reduce((a,l)=>a+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); document.getElementById('billTotal').textContent=nfmt(t); }
   function renderCardPickerList(id){ const card=categoryCard(id), list=document.getElementById('pickerList-'+id), nw=document.getElementById('pickerNew-'+id); if(!card||!list) return;
     const q=(card.query||'').trim().toLowerCase(); const added=formLines.map(l=>l.item).filter(Boolean);
-    let avail=catalog.filter(c=>!added.includes(c.item)); if(q) avail=avail.filter(c=>(c.name||'').toLowerCase().includes(q));
+    let avail=catalog.filter(c=>!added.includes(c.item));
+    if(isAssetCategory(card.category)) avail=avail.filter(c=>c.is_fixed_asset&&c.asset_category===assetCategoryMap[card.category]);
+    else avail=avail.filter(c=>!c.is_fixed_asset);
+    if(q) avail=avail.filter(c=>(c.name||'').toLowerCase().includes(q));
     list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine('${c.item}',${card.id})" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${esc(c.unit)}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
     nw.innerHTML=`<button onclick="openNewItem(${card.id})" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(card.query.trim())}”`:''}</button>`;
     icons(); }
@@ -713,7 +749,7 @@ function lfPoll(fn, ms){
           <select id="niUnit-${id}" style="flex:1;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"><option>Nos</option><option>Kg</option><option>g</option><option>L</option><option>ml</option><option>Pkt</option><option>Box</option><option>Dozen</option><option>Bill</option></select>
           <button id="niBtn-${id}" onclick="createNewItem(${id})" style="flex:none;padding:0 16px;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:14px;">Create & add</button>
         </div>
-        <div style="font-size:11px;color:var(--text-faint);margin-top:7px;">Saved to Items${isStockCategory(card.category)?' and received into stock after approval':' · this category does not affect stock'}.</div>
+        <div style="font-size:11px;color:var(--text-faint);margin-top:7px;">${isAssetCategory(card.category)?'Saved as a Fixed Asset Item; approval creates the draft Asset.':('Saved to Items'+(isStockCategory(card.category)?' and received into stock after approval':' · this category does not affect stock')+'.')}</div>
       </div>`;
     const el=document.getElementById('niName-'+id); if(el){ el.focus(); } icons(); }
   async function createNewItem(id){ const card=categoryCard(id), nameEl=document.getElementById('niName-'+id), unitEl=document.getElementById('niUnit-'+id); if(!card||!nameEl||!unitEl) return;
@@ -723,7 +759,7 @@ function lfPoll(fn, ms){
     const btn=document.getElementById('niBtn-'+id); btn.disabled=true;
     try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit,category:category}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ const it=d.message;
-        if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:''});
+        if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:'',is_fixed_asset:it.is_fixed_asset||0,asset_category:it.asset_category||''});
         card.query=''; addLine(it.item,id); toast(it.existed?'Item already existed — added':'Item created & added'); }
       else { toast((d.message&&d.message.message)||srvMsg(d,'Could not create item')); btn.disabled=false; } }
     catch(e){ toast('Connection error'); btn.disabled=false; } }
@@ -873,54 +909,14 @@ function lfPoll(fn, ms){
     window.addEventListener('mouseup',()=>{ _iv.mouseDown=false; });
   })();
 
-  // ── Search (the Bills list itself only holds the 60 newest) ──
-  // Rows come back without their items, so a search is cheap however many bills
-  // exist; tapping a card fetches that one bill's lines.
-  let sq='', sOffset=0, sRows=[], sMore=false, sTimer=null, sBusy=false;
+  // ── Unified local search (recent bills + expenses already loaded above) ──
+  let sq='';
 
-  function onSearch(v){ sq=(v||'').trim();
+  function onSearch(v){ sq=feedQuery=(v||'').trim();
     document.getElementById('billSearchX').style.display=sq?'block':'none';
-    clearTimeout(sTimer);
-    if(sq.length<2){ showSearch(false); return; }      // 1 letter matches half the shop
-    sTimer=setTimeout(()=>runSearch(true),300); }
+    renderUnifiedFeed(); }
   function clearSearch(){ document.getElementById('billSearch').value=''; onSearch(''); }
-  function showSearch(on){ document.getElementById('searchList').style.display=on?'block':'none';
-    document.getElementById('expList').style.display=on?'none':'block'; }
-
-  async function runSearch(reset){ if(sBusy) return; sBusy=true;
-    const box=document.getElementById('searchList');
-    if(reset){ sOffset=0; sRows=[]; box.innerHTML='<div style="color:var(--text-faint);text-align:center;padding:40px 20px;font-size:14px;">Searching…</div>'; }
-    showSearch(true);
-    try{ const r=await _post('/api/method/luuvcrm.api.search_purchase_bills',{q:sq,limit:30,offset:sOffset});
-      if(r){ const d=await r.json(); const m=d.message||{bills:[]};
-        sRows=sRows.concat(m.bills||[]); sMore=!!m.more; sOffset=sRows.length; renderSearch(); }
-    }catch(e){ box.innerHTML='<div style="color:var(--text-faint);text-align:center;padding:40px 20px;font-size:14px;">Could not search — check your connection.</div>'; }
-    sBusy=false; }
-
-  function renderSearch(){
-    const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
-    const box=document.getElementById('searchList');
-    if(!sRows.length){ box.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:50px 20px;text-align:center;color:var(--text-faint);"><i data-lucide="search-x" style="width:28px;height:28px;"></i><div style="font-size:14px;">No bill matches “'+esc(sq)+'”.</div></div>'; icons(); return; }
-    box.innerHTML=sRows.map(b=>{ const t=TONE[b.status]||TONE.pending;
-      return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
-        <div onclick="openBillByName('${esc(b.name)}')" style="display:flex;gap:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🏪'}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
-            <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.date||b.time)}${b.by?(' · '+esc(b.by)):''}</div>
-            <span class="badge ${t[0]}">${t[1]}</span>
-          </div>
-        </div>
-      </div>`; }).join('')
-      +(sMore?`<button onclick="runSearch(false)" style="width:100%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--color-primary);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:11px;">Load more</button>`:'')
-      +`<div style="text-align:center;color:var(--text-faint);font-size:12px;padding:2px 0 8px;">${sRows.length} bill${sRows.length===1?'':'s'} found</div>`;
-    icons(); }
-
-  async function openBillByName(name){
-    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bill',{name:name}); if(!r) return;
-      const d=await r.json(); const b=d.message; if(!b){ toast(srvMsg(d,'Could not open the bill')); return; }
-      openDetail('bill',b);
-    }catch(e){ toast('Connection error'); } }
+  function showSearch(){ renderUnifiedFeed(); }
 
   // ── Detail sheet: one bill or expense in full, with Edit for a manager ──
   let billRows=[], expRows=[], detKind=null, detRec=null;
@@ -932,7 +928,9 @@ function lfPoll(fn, ms){
     document.getElementById('detMeta').textContent=exp?['Expense',rec.category].filter(Boolean).join(' · '):'Purchase bill';
     const photo=rec.receipt_image?`<img src="${esc(rec.receipt_image)}" onclick="viewImg('${esc(rec.receipt_image)}')" style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:4px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:10px;text-align:center;">Tap the photo to open it full size</div>`:'';
     const dateTxt=exp?(rec.date?new Date(rec.date+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):''):rec.date;
-    let rows=detRow('Category',esc(exp?rec.category:'Mixed item categories'))
+    const billCats=[...new Set((rec.lines||[]).map(l=>l.category).filter(Boolean))];
+    const billCategory=rec.category_label||(billCats.length===1?billCats[0]:(billCats.length>1?'Mixed item categories':''));
+    let rows=detRow('Category',esc(exp?rec.category:billCategory))
       +detRow(exp?'Paid to':'Vendor',esc(exp?rec.payee:rec.vendor))
       +detRow(exp?'Date':'Bought on',esc(dateTxt))
       +(exp?detRow('Bill / account no',esc(rec.bill_ref)):'')
@@ -942,7 +940,7 @@ function lfPoll(fn, ms){
     let money='';
     if(exp){ money=(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0 0;color:var(--text-muted);"><span>Original subtotal</span><span class="mono">Rs ${nfmt(rec.source_subtotal)}</span></div><div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0 0;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')+`<div style="display:flex;justify-content:space-between;padding:14px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(rec.amount)}</span></div>`; }
     else {
-      const lines=(rec.lines||[]).map(l=>{ const listed=l.has_item_list===undefined?l.is_stock:l.has_item_list; return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;">${listed?`<span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> `:''}${esc(l.name||'')}${listed?` <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span>`:''}<span style="display:block;color:var(--color-primary);font-size:11px;margin-top:2px;">${esc(l.category||DEFAULT_PURCHASE_CATEGORY)}</span></span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`; }).join('');
+      const lines=(rec.lines||[]).map(l=>{ const listed=l.has_item_list===undefined?l.is_stock:l.has_item_list; const asset=l.asset?`<a href="/app/asset/${encodeURIComponent(l.asset)}" onclick="event.stopPropagation()" style="display:inline-flex;margin-top:4px;color:var(--color-success);font-size:11px;font-weight:700;text-decoration:none;">🏷 ${esc(l.asset)} · ${esc(l.asset_status||'Draft')}</a>`:(l.is_fixed_asset?'<span style="display:block;margin-top:4px;color:var(--color-warning);font-size:11px;font-weight:700;">🏷 Asset creates after approval</span>':''); return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;">${listed?`<span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> `:''}${esc(l.name||'')}${listed?` <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span>`:''}<span style="display:block;color:var(--color-primary);font-size:11px;margin-top:2px;">${esc(l.category||DEFAULT_PURCHASE_CATEGORY)}</span>${asset}</span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`; }).join('');
       money=`<div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:14px 0 2px;">Items</div>${lines||'<div style="color:var(--text-faint);font-size:13px;padding:8px 0;">No items on this bill.</div>'}`
         +(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0 0;color:var(--text-muted);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')
         +`<div style="display:flex;justify-content:space-between;padding:12px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(rec.total)}</span></div>`;
@@ -956,7 +954,7 @@ function lfPoll(fn, ms){
   function closeDetail(){ document.getElementById('detOverlay').style.display='none'; }
   function editDetail(){ const kind=detKind, rec=detRec; if(!rec) return;
     openBillEdit(kind,rec,fresh=>{ Object.assign(rec,fresh); openDetail(kind,rec);
-      if(kind==='expense') loadExpenses(); else { loadBills(); if(tab==='due') loadDue(); if(sq.length>=2) runSearch(true); } }); }
+      if(kind==='expense') loadExpenses(); else { loadBills(); if(tab==='due') loadDue(); } }); }
 
   // ── Approvals (purchase bills waiting on a second person) ──
   // Not manager-only: whoever is on the page can clear a colleague's bill. Your own
@@ -1055,8 +1053,8 @@ function lfPoll(fn, ms){
   // Restore only after category flags arrive: Staff Meals is item-listed but
   // non-stock, and rendering it with the old fallback would flatten its saved
   // item rows into free-text expense lines.
-  loadBills(); loadCatalog(); loadExpCats().then(restoreDraft);
-  lfPoll(()=>{ if(sheetOpen('addOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
+  loadBills(); loadExpenses(); loadCatalog(); loadExpCats().then(restoreDraft);
+  lfPoll(()=>{ if(sheetOpen('addOverlay')) return; loadBills(); loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
 </script>
 {% include "templates/includes/bill_edit.html" %}

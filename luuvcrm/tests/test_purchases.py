@@ -12,7 +12,7 @@ import json
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from luuvcrm import api, roles
+from luuvcrm import api, branch, roles
 from luuvcrm.api.purchases import _find_pending_card
 from luuvcrm.tests import fixtures as fx
 
@@ -25,6 +25,17 @@ class TestManagerPurchaseBillUI(FrappeTestCase):
         html = self.manager_page()
         self.assertIn('data-bf="approved"', html)
         self.assertIn("setBillFilter('approved')", html)
+
+    def test_purchases_and_expenses_share_one_filtered_feed(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
+        self.assertNotIn('data-tab="expenses"', html)
+        self.assertNotIn('id="tabExpenses"', html)
+        self.assertIn('id="feedCategory"', html)
+        self.assertIn('id="feedStatus"', html)
+        self.assertIn('id="feedDate"', html)
+        self.assertIn("...billRows.map", html)
+        self.assertIn("...expRows.map", html)
+        self.assertIn("Add bill / expense", html)
 
     def test_a_settled_bill_names_its_approver_and_time_in_the_sheet(self):
         html = self.manager_page()
@@ -125,7 +136,9 @@ class TestManagerPurchaseBillUI(FrappeTestCase):
     def test_changing_between_item_and_description_categories_needs_no_cleanup(self):
         html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
         self.assertNotIn("Remove this category’s lines before changing its item-list type", html)
-        self.assertIn("if(hadList!==willList) formLines=formLines.filter", html)
+        self.assertIn(
+            "if(hadList!==willList||assetTypeChanged) formLines=formLines.filter", html
+        )
 
     def test_category_subtotal_updates_while_amount_is_typed(self):
         html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
@@ -229,6 +242,14 @@ class TestEnteringABill(PurchaseTestCase):
                          [api.FOOD_PURCHASE_CATEGORY, "Staff Meals"])
         self.assertEqual([row["category"] for row in api._bill_dict(name)["lines"]],
                          [api.FOOD_PURCHASE_CATEGORY, "Staff Meals"])
+        self.assertEqual(api._bill_dict(name)["category_label"], "Mixed item categories")
+
+    def test_a_single_category_bill_names_that_category(self):
+        name = self.enter([{"item": self.tomato, "qty": 1, "price": 300,
+                            "category": api.FOOD_PURCHASE_CATEGORY}])
+        row = api._bill_dict(name)
+        self.assertEqual(row["categories"], [api.FOOD_PURCHASE_CATEGORY])
+        self.assertEqual(row["category_label"], api.FOOD_PURCHASE_CATEGORY)
 
     def test_a_nonstock_line_needs_no_item_master(self):
         name = self.enter([{"name": "CEB current charge", "qty": 1, "price": 8400,
@@ -422,9 +443,172 @@ class TestResolvingABill(PurchaseTestCase):
         self.assertEqual(frappe.db.get_value("Purchase Bill", name, "status"), "pending")
 
 
+class TestFixedAssetPurchases(PurchaseTestCase):
+    """Capital purchases use the same receipt flow without becoming expenses."""
+
+    CATEGORY = "Kitchen Equipment"
+
+    def setUp(self):
+        super().setUp()
+        self.original_user = frappe.session.user
+        frappe.set_user("Administrator")
+        self.addCleanup(frappe.set_user, self.original_user)
+        api.ensure_asset_purchase_categories()
+        if not frappe.db.exists("Expense Category", self.CATEGORY):
+            self.skipTest("the site's chart of accounts cannot configure fixed assets")
+        self.restaurant = branch.viewing("Administrator")
+        if not self.restaurant or not branch.cost_center(self.restaurant):
+            self.skipTest("no restaurant with a cost centre is configured")
+        self.asset_label = "_LFT Asset Fridge " + frappe.generate_hash(length=6)
+        self.asset_item = None
+        self.created_assets = []
+        self.branch_permissions = []
+
+    def _choose_branch(self, user):
+        existing = frappe.db.get_value(
+            "User Permission",
+            {"user": user, "allow": "Restaurant", "for_value": self.restaurant},
+            "name",
+        )
+        if not existing:
+            permission = frappe.get_doc({
+                "doctype": "User Permission",
+                "user": user,
+                "allow": "Restaurant",
+                "for_value": self.restaurant,
+                "apply_to_all_doctypes": 1,
+            }).insert(ignore_permissions=True)
+            self.branch_permissions.append(permission.name)
+        frappe.defaults.set_user_default(branch.CHOSEN_KEY, self.restaurant, user)
+        frappe.clear_cache(user=user)
+
+    def _drop(self):
+        user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            assets = set(getattr(self, "created_assets", []))
+            if getattr(self, "asset_item", None):
+                assets.update(frappe.get_all(
+                    "Asset", filters={"item_code": self.asset_item}, pluck="name"
+                ))
+            for name in assets:
+                if frappe.db.exists("LF Activity Log", {"ref_doctype": "Asset", "ref_name": name}):
+                    for log in frappe.get_all(
+                        "LF Activity Log",
+                        filters={"ref_doctype": "Asset", "ref_name": name},
+                        pluck="name",
+                    ):
+                        frappe.delete_doc("LF Activity Log", log, force=True,
+                                          ignore_permissions=True)
+                if frappe.db.exists("Asset", name):
+                    frappe.delete_doc("Asset", name, force=True, ignore_permissions=True)
+            super()._drop()
+            if getattr(self, "asset_item", None) and frappe.db.exists("Item", self.asset_item):
+                frappe.delete_doc("Item", self.asset_item, force=True, ignore_permissions=True)
+            for name in getattr(self, "branch_permissions", []):
+                if frappe.db.exists("User Permission", name):
+                    frappe.delete_doc("User Permission", name, force=True,
+                                      ignore_permissions=True)
+        finally:
+            frappe.set_user(user)
+
+    def approve_asset_bill(self, qty=1, price=250000, discount=0):
+        buyer = self.user_with(roles.PURCHASER, "asset-buyer")
+        manager = self.user_with(roles.RESTAURANT_MANAGER, "asset-manager")
+        self._choose_branch(buyer)
+        self._choose_branch(manager)
+        self.as_user(buyer)
+        name = self.enter(lines=[{
+            "name": self.asset_label,
+            "qty": qty,
+            "price": price,
+            "unit": "Nos",
+            "category": self.CATEGORY,
+        }])
+        self.asset_item = frappe.db.get_value("Purchase Bill Item", {"parent": name}, "item")
+        frappe.set_user(manager)
+        self.call(api.resolve_purchase_bill, name=name, decision="approved", discount=discount)
+        asset = frappe.db.get_value("Purchase Bill Item", {"parent": name}, "asset")
+        if asset:
+            self.created_assets.append(asset)
+        return name, asset
+
+    def test_fixed_categories_are_mapped_to_erpnext_asset_categories(self):
+        row = frappe.db.get_value(
+            "Expense Category", self.CATEGORY,
+            ["has_item_list", "in_stock", "is_fixed_asset", "asset_category"],
+            as_dict=True,
+        )
+        self.assertFalse(row.has_item_list)
+        self.assertFalse(row.in_stock)
+        self.assertTrue(row.is_fixed_asset)
+        self.assertEqual(row.asset_category, self.CATEGORY)
+
+    def test_item_created_from_asset_category_is_a_nonstock_fixed_asset(self):
+        self.approve_asset_bill(price=100000)
+        item = frappe.db.get_value(
+            "Item", self.asset_item,
+            ["is_fixed_asset", "is_stock_item", "is_grouped_asset", "asset_category"],
+            as_dict=True,
+        )
+        self.assertTrue(item.is_fixed_asset)
+        self.assertFalse(item.is_stock_item)
+        self.assertTrue(item.is_grouped_asset)
+        self.assertEqual(item.asset_category, self.CATEGORY)
+
+    def test_approval_creates_and_links_one_draft_erpnext_asset(self):
+        name, asset_name = self.approve_asset_bill(qty=2, price=150000, discount=10000)
+        self.assertTrue(asset_name)
+        asset = frappe.get_doc("Asset", asset_name)
+        bill = frappe.get_doc("Purchase Bill", name)
+        self.assertEqual(asset.docstatus, 0)
+        self.assertEqual(asset.item_code, self.asset_item)
+        self.assertEqual(asset.asset_category, self.CATEGORY)
+        self.assertEqual(asset.asset_quantity, 2)
+        self.assertEqual(float(asset.gross_purchase_amount), 290000)
+        self.assertEqual(asset.location, f"{self.restaurant} Restaurant")
+        self.assertEqual(asset.cost_center, branch.cost_center(self.restaurant))
+        self.assertEqual(bill.status, "approved")
+        self.assertEqual(api._bill_dict(name)["lines"][0]["asset"], asset_name)
+        self.assertFalse(frappe.db.exists(
+            "Item Price", {"item_code": self.asset_item,
+                           "price_list": api._buying_price_list()},
+        ))
+
+        # Retrying the internal decision is harmless and must not duplicate it.
+        self.assertEqual(api._decide_purchase_bill(name, "approved"), 0)
+        self.assertEqual(
+            frappe.db.count("Asset", {"item_code": self.asset_item}), 1
+        )
+
+    def test_asset_purchase_is_not_an_operating_cost(self):
+        manager = self.user_with(roles.RESTAURANT_MANAGER, "asset-manager")
+        self._choose_branch(manager)
+        frappe.set_user(manager)
+        before = api.get_manager_pnl(days=1)["total_cost"]
+        before_overview = sum(
+            row["expenses"] for row in api.get_manager_sales_report(days=1)["daily"]
+        )
+        self.approve_asset_bill(price=97500)
+        frappe.set_user(manager)
+        after = api.get_manager_pnl(days=1)["total_cost"]
+        after_overview = sum(
+            row["expenses"] for row in api.get_manager_sales_report(days=1)["daily"]
+        )
+        self.assertEqual(after, before)
+        self.assertEqual(after_overview, before_overview)
+
+    def test_standalone_expense_cannot_use_an_asset_purchase_category(self):
+        with self.assertRaises(frappe.ValidationError) as caught:
+            self.call(api.create_expense, category=self.CATEGORY, amount=100000,
+                      payee="_LFT Appliance Vendor")
+        self.assertIn("Purchase Bill", str(caught.exception))
+
+
 class TestCategoryCorrectionAtApproval(PurchaseTestCase):
     def categories(self):
-        return frappe.get_all("Expense Category", filters={"disabled": 0}, pluck="name",
+        return frappe.get_all("Expense Category",
+                              filters={"disabled": 0, "is_fixed_asset": 0}, pluck="name",
                               order_by="name")
 
     def approval_for(self, action, key, name):

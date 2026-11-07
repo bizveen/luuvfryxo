@@ -26,3 +26,5 @@ luuvcrm.patches.v1_0.allow_fractional_nos
 luuvcrm.patches.v1_0.add_purchase_item_categories
 luuvcrm.patches.v1_0.add_expense_category_stock_flag
 luuvcrm.patches.v1_0.add_expense_category_item_list_flag
+luuvcrm.patches.v1_0.add_fixed_asset_purchase_categories
+luuvcrm.patches.v1_0.disable_fixed_asset_item_lists

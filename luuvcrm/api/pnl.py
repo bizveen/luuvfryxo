@@ -23,7 +23,7 @@ Three decisions worth knowing before changing anything:
 import frappe
 from frappe import _
 from luuvcrm import branch, roles, settings
-from luuvcrm.api.expenses import FOOD_PURCHASE_CATEGORY
+from luuvcrm.api.expenses import FOOD_PURCHASE_CATEGORY, category_is_fixed_asset
 from luuvcrm.api.reports import _report_range
 
 # The statement's cost lines, in the order the owner's template has them, each
@@ -110,7 +110,10 @@ def _purchase_costs_by_category(start, end):
         (FOOD_PURCHASE_CATEGORY, str(start), str(frappe.utils.add_days(end, 1))) + params,
         as_dict=True,
     )
-    out = {r.category: float(r.amount or 0) for r in rows}
+    # Asset purchases stay visible in Purchases but belong on the balance sheet,
+    # not in this period's operating profit.
+    out = {r.category: float(r.amount or 0) for r in rows
+           if not category_is_fixed_asset(r.category)}
     # Defensive legacy fallback: very old/imported bills can have a header
     # total but no child rows. They were historically all counted as food.
     orphan = float(frappe.db.sql(

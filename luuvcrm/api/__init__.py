@@ -93,6 +93,7 @@ from luuvcrm.api.errors import (
 )
 from luuvcrm.api.expenses import (
     EXPENSE_CATEGORIES,
+    FIXED_ASSET_PURCHASE_CATEGORIES,
     FOOD_PURCHASE_CATEGORY,
     ITEM_LIST_EXPENSE_CATEGORIES,
     STAFF_MEALS_CATEGORY,
@@ -102,10 +103,19 @@ from luuvcrm.api.expenses import (
     _install_expenses,
     create_expense,
     category_has_item_list,
+    category_asset_category,
+    category_is_fixed_asset,
     get_expense_categories,
     get_expenses,
     setup_expenses,
     update_expense,
+)
+from luuvcrm.api.assets import (
+    create_purchase_assets,
+    ensure_asset_categories,
+    ensure_asset_item,
+    ensure_asset_purchase_categories,
+    validate_asset_item,
 )
 from luuvcrm.api.guides import (
     guide_app_url,
