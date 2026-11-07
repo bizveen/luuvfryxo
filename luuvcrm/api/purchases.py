@@ -13,6 +13,7 @@ from luuvcrm import activity, branch, roles
 from luuvcrm.api.expenses import (
     FOOD_PURCHASE_CATEGORY,
     _install_expenses,
+    category_has_item_list,
     category_is_stock,
 )
 from luuvcrm.api.schema import _install_pos_approval
@@ -149,13 +150,13 @@ def get_purchase_catalog():
     return {"items": out, "price_list": pl}
 @frappe.whitelist(methods=["POST"])
 def create_purchase_item():
-    """Create a new stock Item from the purchases app (name + unit).
+    """Create a reusable purchase Item from the purchases app (name + unit).
     Reuses an existing Item if one with the same name is already there."""
     roles.require_purchases()
     data = frappe.local.form_dict
     category = _purchase_line_category(data.get("category"))
-    if not category_is_stock(category):
-        frappe.throw(_("This expense category is not kept in Items or stock"))
+    if not category_has_item_list(category):
+        frappe.throw(_("This expense category does not use the item list"))
     item_name = (data.get("item_name") or "").strip()
     if not item_name:
         frappe.throw(_("Item name is required"))
@@ -194,7 +195,7 @@ def create_purchase_item():
             "item_name": item_name,
             "item_group": group,
             "stock_uom": unit,
-            "is_stock_item": 1,
+            "is_stock_item": 1 if category_is_stock(category) else 0,
             "is_purchase_item": 1,
         })
         doc.flags.ignore_permissions = True
@@ -423,6 +424,8 @@ def _bill_dict(name):
               "category": i.get("category") or FOOD_PURCHASE_CATEGORY,
               "is_stock": 1 if category_is_stock(
                   i.get("category") or FOOD_PURCHASE_CATEGORY) else 0,
+              "has_item_list": 1 if category_has_item_list(
+                  i.get("category") or FOOD_PURCHASE_CATEGORY) else 0,
               "unit": i.uom or "Nos",
               "qty": float(i.qty or 0), "price": float(i.price or 0),
               "old_price": float(i.old_price or 0)} for i in (doc.get("items") or [])]
@@ -485,24 +488,25 @@ def create_purchase_bill():
     for ln in lines:
         posted_item = (ln.get("item") or "").strip()
         category = _purchase_line_category(ln.get("category"))
-        in_stock = category_is_stock(category)
-        # Expense-style bill lines (Gas, Electricity, etc.) are descriptions,
-        # not catalogue Items.  Trust the category flag on the server even if
-        # an old/manipulated client posts an Item code with the line.
-        item = posted_item if in_stock else ""
+        has_item_list = category_has_item_list(category)
+        # Categories without an item list (Gas, Electricity, etc.) are typed
+        # descriptions. Trust that category switch even when an old or
+        # manipulated client posts an Item code with the line.
+        item = posted_item if has_item_list else ""
         qty = float(ln.get("qty") or 0)
         price = float(ln.get("price") or 0)
-        if in_stock and not item:
+        if has_item_list and not item:
             frappe.throw(_("Purchase items must be created or picked from the item list"))
         if item and not frappe.db.exists("Item", item):
             frappe.throw(_("Item {0} does not exist").format(item))
         old_price = (frappe.db.get_value("Item Price",
             {"item_code": item, "price_list": _buying_price_list()}, "price_list_rate") or 0
-                     if in_stock and item else 0)
+                     if has_item_list and item else 0)
         typed_name = " ".join((ln.get("name") or "").split())
         master_name = (frappe.db.get_value("Item", posted_item, "item_name")
                        if posted_item and frappe.db.exists("Item", posted_item) else None)
-        name = (master_name or typed_name or item) if in_stock else (typed_name or master_name)
+        name = ((master_name or typed_name or item) if has_item_list
+                else (typed_name or master_name))
         if not name:
             frappe.throw(_("Every line needs a name"))
         uom = ln.get("unit") or (frappe.db.get_value("Item", item, "stock_uom")
@@ -514,7 +518,7 @@ def create_purchase_bill():
         # A descriptive/non-stock charge has no meaningful quantity. It still
         # uses qty=1 internally so its amount totals correctly, but the approve
         # card must not pretend that the user entered "1 Bill".
-        appr_lines.append({"qtyStr": f"{qty:g} {uom}" if in_stock else "", "name": name,
+        appr_lines.append({"qtyStr": f"{qty:g} {uom}" if has_item_list else "", "name": name,
                            "category": category,
                            "totalStr": f"Rs {int(round(qty * price)):,}"})
     doc.total = total
@@ -775,13 +779,13 @@ def _apply_purchase_line_categories(doc, line_categories):
         old_category = row.get("category") or FOOD_PURCHASE_CATEGORY
         if new_category == old_category:
             continue
-        new_stock = category_is_stock(new_category)
-        if new_stock and not row.item:
-            frappe.throw(_("{0} cannot become a stock purchase without an Item").format(
+        new_has_list = category_has_item_list(new_category)
+        if new_has_list and not row.item:
+            frappe.throw(_("{0} cannot use an item-list category without an Item").format(
                 row.item_name or _("This line")
             ))
         values = {"category": new_category}
-        if not new_stock and row.item:
+        if not new_has_list and row.item:
             values.update({
                 "item": None,
                 "qty": 1,
@@ -885,7 +889,7 @@ def _decide_purchase_bill(name, decision, discount=None):
             _apply_bill_discount(doc, discount)
         pl = _buying_price_list()
         for line in (doc.get("items") or []):
-            if (not category_is_stock(line.category)
+            if (not category_has_item_list(line.category)
                     or not line.item or not line.price):
                 continue
             existing = frappe.db.get_value("Item Price",

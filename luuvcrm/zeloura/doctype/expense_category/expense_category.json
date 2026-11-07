@@ -9,6 +9,7 @@
  "field_order": [
   "category_name",
   "in_stock",
+  "has_item_list",
   "disabled"
  ],
  "fields": [
@@ -27,6 +28,14 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "In Stock"
+  },
+  {
+   "default": "0",
+   "description": "On = Add Bill shows a reusable item dropdown for this category. This does not make the items stock.",
+   "fieldname": "has_item_list",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Has Item List"
   },
   {
    "default": "0",

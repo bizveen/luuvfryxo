@@ -22,7 +22,7 @@ from luuvcrm.api.purchases import (
     _apply_purchase_line_categories,
     _decide_purchase_bill,
 )
-from luuvcrm.api.expenses import category_is_stock
+from luuvcrm.api.expenses import category_has_item_list, category_is_stock
 from luuvcrm.api.schema import (
     _clean_item_note,
     _ensure_item_notes_field,
@@ -298,7 +298,8 @@ def _format_approvals(rows):
             )
             category_options += [{"value": r.name, "label": r.name} for r in category_rows]
             line_category_options = [{"value": r.name, "label": r.name,
-                                      "in_stock": 1 if category_is_stock(r.name) else 0}
+                                      "in_stock": 1 if category_is_stock(r.name) else 0,
+                                      "has_item_list": 1 if category_has_item_list(r.name) else 0}
                                      for r in category_rows]
 
     # Purchase-bill cards show each line's price with a "was Rs X" delta when the
@@ -373,7 +374,7 @@ def _format_approvals(rows):
                     if it.get("category"):
                         line["category"] = it.category
                     line["qtyStr"] = (f"{float(it.qty or 0):g} {it.uom or 'Nos'}"
-                                      if category_is_stock(it.get("category")) else "")
+                                      if category_has_item_list(it.get("category")) else "")
 
         bill_categories = {line.get("category") for line in lines if line.get("category")}
 

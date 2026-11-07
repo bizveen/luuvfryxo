@@ -20,10 +20,15 @@ from luuvcrm.api.shifts import _open_shift_name, _resolve_pos_profile_name
 # touch the cash drawer either (see create_expense) — it is a record with a manager sign-off.
 
 FOOD_PURCHASE_CATEGORY = "Food / Ingredients"
+STAFF_MEALS_CATEGORY = "Staff Meals"
 # Only the purchase/ingredients bucket creates reusable Item records and stock
 # movements. Every other category is an expense line, even when it shares one
 # supplier receipt with stock purchases.
 STOCK_EXPENSE_CATEGORIES = frozenset({FOOD_PURCHASE_CATEGORY})
+# Categories with a reusable item/price list in the purchase bill form.  This
+# is deliberately separate from stock: a staff meal should be quick to pick
+# again, but it must not receive ingredients into the warehouse.
+ITEM_LIST_EXPENSE_CATEGORIES = frozenset({FOOD_PURCHASE_CATEGORY, STAFF_MEALS_CATEGORY})
 
 EXPENSE_CATEGORIES = [
     # Default for itemised supplier bills. Keeping it in the shared category
@@ -81,6 +86,9 @@ def _install_expenses():
                 {"fieldname": "in_stock", "label": "In Stock", "fieldtype": "Check",
                  "default": "0", "in_list_view": 1,
                  "description": "On = supplier-bill lines become Items and stock."},
+                {"fieldname": "has_item_list", "label": "Has Item List", "fieldtype": "Check",
+                 "default": "0", "in_list_view": 1,
+                 "description": "On = Add Bill shows the reusable item dropdown for this category."},
                 {"fieldname": "disabled", "label": "Disabled", "fieldtype": "Check",
                  "default": "0", "in_list_view": 1},
             ],
@@ -96,7 +104,8 @@ def _install_expenses():
     if not frappe.db.count("Expense Category"):
         for c in EXPENSE_CATEGORIES:
             frappe.get_doc({"doctype": "Expense Category", "category_name": c,
-                            "in_stock": int(c in STOCK_EXPENSE_CATEGORIES)}).insert(
+                            "in_stock": int(c in STOCK_EXPENSE_CATEGORIES),
+                            "has_item_list": int(c in ITEM_LIST_EXPENSE_CATEGORIES)}).insert(
                                 ignore_permissions=True)
 
     if not frappe.db.exists("DocType", "Expense"):
@@ -153,14 +162,19 @@ def get_expense_categories():
     if not frappe.db.exists("DocType", "Expense Category"):
         _install_expenses()
     fields = ["name"]
-    has_flag = frappe.db.has_column("Expense Category", "in_stock")
-    if has_flag:
+    has_stock_flag = frappe.db.has_column("Expense Category", "in_stock")
+    has_list_flag = frappe.db.has_column("Expense Category", "has_item_list")
+    if has_stock_flag:
         fields.append("in_stock")
+    if has_list_flag:
+        fields.append("has_item_list")
     rows = frappe.get_all("Expense Category", filters={"disabled": 0},
                           fields=fields, order_by="name")
     details = [{"name": r.name,
-                "in_stock": int(r.in_stock if has_flag else
-                                r.name in STOCK_EXPENSE_CATEGORIES)} for r in rows]
+                "in_stock": int(r.in_stock if has_stock_flag else
+                                r.name in STOCK_EXPENSE_CATEGORIES),
+                "has_item_list": int(r.has_item_list if has_list_flag else
+                                     r.name in ITEM_LIST_EXPENSE_CATEGORIES)} for r in rows]
     return {"categories": [r["name"] for r in details],
             "category_details": details}
 
@@ -175,6 +189,18 @@ def category_is_stock(category):
     if not frappe.db.has_column("Expense Category", "in_stock"):
         return category in STOCK_EXPENSE_CATEGORIES
     return bool(frappe.db.get_value("Expense Category", category, "in_stock"))
+
+
+def category_has_item_list(category):
+    """Whether Add Bill uses reusable Items instead of free-text lines.
+
+    The named fallback keeps deploys usable between the Python release and the
+    schema migration that adds ``has_item_list``.
+    """
+    category = category or FOOD_PURCHASE_CATEGORY
+    if not frappe.db.has_column("Expense Category", "has_item_list"):
+        return category in ITEM_LIST_EXPENSE_CATEGORIES
+    return bool(frappe.db.get_value("Expense Category", category, "has_item_list"))
 
 
 def _expense_approval(doc):

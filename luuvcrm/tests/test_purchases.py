@@ -111,21 +111,33 @@ class TestManagerPurchaseBillUI(FrappeTestCase):
         self.assertIn("This category uses descriptions, not Items", html)
         self.assertIn("name:l.name", html)
 
-    def test_nonstock_categories_use_description_fields_not_the_item_picker(self):
+    def test_item_list_flag_is_separate_from_stock_and_other_categories_use_descriptions(self):
         html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
         self.assertIn("function isStockCategory", html)
+        self.assertIn("function hasItemList", html)
         self.assertIn("function expenseLineHtml", html)
         self.assertIn("function addExpenseTextField", html)
         self.assertIn("Add another item", html)
         self.assertIn("Category subtotal", html)
         self.assertIn("const cardSubtotal=lines.reduce", html)
-        self.assertIn("Expense Category.in_stock is the only switch", html)
+        self.assertIn("Has Item List controls the picker", html)
+
+    def test_changing_between_item_and_description_categories_needs_no_cleanup(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
+        self.assertNotIn("Remove this category’s lines before changing its item-list type", html)
+        self.assertIn("if(hadList!==willList) formLines=formLines.filter", html)
+
+    def test_category_subtotal_updates_while_amount_is_typed(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
+        self.assertIn("function updateCategorySubtotal", html)
+        self.assertIn("updateCategorySubtotal(formLines[i].cardId)", html)
+        self.assertIn('id="categorySubtotal-${card.id}"', html)
 
     def test_nonstock_bill_views_hide_the_internal_one_bill_quantity(self):
         purchases = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
         manager = self.manager_page()
-        self.assertIn("l.is_stock?", purchases)
-        self.assertIn("l.is_stock?", manager)
+        self.assertIn("l.has_item_list", purchases)
+        self.assertIn("l.has_item_list", manager)
         self.assertIn("hasOwnProperty.call(li,'qtyStr')", manager)
 
 
@@ -249,11 +261,27 @@ class TestEnteringABill(PurchaseTestCase):
         marked = {r.name for r in rows if r.in_stock}
         self.assertEqual(marked, {api.FOOD_PURCHASE_CATEGORY})
 
+    def test_food_and_staff_meals_have_item_lists_but_only_food_is_stock(self):
+        rows = frappe.get_all("Expense Category", fields=["name", "in_stock", "has_item_list"])
+        listed = {r.name for r in rows if r.has_item_list}
+        stocked = {r.name for r in rows if r.in_stock}
+        self.assertEqual(listed, {api.FOOD_PURCHASE_CATEGORY, api.STAFF_MEALS_CATEGORY})
+        self.assertEqual(stocked, {api.FOOD_PURCHASE_CATEGORY})
+
+    def test_staff_meal_keeps_its_item_without_becoming_stock(self):
+        name = self.enter([{"item": self.tomato, "qty": 2, "price": 350,
+                            "category": api.STAFF_MEALS_CATEGORY}])
+        line = frappe.get_doc("Purchase Bill", name).items[0]
+        shown = api._bill_dict(name)["lines"][0]
+        self.assertEqual(line.item, self.tomato)
+        self.assertFalse(shown["is_stock"])
+        self.assertTrue(shown["has_item_list"])
+
     def test_a_nonstock_category_cannot_create_an_item_master(self):
         with self.assertRaises(frappe.ValidationError) as caught:
             self.call(api.create_purchase_item, item_name="_LFT Electricity",
                       unit="Bill", category="Electricity")
-        self.assertIn("not kept in Items or stock", str(caught.exception))
+        self.assertIn("does not use the item list", str(caught.exception))
 
     def test_an_older_client_defaults_each_line_to_food(self):
         doc = frappe.get_doc("Purchase Bill", self.enter())

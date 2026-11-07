@@ -68,7 +68,7 @@
   }
   function catOptions(current,hasItem){
     const list=S.cats.slice(); if(current&&!list.includes(current)) list.unshift(current);   // a since-disabled category still shows
-    return list.map(c=>{ const d=(S.catDetails||[]).find(x=>x.name===c), blocked=d&&d.in_stock&&!hasItem; return `<option value="${esc(c)}" ${c===current?'selected':''} ${blocked?'disabled':''}>${esc(c)}</option>`; }).join('');
+    return list.map(c=>{ const d=(S.catDetails||[]).find(x=>x.name===c), blocked=d&&d.has_item_list&&!hasItem; return `<option value="${esc(c)}" ${c===current?'selected':''} ${blocked?'disabled':''}>${esc(c)}</option>`; }).join('');
   }
   async function loadCats(current){
     await ensureCats();
