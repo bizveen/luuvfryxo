@@ -237,6 +237,31 @@ def get_manager_sales_report(days=7, start=None, end=None):
         (start, end) + _inv_params, as_dict=True)
     by_date = {str(r.d): {"revenue": float(r.revenue or 0), "count": int(r.cnt or 0)} for r in rows}
 
+    # Daily approved spend for Admin > Overview's Revenue / Expenses trend.
+    # Purchase Bill totals already include their approval discount; standalone
+    # Expense rows cover rent, utilities, wages and the other overheads.
+    spend_by_date = {}
+    if frappe.db.exists("DocType", "Purchase Bill"):
+        _pb_cond, _pb_params = branch.sql_restaurant("pb")
+        for row in frappe.db.sql("""
+                SELECT pb.purchase_date AS d, COALESCE(SUM(pb.total), 0) AS amount
+                FROM `tabPurchase Bill` pb
+                WHERE pb.status = 'approved' AND pb.purchase_date BETWEEN %s AND %s
+                """ + _pb_cond + " GROUP BY pb.purchase_date",
+                (start, end) + _pb_params, as_dict=True):
+            spend_by_date[str(row.d)] = spend_by_date.get(str(row.d), 0) + float(row.amount or 0)
+    if frappe.db.exists("DocType", "Expense"):
+        _e_cond, _e_params = branch.sql_restaurant("e")
+        for row in frappe.db.sql("""
+                SELECT COALESCE(e.expense_date, DATE(e.creation)) AS d,
+                       COALESCE(SUM(e.amount), 0) AS amount
+                FROM `tabExpense` e
+                WHERE e.status = 'approved'
+                  AND COALESCE(e.expense_date, DATE(e.creation)) BETWEEN %s AND %s
+                """ + _e_cond + " GROUP BY d",
+                (start, end) + _e_params, as_dict=True):
+            spend_by_date[str(row.d)] = spend_by_date.get(str(row.d), 0) + float(row.amount or 0)
+
     daily = []
     cur = start
     while cur <= end:
@@ -248,6 +273,7 @@ def get_manager_sales_report(days=7, start=None, end=None):
             "weekday": formatdate(cur, "EEE"),
             "revenue": rec["revenue"],
             "count": rec["count"],
+            "expenses": spend_by_date.get(key, 0),
         })
         cur = add_days(cur, 1)
 
@@ -418,6 +444,7 @@ def get_manager_sales_report(days=7, start=None, end=None):
         "items_revenue": items_revenue,
         "hourly": hourly,
         "total_revenue": total_revenue,
+        "total_expenses": sum(d["expenses"] for d in daily),
         "total_sales": total_sales,
         "avg_ticket": avg_ticket,
         "best_day": best_day,

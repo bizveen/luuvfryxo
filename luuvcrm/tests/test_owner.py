@@ -122,6 +122,25 @@ class TestTheComparison(OwnerTestCase):
         self.assertIn(self.home, names)
         self.assertIn(other, names)
 
+    def test_dashboard_has_a_complete_daily_series_and_period_summary(self):
+        self.as_user(self.owner)
+        result = api.get_owner_overview(days=7)
+        self.assertEqual(result["days"], 7)
+        self.assertEqual(len(result["daily"]), 7)
+        self.assertIn("expenses", result["daily"][0])
+        self.assertIn("expense_branches", result["daily"][0])
+        self.assertIn("expenses", result["branches"][0])
+        self.assertIn("expenses", result["totals"])
+        self.assertIn("avg_ticket", result["totals"])
+        self.assertIn("revenue_change", result["totals"])
+        self.assertIn("best_day", result["leaders"])
+
+    def test_custom_range_is_inclusive_and_reversed_dates_are_fixed(self):
+        self.as_user(self.owner)
+        result = api.get_owner_overview(start="2019-03-10", end="2019-03-08")
+        self.assertEqual((result["start"], result["end"], result["days"]),
+                         ("2019-03-08", "2019-03-10", 3))
+
     def test_a_branch_with_no_cost_centre_reports_nothing_not_zero(self):
         """"Rs 0 today" and "this branch's takings cannot be told from the other's"
         are different sentences, and only one of them is true."""

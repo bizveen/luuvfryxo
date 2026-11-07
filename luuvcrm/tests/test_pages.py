@@ -743,6 +743,63 @@ class TestTheAdminPortal(PageTestCase):
             with self.subTest(panel=panel):
                 self.assertIn(panel, html)
 
+    def test_overview_is_a_decision_dashboard_with_range_and_comparisons(self):
+        html = self.page()
+        for marker in ("Business overview", 'id="ovRange"', 'id="ovTrend"',
+                       'id="ovBars"', 'id="ovInsights"', "get_owner_overview"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, html)
+
+    def test_overview_can_show_a_selected_calendar_month(self):
+        html = self.page()
+        for marker in ('value="month">Selected month', 'type="month" id="ovMonth"',
+                       "function monthParams", "function applyOverviewMonth"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, html)
+
+    def test_revenue_trend_is_a_day_by_day_bar_chart(self):
+        html = self.page()
+        self.assertIn("Daily restaurant revenue, side by side", html)
+        self.assertIn("data-trend=\"revenue\"", html)
+        self.assertIn("data-trend=\"expenses\"", html)
+        self.assertIn("function setTrendMode", html)
+        self.assertIn('svg+=`<rect', html)
+        self.assertIn("groupX+bi*(barW+gap)", html)
+        self.assertIn("host.clientWidth", html)
+        self.assertIn("TREND_RESIZE_TIMER", html)
+        self.assertNotIn('svg+=`<polyline', html)
+
+    def test_overview_remains_useful_on_a_phone(self):
+        html = self.page()
+        self.assertIn("#cmp th:first-child,#cmp td:first-child{position:sticky", html)
+        self.assertIn(".trend-tabs{width:100%", html)
+        self.assertIn(".ov-legend{width:100%;overflow-x:auto", html)
+
+    def test_restaurant_comparison_explains_why_branches_differ(self):
+        html = self.page()
+        for detail in ("Vs previous period", "Business share", "Revenue / day",
+                       "Expenses", "Expenses / day", "Approvals waiting", "Growth leader",
+                       "Highest average bill", "Needs attention"):
+            with self.subTest(detail=detail):
+                self.assertIn(detail, html)
+        for visual in ("cmp-good", "cmp-bad", "cmp-strong", "spend-start"):
+            with self.subTest(visual=visual):
+                self.assertIn(visual, html)
+
+    def test_overview_has_owner_decision_charts(self):
+        html = self.page()
+        for marker in ("Revenue, expenses &amp; net", "Orders &amp; average bill",
+                       'id="ovNetChart"', 'id="ovDriverChart"',
+                       "function renderNetChart", "function renderDriverChart"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, html)
+
+    def test_setup_warnings_live_with_restaurants_not_the_overview(self):
+        html = self.page()
+        self.assertNotIn("Set up, and worth fixing", html)
+        self.assertIn("Restaurant setup needs attention", html)
+        self.assertGreater(html.index('id="branchProblems"'), html.index('id="p-branches"'))
+
     def test_the_page_knows_whether_it_is_an_owner_looking(self):
         """The two sections that change the shape of the business are the
         owner's. Hiding them is a courtesy — the endpoints refuse them anyway —
