@@ -9,6 +9,14 @@ from luuvcrm.api import menu_groups
 no_cache = 1
 login_required = False
 
+# The public map pins are curated: an address search can land on a similarly
+# named place or the middle of a town. Keep one source for both the restaurant
+# cards and the footer links.
+DIRECTIONS_BY_CITY = {
+    "kurunegala": "https://share.google/Gc0sQsmTjS2C5Od5h",
+    "dambulla": "https://share.google/CCvp1bxtsjlxyypZ8",
+}
+
 
 def _city(restaurant):
     doc = frappe.get_cached_doc("Restaurant", restaurant)
@@ -34,7 +42,10 @@ def _with_query(path, **params):
     return path + "?" + urlencode([(key, value) for key, value in params.items() if value])
 
 
-def _directions_url(label, address):
+def _directions_url(label, address, city=""):
+    pinned = DIRECTIONS_BY_CITY.get((city or "").strip().casefold())
+    if pinned:
+        return pinned
     if not address:
         return ""
     return "https://www.google.com/maps/search/?" + urlencode(
@@ -55,7 +66,7 @@ def _location(restaurant, featured=False, deep_link=None):
         city=city,
         label=label,
         address=address,
-        directions_url=_directions_url(label, address) if doc.address else "",
+        directions_url=_directions_url(label, address, city),
         featured=featured,
         # /cus is the one customer journey that can order, retain a referral,
         # track the meal and show rewards.  Do not split landing traffic back

@@ -11,6 +11,7 @@ per-user and the site's other open shifts must not leak into the assertions.
 """
 
 import json
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -147,6 +148,26 @@ class TestOpeningAShift(ShiftTestCase):
         with self.assertRaises(frappe.ValidationError) as caught:
             self.call(api.pos_open_shift, pos_profile=self.profile, opening_balance=1000)
         self.assertIn("already open", str(caught.exception))
+
+    def test_an_open_shift_at_another_restaurant_does_not_block_this_till(self):
+        """Open/read/close must all use the same branch scope.
+
+        Model the stale foreign-outlet row at the database boundary: the old
+        unscoped lookup sees it, while the active-restaurant lookup includes a
+        POS Profile filter and therefore does not.
+        """
+        real_get_value = frappe.db.get_value
+
+        def foreign_shift_only_for_unscoped_lookup(doctype, filters=None, *args, **kwargs):
+            if (doctype == "POS Opening Entry"
+                    and filters == {"status": "Open", "user": self.cashier}):
+                return "POS-OPE-OTHER-RESTAURANT"
+            return real_get_value(doctype, filters, *args, **kwargs)
+
+        with patch.object(frappe.db, "get_value",
+                          side_effect=foreign_shift_only_for_unscoped_lookup):
+            opening = self.open_shift(opening_balance=0)
+        self.assertEqual(opening.pos_profile, self.profile)
 
     def test_a_cashier_may_open_one_without_borrowed_permissions(self):
         """pos_open_shift inserts under the caller's own permissions. Before the

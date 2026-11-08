@@ -25,6 +25,7 @@ from frappe import _
 from frappe.utils import flt, now_datetime, nowdate, nowtime
 
 from luuvcrm import activity, branch, roles
+from luuvcrm.api.expenses import category_is_stock
 
 
 CONSUMED_FIELD = "stock_consumed_qty"
@@ -275,6 +276,8 @@ def receive_purchase_stock(purchase_bill):
 
     stock_lines = []
     for line in doc.get("items") or []:
+        if not category_is_stock(line.get("category")):
+            continue
         item = frappe.db.get_value(
             "Item", line.item, ["is_stock_item", "stock_uom"], as_dict=True
         )

@@ -200,12 +200,13 @@ class TestADiscountReachesThePurchaseReport(FrappeTestCase):
         self.assertAlmostEqual(self.spend_for(self.report()["items"], "name", "Rice"),
                                self.AMOUNT - self.DISCOUNT, 2)
 
-    def test_every_breakdown_agrees_with_the_total(self):
+    def test_vendor_breakdown_agrees_and_item_breakdown_is_stock_only(self):
         self.discount(self.DISCOUNT)
         report = self.report()
-        for key in ("vendors", "items"):
-            self.assertAlmostEqual(sum(r["spend"] for r in report[key]),
-                                   report["total_spend"], 2, key)
+        self.assertAlmostEqual(sum(r["spend"] for r in report["vendors"]),
+                               report["total_spend"], 2)
+        self.assertLessEqual(sum(r["spend"] for r in report["items"]),
+                             report["total_spend"])
 
     def test_a_bill_with_no_discount_is_unchanged(self):
         report = self.report()
@@ -335,6 +336,28 @@ class TestWhatThePurchaseReportNowSays(FrappeTestCase):
         self.assertEqual(sorted(r["uom"] for r in rows), ["Kg", "Nos"])
         for r in rows:
             self.assertEqual(r["qty"], 10)
+
+    def test_a_nonstock_bill_line_is_not_an_item_bought(self):
+        """Electricity is bill spend, but it is not kitchen stock. Its child
+        row keeps a mixed bill itemised without putting it on item reports."""
+        name = "_LFT Report Electricity"
+        vendor = "_LFT Utility Vendor"
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill", "vendor": vendor, "status": "approved",
+            "requested_at": frappe.utils.now_datetime(), "total": 8400,
+            "items": [{"item_name": name, "category": "Electricity", "uom": "Bill",
+                       "qty": 1, "price": 8400}],
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        frappe.db.commit()
+        self._bills.append(doc.name)
+
+        report = self.report()
+        self.assertIsNone(self.row(report["items"], name))
+        self.assertGreaterEqual(report["total_spend"], 8400)
+        detail = api.get_manager_vendor_detail(vendor=vendor, days=1)
+        self.assertFalse(any(row["name"] == name for row in detail["items"]))
 
     # ── spend against sales ──
     def test_spend_is_shown_against_the_period_s_revenue(self):
@@ -611,6 +634,23 @@ class TestSpendByCategory(FrappeTestCase):
         self._docs.append(("Purchase Bill", doc.name))
         return doc.name
 
+    def mixed_bill(self):
+        doc = frappe.get_doc({
+            "doctype": "Purchase Bill", "vendor": "_LFT Mixed Vendor",
+            "status": "approved", "purchase_date": today(),
+            "requested_at": frappe.utils.now_datetime(), "total": 900,
+            "discount": 100,
+            "items": [
+                {"item": self.item, "item_name": "Food", "category": api.FOOD_PURCHASE_CATEGORY,
+                 "uom": "Kg", "qty": 1, "price": 600},
+                {"item": self.item, "item_name": "Lunch", "category": "Staff Meals",
+                 "uom": "Nos", "qty": 1, "price": 400},
+            ]})
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        self._docs.append(("Purchase Bill", doc.name))
+        return doc.name
+
     def expense(self, amount, dated=0, status="approved"):
         doc = frappe.get_doc({
             "doctype": "Expense", "category": self.cat, "amount": amount, "status": status,
@@ -635,6 +675,38 @@ class TestSpendByCategory(FrappeTestCase):
     def test_each_expense_category_is_its_own_row(self):
         self.expense(400)
         self.assertEqual(self.grew(self.cat), (1, 400))
+
+    def test_one_discounted_bill_is_split_between_its_line_categories(self):
+        name = self.mixed_bill()
+        self.assertEqual(self.grew(api.FOOD_PURCHASE_CATEGORY), (1, 540))
+        self.assertEqual(self.grew("Staff Meals"), (1, 360))
+        sheet = api.get_category_bills(category="Staff Meals", days=7)
+        row = next(r for r in sheet["rows"] if r["name"] == name)
+        self.assertEqual(row["record_kind"], "bill")
+        self.assertEqual(row["category_total"], 360)
+
+    def test_mixed_bill_categories_feed_the_right_profit_and_loss_lines(self):
+        before_card = api.get_food_cost_report(days=7)
+        before_pnl = {r["label"]: r["amount"] for r in api.get_manager_pnl(days=7)["costs"]}
+        self.mixed_bill()
+        after_card = api.get_food_cost_report(days=7)
+        after_pnl = {r["label"]: r["amount"] for r in api.get_manager_pnl(days=7)["costs"]}
+        self.assertAlmostEqual(after_card["purchases"] - before_card["purchases"], 900, 2)
+        self.assertAlmostEqual(after_card["food_cost"] - before_card["food_cost"], 540, 2)
+        self.assertAlmostEqual(after_card["overhead"] - before_card["overhead"], 360, 2)
+        self.assertAlmostEqual(after_pnl["Food cost"] - before_pnl["Food cost"], 540, 2)
+        self.assertAlmostEqual(after_pnl["Staff meals"] - before_pnl["Staff meals"], 360, 2)
+
+    def test_a_category_can_combine_bill_lines_and_standalone_expenses(self):
+        self.mixed_bill()
+        self.expense(140, status="approved")
+        # Use the test's real expense category for the bill too so both sources
+        # deliberately land in one report row.
+        bill = frappe.get_doc("Purchase Bill", self._docs[-2][1])
+        bill.items[1].db_set("category", self.cat)
+        sheet = api.get_category_bills(category=self.cat, days=7)
+        self.assertEqual(sheet["kind"], "mixed")
+        self.assertEqual({r["record_kind"] for r in sheet["rows"]}, {"bill", "expense"})
 
     def test_only_approved_spend_counts(self):
         self.bill(900, status="pending")

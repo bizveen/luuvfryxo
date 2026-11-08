@@ -232,6 +232,33 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
        color:#fff;font-size:11.5px;font-weight:800;align-items:center;justify-content:center;
        padding:0 6px;margin-left:auto;flex:none}
 
+/* ── owner decision dashboard ───────────────────────────────────────── */
+.ov-head{align-items:center;margin-bottom:14px}.ov-head .range{margin-left:auto;display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.ov-head select,.ov-head input[type=date],.ov-head input[type=month]{min-width:132px;padding:8px 10px;font-size:13px}
+.ov-custom,.ov-month{display:none;gap:7px;align-items:end}.ov-custom.on,.ov-month.on{display:flex}
+.ov-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 14px}
+.ov-stat{position:relative;overflow:hidden;background:#fff;border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow-xs)}
+.ov-stat::after{content:'';position:absolute;width:74px;height:74px;border-radius:50%;right:-25px;top:-31px;background:var(--orange-50)}
+.ov-stat .ico{font-size:17px;margin-bottom:14px}.ov-stat .label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+.ov-stat .value{font:500 25px/1.2 var(--font-mono);color:var(--text-strong);margin-top:4px;white-space:nowrap}
+.ov-stat .meta{font-size:11.5px;color:var(--text-muted);margin-top:7px;min-height:18px}.ov-delta{font-weight:700}.ov-delta.up{color:var(--green-500)}.ov-delta.down{color:var(--red-500)}
+.ov-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:14px;margin-bottom:14px}
+.ov-card{background:#fff;border:1px solid var(--border-subtle);border-radius:var(--radius-xl);box-shadow:var(--shadow-xs);padding:16px;min-width:0}
+.ov-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:13px}.ov-card-title{font:700 14px var(--font-display);color:var(--text-strong)}
+.ov-card-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px}.ov-chart{height:260px;min-width:0;overflow:hidden}.ov-chart svg{width:100%;height:100%;display:block}.ov-chart rect{transition:opacity .15s ease}.ov-chart rect:hover{opacity:.78}
+.trend-tabs{display:inline-flex;padding:3px;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);margin-bottom:9px}.trend-tabs button{background:transparent;color:var(--text-muted);border:0;padding:5px 11px;font-size:11.5px}.trend-tabs button:hover{background:transparent;color:var(--text-strong)}.trend-tabs button.active{background:#fff;color:var(--color-primary);box-shadow:var(--shadow-xs)}
+.ov-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--text-muted)}.ov-legend i{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
+.ov-bars{display:grid;gap:13px}.ov-bar-top{display:flex;align-items:center;gap:8px;font-size:12px}.ov-rank{width:22px;height:22px;display:grid;place-items:center;border-radius:7px;background:var(--gray-100);font:500 10px var(--font-mono);color:var(--text-muted)}
+.ov-bar-name{font-weight:700;color:var(--text-strong);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ov-bar-val{font:500 11.5px var(--font-mono);color:var(--text-strong)}
+.ov-track{height:8px;background:var(--gray-100);border-radius:10px;overflow:hidden;margin:5px 0 0 30px}.ov-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--orange-500),var(--orange-300))}
+.ov-decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}.decision-list{display:grid;gap:14px}.decision-branch{padding-bottom:13px;border-bottom:1px solid var(--border-subtle)}.decision-branch:last-child{padding-bottom:0;border-bottom:0}.decision-name{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px;font-weight:700;color:var(--text-strong);margin-bottom:8px}.decision-net{font:700 11.5px var(--font-mono)}.decision-net.good{color:var(--green-500)}.decision-net.bad{color:var(--red-500)}.decision-metric{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:8px;align-items:center;margin-top:6px}.decision-metric .label{font-size:10.5px;color:var(--text-muted)}.decision-metric .track{height:7px;background:var(--gray-100);border-radius:10px;overflow:hidden}.decision-metric .fill{height:100%;border-radius:10px}.decision-metric .value{min-width:70px;text-align:right;font:500 10.5px var(--font-mono);color:var(--text-strong)}
+.ov-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.ov-insight{display:flex;gap:10px;align-items:flex-start;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:12px 13px}
+.ov-insight .icon{width:31px;height:31px;border-radius:9px;display:grid;place-items:center;background:var(--orange-50);flex:none}.ov-insight strong{display:block;font-size:12.5px;color:var(--text-strong)}.ov-insight span{display:block;font-size:11.5px;color:var(--text-muted);line-height:1.35;margin-top:2px}
+.ov-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:20px 0 9px}.ov-section-head h2{margin:0}.ov-period{font:500 11px var(--font-mono);color:var(--text-faint)}
+.cmp-signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}.cmp-signal{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:11px 13px}.cmp-signal .label{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint)}.cmp-signal .value{font-size:13px;font-weight:700;color:var(--text-strong);margin-top:4px;line-height:1.35}
+#cmp td.cmp-good{color:var(--green-500);font-weight:700}#cmp td.cmp-bad{color:var(--red-500);font-weight:700}#cmp td.cmp-strong{font-weight:700}#cmp tr.spend-start td{border-top:2px solid var(--border-default)}
+.ov-loading{opacity:.55;pointer-events:none}
+
 @media (max-width:860px){
   .shell{grid-template-columns:1fr}
   .side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--border-subtle)}
@@ -243,6 +270,15 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
   main{padding:18px 16px 90px}
   .li{grid-template-columns:38px minmax(0,1fr) auto;row-gap:8px}
   .li .pr{grid-column:2}
+  .ov-head .range{width:100%;margin-left:0}.ov-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-grid,.ov-decision-grid{grid-template-columns:1fr}.ov-insights{grid-template-columns:1fr}.ov-chart{height:230px}.cmp-signals{grid-template-columns:1fr}
+}
+@media (max-width:520px){
+  main{padding-left:10px;padding-right:10px}.phead.ov-head{align-items:stretch}.ov-head .range{align-items:stretch}.ov-head .range>div:first-child{flex:1 1 100%}.ov-head select{min-width:0}.ov-custom,.ov-month{width:100%;align-items:flex-end}.ov-custom>div,.ov-month>div{flex:1}.ov-custom input[type=date],.ov-month input[type=month]{min-width:0}.ov-custom button,.ov-month button{padding:8px 13px}
+  .ov-stats{grid-template-columns:1fr 1fr;gap:8px}.ov-stat{padding:12px}.ov-stat .ico{margin-bottom:9px}.ov-stat .value{font-size:19px}.ov-stat .meta{font-size:10.5px}
+  .ov-card{padding:13px}.ov-card-head{flex-direction:column;align-items:stretch}.trend-tabs{width:100%;box-sizing:border-box}.trend-tabs button{flex:1}.ov-legend{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.ov-legend span{white-space:nowrap}.ov-chart{height:220px}
+  #cmp{font-size:12.5px}#cmp th,#cmp td{padding:9px 10px}#cmp th:first-child,#cmp td:first-child{position:sticky;left:0;z-index:2;background:var(--surface-card);box-shadow:1px 0 0 var(--border-subtle)}#cmp thead th:first-child{z-index:3;background:var(--surface-sunken)}#cmp tr.tot td:first-child{background:var(--surface-sunken)}
+  .decision-metric{grid-template-columns:64px minmax(0,1fr) auto;gap:6px}.decision-metric .value{min-width:62px}.decision-name{font-size:12px}
+  .ov-section-head{align-items:flex-end}.ov-period{max-width:52%;text-align:right}.cmp-signal{padding:10px 12px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -288,16 +324,33 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
   <main>
     <!-- ── Overview ─────────────────────────────────────────────────── -->
     <section class="panel" id="p-overview">
-      <div class="phead"><h1>Overview</h1><span class="sub" id="ovDate"></span></div>
-      <div class="stats">
-        <div class="stat"><div class="l">Revenue today</div><div class="v">Rs <span id="stRev">—</span></div></div>
-        <div class="stat"><div class="l">Sales</div><div class="v" id="stSales">—</div></div>
-        <div class="stat"><div class="l">Voids</div><div class="v" id="stVoids">—</div></div>
-        <a class="stat" href="/manager" target="_blank"><div class="l">Approvals waiting</div><div class="v" id="stAppr">—</div></a>
+      <div class="phead ov-head"><div><h1>Business overview</h1><span class="sub" id="ovDate">Live performance across your restaurants</span></div>
+        <div class="range">
+          <div><label for="ovRange">Time range</label><select id="ovRange" onchange="changeOverviewRange(this.value)"><option value="1">Today</option><option value="7" selected>Last 7 days</option><option value="30">Last 30 days</option><option value="month">Selected month</option><option value="custom">Custom range</option></select></div>
+          <div class="ov-month" id="ovMonthWrap"><div><label for="ovMonth">Month</label><input type="month" id="ovMonth"></div><button class="sm" onclick="applyOverviewMonth()">Apply</button></div>
+          <div class="ov-custom" id="ovCustom"><div><label for="ovStart">From</label><input type="date" id="ovStart"></div><div><label for="ovEnd">To</label><input type="date" id="ovEnd"></div><button class="sm" onclick="applyOverviewRange()">Apply</button></div>
+        </div>
       </div>
-      <h2>Branch by branch <span class="cnt">today</span></h2>
+      <div id="ovDash">
+      <div class="ov-stats">
+        <div class="ov-stat"><div class="ico">↗️</div><div class="label">Total revenue</div><div class="value" id="stRev">—</div><div class="meta" id="stRevMeta">Selected period</div></div>
+        <div class="ov-stat"><div class="ico">🧾</div><div class="label">Orders</div><div class="value" id="stSales">—</div><div class="meta" id="stSalesMeta">Across all restaurants</div></div>
+        <div class="ov-stat"><div class="ico">🎯</div><div class="label">Average bill</div><div class="value" id="stAvg">—</div><div class="meta">Revenue per order</div></div>
+        <a class="ov-stat" href="/manager" target="_blank" style="text-decoration:none;color:inherit"><div class="ico">⏳</div><div class="label">Approvals waiting</div><div class="value" id="stAppr">—</div><div class="meta">Tap to review</div></a>
+      </div>
+      <div class="ov-grid">
+        <div class="ov-card"><div class="ov-card-head"><div><div class="trend-tabs" role="tablist" aria-label="Trend measure"><button type="button" class="active" data-trend="revenue" onclick="setTrendMode('revenue')" aria-selected="true">Revenue</button><button type="button" data-trend="expenses" onclick="setTrendMode('expenses')" aria-selected="false">Expenses</button></div><div class="ov-card-title">Trend</div><div class="ov-card-sub" id="trendSub">Daily restaurant revenue, side by side</div></div><div class="ov-legend" id="ovLegend"></div></div><div class="ov-chart" id="ovTrend"><div class="empty">Loading chart…</div></div></div>
+        <div class="ov-card"><div class="ov-card-head"><div><div class="ov-card-title">Restaurant performance</div><div class="ov-card-sub">Revenue contribution in this period</div></div></div><div class="ov-bars" id="ovBars"><div class="empty">Loading…</div></div></div>
+      </div>
+      <div class="ov-decision-grid">
+        <div class="ov-card"><div class="ov-card-head"><div><div class="ov-card-title">Revenue, expenses &amp; net</div><div class="ov-card-sub">Approved spend against sales for each restaurant</div></div></div><div class="decision-list" id="ovNetChart"><div class="empty">Loading…</div></div></div>
+        <div class="ov-card"><div class="ov-card-head"><div><div class="ov-card-title">Orders &amp; average bill</div><div class="ov-card-sub">Is performance driven by more orders or higher customer spend?</div></div></div><div class="decision-list" id="ovDriverChart"><div class="empty">Loading…</div></div></div>
+      </div>
+      <div class="ov-insights" id="ovInsights"></div>
+      <div class="ov-section-head"><h2>Restaurant comparison</h2><span class="ov-period" id="ovPeriod"></span></div>
       <div class="card scroll"><table id="cmp"><tbody><tr><td class="empty">Loading…</td></tr></tbody></table></div>
-      <div id="probs"></div>
+      <div class="cmp-signals" id="cmpSignals"></div>
+      </div>
     </section>
 
     <!-- ── Reports ──────────────────────────────────────────────────── -->
@@ -315,6 +368,7 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
     <!-- ── Restaurants ──────────────────────────────────────────────── -->
     <section class="panel" id="p-branches">
       <div class="phead"><h1>Restaurants</h1><span class="sub">A branch keeps its money apart by its Cost Center and its stock by its Warehouse</span></div>
+      <div id="branchProblems"></div>
       <div class="card" id="setup" style="margin-top:14px"><div class="empty">Loading…</div></div>
 
       <h2>Add a branch</h2>
@@ -665,50 +719,177 @@ addEventListener('hashchange', () => show(location.hash.replace('#', '')));
 
 /* ── overview ─────────────────────────────────────────────────────────── */
 const ROWS = [
-  ['Revenue',  'revenue',     money, true],
-  ['Sales',    'sales_count', v => v === null ? null : String(v), false],
-  ['Avg bill', 'avg_ticket',  money, false],
-  ['Cash',     'cash',        money, false],
+  ['Revenue',            'revenue',          money, true],
+  ['Vs previous period', 'revenue_change',   v => v===null||v===undefined?null:`${v>0?'↑ ':v<0?'↓ ':''}${Math.abs(v).toFixed(1)}%`, false],
+  ['Business share',      'share',            v => v===null||v===undefined?null:`${Number(v).toFixed(1)}%`, false],
+  ['Orders',              'sales_count',      v => v===null||v===undefined?null:nfmt(v), false],
+  ['Average bill',        'avg_ticket',       money, false],
+  ['Revenue / day',       'daily_average',    money, false],
+  ['Expenses',            'expenses',         money, false],
+  ['Expenses / day',      'expense_daily_average', money, false],
+  ['Cash revenue',        'cash',             money, false],
+  ['Approvals waiting',   'approvals_pending',v => v===null||v===undefined?null:nfmt(v), false],
 ];
+const OV_COLORS = ['#F15207','#2D74D6','#1E9E5A','#8B5CF6','#F0A323','#E23D3D'];
+let OV_REQUEST = 0, TREND_MODE='revenue', LAST_OVERVIEW=null;
+function setTrendMode(mode){
+  TREND_MODE=mode==='expenses'?'expenses':'revenue';
+  document.querySelectorAll('[data-trend]').forEach(b=>{ const on=b.dataset.trend===TREND_MODE; b.classList.toggle('active',on); b.setAttribute('aria-selected',on?'true':'false'); });
+  document.getElementById('trendSub').textContent=TREND_MODE==='expenses'?'Approved bills and expenses by day, side by side':'Daily restaurant revenue, side by side';
+  if(LAST_OVERVIEW) renderTrend(LAST_OVERVIEW);
+}
+function pctText(v){
+  if(v === null || v === undefined) return '<span class="ov-delta">New vs previous period</span>';
+  const cls=v>0?'up':v<0?'down':''; const arrow=v>0?'↑ ':v<0?'↓ ':'';
+  return `<span class="ov-delta ${cls}">${arrow}${Math.abs(v).toFixed(1)}%</span> vs previous period`;
+}
+function compactMoney(v){
+  v=Number(v)||0; if(v>=1000000) return 'Rs '+(v/1000000).toFixed(v>=10000000?0:1)+'m';
+  if(v>=1000) return 'Rs '+(v/1000).toFixed(v>=100000?0:1)+'k'; return 'Rs '+Math.round(v);
+}
+function localISO(d){ const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezoneOffset()); return x.toISOString().slice(0,10); }
+function changeOverviewRange(value){
+  document.getElementById('ovCustom').classList.toggle('on',value==='custom');
+  document.getElementById('ovMonthWrap').classList.toggle('on',value==='month');
+  if(value!=='custom'&&value!=='month') loadOverview();
+}
+function monthParams(){
+  const value=document.getElementById('ovMonth').value;
+  if(!/^\d{4}-\d{2}$/.test(value)) return null;
+  const parts=value.split('-'),last=new Date(Number(parts[0]),Number(parts[1]),0).getDate();
+  return {start:value+'-01',end:value+'-'+String(last).padStart(2,'0')};
+}
+function applyOverviewMonth(){ if(!monthParams()){ toast('Choose a month'); return; } loadOverview(); }
+function applyOverviewRange(){
+  const s=document.getElementById('ovStart').value,e=document.getElementById('ovEnd').value;
+  if(!s||!e){ toast('Choose both dates'); return; } loadOverview();
+}
+function overviewParams(){
+  const value=document.getElementById('ovRange').value;
+  if(value==='month') return monthParams()||{days:30};
+  return value==='custom'?{start:document.getElementById('ovStart').value,end:document.getElementById('ovEnd').value}:{days:value};
+}
+function managerOverview(report, strip){
+  if(!report) return null;
+  const cash=((report.payments||[]).find(p=>(p.mode||'').toLowerCase()==='cash')||{}).amount||0;
+  const daily=(report.daily||[]).map(x=>({date:x.date,label:x.label,weekday:x.weekday,revenue:x.revenue,branches:{'Your restaurant':x.revenue},expenses:x.expenses||0,expense_branches:{'Your restaurant':x.expenses||0}}));
+  const revenue=report.total_revenue||0,expenses=report.total_expenses||0,sales=report.total_sales||0;
+  return {start:report.start,end:report.end,days:report.days,range_label:(report.start===report.end?report.start:report.start+' – '+report.end),daily,
+    branches:[{restaurant:'Your restaurant',revenue,expenses,sales_count:sales,avg_ticket:report.avg_ticket||0,cash,share:100,revenue_change:null,cost_center:'current',approvals_pending:((strip&&strip.approvals)||[]).filter(a=>a.status==='pending').length}],
+    totals:{revenue,expenses,sales_count:sales,avg_ticket:report.avg_ticket||0,cash,cash_share:revenue?cash*100/revenue:0,approvals_pending:((strip&&strip.approvals)||[]).filter(a=>a.status==='pending').length,revenue_change:null},
+    leaders:{best_branch:'',best_day:report.best_day||null},problems:[],single_branch:true};
+}
+function renderTrend(d){
+  const host=document.getElementById('ovTrend'),daily=d.daily||[],expenseMode=TREND_MODE==='expenses';
+  const bs=(d.branches||[]).filter(b=>expenseMode?b.expenses!==null:b.revenue!==null),seriesKey=expenseMode?'expense_branches':'branches',measure=expenseMode?'Expenses':'Revenue';
+  document.getElementById('ovLegend').innerHTML=bs.map((b,i)=>`<span><i style="background:${OV_COLORS[i%OV_COLORS.length]}"></i>${esc(b.restaurant)}</span>`).join('');
+  if(!daily.length||!bs.length){ host.innerHTML=`<div class="empty">No ${expenseMode?'expense':'sales'} data in this period.</div>`; return; }
+  const W=Math.max(320,Math.round(host.clientWidth||800)),compact=W<520,H=250,L=compact?48:62,R=compact?8:18,T=14,B=34,plotW=W-L-R,plotH=H-T-B;
+  const max=Math.max(1,...daily.flatMap(day=>bs.map(b=>Number((day[seriesKey]||{})[b.restaurant])||0)));
+  const slot=plotW/daily.length,groupW=Math.min(54,slot*.74),gap=Math.min(3,groupW/(bs.length*5));
+  const barW=Math.max(1.5,(groupW-gap*(bs.length-1))/bs.length);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily ${measure.toLowerCase()} bar chart">`;
+  for(let i=0;i<=4;i++){ const yy=T+i*plotH/4,val=max*(4-i)/4; svg+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="#eee9e4"/><text x="${L-8}" y="${yy+4}" text-anchor="end" font-size="10" fill="#837A70">${esc(compactMoney(val).replace('Rs ',''))}</text>`; }
+  const labelEvery=daily.length<=10?1:Math.ceil(daily.length/6);
+  daily.forEach((day,i)=>{ const groupX=L+i*slot+(slot-groupW)/2;
+    bs.forEach((b,bi)=>{ const value=Number((day[seriesKey]||{})[b.restaurant])||0,height=value*plotH/max,x=groupX+bi*(barW+gap),y=T+plotH-height;
+      if(height>0) svg+=`<rect x="${x}" y="${y}" width="${barW}" height="${height}" rx="2" fill="${OV_COLORS[bi%OV_COLORS.length]}"><title>${esc(day.label||day.date)} · ${esc(b.restaurant)} · ${measure}: ${esc(money(value))}</title></rect>`;
+    });
+    if(i%labelEvery===0||i===daily.length-1) svg+=`<text x="${L+i*slot+slot/2}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="#837A70">${esc(day.label||day.date)}</text>`;
+  });
+  host.innerHTML=svg+'</svg>';
+}
+function renderBars(d){
+  const bs=(d.branches||[]).filter(b=>b.revenue!==null).sort((a,b)=>(b.revenue||0)-(a.revenue||0)),max=Math.max(1,...bs.map(b=>b.revenue||0));
+  document.getElementById('ovBars').innerHTML=bs.length?bs.map((b,i)=>`<div><div class="ov-bar-top"><span class="ov-rank">${i+1}</span><span class="ov-bar-name">${esc(b.restaurant)}</span><span class="ov-bar-val">${esc(compactMoney(b.revenue))}</span></div><div class="ov-track"><div class="ov-fill" style="width:${Math.max(2,(b.revenue||0)*100/max)}%;background:${OV_COLORS[i%OV_COLORS.length]}"></div></div><div style="margin-left:30px;margin-top:3px;font-size:10.5px;color:var(--text-faint)">${(b.share||0).toFixed(1)}% of total${b.revenue_change===null?'':` · ${b.revenue_change>=0?'↑':'↓'} ${Math.abs(b.revenue_change).toFixed(1)}%`}</div></div>`).join(''):'<div class="empty">No configured restaurant data.</div>';
+}
+function decisionMetric(label,value,max,color,formatted){
+  const width=value>0?Math.max(2,Math.min(100,value*100/Math.max(1,max))):0;
+  return `<div class="decision-metric"><span class="label">${esc(label)}</span><span class="track"><span class="fill" style="display:block;width:${width}%;background:${color}"></span></span><span class="value">${esc(formatted)}</span></div>`;
+}
+function renderNetChart(d){
+  const host=document.getElementById('ovNetChart'),bs=(d.branches||[]).filter(b=>b.revenue!==null);
+  if(!bs.length){ host.innerHTML='<div class="empty">No configured restaurant data.</div>'; return; }
+  const rows=bs.map(b=>({name:b.restaurant,revenue:Number(b.revenue)||0,expenses:Number(b.expenses)||0,net:(Number(b.revenue)||0)-(Number(b.expenses)||0)}));
+  const max=Math.max(1,...rows.flatMap(r=>[r.revenue,r.expenses,Math.abs(r.net)]));
+  host.innerHTML=rows.map(r=>`<div class="decision-branch"><div class="decision-name"><span>${esc(r.name)}</span><span class="decision-net ${r.net>=0?'good':'bad'}">Net ${esc(money(r.net))}</span></div>${decisionMetric('Revenue',r.revenue,max,'#2D74D6',money(r.revenue))}${decisionMetric('Expenses',r.expenses,max,'#E23D3D',money(r.expenses))}${decisionMetric('Net',Math.abs(r.net),max,r.net>=0?'#1E9E5A':'#B42318',money(r.net))}</div>`).join('');
+}
+function renderDriverChart(d){
+  const host=document.getElementById('ovDriverChart'),bs=(d.branches||[]).filter(b=>b.revenue!==null);
+  if(!bs.length){ host.innerHTML='<div class="empty">No configured restaurant data.</div>'; return; }
+  const maxOrders=Math.max(1,...bs.map(b=>Number(b.sales_count)||0)),maxTicket=Math.max(1,...bs.map(b=>Number(b.avg_ticket)||0));
+  host.innerHTML=bs.map(b=>`<div class="decision-branch"><div class="decision-name"><span>${esc(b.restaurant)}</span></div>${decisionMetric('Orders',Number(b.sales_count)||0,maxOrders,'#F15207',nfmt(b.sales_count))}${decisionMetric('Avg bill',Number(b.avg_ticket)||0,maxTicket,'#8B5CF6',money(b.avg_ticket))}</div>`).join('');
+}
+function renderInsights(d){
+  const t=d.totals||{},lead=d.leaders||{},best=lead.best_day;
+  const change=t.revenue_change===null||t.revenue_change===undefined?'This is the first comparable period.':`${t.revenue_change>=0?'Revenue grew':'Revenue fell'} ${Math.abs(t.revenue_change).toFixed(1)}% against the previous ${d.days} day${d.days===1?'':'s'}.`;
+  const leader=lead.best_branch?`${lead.best_branch} led with ${compactMoney(lead.best_branch_revenue)}.`:(best?`${best.label||best.date} was strongest at ${compactMoney(best.revenue)}.`:'No sales leader yet.');
+  const mix=`Cash was ${(t.cash_share||0).toFixed(1)}% of revenue; average bill was ${compactMoney(t.avg_ticket)}.`;
+  document.getElementById('ovInsights').innerHTML=[['💡','Period signal',change],['🏆',lead.best_branch?'Top restaurant':'Best day',leader],['💳','Payment & ticket',mix]].map(x=>`<div class="ov-insight"><span class="icon">${x[0]}</span><div><strong>${x[1]}</strong><span>${esc(x[2])}</span></div></div>`).join('');
+}
 function renderCompare(d){
-  document.getElementById('ovDate').textContent = d.date || '';
+  document.getElementById('ovDate').textContent = d.range_label || '';
+  document.getElementById('ovPeriod').textContent = d.range_label || '';
   const bs = d.branches || [];
+  bs.forEach(b=>{ b.daily_average=b.revenue===null?null:(Number(b.revenue)||0)/Math.max(1,d.days||1); b.expense_daily_average=b.expenses===null?null:(Number(b.expenses)||0)/Math.max(1,d.days||1); });
+  const totals=d.totals||{}; totals.daily_average=(Number(totals.revenue)||0)/Math.max(1,d.days||1); totals.expense_daily_average=(Number(totals.expenses)||0)/Math.max(1,d.days||1); totals.share=bs.some(b=>b.revenue!==null)?100:null;
   const head = '<thead><tr><th></th>' + bs.map(b => `<th>${esc(b.restaurant)}</th>`).join('') +
                (bs.length > 1 ? '<th>All</th>' : '') + '</tr></thead>';
+  const tone=(key,value)=>{
+    if(value===null||value===undefined) return '';
+    if(key==='revenue_change') return Number(value)>0?'cmp-good':Number(value)<0?'cmp-bad':'';
+    if(key==='approvals_pending') return Number(value)>0?'cmp-bad':'cmp-good';
+    if(key==='expenses'||key==='expense_daily_average') return 'cmp-bad';
+    if(key==='revenue'||key==='daily_average'||key==='cash') return 'cmp-good';
+    return key==='avg_ticket'?'cmp-strong':'';
+  };
   const body = ROWS.map(([label, key, fmt, big]) => {
     const cells = bs.map(b => {
-      const v = fmt(b[key]);
+      const raw=b[key],v = fmt(raw),cls=tone(key,raw);
       return v === null ? '<td class="na">—</td>'
-                        : `<td class="n${big ? ' big' : ''}">${esc(v)}</td>`;
+                        : `<td class="n${big ? ' big' : ''}${cls?' '+cls:''}">${esc(v)}</td>`;
     }).join('');
-    const total = bs.length > 1
-      ? `<td class="n">${esc(fmt(bs.reduce((a, b) => a + (b[key] || 0), 0)) || '—')}</td>` : '';
-    return `<tr${big ? ' class="tot"' : ''}><td>${label}</td>${cells}${total}</tr>`;
+    const totalValue=totals[key];
+    const totalTone=tone(key,totalValue),total = bs.length > 1 ? `<td class="n${totalTone?' '+totalTone:''}">${esc(fmt(totalValue) || '—')}</td>` : '';
+    const rowClass=[big?'tot':'',key==='expenses'?'spend-start':''].filter(Boolean).join(' ');
+    return `<tr${rowClass?` class="${rowClass}"`:''}><td>${label}</td>${cells}${total}</tr>`;
   }).join('');
   document.getElementById('cmp').innerHTML = head + '<tbody>' + body + '</tbody>';
 
+  const comparable=bs.filter(b=>b.revenue!==null),growth=comparable.filter(b=>b.revenue_change!==null&&b.revenue_change!==undefined).sort((a,b)=>b.revenue_change-a.revenue_change)[0];
+  const ticket=comparable.slice().sort((a,b)=>(b.avg_ticket||0)-(a.avg_ticket||0))[0];
+  const pending=comparable.filter(b=>(b.approvals_pending||0)>0).sort((a,b)=>b.approvals_pending-a.approvals_pending)[0];
+  const declining=comparable.filter(b=>(b.revenue_change||0)<0).sort((a,b)=>a.revenue_change-b.revenue_change)[0];
+  const attention=pending?`${pending.restaurant}: ${nfmt(pending.approvals_pending)} approval${pending.approvals_pending===1?'':'s'} waiting`:declining?`${declining.restaurant}: revenue down ${Math.abs(declining.revenue_change).toFixed(1)}%`:'No obvious branch warning in this period';
+  const signals=[['Growth leader',growth?`${growth.restaurant} · ${growth.revenue_change>=0?'↑':'↓'} ${Math.abs(growth.revenue_change).toFixed(1)}%`:'Needs a previous period'],['Highest average bill',ticket?`${ticket.restaurant} · ${money(ticket.avg_ticket)}`:'No sales yet'],['Needs attention',attention]];
+  document.getElementById('cmpSignals').innerHTML=signals.map(s=>`<div class="cmp-signal"><div class="label">${esc(s[0])}</div><div class="value">${esc(s[1])}</div></div>`).join('');
+
   const probs = d.problems || [];
-  document.getElementById('probs').innerHTML = probs.length
-    ? '<div class="probs"><div class="hd">Set up, and worth fixing</div><ul>' +
+  document.getElementById('branchProblems').innerHTML = probs.length
+    ? '<div class="probs"><div class="hd">Restaurant setup needs attention</div><ul>' +
       probs.map(p => `<li>${esc(p)}</li>`).join('') + '</ul></div>'
     : (bs.length > 1 ? '<div class="okbox">Every branch is wired up — cost centre, warehouse, tills and managers.</div>' : '');
   document.getElementById('navBranches').textContent = bs.length || '';
 }
 async function loadOverview(){
-  const [strip, overview] = await Promise.all([
-    call('get_manager_dashboard', {}), IS_OWNER ? call('get_owner_overview') : null
-  ]);
-  if(strip){
-    document.getElementById('stRev').textContent = nfmt(strip.revenue);
-    document.getElementById('stSales').textContent = strip.sales_count;
-    document.getElementById('stVoids').textContent = strip.void_count;
-    document.getElementById('stAppr').textContent =
-      (strip.approvals || []).filter(a => a.status === 'pending').length;
-  }
-  if(overview) renderCompare(overview);
-  else if(!IS_OWNER) document.getElementById('cmp').innerHTML =
-    '<tbody><tr><td class="empty">Branch comparison is the owner\'s view.</td></tr></tbody>';
+  const request=++OV_REQUEST,params=overviewParams(),dash=document.getElementById('ovDash'); dash.classList.add('ov-loading');
+  const [strip,data] = await Promise.all([call('get_manager_dashboard', {}),IS_OWNER?call('get_owner_overview',params):call('get_manager_sales_report',params)]);
+  if(request!==OV_REQUEST){ return; }
+  const overview=IS_OWNER?data:managerOverview(data,strip); dash.classList.remove('ov-loading'); if(!overview) return; LAST_OVERVIEW=overview;
+  const t=overview.totals||{};
+  document.getElementById('stRev').textContent=money(t.revenue)||'Rs 0';
+  document.getElementById('stRevMeta').innerHTML=pctText(t.revenue_change);
+  document.getElementById('stSales').textContent=nfmt(t.sales_count);
+  document.getElementById('stSalesMeta').textContent=`${overview.days} day${overview.days===1?'':'s'} · all restaurants`;
+  document.getElementById('stAvg').textContent=money(t.avg_ticket)||'Rs 0';
+  document.getElementById('stAppr').textContent=nfmt(t.approvals_pending);
+  renderTrend(overview); renderBars(overview); renderNetChart(overview); renderDriverChart(overview); renderInsights(overview); renderCompare(overview);
 }
+let TREND_RESIZE_TIMER=null;
+addEventListener('resize',()=>{ clearTimeout(TREND_RESIZE_TIMER); TREND_RESIZE_TIMER=setTimeout(()=>{ if(LAST_OVERVIEW) renderTrend(LAST_OVERVIEW); },120); });
+
+// Give custom range useful defaults without using UTC's calendar date.
+{ const end=new Date(),start=new Date(); start.setDate(start.getDate()-29); document.getElementById('ovEnd').value=localISO(end); document.getElementById('ovStart').value=localISO(start); document.getElementById('ovMonth').value=localISO(end).slice(0,7); }
 
 /* ── badges (they belong to Apps, but the count should show before you open it) */
 async function loadBadges(){

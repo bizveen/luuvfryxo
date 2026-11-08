@@ -34,7 +34,7 @@ Everything here is fire-and-forget: a logging bug must never break the POS.
 import json
 
 import frappe
-from luuvcrm import roles
+from luuvcrm import branch, roles
 from frappe.utils import now_datetime, cint, flt
 
 DOCTYPE = "LF Activity Log"
@@ -84,7 +84,7 @@ SELF_LOGGED = {
 NEVER_LOGGED = {
     "log_client_error", "log_ui_activity", "get_activity", "get_bill_trail",
     "get_activity_flags", "purge_activity_log", "setup_activity_log",
-    "review_activity_flag", "get_activity_summary",
+    "review_activity_flag", "clear_activity", "get_activity_summary",
 }
 
 # Request args that must never reach the log.
@@ -119,6 +119,8 @@ def setup_activity_log():
              "options": "server\nclient\nrequest", "default": "server"},
             {"fieldname": "user", "label": "User", "fieldtype": "Data", "search_index": 1},
             {"fieldname": "user_full", "label": "User Name", "fieldtype": "Data"},
+            {"fieldname": "restaurant", "label": "Restaurant", "fieldtype": "Link",
+             "options": "Restaurant", "search_index": 1},
             # What it happened to
             {"fieldname": "ref_doctype", "label": "Ref DocType", "fieldtype": "Data"},
             {"fieldname": "ref_name", "label": "Ref Name", "fieldtype": "Data", "search_index": 1},
@@ -272,6 +274,14 @@ def log_activity(action, app=None, label=None, source="server", user=None,
             except Exception:
                 detail = str(detail)
 
+        # This table is written through _insert() rather than the ORM, so the
+        # normal branch.stamp before_insert hook never runs. Resolve the same
+        # branch here or new rows become NULL and disappear from a restaurant-
+        # scoped activity feed.
+        restaurant = branch.current(user)
+        if not restaurant:
+            restaurant = branch.public(table=table)
+
         row = {
             "app": app,
             "action": _clip(action, 60),
@@ -279,6 +289,7 @@ def log_activity(action, app=None, label=None, source="server", user=None,
             "source": source if source in ("server", "client", "request") else "server",
             "user": _clip(user, 140),
             "user_full": _clip(_full_name(user), 140),
+            "restaurant": _clip(restaurant, 140),
             "ref_doctype": _clip(ref_doctype, 60),
             "ref_name": _clip(ref_name, 140),
             "bill_no": _clip(bill_no, 60),
@@ -500,6 +511,7 @@ def _parse_client_ts(ts):
 
 ACTIVITY_FIELDS = [
     "name", "creation", "app", "action", "label", "source", "user", "user_full",
+    "restaurant",
     "ref_doctype", "ref_name", "bill_no", "table", "item", "item_name", "qty",
     "amount", "total_before", "total_after", "flag", "flag_reason", "flag_note",
     "reviewed", "reviewed_by", "detail", "page", "device", "session_id", "seq",
@@ -516,9 +528,43 @@ def _shape(rows):
     return rows
 
 
+def _restaurant_scope(requested=None):
+    """A safe activity filter within the restaurants this user may operate.
+
+    Blank means the currently active restaurant. ``all`` means all *permitted*
+    restaurants, never every database row; this keeps a pinned manager from
+    widening the request by editing the browser payload.
+    """
+    available = branch.available_restaurants()
+    requested = (requested or "").strip()
+    if not available:
+        # A manager without a Restaurant permission on a multi-branch site is
+        # misconfigured, not an implicit owner. Use an impossible value rather
+        # than dropping the filter and exposing every branch.
+        restaurants = branch.all_restaurants()
+        if len(restaurants) == 1:
+            available = restaurants
+        else:
+            return "__no_restaurant_access__", []
+    if requested == "all":
+        return ["in", available], available
+    restaurant = requested or branch.viewing()
+    if restaurant not in available:
+        frappe.throw("You are not permitted that restaurant", frappe.PermissionError)
+    return restaurant, available
+
+
+def _scope_contains(scope, restaurant):
+    if not scope:
+        return True
+    if isinstance(scope, (list, tuple)) and scope and scope[0] == "in":
+        return restaurant in scope[1]
+    return restaurant == scope
+
+
 @frappe.whitelist()
 def get_activity(app=None, user=None, action=None, flagged=None, days=1,
-                 bill=None, search=None, limit=200):
+                 bill=None, search=None, limit=200, restaurant=None):
     """Activity feed for /activity. Newest first."""
     roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
@@ -534,6 +580,9 @@ def get_activity(app=None, user=None, action=None, flagged=None, days=1,
         days = 1
 
     filters = {}
+    restaurant_scope, available = _restaurant_scope(restaurant)
+    if restaurant_scope:
+        filters[branch.FIELD] = restaurant_scope
     if days:
         filters["creation"] = (">=", frappe.utils.add_to_date(now_datetime(), days=-days))
     if app and app != "all":
@@ -561,6 +610,8 @@ def get_activity(app=None, user=None, action=None, flagged=None, days=1,
 
     # Filter pills — built from the same window the list is showing.
     window = {"creation": filters["creation"]} if days else {}
+    if restaurant_scope:
+        window[branch.FIELD] = restaurant_scope
     apps = [r.app for r in frappe.get_all(DOCTYPE, filters=window, fields=["distinct app as app"])
             if r.app]
     users = [{"user": r.user, "name": r.user_full or r.user}
@@ -572,11 +623,13 @@ def get_activity(app=None, user=None, action=None, flagged=None, days=1,
     return {"rows": _shape(rows), "apps": sorted(apps),
             "users": sorted(users, key=lambda u: u["name"]),
             "flag_count": flag_count,
-            "flag_labels": FLAG_LABELS}
+            "flag_labels": FLAG_LABELS,
+            "restaurants": [{"name": name, "label": branch.display_label(name)}
+                            for name in available]}
 
 
 @frappe.whitelist()
-def get_bill_trail(order=None, bill=None):
+def get_bill_trail(order=None, bill=None, restaurant=None):
     """Every tap and every server action for ONE bill, oldest first.
 
     This is the answer to "the bill was Rs 2,000 more than it should be": the
@@ -597,11 +650,16 @@ def get_bill_trail(order=None, bill=None):
         or_filters["ref_name"] = order
     if bill:
         or_filters["bill_no"] = bill
-    rows = frappe.get_all(DOCTYPE, or_filters=or_filters, fields=ACTIVITY_FIELDS,
+    restaurant_scope, _ = _restaurant_scope(restaurant)
+    filters = {branch.FIELD: restaurant_scope} if restaurant_scope else {}
+    rows = frappe.get_all(DOCTYPE, filters=filters, or_filters=or_filters,
+                          fields=ACTIVITY_FIELDS,
                           order_by="creation asc, seq asc", limit_page_length=500)
 
     head = {}
-    if order and frappe.db.exists("POS Order", order):
+    order_restaurant = (frappe.db.get_value("POS Order", order, branch.FIELD)
+                        if order and frappe.db.exists("POS Order", order) else None)
+    if order and _scope_contains(restaurant_scope, order_restaurant):
         o = frappe.db.get_value("POS Order", order,
                                 ["name", "restaurant_table", "grand_total", "customer_name",
                                  "pos_invoice", "owner", "creation", "docstatus"], as_dict=True)
@@ -616,7 +674,7 @@ def get_bill_trail(order=None, bill=None):
 
 
 @frappe.whitelist()
-def get_activity_flags(days=1):
+def get_activity_flags(days=1, restaurant=None):
     """Unreviewed flag count + a per-reason breakdown — feeds the /manager badge."""
     roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
@@ -626,12 +684,17 @@ def get_activity_flags(days=1):
     except (TypeError, ValueError):
         days = 1
     since = frappe.utils.add_to_date(now_datetime(), days=-days)
-    rows = frappe.db.sql("""
-        select flag_reason, count(*) as n, sum(ifnull(amount, 0)) as amount
-        from `tabLF Activity Log`
-        where flag = 1 and reviewed = 0 and creation >= %s
-        group by flag_reason order by n desc
-    """, (since,), as_dict=True)
+    restaurant_scope, _ = _restaurant_scope(restaurant)
+    filters = {"flag": 1, "reviewed": 0, "creation": (">=", since)}
+    if restaurant_scope:
+        filters[branch.FIELD] = restaurant_scope
+    rows = frappe.get_all(
+        DOCTYPE,
+        filters=filters,
+        fields=["flag_reason", "count(*) as n", "sum(ifnull(amount, 0)) as amount"],
+        group_by="flag_reason",
+        order_by="n desc",
+    )
     return {"count": sum(cint(r.n) for r in rows),
             "by_reason": [{"reason": r.flag_reason,
                            "label": FLAG_LABELS.get(r.flag_reason, r.flag_reason),
@@ -644,6 +707,10 @@ def review_activity_flag(name=None, note="", reviewed=1):
     roles.require_manager()
     if not name or not frappe.db.exists(DOCTYPE, name):
         frappe.throw("Activity row not found")
+    row_restaurant = frappe.db.get_value(DOCTYPE, name, branch.FIELD)
+    _, available = _restaurant_scope("all")
+    if row_restaurant and row_restaurant not in available:
+        frappe.throw("You are not permitted that restaurant", frappe.PermissionError)
     done = cint(reviewed)
     payload = {
         "reviewed": 1 if done else 0,
@@ -681,22 +748,21 @@ def purge_activity_log():
 
 
 @frappe.whitelist(methods=["POST"])
-def clear_activity(scope="reviewed"):
+def clear_activity(scope="reviewed", restaurant=None):
     """Manual clear from /activity — the scheduler is not always running on this
     bench (same reason shift close once said "Scheduler is inactive"), so the
     manager gets a button too."""
     roles.require_manager()
     if not frappe.db.exists("DocType", DOCTYPE):
         return {"ok": True, "deleted": 0}
-    if scope == "all":
-        n = frappe.db.count(DOCTYPE)
-        frappe.db.sql("delete from `tabLF Activity Log`")
-    elif scope == "unflagged":
-        n = frappe.db.count(DOCTYPE, {"flag": 0})
-        frappe.db.sql("delete from `tabLF Activity Log` where flag = 0")
-    else:
-        n = frappe.db.count(DOCTYPE, {"reviewed": 1})
-        frappe.db.sql("delete from `tabLF Activity Log` where reviewed = 1")
+    restaurant_scope, _ = _restaurant_scope(restaurant)
+    filters = {branch.FIELD: restaurant_scope} if restaurant_scope else {}
+    if scope == "unflagged":
+        filters["flag"] = 0
+    elif scope != "all":
+        filters["reviewed"] = 1
+    n = frappe.db.count(DOCTYPE, filters)
+    frappe.db.delete(DOCTYPE, filters)
     frappe.db.commit()
     return {"ok": True, "deleted": n}
 

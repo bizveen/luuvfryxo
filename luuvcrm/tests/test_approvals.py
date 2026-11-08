@@ -334,11 +334,12 @@ class TestPurchaseBillDecision(FrappeTestCase):
             if frappe.db.exists("Purchase Bill", name):
                 frappe.delete_doc("Purchase Bill", name, force=True, ignore_permissions=True)
 
-    def bill(self, item, price, qty=1):
+    def bill(self, item, price, qty=1, category=None):
         doc = frappe.get_doc({
             "doctype": "Purchase Bill", "vendor": "_LFT-Vendor", "status": "pending",
             "total": price * qty, "requested_by": frappe.session.user,
-            "items": [{"item": item, "qty": qty, "price": price}],
+            "items": [{"item": item, "qty": qty, "price": price,
+                       "category": category}],
         })
         doc.flags.ignore_permissions = True
         doc.insert()
@@ -385,6 +386,11 @@ class TestPurchaseBillDecision(FrappeTestCase):
 
     def test_a_line_without_a_price_is_skipped(self):
         doc = self.bill(self.tomato, 0)
+        api._decide_purchase_bill(doc.name, "approved")
+        self.assertIsNone(self.buying_price(self.tomato))
+
+    def test_a_nonstock_expense_line_does_not_rewrite_the_buying_price(self):
+        doc = self.bill(self.tomato, 999, category="Electricity")
         api._decide_purchase_bill(doc.name, "approved")
         self.assertIsNone(self.buying_price(self.tomato))
 
@@ -582,6 +588,15 @@ class TestThePurchaseCardShowsThePriceMove(FrappeTestCase):
                                                        "action_payload") or "{}").get("bill") == bill),
                     None)
         self.assertTrue(card["lines"][0].get("unit"))
+
+    def test_the_spend_category_comes_across_too(self):
+        bill = self.enter(300)
+        cards = api._format_approvals(api._pending_and_recent_approvals(action="purchase_bill"))
+        card = next((c for c in cards
+                     if json.loads(frappe.db.get_value("POS Approval", c["name"],
+                                                       "action_payload") or "{}").get("bill") == bill),
+                    None)
+        self.assertEqual(card["lines"][0].get("category"), api.FOOD_PURCHASE_CATEGORY)
 
 
 class TestBillChangesLand(ApprovalTestCase):

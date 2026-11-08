@@ -55,7 +55,13 @@ import frappe
 
 from luuvcrm import branch, roles
 from luuvcrm.api import EXPENSE_CATEGORIES, GUIDE_DEFAULT_PERCENT
+from luuvcrm.api.expenses import (
+    ITEM_LIST_EXPENSE_CATEGORIES,
+    STOCK_EXPENSE_CATEGORIES,
+)
+from luuvcrm.api.assets import ensure_asset_purchase_categories
 from luuvcrm.api.errors import _install_client_errors
+from luuvcrm.patches.v1_0.allow_fractional_nos import execute as allow_fractional_nos
 
 # ─── Shared permission blocks ────────────────────────────────────────────────
 
@@ -344,8 +350,12 @@ def execute():
     _step("settings single", ensure_settings_single)
     _step("settings singles", ensure_singles)
     _step("home page", ensure_home_page)
+    # ERPNext marks patches complete instead of running them on a fresh install,
+    # so mirror the migrated-site UOM rule here as well.
+    _step("fractional Nos UOM", allow_fractional_nos)
     _step("kitchen groups", seed_kitchen_groups)
     _step("expense categories", seed_expense_categories)
+    _step("fixed asset purchase categories", ensure_asset_purchase_categories)
     _step("Walk In customer", ensure_walk_in_customer)
     frappe.clear_cache()
     frappe.db.commit()
@@ -609,7 +619,10 @@ def seed_expense_categories():
     if not frappe.db.exists("DocType", "Expense Category") or frappe.db.count("Expense Category"):
         return
     for c in EXPENSE_CATEGORIES:
-        frappe.get_doc({"doctype": "Expense Category", "category_name": c}).insert(ignore_permissions=True)
+        frappe.get_doc({"doctype": "Expense Category", "category_name": c,
+                        "in_stock": int(c in STOCK_EXPENSE_CATEGORIES),
+                        "has_item_list": int(c in ITEM_LIST_EXPENSE_CATEGORIES)}).insert(
+                            ignore_permissions=True)
     print(f"  + {len(EXPENSE_CATEGORIES)} expense categories")
 
 

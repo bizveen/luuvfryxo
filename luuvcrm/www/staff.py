@@ -60,7 +60,13 @@ def get_context(context):
     context.asked = asked
     context.desktop_home = "/admin" if "admin" in keys else apps[0]["path"]
     context.branches = branch.choices() if branch.can_choose(user) else []
+    # Keep the Restaurant document name as the value submitted to the API, but
+    # show the same customer-facing name and location used in every operational
+    # app header and in the in-app branch switcher.
+    for choice in context.branches:
+        choice["label"] = branch.display_label(choice["name"])
     context.chosen = branch.selected(user) or ""
+    context.chosen_label = branch.display_label(context.chosen) if context.chosen else ""
     context.csrf_token = frappe.sessions.get_csrf_token()
     context.current_user_full = (frappe.get_value("User", user, "full_name")
                                  or user.split("@")[0].title())

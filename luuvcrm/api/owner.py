@@ -26,65 +26,198 @@ payments. Two definitions of "today's revenue" would be worse than none.
 """
 
 import frappe
-from frappe.utils import today as _today
+from frappe.utils import add_days, date_diff, formatdate, getdate, today as _today
 
 from luuvcrm import activity, branch, roles
 
 
-def _branch_numbers(restaurant, date):
-    """One branch's day. `None` for the money when it has no Cost Center — that
+def _change(current, previous):
+    """Percentage change, with a new business period represented explicitly."""
+    if not previous:
+        return 0.0 if not current else None
+    return round((current - previous) * 100 / previous, 1)
+
+
+def _overview_range(days=7, start=None, end=None, date=None):
+    """Resolve the owner's requested period, capped at one calendar year."""
+    if date and not (start or end):
+        start = end = date
+    if start and end:
+        start, end = getdate(start), getdate(end)
+        if start > end:
+            start, end = end, start
+        if date_diff(end, start) + 1 > 366:
+            start = add_days(end, -365)
+    else:
+        try:
+            days = int(days)
+        except (TypeError, ValueError):
+            days = 7
+        days = max(1, min(days, 366))
+        end = getdate(_today())
+        start = add_days(end, -(days - 1))
+    return start, end, date_diff(end, start) + 1
+
+
+def _branch_numbers(restaurant, start, end, previous_start=None, previous_end=None):
+    """One branch's period. `None` for the money when it has no Cost Center — that
     is "cannot be attributed", which is a different thing from zero and must not
     be shown as a takings figure of nil."""
     centre = branch.cost_center(restaurant)
+    details = frappe.db.get_value("Restaurant", restaurant, ["warehouse", "company"],
+                                  as_dict=True) or frappe._dict()
     out = {
         "restaurant": restaurant,
         "cost_center": centre,
+        "warehouse": details.get("warehouse"),
+        "company": details.get("company"),
         "revenue": None, "sales_count": None, "avg_ticket": None, "cash": None,
+        "previous_revenue": None, "revenue_change": None, "share": 0,
+        "daily": {}, "expenses": 0.0, "expense_daily": {},
         "approvals_pending": frappe.db.count("POS Approval",
                                              {"status": "pending", branch.FIELD: restaurant}),
     }
+
+    # Approved supplier bills and standalone expenses are both money leaving
+    # the branch. Keep the header total for bills so whole-bill discounts are
+    # represented exactly once. Unlike revenue, both doctypes name their
+    # restaurant directly, so spend can still be attributed while a new branch
+    # is waiting for its Cost Center.
+    spend_by_day = {}
+    if frappe.db.exists("DocType", "Purchase Bill"):
+        for row in frappe.db.sql("""
+                SELECT purchase_date AS day, COALESCE(SUM(total), 0) AS amount
+                FROM `tabPurchase Bill`
+                WHERE status = 'approved' AND purchase_date BETWEEN %s AND %s
+                  AND restaurant = %s
+                GROUP BY purchase_date
+                """, (start, end, restaurant), as_dict=True):
+            spend_by_day[str(row.day)] = spend_by_day.get(str(row.day), 0) + float(row.amount or 0)
+    if frappe.db.exists("DocType", "Expense"):
+        for row in frappe.db.sql("""
+                SELECT COALESCE(expense_date, DATE(creation)) AS day,
+                       COALESCE(SUM(amount), 0) AS amount
+                FROM `tabExpense`
+                WHERE status = 'approved'
+                  AND COALESCE(expense_date, DATE(creation)) BETWEEN %s AND %s
+                  AND restaurant = %s
+                GROUP BY day
+                """, (start, end, restaurant), as_dict=True):
+            spend_by_day[str(row.day)] = spend_by_day.get(str(row.day), 0) + float(row.amount or 0)
+    out["expense_daily"] = spend_by_day
+    out["expenses"] = sum(spend_by_day.values())
     if not centre:
         return out
 
-    invoices = frappe.get_all("POS Invoice",
-                              filters={"docstatus": 1, "posting_date": date,
-                                       "cost_center": centre},
-                              fields=["name", "grand_total"])
-    revenue = sum(float(i.grand_total or 0) for i in invoices)
-    cash = 0.0
-    for inv in invoices:
-        for p in (frappe.get_doc("POS Invoice", inv.name).payments or []):
-            if (p.mode_of_payment or "") == "Cash":
-                cash += float(p.amount or 0)
+    rows = frappe.db.sql("""
+        SELECT posting_date AS day, COUNT(*) AS sales_count,
+               COALESCE(SUM(grand_total), 0) AS revenue
+        FROM `tabPOS Invoice`
+        WHERE docstatus = 1 AND posting_date BETWEEN %s AND %s AND cost_center = %s
+        GROUP BY posting_date ORDER BY posting_date
+    """, (start, end, centre), as_dict=True)
+    revenue = sum(float(r.revenue or 0) for r in rows)
+    sales_count = sum(int(r.sales_count or 0) for r in rows)
+    cash = float(frappe.db.sql("""
+        SELECT COALESCE(SUM(p.amount), 0)
+        FROM `tabSales Invoice Payment` p
+        INNER JOIN `tabPOS Invoice` pi ON pi.name = p.parent AND pi.docstatus = 1
+        WHERE p.parenttype = 'POS Invoice' AND p.mode_of_payment = 'Cash'
+          AND pi.posting_date BETWEEN %s AND %s AND pi.cost_center = %s
+    """, (start, end, centre))[0][0] or 0)
+    previous_revenue = 0.0
+    if previous_start is not None and previous_end is not None:
+        previous_revenue = float(frappe.db.sql("""
+            SELECT COALESCE(SUM(grand_total), 0) FROM `tabPOS Invoice`
+            WHERE docstatus = 1 AND posting_date BETWEEN %s AND %s AND cost_center = %s
+        """, (previous_start, previous_end, centre))[0][0] or 0)
     out.update({
         "revenue": revenue,
-        "sales_count": len(invoices),
-        "avg_ticket": revenue / len(invoices) if invoices else 0.0,
+        "sales_count": sales_count,
+        "avg_ticket": revenue / sales_count if sales_count else 0.0,
         "cash": cash,
+        "previous_revenue": previous_revenue,
+        "revenue_change": _change(revenue, previous_revenue),
+        "daily": {str(r.day): float(r.revenue or 0) for r in rows},
     })
     return out
 
 
 @frappe.whitelist()
-def get_owner_overview(date=None):
-    """Every branch's day, side by side, plus what is not set up yet."""
+def get_owner_overview(date=None, days=7, start=None, end=None):
+    """Decision dashboard across restaurants for a selected period.
+
+    ``date`` remains supported for older clients and means a one-day range.
+    """
     roles.require_owner()
-    date = date or _today()
+    start, end, days = _overview_range(days=days, start=start, end=end, date=date)
+    previous_end = add_days(start, -1)
+    previous_start = add_days(previous_end, -(days - 1))
     names = branch.all_restaurants()
-    branches = [_branch_numbers(n, date) for n in names]
+    branches = [_branch_numbers(n, start, end, previous_start, previous_end) for n in names]
 
     def total(field):
         vals = [b[field] for b in branches if b[field] is not None]
         return sum(vals) if vals else 0
 
+    revenue = total("revenue")
+    sales_count = total("sales_count")
+    cash = total("cash")
+    previous_revenue = total("previous_revenue")
+    expenses = total("expenses")
+    for row in branches:
+        row["share"] = round((row["revenue"] or 0) * 100 / revenue, 1) if revenue else 0
+
+    daily = []
+    cursor = start
+    while cursor <= end:
+        key = str(cursor)
+        by_branch = {row["restaurant"]: float(row["daily"].get(key, 0))
+                     for row in branches if row["revenue"] is not None}
+        expense_by_branch = {row["restaurant"]: float(row["expense_daily"].get(key, 0))
+                             for row in branches}
+        daily.append({
+            "date": key,
+            "label": formatdate(cursor, "d MMM"),
+            "weekday": formatdate(cursor, "EEE"),
+            "revenue": sum(by_branch.values()),
+            "branches": by_branch,
+            "expenses": sum(expense_by_branch.values()),
+            "expense_branches": expense_by_branch,
+        })
+        cursor = add_days(cursor, 1)
+
+    ranked = sorted((b for b in branches if b["revenue"] is not None),
+                    key=lambda b: b["revenue"], reverse=True)
+    best_day = max(daily, key=lambda d: d["revenue"]) if daily else None
+    range_label = (formatdate(start, "d MMM yyyy") if days == 1 else
+                   f"{formatdate(start, 'd MMM')} – {formatdate(end, 'd MMM yyyy')}")
+
     return {
-        "date": date,
+        "date": str(end),
+        "start": str(start),
+        "end": str(end),
+        "days": days,
+        "range_label": range_label,
+        "previous_start": str(previous_start),
+        "previous_end": str(previous_end),
         "branches": branches,
+        "daily": daily,
         "totals": {
-            "revenue": total("revenue"),
-            "sales_count": total("sales_count"),
-            "cash": total("cash"),
+            "revenue": revenue,
+            "sales_count": sales_count,
+            "avg_ticket": revenue / sales_count if sales_count else 0,
+            "cash": cash,
+            "expenses": expenses,
+            "cash_share": round(cash * 100 / revenue, 1) if revenue else 0,
             "approvals_pending": total("approvals_pending"),
+            "previous_revenue": previous_revenue,
+            "revenue_change": _change(revenue, previous_revenue),
+        },
+        "leaders": {
+            "best_branch": ranked[0]["restaurant"] if ranked and ranked[0]["revenue"] else "",
+            "best_branch_revenue": ranked[0]["revenue"] if ranked else 0,
+            "best_day": best_day,
         },
         "problems": branch.check(),
         "single_branch": len(names) < 2,

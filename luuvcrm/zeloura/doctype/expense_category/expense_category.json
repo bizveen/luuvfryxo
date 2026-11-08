@@ -8,6 +8,10 @@
  "engine": "InnoDB",
  "field_order": [
   "category_name",
+  "in_stock",
+  "has_item_list",
+  "is_fixed_asset",
+  "asset_category",
   "disabled"
  ],
  "fields": [
@@ -18,6 +22,39 @@
    "label": "Category",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "default": "0",
+   "description": "On = lines in this category are saved as Items and received into stock. Keep off for utilities and other expenses.",
+   "fieldname": "in_stock",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "In Stock"
+  },
+  {
+   "default": "0",
+   "description": "On = Add Bill shows a reusable item dropdown for this category. This does not make the items stock.",
+   "fieldname": "has_item_list",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Has Item List"
+  },
+  {
+   "default": "0",
+   "description": "On = approved supplier-bill lines create draft ERPNext Asset records and stay out of operating expenses.",
+   "fieldname": "is_fixed_asset",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Fixed Asset"
+  },
+  {
+   "depends_on": "is_fixed_asset",
+   "description": "ERPNext Asset Category used for Items and Assets created from this purchase category.",
+   "fieldname": "asset_category",
+   "fieldtype": "Link",
+   "label": "ERPNext Asset Category",
+   "mandatory_depends_on": "is_fixed_asset",
+   "options": "Asset Category"
   },
   {
    "default": "0",

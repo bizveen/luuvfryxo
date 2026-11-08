@@ -6,12 +6,11 @@ Bills, POS Invoices — so a figure here can be found again on a card there.
 
 Three decisions worth knowing before changing anything:
 
-* **Food cost is approved purchase bills, and only those.** Wastage is not
-  added: a spoiled item was bought on a bill already counted, and adding its cost
-  again counts the same money twice. (The Sales vs costs card still adds it, so
-  the two disagree on profit by exactly the period's wastage.) It is the money
-  spent buying food in the period, not the food used — with no stock counts here
-  a heavy-buying month reads as a dear one; the statement says so at its foot.
+* **Food cost is the Food / Ingredients share of approved purchase bills.**
+  Wastage is not added: a spoiled item was bought on a bill already counted,
+  and adding its cost again counts the same money twice. Non-food lines on the
+  same receipt flow to their own P&L categories. It is still the money spent
+  buying food in the period, not the food used.
 * **Food and Beverages are told apart by Kitchen Group** — Beverages and
   Coffee & Tea are drinks, everything else is food — because that is the split
   the kitchen already keeps. An item with no group is food.
@@ -24,6 +23,7 @@ Three decisions worth knowing before changing anything:
 import frappe
 from frappe import _
 from luuvcrm import branch, roles, settings
+from luuvcrm.api.expenses import FOOD_PURCHASE_CATEGORY, category_is_fixed_asset
 from luuvcrm.api.reports import _report_range
 
 # The statement's cost lines, in the order the owner's template has them, each
@@ -76,17 +76,64 @@ def _sum_expenses(start, end, status):
     return {r.category: float(r.amount or 0) for r in rows}
 
 
-def _food_cost(start, end):
-    """Approved purchase bills dated in the window (the day the goods were bought)."""
+def _purchase_costs_by_category(start, end):
+    """Approved supplier-bill spend allocated to its child-line categories."""
     if not frappe.db.exists("DocType", "Purchase Bill"):
-        return 0.0
+        return {}
     cond, params = branch.sql_restaurant("pb")
-    return float(frappe.db.sql(
+    if not frappe.db.has_column("Purchase Bill Item", "category"):
+        amount = float(frappe.db.sql(
+            """
+            SELECT COALESCE(SUM(pb.total), 0) FROM `tabPurchase Bill` pb
+            WHERE pb.status = 'approved'
+              AND pb.purchase_date >= %s AND pb.purchase_date < %s
+            """ + cond,
+            (str(start), str(frappe.utils.add_days(end, 1))) + params,
+        )[0][0] or 0)
+        return {FOOD_PURCHASE_CATEGORY: amount} if amount else {}
+    rows = frappe.db.sql(
+        """
+        SELECT COALESCE(NULLIF(pbi.category, ''), %s) AS category,
+               COALESCE(SUM(pbi.qty * pbi.price * (
+                   CASE WHEN sub.subtotal > 0
+                        THEN pb.total / sub.subtotal ELSE 1 END
+               )), 0) AS amount
+        FROM `tabPurchase Bill Item` pbi
+        INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+        INNER JOIN (
+            SELECT parent, SUM(qty * price) AS subtotal
+            FROM `tabPurchase Bill Item` GROUP BY parent
+        ) sub ON sub.parent = pb.name
+        WHERE pb.status = 'approved'
+          AND pb.purchase_date >= %s AND pb.purchase_date < %s
+        """ + cond + " GROUP BY category",
+        (FOOD_PURCHASE_CATEGORY, str(start), str(frappe.utils.add_days(end, 1))) + params,
+        as_dict=True,
+    )
+    # Asset purchases stay visible in Purchases but belong on the balance sheet,
+    # not in this period's operating profit.
+    out = {r.category: float(r.amount or 0) for r in rows
+           if not category_is_fixed_asset(r.category)}
+    # Defensive legacy fallback: very old/imported bills can have a header
+    # total but no child rows. They were historically all counted as food.
+    orphan = float(frappe.db.sql(
         """
         SELECT COALESCE(SUM(pb.total), 0) FROM `tabPurchase Bill` pb
         WHERE pb.status = 'approved'
           AND pb.purchase_date >= %s AND pb.purchase_date < %s
-        """ + cond, (str(start), str(frappe.utils.add_days(end, 1))) + params)[0][0] or 0)
+          AND NOT EXISTS (SELECT 1 FROM `tabPurchase Bill Item` pbi
+                          WHERE pbi.parent = pb.name)
+        """ + cond,
+        (str(start), str(frappe.utils.add_days(end, 1))) + params,
+    )[0][0] or 0)
+    if orphan:
+        out[FOOD_PURCHASE_CATEGORY] = out.get(FOOD_PURCHASE_CATEGORY, 0.0) + orphan
+    return out
+
+
+def _food_cost(start, end):
+    """Food/ingredient lines from approved supplier bills in the window."""
+    return _purchase_costs_by_category(start, end).get(FOOD_PURCHASE_CATEGORY, 0.0)
 
 
 def _sales(start, end):
@@ -146,11 +193,19 @@ def get_manager_pnl(days=30, start=None, end=None):
     start, end, days = _report_range(days, start, end, cap=366)
 
     approved = _sum_expenses(start, end, "approved")
+    purchase_costs = _purchase_costs_by_category(start, end)
+    food_cost = (purchase_costs.pop(FOOD_PURCHASE_CATEGORY, 0.0)
+                 + approved.pop(FOOD_PURCHASE_CATEGORY, 0.0))
+    # Non-food lines on a mixed receipt join the same statement categories as
+    # standalone Expenses. A Food City bill can therefore feed Food cost,
+    # Staff meals and Office supplies without duplicating the receipt.
+    for category, amount in purchase_costs.items():
+        approved[category] = approved.get(category, 0.0) + amount
     costs, mapped = [], set()
     for label, categories in COST_LINES:
         mapped.update(categories)
         costs.append({"label": label, "amount": round(sum(approved.get(c, 0) for c in categories), 2)})
-    costs.append({"label": "Food cost", "amount": round(_food_cost(start, end), 2)})
+    costs.append({"label": "Food cost", "amount": round(food_cost, 2)})
     costs.append({"label": "Other cost", "amount": round(
         sum(v for c, v in approved.items() if c not in mapped), 2)})
     total_cost = round(sum(c["amount"] for c in costs), 2)
@@ -192,8 +247,8 @@ def get_manager_pnl(days=30, start=None, end=None):
         "profit": profit,
         "profit_pct": round(profit * 100.0 / total_sales, 1) if total_sales > 0 else None,
         "missing_fixed": missing,
-        "food_cost_basis": "Food cost is the approved purchase bills dated in the period — "
-                           "what was bought, not what was used.",
+        "food_cost_basis": "Food cost is the Food / Ingredients lines from approved purchase "
+                           "bills dated in the period — what was bought, not what was used.",
     }
 
 

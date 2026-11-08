@@ -10,6 +10,14 @@ import json
 from frappe.utils import now_datetime
 from luuvcrm import activity, branch, roles
 
+from luuvcrm.api.expenses import (
+    FOOD_PURCHASE_CATEGORY,
+    _install_expenses,
+    category_asset_category,
+    category_has_item_list,
+    category_is_fixed_asset,
+    category_is_stock,
+)
 from luuvcrm.api.schema import _install_pos_approval
 
 
@@ -34,10 +42,14 @@ def _install_purchase_bill():
         "fields": [
             {"fieldname": "item", "label": "Item", "fieldtype": "Link", "options": "Item", "in_list_view": 1},
             {"fieldname": "item_name", "label": "Item Name", "fieldtype": "Data", "in_list_view": 1},
+            {"fieldname": "category", "label": "Category", "fieldtype": "Link",
+             "options": "Expense Category", "in_list_view": 1, "search_index": 1},
             {"fieldname": "uom", "label": "UOM", "fieldtype": "Data"},
             {"fieldname": "qty", "label": "Qty", "fieldtype": "Float", "in_list_view": 1},
             {"fieldname": "price", "label": "Price", "fieldtype": "Currency", "in_list_view": 1},
             {"fieldname": "old_price", "label": "Old Price", "fieldtype": "Currency"},
+            {"fieldname": "asset", "label": "Asset", "fieldtype": "Link",
+             "options": "Asset", "read_only": 1},
         ],
         "permissions": [],
     }).insert(ignore_permissions=True)
@@ -118,19 +130,19 @@ def setup_raw_materials():
     return {"created": created, "group": "Raw Materials", "total": len(RAW_MATERIALS)}
 @frappe.whitelist()
 def get_purchase_catalog():
-    """Buying items + current purchase price (the price book) — raw materials first."""
+    """Buying items + current purchase price, including fixed-asset Items."""
     roles.require_purchases()
     pl = _buying_price_list()
-    items = frappe.get_all("Item", filters={"item_group": "Raw Materials", "disabled": 0},
-                           fields=["name", "item_name", "stock_uom", "item_group"],
-                           order_by="item_name", limit_page_length=300)
-    if not items:
-        items = frappe.get_all("Item", filters={"is_purchase_item": 1, "disabled": 0},
-                               fields=["name", "item_name", "stock_uom", "item_group"],
-                               order_by="item_name", limit_page_length=300)
+    items = frappe.get_all(
+        "Item", filters={"is_purchase_item": 1, "disabled": 0},
+        fields=["name", "item_name", "stock_uom", "item_group",
+                "is_fixed_asset", "asset_category"],
+        order_by="item_name", limit_page_length=500,
+    )
     if not items:
         items = frappe.get_all("Item", filters={"disabled": 0},
-                               fields=["name", "item_name", "stock_uom", "item_group"],
+                               fields=["name", "item_name", "stock_uom", "item_group",
+                                       "is_fixed_asset", "asset_category"],
                                order_by="item_name", limit_page_length=120)
     out = []
     for it in items:
@@ -138,14 +150,24 @@ def get_purchase_catalog():
                                     "price_list_rate") or 0
         out.append({"item": it.name, "name": it.item_name or it.name,
                     "unit": it.stock_uom or "Nos", "group": it.item_group or "",
-                    "price": float(price)})
+                    "price": float(price), "is_fixed_asset": int(it.is_fixed_asset or 0),
+                    "asset_category": it.asset_category or ""})
     return {"items": out, "price_list": pl}
 @frappe.whitelist(methods=["POST"])
 def create_purchase_item():
-    """Create a new buying Item from the purchases app (name + unit).
+    """Create a reusable purchase Item from the purchases app (name + unit).
     Reuses an existing Item if one with the same name is already there."""
     roles.require_purchases()
     data = frappe.local.form_dict
+    category = _purchase_line_category(data.get("category"))
+    if not category_has_item_list(category):
+        frappe.throw(_("This expense category does not use the item list"))
+    is_asset = category_is_fixed_asset(category)
+    asset_category = category_asset_category(category) if is_asset else None
+    if is_asset and (not asset_category or not frappe.db.exists("Asset Category", asset_category)):
+        frappe.throw(_("Configure ERPNext Asset Category {0} first").format(
+            asset_category or category,
+        ))
     item_name = (data.get("item_name") or "").strip()
     if not item_name:
         frappe.throw(_("Item name is required"))
@@ -159,16 +181,21 @@ def create_purchase_item():
         existing = frappe.db.get_value("Item", item_name,
                                        ["name", "stock_uom"], as_dict=True)
     if existing:
+        _validate_item_for_category(existing.name, category)
         price = frappe.db.get_value("Item Price",
             {"item_code": existing.name, "price_list": _buying_price_list()},
             "price_list_rate") or 0
         return {"ok": True, "item": existing.name, "name": item_name,
-                "unit": existing.stock_uom or unit, "price": float(price), "existed": True}
+                "unit": existing.stock_uom or unit, "price": float(price), "existed": True,
+                "is_fixed_asset": int(is_asset), "asset_category": asset_category or ""}
 
     try:
         if not frappe.db.exists("UOM", unit):
             frappe.get_doc({"doctype": "UOM", "uom_name": unit}).insert(ignore_permissions=True)
-        if frappe.db.exists("Item Group", "Raw Materials"):
+        if is_asset:
+            group = ("Products" if frappe.db.exists("Item Group", "Products") else
+                     frappe.db.get_value("Item Group", {"is_group": 0}, "name"))
+        elif frappe.db.exists("Item Group", "Raw Materials"):
             group = "Raw Materials"
         else:
             parent = frappe.db.get_value("Item Group", {"is_group": 1}, "name") or "All Item Groups"
@@ -184,8 +211,13 @@ def create_purchase_item():
             "item_name": item_name,
             "item_group": group,
             "stock_uom": unit,
-            "is_stock_item": 1,
+            "is_stock_item": 0 if is_asset else (1 if category_is_stock(category) else 0),
+            "is_fixed_asset": 1 if is_asset else 0,
+            "asset_category": asset_category if is_asset else None,
+            "auto_create_assets": 0,
+            "is_grouped_asset": 1 if is_asset else 0,
             "is_purchase_item": 1,
+            "is_sales_item": 0,
         })
         doc.flags.ignore_permissions = True
         doc.insert()
@@ -194,7 +226,20 @@ def create_purchase_item():
         frappe.log_error(frappe.get_traceback(), "purchases: create_purchase_item")
         return {"ok": False, "message": frappe.utils.strip_html(str(e))[:200] or "Could not create item"}
     return {"ok": True, "item": doc.name, "name": doc.item_name,
-            "unit": doc.stock_uom, "price": 0}
+            "unit": doc.stock_uom, "price": 0,
+            "is_fixed_asset": int(doc.is_fixed_asset or 0),
+            "asset_category": doc.asset_category or ""}
+
+
+def _validate_item_for_category(item, category):
+    """Keep normal purchase Items and fixed-asset Items in their own lanes."""
+    is_fixed = bool(frappe.db.get_value("Item", item, "is_fixed_asset"))
+    if category_is_fixed_asset(category):
+        from luuvcrm.api.assets import validate_asset_item
+
+        validate_asset_item(item, category)
+    elif is_fixed:
+        frappe.throw(_("Fixed Asset Item {0} needs a fixed-asset purchase category").format(item))
 @frappe.whitelist(methods=["POST"])
 def rename_purchase_item():
     """Fix a purchase item's display name (and unit) from the price book.
@@ -323,6 +368,24 @@ def _canonical_vendor(typed):
     return tidy
 
 
+def _purchase_line_category(value=None):
+    """A live, enabled category for one item on a supplier bill.
+
+    Older clients do not send the new field, so they land in the food bucket
+    instead of failing after a deploy. Unknown and disabled values are refused:
+    silently accepting a typo would create a report bucket nobody can select.
+    """
+    if not frappe.db.exists("DocType", "Expense Category"):
+        _install_expenses()
+    category = " ".join((value or FOOD_PURCHASE_CATEGORY).split())
+    row = frappe.db.get_value(
+        "Expense Category", category, ["name", "disabled"], as_dict=True
+    )
+    if not row or row.disabled:
+        frappe.throw(_("Pick a valid category for every item"))
+    return row.name
+
+
 def _bill_approval(doc):
     """The approval that decided a bill, including a bill reclassified later."""
     if not frappe.db.exists("DocType", "POS Approval"):
@@ -391,9 +454,25 @@ def get_purchase_vendors():
 def _bill_dict(name):
     doc = frappe.get_doc("Purchase Bill", name)
     approval = _bill_approval(doc)
-    lines = [{"item": i.item, "name": i.item_name or i.item, "unit": i.uom or "Nos",
+    lines = [{"row_name": i.name, "item": i.item, "name": i.item_name or i.item,
+              "category": i.get("category") or FOOD_PURCHASE_CATEGORY,
+              "is_stock": 1 if category_is_stock(
+                  i.get("category") or FOOD_PURCHASE_CATEGORY) else 0,
+              "has_item_list": 1 if category_has_item_list(
+                  i.get("category") or FOOD_PURCHASE_CATEGORY) else 0,
+              "is_fixed_asset": 1 if category_is_fixed_asset(
+                  i.get("category") or FOOD_PURCHASE_CATEGORY) else 0,
+              "asset_category": category_asset_category(
+                  i.get("category") or FOOD_PURCHASE_CATEGORY) or "",
+              "asset": i.get("asset") or "",
+              "asset_status": (frappe.db.get_value("Asset", i.get("asset"), "status")
+                               if i.get("asset") else "") or "",
+              "unit": i.uom or "Nos",
               "qty": float(i.qty or 0), "price": float(i.price or 0),
               "old_price": float(i.old_price or 0)} for i in (doc.get("items") or [])]
+    categories = sorted({line["category"] for line in lines if line.get("category")})
+    category_label = (categories[0] if len(categories) == 1 else
+                      (_("Mixed item categories") if len(categories) > 1 else ""))
     subtotal = sum(l["qty"] * l["price"] for l in lines)
     # `total` is what the restaurant actually owes, so it is the one the day
     # summary adds up and the food-cost report sums. The lines' own arithmetic
@@ -424,7 +503,8 @@ def _bill_dict(name):
         "resolved_when": (frappe.utils.format_datetime(resolved_at, "d MMM yyyy, h:mm a")
                           if resolved_at else ""),
         "manager_comment": approval.get("manager_comment") if approval else "",
-        "lines": lines, "subtotal": subtotal, "discount": discount, "total": total,
+        "lines": lines, "categories": categories, "category_label": category_label,
+        "subtotal": subtotal, "discount": discount, "total": total,
         "payment_status": pay_status,
         "due": (doc.status == "approved" and pay_status != "paid"),
         "paid_at": str(doc.get("paid_at")) if doc.get("paid_at") else "",
@@ -451,17 +531,52 @@ def create_purchase_bill():
     total = 0
     appr_lines = []
     for ln in lines:
-        item = ln.get("item")
+        posted_item = (ln.get("item") or "").strip()
+        category = _purchase_line_category(ln.get("category"))
+        has_item_list = category_has_item_list(category)
+        is_asset = category_is_fixed_asset(category)
+        typed_name = " ".join((ln.get("name") or "").split())
+        # Categories without an item list (Gas, Electricity, etc.) are typed
+        # descriptions. Trust that category switch even when an old or
+        # manipulated client posts an Item code with the line.
+        item = posted_item if has_item_list else ""
+        if is_asset:
+            from luuvcrm.api.assets import ensure_asset_item
+
+            item = ensure_asset_item(typed_name, category, ln.get("unit") or "Nos")
         qty = float(ln.get("qty") or 0)
         price = float(ln.get("price") or 0)
-        old_price = frappe.db.get_value("Item Price",
+        if has_item_list and not item:
+            frappe.throw(_("Purchase items must be created or picked from the item list"))
+        if item and not frappe.db.exists("Item", item):
+            frappe.throw(_("Item {0} does not exist").format(item))
+        if item:
+            _validate_item_for_category(item, category)
+        if category_is_fixed_asset(category) and (qty <= 0 or qty != int(qty)):
+            frappe.throw(_("Fixed asset quantities must be whole numbers"))
+        old_price = (frappe.db.get_value("Item Price",
             {"item_code": item, "price_list": _buying_price_list()}, "price_list_rate") or 0
-        name = frappe.db.get_value("Item", item, "item_name") or item
-        uom = ln.get("unit") or frappe.db.get_value("Item", item, "stock_uom") or "Nos"
-        doc.append("items", {"item": item, "item_name": name, "uom": uom, "qty": qty,
+                     if has_item_list and item else 0)
+        master_name = (frappe.db.get_value("Item", posted_item, "item_name")
+                       if posted_item and frappe.db.exists("Item", posted_item) else None)
+        name = (typed_name if is_asset else
+                ((master_name or typed_name or item) if has_item_list
+                 else (typed_name or master_name)))
+        if not name:
+            frappe.throw(_("Every line needs a name"))
+        uom = ((frappe.db.get_value("Item", item, "stock_uom") if is_asset else None)
+               or ln.get("unit")
+               or (frappe.db.get_value("Item", item, "stock_uom") if item else None)
+               or "Nos")
+        doc.append("items", {"item": item or None, "item_name": name, "category": category,
+                             "uom": uom, "qty": qty,
                              "price": price, "old_price": float(old_price)})
         total += qty * price
-        appr_lines.append({"qtyStr": f"{qty:g} {uom}", "name": name,
+        # A descriptive/non-stock charge has no meaningful quantity. It still
+        # uses qty=1 internally so its amount totals correctly, but the approve
+        # card must not pretend that the user entered "1 Bill".
+        appr_lines.append({"qtyStr": f"{qty:g} {uom}" if has_item_list else "", "name": name,
+                           "category": category,
                            "totalStr": f"Rs {int(round(qty * price)):,}"})
     doc.total = total
     doc.flags.ignore_permissions = True
@@ -629,7 +744,8 @@ def search_purchase_bills(q=None, status=None, limit=30, offset=0):
         params["like"] = "%" + q + "%"
         where.append("""(b.vendor LIKE %(like)s OR b.note LIKE %(like)s
             OR EXISTS (SELECT 1 FROM `tabPurchase Bill Item` i
-                       WHERE i.parent = b.name AND i.item_name LIKE %(like)s))""")
+                       WHERE i.parent = b.name
+                         AND (i.item_name LIKE %(like)s OR i.category LIKE %(like)s)))""")
     if status in ("pending", "approved", "rejected"):
         params["status"] = status
         where.append("b.status = %(status)s")
@@ -695,10 +811,70 @@ def _visible(doctype, name):
     return frappe.get_doc(doctype, name)
 
 
+def _apply_purchase_line_categories(doc, line_categories):
+    """Apply validated per-row categories to one pending purchase bill.
+
+    Changing a stock line to a descriptive category collapses its arithmetic
+    to one amount and removes the Item link. The reverse is refused because a
+    description has no stock Item to receive.
+    """
+    if not line_categories:
+        return []
+    if doc.status != "pending":
+        frappe.throw(_("Categories can only be changed while the bill is pending"))
+    changes = frappe.parse_json(line_categories) if isinstance(line_categories, str) else line_categories
+    if not isinstance(changes, list):
+        frappe.throw(_("Line categories must be a list"))
+    rows = {row.name: row for row in (doc.get("items") or [])}
+    changed = []
+    for entry in changes:
+        row_name = (entry.get("row_name") or "").strip() if isinstance(entry, dict) else ""
+        if row_name not in rows:
+            frappe.throw(_("A bill line is missing or belongs to another bill"))
+        row = rows[row_name]
+        new_category = _purchase_line_category(entry.get("category"))
+        old_category = row.get("category") or FOOD_PURCHASE_CATEGORY
+        if new_category == old_category:
+            continue
+        new_has_list = category_has_item_list(new_category)
+        new_is_asset = category_is_fixed_asset(new_category)
+        if new_has_list and not row.item:
+            frappe.throw(_("{0} cannot use an item-list category without an Item").format(
+                row.item_name or _("This line")
+            ))
+        if new_has_list and row.item:
+            _validate_item_for_category(row.item, new_category)
+        values = {"category": new_category}
+        if new_is_asset:
+            from luuvcrm.api.assets import ensure_asset_item
+
+            values.update({
+                "item": ensure_asset_item(row.item_name, new_category, "Nos"),
+                "uom": "Nos",
+                "old_price": 0,
+            })
+        elif not new_has_list and row.item:
+            values.update({
+                "item": None,
+                "qty": 1,
+                "uom": "Bill",
+                "price": float(row.qty or 0) * float(row.price or 0),
+                "old_price": 0,
+            })
+        frappe.db.set_value("Purchase Bill Item", row.name, values, update_modified=False)
+        changed.append({"row_name": row.name, "from": old_category, "to": new_category})
+    if changed:
+        doc.reload()
+        doc.db_set("total", sum(float(row.qty or 0) * float(row.price or 0)
+                                for row in (doc.get("items") or [])))
+    return changed
+
+
 @frappe.whitelist(methods=["POST"])
 def update_purchase_bill(name=None, vendor=None, purchase_date=None, receipt_image=None,
-                         note=None):
-    """Correct a bill's vendor, date, photo or note. Manager, owner or admin.
+                         note=None, line_categories=None):
+    """Correct a bill's vendor, date, photo, note or pending line categories.
+    Manager, owner or admin.
 
     A field left out of the request is left alone; an empty `receipt_image` or
     `note` clears it. A changed date is held to the same window a new bill is
@@ -721,7 +897,8 @@ def update_purchase_bill(name=None, vendor=None, purchase_date=None, receipt_ima
         after["note"] = note.strip()
 
     changed = {k: v for k, v in after.items() if v != before[k]}
-    if not changed:
+    category_changes = _apply_purchase_line_categories(doc, line_categories)
+    if not changed and not category_changes:
         return {"ok": True, "changed": [], "bill": _bill_dict(doc.name)}
     for field, value in changed.items():
         doc.db_set(field, value or None, update_modified=True)
@@ -741,8 +918,10 @@ def update_purchase_bill(name=None, vendor=None, purchase_date=None, receipt_ima
     activity.log_activity(
         "purchase_bill.edit", label="Bill corrected: %s" % after["vendor"],
         ref_doctype="Purchase Bill", ref_name=doc.name, amount=doc.total,
-        detail={"from": {k: before[k] for k in changed}, "to": changed})
-    return {"ok": True, "changed": sorted(changed), "bill": _bill_dict(doc.name)}
+        detail={"from": {k: before[k] for k in changed}, "to": changed,
+                "line_categories": category_changes})
+    changed_fields = sorted(changed) + (["line_categories"] if category_changes else [])
+    return {"ok": True, "changed": changed_fields, "bill": _bill_dict(doc.name)}
 
 
 @frappe.whitelist()
@@ -778,7 +957,9 @@ def _decide_purchase_bill(name, decision, discount=None):
             _apply_bill_discount(doc, discount)
         pl = _buying_price_list()
         for line in (doc.get("items") or []):
-            if not line.item or not line.price:
+            if (not category_has_item_list(line.category)
+                    or category_is_fixed_asset(line.category)
+                    or not line.item or not line.price):
                 continue
             existing = frappe.db.get_value("Item Price",
                 {"item_code": line.item, "price_list": pl}, "name")
@@ -799,6 +980,12 @@ def _decide_purchase_bill(name, decision, discount=None):
         from luuvcrm.api.inventory import receive_purchase_stock
 
         receive_purchase_stock(doc)
+        # Fixed-asset lines are registered in ERPNext but deliberately left in
+        # Draft for depreciation/accounting review. The custom bill is not a GL
+        # Purchase Invoice, so auto-submitting here would invent ledger entries.
+        from luuvcrm.api.assets import create_purchase_assets
+
+        create_purchase_assets(doc)
     doc.db_set("status", decision)
     doc.db_set("resolved_by", frappe.session.user)
     doc.db_set("resolved_at", now_datetime())

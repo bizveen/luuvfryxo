@@ -12,7 +12,7 @@ import json
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from luuvcrm import api, roles
+from luuvcrm import api, branch, roles
 from luuvcrm.tests import fixtures as fx
 
 
@@ -32,6 +32,11 @@ class OrderTestCase(FrappeTestCase):
         for name in getattr(self, "_orders", []):
             if frappe.db.exists("POS Order", name):
                 frappe.delete_doc("POS Order", name, force=True, ignore_permissions=True)
+        for name in getattr(self, "_tables", []):
+            if frappe.db.exists("Restaurant Table", name):
+                frappe.delete_doc(
+                    "Restaurant Table", name, force=True, ignore_permissions=True
+                )
 
     def call(self, endpoint, **kwargs):
         """Invoke an endpoint the way a request would."""
@@ -193,10 +198,84 @@ class TestWaiterAppendItems(OrderTestCase):
         order.reload()
         self.assertEqual(order.grand_total, 1375, "1250 of food plus 10% service")
 
+    def test_the_waiter_order_list_names_the_creator_and_each_appender(self):
+        order = self.order([{"item": self.burger, "qty": 1}], order_source="Waiter")
+        second = "lf-test-second-waiter@example.com"
+        if not frappe.db.exists("User", second):
+            frappe.get_doc({
+                "doctype": "User", "email": second, "first_name": "Second Waiter",
+                "send_welcome_email": 0, "roles": [{"role": roles.WAITER}],
+            }).insert(ignore_permissions=True)
+        restaurant = order.get(branch.FIELD)
+        if restaurant and not frappe.db.exists(
+                "User Permission", {"user": second, "allow": "Restaurant",
+                                    "for_value": restaurant}):
+            permission = frappe.get_doc({
+                "doctype": "User Permission", "user": second,
+                "allow": "Restaurant", "for_value": restaurant,
+                "apply_to_all_doctypes": 1,
+            }).insert(ignore_permissions=True)
+            self.addCleanup(
+                lambda: frappe.db.exists("User Permission", permission.name) and
+                frappe.delete_doc("User Permission", permission.name, force=True,
+                                  ignore_permissions=True)
+            )
+
+        previous = frappe.session.user
+        frappe.set_user(second)
+        try:
+            self.call(api.waiter_append_items, order_name=order.name,
+                      items=json.dumps([{"item": self.cola, "qty": 1}]))
+        finally:
+            frappe.set_user(previous)
+
+        result = self.call(api.get_my_orders)
+        shown = next(o for o in result["orders"] if o.name == order.name)
+        self.assertEqual(shown.staff_log[0]["action"], "created")
+        self.assertEqual(shown.staff_log[0]["user"], order.owner)
+        appenders = [e["user"] for e in shown.staff_log if e["action"] == "added"]
+        self.assertIn(second, appenders)
+
     def test_it_refuses_an_order_that_does_not_exist(self):
         with self.assertRaises(Exception):
             self.call(api.waiter_append_items, order_name="_LFT-NOPE",
                       items=json.dumps([{"item": self.cola, "qty": 1}]))
+
+    def test_a_second_waiter_ticket_on_the_table_appends_to_the_open_order(self):
+        restaurant = branch.viewing()
+        if not restaurant:
+            self.skipTest("no active Restaurant")
+        table = "_LFT-ORD-MERGE-" + frappe.generate_hash(length=6)
+        row = {
+            "doctype": "Restaurant Table",
+            "__newname": table,
+            "restaurant": restaurant,
+            "no_of_seats": 4,
+        }
+        if frappe.db.has_column("Restaurant Table", "enabled"):
+            row["enabled"] = 1
+        table = frappe.get_doc(row).insert(
+            ignore_permissions=True, ignore_mandatory=True
+        ).name
+        self._tables = [table]
+
+        first = self.order(
+            [{"item": self.burger, "qty": 1}],
+            table=table,
+            order_source="Waiter",
+        )
+        frappe.db.set_value("POS Order Item", first.items[0].name, "sent_qty", 1)
+        second = self.call(
+            api.send_to_kitchen,
+            items=json.dumps([{"item": self.cola, "qty": 1}]),
+            table=table,
+            order_source="Waiter",
+        )
+
+        self.assertEqual(second["name"], first.name)
+        self.assertTrue(second["appended"])
+        first.reload()
+        self.assertEqual([i.item for i in first.items], [self.burger, self.cola])
 
 
 class TestOrderEndpointsRefuseOutsiders(OrderTestCase):
@@ -218,6 +297,15 @@ class TestOrderEndpointsRefuseOutsiders(OrderTestCase):
         with self.assertRaises(frappe.PermissionError):
             self.call(api.update_order, order_name=order.name,
                       items=json.dumps([{"item": self.burger, "qty": 99}]))
+
+    def test_a_waiter_cannot_remove_or_rebuild_existing_items(self):
+        order = self.order([{"item": self.burger, "qty": 1}])
+        self._as(roles.WAITER)
+        with self.assertRaises(frappe.PermissionError):
+            self.call(api.update_order, order_name=order.name,
+                      items=json.dumps([{"item": self.cola, "qty": 1}]))
+        order.reload()
+        self.assertEqual([i.item for i in order.items], [self.burger])
 
     def test_kitchen_staff_cannot_read_the_edit_history(self):
         order = self.order([{"item": self.burger, "qty": 1}])

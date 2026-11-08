@@ -116,6 +116,12 @@ pre{background:var(--surface-sunken);border:1px solid var(--border-subtle);borde
     <span id="chipApps" style="display:contents;"></span>
   </div>
   <div class="chips">
+    <select id="selRestaurant" onchange="load()">
+      {%- for restaurant in restaurants %}
+      <option value="{{ restaurant.name }}"{% if restaurant.name == active_restaurant %} selected{% endif %}>{{ restaurant.label }}</option>
+      {%- endfor %}
+      {%- if restaurants|length > 1 %}<option value="all">All restaurants</option>{% endif %}
+    </select>
     <select id="selUser" onchange="load()"><option value="all">Everyone</option></select>
     <select id="selDays" onchange="load()">
       <option value="1">Today</option>
@@ -188,6 +194,7 @@ async function call(method, params){
 async function load(){
   const params = {
     app: state.app, flagged: state.flagged,
+    restaurant: document.getElementById('selRestaurant').value,
     user: document.getElementById('selUser').value,
     days: document.getElementById('selDays').value,
     search: document.getElementById('q').value.trim(),
@@ -279,7 +286,9 @@ async function review(name, on){
 async function clearLog(scope){
   const what = scope==='reviewed' ? 'checked-off rows' : 'un-flagged rows';
   if(!window.confirm('Delete all '+what+'? This cannot be undone.')) return;
-  try{ const d = await call('clear_activity', {scope:scope}); toast('Deleted '+(d.deleted||0)); load(); }
+  try{ const d = await call('clear_activity', {
+    scope:scope, restaurant:document.getElementById('selRestaurant').value
+  }); toast('Deleted '+(d.deleted||0)); load(); }
   catch(e){ toast('Could not clear'); }
 }
 
@@ -296,7 +305,10 @@ async function openTrail(order, bill){
   document.getElementById('trailSub').textContent = '';
   document.getElementById('trailBody').innerHTML = '<div class="empty">Loading…</div>';
   try{
-    const d = await call('get_bill_trail', {order:order||'', bill:bill||''});
+    const d = await call('get_bill_trail', {
+      order:order||'', bill:bill||'',
+      restaurant:document.getElementById('selRestaurant').value
+    });
     renderTrail(d);
   }catch(e){ document.getElementById('trailBody').innerHTML='<div class="empty">Could not load this bill.</div>'; }
 }

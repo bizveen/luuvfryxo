@@ -10,6 +10,7 @@ from luuvcrm import branch, roles
 
 from luuvcrm.api import menu
 from luuvcrm.api.approvals import _format_approvals, _pending_and_recent_approvals
+from luuvcrm.api.expenses import FOOD_PURCHASE_CATEGORY
 
 
 # ─── A note on limits (P3) ─────────────────────────────────────────────────
@@ -236,6 +237,69 @@ def get_manager_sales_report(days=7, start=None, end=None):
         (start, end) + _inv_params, as_dict=True)
     by_date = {str(r.d): {"revenue": float(r.revenue or 0), "count": int(r.cnt or 0)} for r in rows}
 
+    # Daily approved spend for Admin > Overview's Revenue / Expenses trend.
+    # Purchase Bill totals already include their approval discount; standalone
+    # Expense rows cover rent, utilities, wages and the other overheads.
+    spend_by_date = {}
+    if frappe.db.exists("DocType", "Purchase Bill"):
+        _pb_cond, _pb_params = branch.sql_restaurant("pb")
+        if (frappe.db.has_column("Expense Category", "is_fixed_asset")
+                and frappe.db.has_column("Purchase Bill Item", "category")):
+            purchase_sql = """
+                SELECT pb.purchase_date AS d,
+                       COALESCE(SUM(pbi.qty * pbi.price * (
+                           CASE WHEN sub.subtotal > 0 THEN pb.total / sub.subtotal ELSE 1 END
+                       )), 0) AS amount
+                FROM `tabPurchase Bill Item` pbi
+                INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
+                INNER JOIN (
+                    SELECT parent, SUM(qty * price) AS subtotal
+                    FROM `tabPurchase Bill Item` GROUP BY parent
+                ) sub ON sub.parent = pb.name
+                LEFT JOIN `tabExpense Category` ec ON ec.name = pbi.category
+                WHERE pb.status = 'approved' AND pb.purchase_date BETWEEN %s AND %s
+                  AND IFNULL(ec.is_fixed_asset, 0) = 0
+                """ + _pb_cond + " GROUP BY pb.purchase_date"
+        else:
+            purchase_sql = """
+                SELECT pb.purchase_date AS d, COALESCE(SUM(pb.total), 0) AS amount
+                FROM `tabPurchase Bill` pb
+                WHERE pb.status = 'approved' AND pb.purchase_date BETWEEN %s AND %s
+                """ + _pb_cond + " GROUP BY pb.purchase_date"
+        for row in frappe.db.sql(purchase_sql, (start, end) + _pb_params, as_dict=True):
+            spend_by_date[str(row.d)] = spend_by_date.get(str(row.d), 0) + float(row.amount or 0)
+        if (frappe.db.has_column("Expense Category", "is_fixed_asset")
+                and frappe.db.has_column("Purchase Bill Item", "category")):
+            # Imported/legacy headers can have no child rows. They pre-date the
+            # category split, so retain the historical food/operating treatment
+            # instead of silently dropping them from Overview.
+            for row in frappe.db.sql("""
+                    SELECT pb.purchase_date AS d,
+                           COALESCE(SUM(pb.total), 0) AS amount
+                    FROM `tabPurchase Bill` pb
+                    WHERE pb.status = 'approved'
+                      AND pb.purchase_date BETWEEN %s AND %s
+                      AND NOT EXISTS (
+                          SELECT 1 FROM `tabPurchase Bill Item` pbi
+                          WHERE pbi.parent = pb.name
+                      )
+                    """ + _pb_cond + " GROUP BY pb.purchase_date",
+                    (start, end) + _pb_params, as_dict=True):
+                spend_by_date[str(row.d)] = (
+                    spend_by_date.get(str(row.d), 0) + float(row.amount or 0)
+                )
+    if frappe.db.exists("DocType", "Expense"):
+        _e_cond, _e_params = branch.sql_restaurant("e")
+        for row in frappe.db.sql("""
+                SELECT COALESCE(e.expense_date, DATE(e.creation)) AS d,
+                       COALESCE(SUM(e.amount), 0) AS amount
+                FROM `tabExpense` e
+                WHERE e.status = 'approved'
+                  AND COALESCE(e.expense_date, DATE(e.creation)) BETWEEN %s AND %s
+                """ + _e_cond + " GROUP BY d",
+                (start, end) + _e_params, as_dict=True):
+            spend_by_date[str(row.d)] = spend_by_date.get(str(row.d), 0) + float(row.amount or 0)
+
     daily = []
     cur = start
     while cur <= end:
@@ -247,6 +311,7 @@ def get_manager_sales_report(days=7, start=None, end=None):
             "weekday": formatdate(cur, "EEE"),
             "revenue": rec["revenue"],
             "count": rec["count"],
+            "expenses": spend_by_date.get(key, 0),
         })
         cur = add_days(cur, 1)
 
@@ -417,6 +482,7 @@ def get_manager_sales_report(days=7, start=None, end=None):
         "items_revenue": items_revenue,
         "hourly": hourly,
         "total_revenue": total_revenue,
+        "total_expenses": sum(d["expenses"] for d in daily),
         "total_sales": total_sales,
         "avg_ticket": avg_ticket,
         "best_day": best_day,
@@ -647,8 +713,9 @@ def get_manager_purchase_report(days=7, start=None, end=None):
 
     The item breakdown is the one place that cannot just read `total`: the
     discount belongs to the bill, not to any line on it. It is pro-rated down
-    the lines by value, which is the only split that leaves the item list adding
-    up to the same money as every other card here.
+    the lines by value. Only lines whose category is marked ``in_stock`` belong
+    in item/quantity/price analysis; utility descriptions remain part of the
+    bill and spend totals, but are not things the kitchen bought into stock.
     """
     roles.require_manager()
     from frappe.utils import getdate, add_days, formatdate, today as _today
@@ -750,11 +817,14 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         ) sub ON sub.parent = pbi.parent
         WHERE pb.status = 'approved'
           AND pb.purchase_date >= %s AND pb.purchase_date < %s
+          AND COALESCE(NULLIF(pbi.category, ''), %s) IN (
+              SELECT ec.name FROM `tabExpense Category` ec WHERE ec.in_stock = 1
+          )
         """ + _pb_cond + """
         GROUP BY name, pbi.uom
         ORDER BY spend DESC
         """,
-        (range_start, range_end) + _pb_params, as_dict=True)
+        (range_start, range_end, FOOD_PURCHASE_CATEGORY) + _pb_params, as_dict=True)
     # Grouped by unit as well as name: summing 50 Kg of beef with 50 Nos of eggs
     # into one quantity would be a number that means nothing. `bills` — how many
     # bills the item appeared on — is the one measure of "how much we use this"
@@ -777,11 +847,14 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
         WHERE pb.status = 'approved' AND pbi.price > 0
           AND pb.purchase_date >= %s AND pb.purchase_date < %s
+          AND COALESCE(NULLIF(pbi.category, ''), %s) IN (
+              SELECT ec.name FROM `tabExpense Category` ec WHERE ec.in_stock = 1
+          )
         """ + _pb_cond + """
         GROUP BY name, pbi.uom
         HAVING COUNT(DISTINCT pb.vendor) > 1 AND MAX(pbi.price) > MIN(pbi.price)
         """,
-        (range_start, range_end) + _pb_params, as_dict=True)
+        (range_start, range_end, FOOD_PURCHASE_CATEGORY) + _pb_params, as_dict=True)
     price_spread = []
     for r in cmp_rows:
         lo, hi, qty = float(r.lo or 0), float(r.hi or 0), float(r.qty or 0)
@@ -810,10 +883,13 @@ def get_manager_purchase_report(days=7, start=None, end=None):
         WHERE pb.status = 'approved' AND pbi.old_price > 0 AND pbi.price > 0
           AND pbi.price <> pbi.old_price
           AND pb.purchase_date >= %s AND pb.purchase_date < %s
+          AND COALESCE(NULLIF(pbi.category, ''), %s) IN (
+              SELECT ec.name FROM `tabExpense Category` ec WHERE ec.in_stock = 1
+          )
         """ + _pb_cond + """
         ORDER BY pb.purchase_date ASC, pb.requested_at ASC
         """,
-        (range_start, range_end) + _pb_params, as_dict=True)
+        (range_start, range_end, FOOD_PURCHASE_CATEGORY) + _pb_params, as_dict=True)
     # One row per item: the first price it carried in the window against the
     # last. Every wobble in between is noise a manager cannot act on.
     first_last = {}
@@ -990,10 +1066,13 @@ def get_manager_vendor_detail(vendor=None, days=7, start=None, end=None):
         ) sub ON sub.parent = pbi.parent
         WHERE pb.vendor = %s AND pb.status = 'approved'
           AND pb.purchase_date BETWEEN %s AND %s
+          AND COALESCE(NULLIF(pbi.category, ''), %s) IN (
+              SELECT ec.name FROM `tabExpense Category` ec WHERE ec.in_stock = 1
+          )
         """ + cond + """
         GROUP BY name, pbi.uom
         ORDER BY spend DESC
-    """, (vendor, start, end) + params, as_dict=True) if r.name]
+    """, (vendor, start, end, FOOD_PURCHASE_CATEGORY) + params, as_dict=True) if r.name]
 
     if frappe.db.has_column("Purchase Bill", "payment_status"):
         unpaid = frappe.db.sql("""

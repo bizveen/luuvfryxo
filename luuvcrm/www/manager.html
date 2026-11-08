@@ -1013,7 +1013,8 @@ function lfPoll(fn, ms){
       const up=op>0&&pr>op, down=op>0&&pr<op;
       const note=up?('↑ was Rs '+nfmt(op)):(down?('↓ was Rs '+nfmt(op)):'');
       const col=up?'var(--color-danger)':'var(--color-success)';
-      return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${li.qtyStr||li.qty||''}</span> ${li.name||''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
+      const qtyText=Object.prototype.hasOwnProperty.call(li,'qtyStr')?li.qtyStr:(li.qty||'');
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${qtyText}</span> ${li.name||''}${li.category?` <span style="color:var(--color-primary);font-weight:700;font-size:10.5px;">${esc(li.category)}</span>`:''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
     }).join('');
     const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
     const orderLines=(a.order_lines||[]).map(li=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span class="mono" style="color:var(--text-muted);flex:none;">${esc(li.qtyStr||'')}</span><span style="color:var(--text-strong);flex:1;min-width:0;">${esc(li.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">${esc(li.totalStr||'')}</span></div>`).join('');
@@ -1030,12 +1031,11 @@ function lfPoll(fn, ms){
     if(locked){
       actions=`<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-md);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`; }
     else if(pending){ const ticked=Object.values(st.ticks).filter(Boolean).length; const ok=!nLines||ticked>=nLines;
-      const catBox=(a.category_options||[]).length?`<div style="margin-top:10px;"><label style="display:block;font-size:12.5px;font-weight:700;color:var(--text-body);margin-bottom:6px;">Category</label><select onchange="apprCategory('${a.name}',this.value)" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 12px;font-size:13.5px;color:var(--text-strong);background:var(--surface-card);outline:none;">${a.category_options.map(c=>`<option value="${esc(c.value)}" ${st.category===c.value?'selected':''} ${a.type==='expense'&&c.value===''?'disabled':''}>${c.value===''?'🧾 ':''}${esc(c.label)}</option>`).join('')}</select><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Same categories as New bill / expense. A stock bill changed to an expense will not receive stock or update buying prices.</div></div>`:'';
       const discBox=a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;">
         <span style="font-size:12.5px;font-weight:700;color:var(--text-body);white-space:nowrap;">Discount Rs</span>
         <input type="text" inputmode="decimal" value="${esc(st.discount||'')}" oninput="apprDisc('${a.name}',this.value)" placeholder="0" style="flex:1;min-width:0;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px 12px;font-size:14px;font-family:var(--font-mono);color:var(--text-strong);outline:none;">
       </div><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Comes off this bill's total. The items keep the prices they were bought at.</div>`:'';
-      actions=`${catBox}${discBox}<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
+      actions=`${discBox}<input type="text" value="${esc(st.comment)}" oninput="apprCmt('${a.name}',this.value)" placeholder="Comment (optional)" style="width:100%;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;">
       ${nLines?`<div id="cnt_${a.name}" style="font-size:11.5px;color:var(--text-faint);margin-top:6px;">Tick every line to enable Approve · ${ticked}/${nLines} checked</div>`:''}
       <div style="display:flex;gap:9px;margin-top:10px;"><button id="app_${a.name}" ${ok?'':'disabled'} onclick="resolve('${a.name}','approved')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check" style="width:16px;height:16px;"></i> Approve</button><button onclick="resolve('${a.name}','rejected')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject</button></div>`; }
     else if(a.status==='approved') actions=`<div style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--color-success);background:var(--color-success-subtle);border-radius:var(--radius-md);padding:9px 13px;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approved · sent back to POS</div>`;
@@ -1981,12 +1981,14 @@ function lfPoll(fn, ms){
     // who typed it in and when.
     document.getElementById('billMeta').textContent=[b.date?('Bought '+b.date):'',b.by?('Entered by '+b.by):'',b.time||''].filter(Boolean).join(' · ');
     document.getElementById('billAudit').innerHTML=billDecisionAudit(b);
-    const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const changed=l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;
+    const linesHtml=(b.lines||[]).map(l=>{ const lt=(l.qty||0)*(l.price||0); const listed=l.has_item_list===undefined?l.is_stock:l.has_item_list; const changed=listed&&!l.is_fixed_asset&&l.old_price&&l.old_price!==l.price; const up=l.price>l.old_price;
       return `<div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
-        <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;">${emojiFor(l.name)}</span>
+        <span style="width:34px;height:34px;border-radius:10px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none;">${l.is_fixed_asset?'🏷️':emojiFor(l.name)}</span>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13.5px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div>
-          <div style="font-size:12px;color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit)} × Rs ${nfmt(l.price)}${changed?` <span style="color:${up?'var(--color-danger)':'var(--color-success)'};font-weight:700;">${up?'↑':'↓'} was Rs ${nfmt(l.old_price)}</span>`:''}</div>
+          ${listed?`<div style="font-size:12px;color:var(--text-muted);">${(Math.round((l.qty||0)*100)/100)} ${esc(l.unit)} × Rs ${nfmt(l.price)}${changed?` <span style="color:${up?'var(--color-danger)':'var(--color-success)'};font-weight:700;">${up?'↑':'↓'} was Rs ${nfmt(l.old_price)}</span>`:''}</div>`:''}
+          <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-top:2px;">${esc(l.category||'Food / Ingredients')}</div>
+          ${l.asset?`<a href="/app/asset/${encodeURIComponent(l.asset)}" style="display:inline-flex;margin-top:4px;color:var(--color-success);font-size:11px;font-weight:700;text-decoration:none;">🏷 ${esc(l.asset)} · ${esc(l.asset_status||'Draft')}</a>`:(l.is_fixed_asset?'<span style="display:block;margin-top:4px;color:var(--color-warning);font-size:11px;font-weight:700;">Asset creates after approval</span>':'')}
         </div>
         <span class="mono" style="font-size:13.5px;color:var(--text-strong);flex:none;">Rs ${nfmt(lt)}</span>
       </div>`; }).join('')||'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No items on this bill.</div>';
@@ -2013,7 +2015,7 @@ function lfPoll(fn, ms){
   function catEmoji(c){ if(c==='Purchase Bill') return '🧾'; const n=(c||'').toLowerCase();
     const M={electric:'⚡',water:'💧',gas:'🔥',rent:'🏠',internet:'📶',phone:'📶',salar:'👥',wage:'👥',repair:'🔧',mainten:'🔧',transport:'🚚',fuel:'⛽',clean:'🧽',licen:'📄',fee:'📄',advert:'📣',office:'🗂️',meal:'🍛',medical:'💊',tax:'🏛️',municipal:'🏛️',charit:'🤝'};
     for(const k in M){ if(n.includes(k)) return M[k]; } return '💸'; }
-  function catLabel(c){ return c==='Purchase Bill'?'Purchase bills (stock)':c; }
+  function catLabel(c){ return c==='Purchase Bill'?'Legacy uncategorised purchases':c; }
   async function loadCategorySpend(){
     try{ const r=await _post('/api/method/luuvcrm.api.get_category_spend',pArgs()); if(!r) return; const d=await r.json(); const m=d.message; if(!m) return;
       catRows=m.categories||[]; const tot=m.total||0;
@@ -2050,22 +2052,23 @@ function lfPoll(fn, ms){
     }catch(e){ document.getElementById('catBody').innerHTML='<div style="padding:20px 0;color:var(--text-faint);font-size:13px;">Connection error.</div>'; }
   }
   function renderCategorySheet(m){
-    const exp=m.kind==='expense'; catSheetRows=m.rows||[];
+    catSheetRows=m.rows||[];
     document.getElementById('catMeta').textContent=(pMonth?monthRange(pMonth).label:('Last '+pDays+' days'))+' · '+m.count+' bill'+(m.count===1?'':'s')+' · Rs '+nfmt(m.total);
     const when=iso=>iso?new Date(iso+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}):'';
     document.getElementById('catBody').innerHTML=catSheetRows.length?catSheetRows.map((b,i)=>{
+      const exp=(b.record_kind||m.kind)==='expense';
       const title=exp?(b.payee||b.category):b.vendor;
       const sub=exp?[when(b.date),b.bill_ref?('#'+b.bill_ref):'',b.by].filter(Boolean).join(' · ')
                    :[b.date,(b.lines||[]).length+' item'+((b.lines||[]).length===1?'':'s'),b.by].filter(Boolean).join(' · ');
       return `<div onclick="openCategoryRow(${i})" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
-        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:catEmoji(exp?m.category:'Purchase Bill')}</span>
+        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" style="width:100%;height:100%;object-fit:cover;">`:catEmoji(m.category||b.category||'Purchase Bill')}</span>
         <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(title)||'—'}</div><div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(sub)}</div></div>
-        <span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(exp?b.amount:b.total)}</span></div>`; }).join('')
+        <span class="mono" style="font-size:14px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.category_total!==undefined?b.category_total:(exp?b.amount:b.total))}</span></div>`; }).join('')
       +(m.count>catSheetRows.length?`<div style="font-size:12px;color:var(--text-faint);padding:8px 0;">Showing ${catSheetRows.length} of ${m.count}.</div>`:'')
       :'<div style="color:var(--text-faint);font-size:13px;padding:10px 0;">No approved bills in this category this period.</div>';
     catSheet=m.category; catSheetKind=m.kind; icons();
   }
-  function openCategoryRow(i){ const b=catSheetRows[i]; if(!b) return; if(catSheetKind==='expense') showExpense(b); else showBill(b); }
+  function openCategoryRow(i){ const b=catSheetRows[i]; if(!b) return; if((b.record_kind||catSheetKind)==='expense') showExpense(b); else showBill(b); }
   function hideCategory(){ document.getElementById('catOverlay').style.display='none'; catSheet=null; }
   // After an edit: the card's totals and, if it is open, the sheet behind the bill.
   function refreshCategories(){ loadCategorySpend(); if(catSheet&&document.getElementById('catOverlay').style.display==='flex') loadCategorySheet(catSheet); }

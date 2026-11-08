@@ -84,15 +84,16 @@ input,button{font-family:inherit;}
     <div id="tabList">
       <div style="position:relative;margin-bottom:13px;">
         <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint);pointer-events:none;"></i>
-        <input id="billSearch" type="text" placeholder="Search any bill — vendor or item" oninput="onSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:11px 34px 11px 37px;font-size:14px;color:var(--text-strong);">
+        <input id="billSearch" type="text" placeholder="Search vendor, item or expense" oninput="onSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:11px 34px 11px 37px;font-size:14px;color:var(--text-strong);">
         <button id="billSearchX" onclick="clearSearch()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:7px;line-height:1;font-size:15px;">&times;</button>
       </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:7px;margin-bottom:13px;">
+        <select id="feedCategory" class="inp" onchange="setFeedFilter('category',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All categories</option></select>
+        <select id="feedStatus" class="inp" onchange="setFeedFilter('status',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
+        <select id="feedDate" class="inp" onchange="setFeedFilter('date',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All dates</option><option value="today">Today</option><option value="7">7 days</option><option value="30">30 days</option></select>
+      </div>
+      <div id="feedCount" style="font-size:11.5px;color:var(--text-faint);margin:0 3px 9px;"></div>
       <div id="expList"></div>
-      <div id="searchList" style="display:none;"></div>
-    </div>
-    <div id="tabExpenses" style="display:none;">
-      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="zap" style="width:16px;height:16px;color:var(--color-primary);"></i> Utility bills, rent and other non-stock payments.</div>
-      <div id="expenseList"></div>
     </div>
     <div id="tabDue" style="display:none;">
       <div style="background:var(--ink);color:#fff;border-radius:var(--radius-xl);padding:18px 20px;box-shadow:var(--shadow-lg);margin-bottom:16px;">
@@ -127,32 +128,28 @@ input,button{font-family:inherit;}
     </div>
   </div>
 
-  <!-- Add FAB — acts on whichever list you're looking at; hidden on the price book -->
+  <!-- Add FAB — one sheet creates either a supplier bill or an expense -->
   <div id="fab" style="position:fixed;left:50%;transform:translateX(-50%);width:390px;max-width:calc(100% - 40px);bottom:88px;z-index:25;">
-    <button class="lf-btn" id="fabBtn" onclick="fabClick()"><i data-lucide="camera" id="fabIcon" style="width:20px;height:20px;"></i> <span id="fabLabel">Add bill</span></button>
+    <button class="lf-btn" id="fabBtn" onclick="fabClick()"><i data-lucide="plus-circle" id="fabIcon" style="width:20px;height:20px;"></i> <span id="fabLabel">Add bill / expense</span></button>
   </div>
 
   <!-- bottom nav -->
   <div style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:10px 8px 14px;gap:4px;">
-    <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Bills</span></button>
+    <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Purchases</span></button>
     <button class="navb" data-tab="due" onclick="setTab('due')"><span style="position:relative;display:inline-flex;"><i data-lucide="alarm-clock"></i><span id="dueBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-danger);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Due</span></button>
     <button class="navb" data-tab="appr" onclick="setTab('appr')"><span style="position:relative;display:inline-flex;"><i data-lucide="stamp"></i><span id="apprBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-primary);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Approve</span></button>
-    <button class="navb" data-tab="expenses" onclick="setTab('expenses')"><span style="position:relative;display:inline-flex;"><i data-lucide="zap"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Expenses</span></button>
     <button class="navb" data-tab="prices" onclick="setTab('prices')"><span style="position:relative;display:inline-flex;"><i data-lucide="boxes"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Items</span></button>
   </div>
 </div></div>
 
-<!-- Add sheet — Category decides whether this becomes a Purchase Bill or an Expense -->
+<!-- Add sheet — choose supplier bill or an expense category inside the sheet -->
 <div id="addOverlay" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeAdd()">
   <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
     <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
     <div id="addTitle" style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New bill</div>
     <div id="addSubtitle" style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Add each item and its purchase price — it goes to the manager for approval.</div>
 
-    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Category</div>
-    <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()" style="margin-bottom:20px;"></select>
-
-    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;"><span id="photoStepLabel">1 · Receipt photo</span> <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;"><span id="photoStepLabel">Receipt photo</span> <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
     <label id="photoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:8px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
       <span id="photoHint">📷 Tap to snap receipt</span>
       <img id="photoImg" style="display:none;width:100%;height:100%;object-fit:cover;">
@@ -162,18 +159,21 @@ input,button{font-family:inherit;}
       <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this)">
     </label>
 
-    <div id="billModeFields">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">2 · Items &amp; purchase prices</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
-      <div id="lineRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
+    <div id="entryTypeFields" style="display:block;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Entry type / expense category</div>
+      <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()"></select>
+    </div>
 
-      <button onclick="togglePicker()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="plus" id="pickerIcon" style="width:17px;height:17px;"></i> <span id="pickerLabel">Add item from list</span></button>
-      <div id="pickerWrap" style="display:none;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:10px;overflow:hidden;"></div>
+    <div id="billModeFields">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">Categories &amp; items</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
+      <div id="categoryCards" style="display:flex;flex-direction:column;gap:12px;"></div>
+      <button onclick="addCategoryCard()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:12px;"><i data-lucide="plus" style="width:17px;height:17px;"></i> Add category</button>
 
       <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Bill total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="billTotal">0</span></span></div>
     </div>
 
     <div id="expModeFields" style="display:none;">
-      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">2 · Amount</div>
+      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">Amount</div>
       <div style="display:flex;align-items:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-sunken);border-radius:var(--radius-md);padding:13px 15px;margin-bottom:14px;">
         <span class="mono" style="font-size:14px;color:var(--text-muted);">Rs</span>
         <input id="fAmount" type="number" inputmode="decimal" placeholder="0" oninput="saveDraft()" style="flex:1;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:16px;color:var(--text-strong);">
@@ -284,8 +284,10 @@ function lfPoll(fn, ms){
 }
   const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   const CAN_EDIT={{ "true" if can_edit_bills else "false" }};
-  let tab='list', catalog=[], formLines=[], pickerOpen=false, newReceipt='', pickerQuery='', priceItems=[], recipeItems=[], ACTIVE_RECIPE=null;
-  let expStats={}, billStats={}, expCats=[];
+  const DEFAULT_PURCHASE_CATEGORY='Food / Ingredients';
+  let tab='list', catalog=[], formLines=[], categoryCards=[], nextCategoryCardId=1, newReceipt='', priceItems=[], recipeItems=[], ACTIVE_RECIPE=null;
+  let feedCategory='', feedStatus='', feedDate='', feedQuery='';
+  let expStats={}, billStats={}, expCats=[], expenseOnlyCats=[], stockCats=[], itemListCats=[], assetCats=[], assetCategoryMap={};
   function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
   function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
   // The phone's own calendar day. toISOString() is UTC, which in Sri Lanka is
@@ -309,26 +311,21 @@ function lfPoll(fn, ms){
   function setTab(t){ tab=t; document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
     document.getElementById('tabList').style.display=t==='list'?'block':'none';
     document.getElementById('tabDue').style.display=t==='due'?'block':'none';
-    document.getElementById('tabExpenses').style.display=t==='expenses'?'block':'none';
     document.getElementById('tabPrices').style.display=t==='prices'?'block':'none';
     document.getElementById('tabAppr').style.display=t==='appr'?'block':'none';
     document.getElementById('fab').style.display=(t==='prices'||t==='due'||t==='appr')?'none':'block';
-    document.getElementById('fabLabel').textContent=t==='expenses'?'Add expense':'Add bill';
-    document.getElementById('fabIcon').setAttribute('data-lucide',t==='expenses'?'zap':'camera');
     if(t==='prices') loadPriceBook();
-    if(t==='expenses') loadExpenses();
     if(t==='due') loadDue();
     if(t==='appr') loadApprovals();
     paintStats(); icons(); }
-  // One popup handles both — which tab you were on just picks its starting category.
+  // One popup handles both supplier bills and standalone expenses.
   function fabClick(){ openAdd(); }
 
-  // The three header tiles describe whichever list is on screen — bills and expenses are
-  // separate pots of money and summing them into one figure would mean nothing.
-  function paintStats(){ const m=(tab==='expenses'?expStats:billStats)||{};
-    document.getElementById('stApproved').textContent=nfmt(m.approved_today||0);
-    document.getElementById('stPending').textContent=nfmt(m.pending_amt||0);
-    document.getElementById('stWeek').textContent=nfmt(m.week||0); }
+  // Header totals now describe the unified purchase + expense feed.
+  function paintStats(){
+    document.getElementById('stApproved').textContent=nfmt((billStats.approved_today||0)+(expStats.approved_today||0));
+    document.getElementById('stPending').textContent=nfmt((billStats.pending_amt||0)+(expStats.pending_amt||0));
+    document.getElementById('stWeek').textContent=nfmt((billStats.week||0)+(expStats.week||0)); }
 
   function paintDueBadge(){ const n=(billStats&&billStats.due_count)||0; const b=document.getElementById('dueBadge');
     if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
@@ -336,49 +333,92 @@ function lfPoll(fn, ms){
     if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
   async function loadBills(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
     billStats=m; paintStats(); paintDueBadge(); paintApprBadge(); billRows=m.bills||[];
-    const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
-    document.getElementById('expList').innerHTML=(m.bills||[]).length?(m.bills||[]).map((b,i)=>{ const t=TONE[b.status]||TONE.pending;
-      return `<div onclick="openDetail('bill',billRows[${i}])" style="cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
-        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${b.receipt_image}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
-        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
-        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${esc(b.date||b.time)}</div>
-        <span class="badge ${t[0]}">${t[1]}</span></div></div>`; }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No bills yet. Tap “Add bill / expense”.</div>';
-    icons();
+    renderUnifiedFeed();
   }catch(e){} }
 
   const EXP_EMOJI={electric:'⚡',water:'💧',gas:'🔥',rent:'🏠',internet:'📶',phone:'📶',salar:'👥',wage:'👥',repair:'🔧',mainten:'🔧',transport:'🚚',fuel:'⛽',clean:'🧽',consum:'🧽',licen:'📄',fee:'📄'};
   function expEmoji(c){ const n=(c||'').toLowerCase(); for(const k in EXP_EMOJI){ if(n.includes(k)) return EXP_EMOJI[k]; } return '🧾'; }
 
-  async function loadExpenses(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expenses',{}); if(!r) return; const d=await r.json(); const m=d.message||{expenses:[]};
-    expStats=m; if(tab==='expenses') paintStats(); expRows=m.expenses||[];
+  function setFeedFilter(kind,value){
+    if(kind==='category') feedCategory=value||'';
+    if(kind==='status') feedStatus=value||'';
+    if(kind==='date') feedDate=value||'';
+    renderUnifiedFeed(); }
+  function openFeedRecord(kind,name){
+    const rows=kind==='bill'?billRows:expRows;
+    const rec=rows.find(r=>r.name===name); if(rec) openDetail(kind,rec); }
+  function renderUnifiedFeed(){
     const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
-    document.getElementById('expenseList').innerHTML=(m.expenses||[]).length?(m.expenses||[]).map((e,i)=>{ const t=TONE[e.status]||TONE.pending;
-      const sub=[e.payee,e.bill_ref?('#'+e.bill_ref):'',e.when].filter(Boolean).map(esc).join(' · ');
-      return `<div onclick="openDetail('expense',expRows[${i}])" style="cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
-        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${e.receipt_image?`<img src="${esc(e.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:expEmoji(e.category)}</div>
-        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.category)}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(e.amount)}</span></div>
-        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sub}</div>
-        <span class="badge ${t[0]}">${t[1]}</span></div></div>`; }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No expenses yet. Tap “Add expense”.</div>';
-    icons();
+    const all=[
+      ...billRows.map((rec,i)=>({kind:'bill',rec,date:rec.purchase_date||'',order:i})),
+      ...expRows.map((rec,i)=>({kind:'expense',rec,date:rec.date||'',order:i+billRows.length}))
+    ];
+    let cutoff='';
+    if(feedDate==='today') cutoff=localToday();
+    else if(feedDate==='7') cutoff=localDaysAgo(6);
+    else if(feedDate==='30') cutoff=localDaysAgo(29);
+    const q=feedQuery.toLowerCase();
+    const rows=all.filter(x=>{
+      const r=x.rec;
+      const cats=x.kind==='bill'?(r.categories||[...(r.lines||[]).map(l=>l.category)]):[r.category];
+      if(feedCategory&&!cats.includes(feedCategory)) return false;
+      if(feedStatus&&r.status!==feedStatus) return false;
+      if(cutoff&&(!x.date||x.date<cutoff)) return false;
+      if(q){ const hay=(x.kind==='bill'
+        ?[r.vendor,r.category_label,...(r.lines||[]).flatMap(l=>[l.name,l.category])]
+        :[r.payee,r.category,r.bill_ref,r.note]).filter(Boolean).join(' ').toLowerCase();
+        if(!hay.includes(q)) return false; }
+      return true;
+    }).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||a.order-b.order);
+    document.getElementById('feedCount').textContent=`${rows.length} of ${all.length} record${all.length===1?'':'s'}`;
+    document.getElementById('expList').innerHTML=rows.length?rows.map(x=>{ const r=x.rec,t=TONE[r.status]||TONE.pending,isBill=x.kind==='bill';
+      const amount=isBill?r.total:r.amount;
+      const title=isBill?r.vendor:(r.payee||r.category);
+      const category=isBill?(r.category_label||'Purchase bill'):r.category;
+      const date=isBill?(r.date||r.time):(r.date||r.when);
+      const icon=r.receipt_image?`<img src="${esc(r.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:(isBill?emojiFor(((r.lines||[])[0]||{}).name):expEmoji(r.category));
+      return `<div onclick="openFeedRecord('${x.kind}','${esc(r.name)}')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${icon}</div>
+        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(title)||'—'}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(amount)}</span></div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(category)} · ${esc(date)}</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:10.5px;font-weight:800;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;">${isBill?'Bill':'Expense'}</span><span class="badge ${t[0]}">${t[1]}</span></div></div></div>`;
+    }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No purchases match these filters.</div>';
+    icons(); }
+
+  async function loadExpenses(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expenses',{}); if(!r) return; const d=await r.json(); const m=d.message||{expenses:[]};
+    expStats=m; paintStats(); expRows=m.expenses||[]; renderUnifiedFeed();
   }catch(e){} }
 
   async function loadExpCats(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); if(!r) return; const d=await r.json();
     expCats=(d.message&&d.message.categories)||[];
+    expenseOnlyCats=(d.message&&d.message.expense_categories)||expCats;
+    const details=(d.message&&d.message.category_details)||[];
+    stockCats=details.filter(c=>c.in_stock).map(c=>c.name);
+    itemListCats=details.filter(c=>c.has_item_list).map(c=>c.name);
+    assetCats=details.filter(c=>c.is_fixed_asset).map(c=>c.name);
+    assetCategoryMap={}; details.forEach(c=>{ if(c.is_fixed_asset) assetCategoryMap[c.name]=c.asset_category||''; });
+    const feedSel=document.getElementById('feedCategory');
+    if(feedSel){ const cur=feedSel.value; feedSel.innerHTML='<option value="">All categories</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join(''); feedSel.value=expCats.includes(cur)?cur:''; }
+    if(!stockCats.length&&expCats.includes(DEFAULT_PURCHASE_CATEGORY)) stockCats=[DEFAULT_PURCHASE_CATEGORY];
+    if(!itemListCats.length&&expCats.includes(DEFAULT_PURCHASE_CATEGORY)) itemListCats=[DEFAULT_PURCHASE_CATEGORY];
     renderCategoryOptions();
+    const sel=document.getElementById('fCategory');
+    if(sel.value==='') renderCategoryCards();
+    renderUnifiedFeed();
   }catch(e){} }
 
-  // First option ("") means "this is a stock Purchase Bill" — everything else is
-  // one of the manager's Expense Categories. Keeps the selection across a
-  // background refresh of the category list.
+  // Blank means the category-card Purchase Bill flow; an actual category is
+  // the one-amount Expense flow opened from the Expenses tab.
   function renderCategoryOptions(){ const sel=document.getElementById('fCategory'); if(!sel) return;
     const cur=sel.value;
-    sel.innerHTML='<option value="">🧾 Purchase Bill (stock items)</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
-    if(cur && expCats.includes(cur)) sel.value=cur; }
+    sel.innerHTML='<option value="">🧾 Purchase Bill (categorise each item)</option>'+expenseOnlyCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if(cur && expenseOnlyCats.includes(cur)) sel.value=cur; }
 
   // Swaps the sheet between Bill mode (items + vendor) and Expense mode
   // (amount + payee) — the photo, date and note fields stay put either way.
   function onCategoryChange(){
     const isExp=document.getElementById('fCategory').value!=='';
+    document.getElementById('entryTypeFields').style.display='block';
     document.getElementById('billModeFields').style.display=isExp?'none':'block';
     document.getElementById('expModeFields').style.display=isExp?'block':'none';
     document.getElementById('fVendorLabel').textContent=isExp?'Paid to':'Vendor / paid to';
@@ -387,8 +427,8 @@ function lfPoll(fn, ms){
     document.getElementById('addTitle').textContent=isExp?'New expense':'New bill';
     document.getElementById('addSubtitle').textContent=isExp
       ?'A utility bill, gas, rent — anything that isn’t a stock purchase. It goes to the manager for approval.'
-      :'Add each item and its purchase price — it goes to the manager for approval.';
-    document.getElementById('photoStepLabel').textContent=isExp?'1 · Bill photo':'1 · Receipt photo';
+      :'Choose a category, add all its items, then add another category if this receipt needs one.';
+    document.getElementById('photoStepLabel').textContent=isExp?'Bill photo':'Receipt photo';
     if(document.getElementById('photoImg').style.display==='none'){
       document.getElementById('photoHint').textContent=isExp?'📷 Tap to snap the bill':'📷 Tap to snap receipt'; }
     const fd=document.getElementById('fDate');
@@ -401,7 +441,7 @@ function lfPoll(fn, ms){
   // Filtering happens here, not at the server: the whole owed list is already in hand.
   let dueRows=[], dueQ='';
   function onDueSearch(v){ dueQ=(v||'').trim().toLowerCase(); renderDue(); }
-  function billHay(b){ return [b.vendor, b.by, ...(b.lines||[]).map(l=>l.name)].join(' ').toLowerCase(); }
+  function billHay(b){ return [b.vendor, b.by, ...(b.lines||[]).flatMap(l=>[l.name,l.category])].join(' ').toLowerCase(); }
   async function loadDue(){ try{ const r=await _post('/api/method/luuvcrm.api.get_due_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
     document.getElementById('dueTotal').textContent=nfmt(m.total_due||0);
     document.getElementById('dueCount').textContent=m.count||0;
@@ -600,7 +640,13 @@ function lfPoll(fn, ms){
   function pickVendor(i){ const v=vendorShown[i]; if(!v) return; const el=document.getElementById('fVendor'); el.value=v.name; hideVendorSug(); el.blur(); onVendorInput(); saveDraft(); }
 
   async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
-  function openAdd(){ formLines=[]; newReceipt=''; pickerOpen=true; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
+  // Has Item List controls the picker; In Stock separately controls inventory.
+  function isStockCategory(category){ return stockCats.includes(category)||(!stockCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
+  function hasItemList(category){ return itemListCats.includes(category)||(!itemListCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
+  function isAssetCategory(category){ return assetCats.includes(category); }
+  function makeCategoryCard(category){ const chosen=category===undefined?DEFAULT_PURCHASE_CATEGORY:category; return {id:nextCategoryCardId++,category:chosen,pickerOpen:!!chosen,query:''}; }
+  function categoryCard(id){ return categoryCards.find(c=>c.id===Number(id)); }
+  function openAdd(){ formLines=[]; categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)]; newReceipt=''; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
     document.getElementById('fAmount').value=''; document.getElementById('fBillRef').value='';
     document.getElementById('fDate').value=localToday();
     document.getElementById('vendorHint').style.display='none'; hideVendorSug(); loadVendors();
@@ -610,68 +656,111 @@ function lfPoll(fn, ms){
     // in the rest the moment the list arrives.
     if(!expCats.length) loadExpCats();
     renderCategoryOptions();
-    document.getElementById('fCategory').value=(tab==='expenses'?(expCats[0]||''):'');
+    document.getElementById('fCategory').value='';
     onCategoryChange();
-    if(!catalog.length) loadCatalog().then(()=>{ renderLines(); renderPicker(); }); renderLines(); renderPicker();
+    if(!catalog.length) loadCatalog().then(renderCategoryCards); renderCategoryCards();
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); }
   function closeAdd(){ document.getElementById('addOverlay').style.display='none'; clearDraft(); }
-  function togglePicker(){ pickerOpen=!pickerOpen; renderPicker(); }
-  function addLine(item){ const c=catalog.find(x=>x.item===item); if(!c) return; formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,qty:'1',price:String(c.price)}); renderLines(); renderPicker(); saveDraft(); }
-  function removeLine(i){ formLines.splice(i,1); renderLines(); renderPicker(); saveDraft(); }
+  function addCategoryCard(){ categoryCards.push(makeCategoryCard('')); renderCategoryCards(); saveDraft(); }
+  function removeCategoryCard(id){ const card=categoryCard(id); if(!card) return;
+    formLines=formLines.filter(l=>l.cardId!==card.id); categoryCards=categoryCards.filter(c=>c.id!==card.id);
+    if(!categoryCards.length) categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)];
+    renderCategoryCards(); saveDraft(); }
+  function setCardCategory(id,value){ const card=categoryCard(id); if(!card||!value) return; const lines=formLines.filter(l=>l.cardId===card.id);
+    const hadList=hasItemList(card.category), willList=hasItemList(value);
+    // Item-list categories and simple expense categories use different line
+    // inputs. Switching between them starts that card clean, so the user can
+    // change category directly instead of removing an auto-added blank line.
+    const assetTypeChanged=(assetCategoryMap[card.category]||'')!==(assetCategoryMap[value]||'');
+    if(hadList!==willList||assetTypeChanged) formLines=formLines.filter(l=>l.cardId!==card.id);
+    card.category=value; card.pickerOpen=willList; lines.forEach(l=>l.category=value);
+    if(!willList&&!formLines.some(l=>l.cardId===card.id)) addExpenseLine('', 'Bill', id, false);
+    renderCategoryCards(); saveDraft(); }
+  function toggleCardPicker(id){ const card=categoryCard(id); if(!card) return; if(!card.category){ toast('Choose a category first'); return; } card.pickerOpen=!card.pickerOpen; renderCategoryCards(); }
+  function setCardQuery(id,value){ const card=categoryCard(id); if(!card) return; card.query=value; renderCardPickerList(id); }
+  function addLine(item,cardId){ const c=catalog.find(x=>x.item===item), card=categoryCard(cardId); if(!c||!card) return;
+    formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,category:card.category,cardId:card.id,cataloged:true,qty:'1',price:String(c.price)}); renderCategoryCards(); saveDraft(); }
+  function addExpenseLine(name,unit,cardId,rerender=true){ const card=categoryCard(cardId); if(!card) return;
+    formLines.push({item:'',name:name,unit:unit,cur:0,category:card.category,cardId:card.id,cataloged:false,qty:'1',price:''});
+    if(rerender){ renderCategoryCards(); saveDraft(); } }
+  function addExpenseTextField(cardId){ addExpenseLine('', 'Bill', cardId); const i=formLines.length-1; setTimeout(()=>document.getElementById('expName-'+i)?.focus(),0); }
+  function removeLine(i){ formLines.splice(i,1); renderCategoryCards(); saveDraft(); }
   // NB: oninput must NOT re-render the line list — rebuilding wrap.innerHTML while the
   // user types destroys the focused input, so the mobile keyboard closes after every digit.
-  // Keep typing light (model + total only); refresh the Up/Down badge, border and line
-  // total on blur via onchange="renderLines()" on the inputs (focus already gone by then).
-  function setQty(i,v){ formLines[i].qty=v; updateTotal(); saveDraft(); }
-  function setPrice(i,v){ formLines[i].price=v; updateTotal(); saveDraft(); }
-  function renderLines(){ const wrap=document.getElementById('lineRows');
-    wrap.innerHTML=formLines.map((l,i)=>{ const price=parseFloat(l.price)||0; const changed=l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
-      return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 12px;background:var(--surface-card);">
-        <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><span style="font-size:19px;flex:none;">${emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${l.name}</div><div style="font-size:11.5px;color:var(--text-muted);">current Rs ${nfmt(l.cur)} / ${l.unit}</div></div><button onclick="removeLine(${i})" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
-        <div style="display:flex;gap:8px;align-items:flex-end;">
-          <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${l.unit})</div><input value="${l.qty}" oninput="setQty(${i},this.value)" onchange="renderLines()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
-          <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">New price / ${l.unit}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${l.price}" oninput="setPrice(${i},this.value)" onchange="renderLines()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
-          <div style="flex:none;text-align:right;padding-bottom:9px;min-width:72px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Line</div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt((parseFloat(l.qty)||0)*price)}</div></div>
-        </div>
-        ${changed?`<div style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:${up?'var(--color-danger)':'var(--color-success)'};margin-top:9px;background:${up?'var(--color-danger-subtle)':'var(--color-success-subtle)'};border-radius:var(--radius-pill);padding:3px 10px;"><i data-lucide="${up?'trending-up':'trending-down'}" style="width:12px;height:12px;"></i> ${up?'Up':'Down'} Rs ${nfmt(diff)} from current</div>`:''}
-      </div>`; }).join('');
-    document.getElementById('lineCount').textContent=formLines.length+(formLines.length===1?' item':' items'); updateTotal(); icons(); }
-  function updateTotal(){ const t=formLines.reduce((a,l)=>a+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); document.getElementById('billTotal').textContent=nfmt(t); }
-  function renderPicker(){ const wrap=document.getElementById('pickerWrap'); const ic=document.getElementById('pickerIcon'); const lb=document.getElementById('pickerLabel');
-    lb.textContent=pickerOpen?'Hide item list':'Add item from list'; ic.setAttribute('data-lucide',pickerOpen?'chevron-up':'plus');
-    if(!pickerOpen){ wrap.style.display='none'; icons(); return; } wrap.style.display='block';
-    // Shell built once per open; the search input keeps focus because only #pickerList/#pickerNew re-render.
-    wrap.innerHTML=`
-      <div style="padding:9px 10px;border-bottom:1px solid var(--border-subtle);background:var(--surface-sunken);">
-        <input id="pickerSearch" value="${esc(pickerQuery)}" oninput="pickerQuery=this.value; renderPickerList()" placeholder="Search items…" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);">
+  // Keep typing light (model + totals only); refresh the Up/Down badge, border and line
+  // total on blur via onchange="renderCategoryCards()" on the inputs (focus already gone by then).
+  function updateCategorySubtotal(cardId){ const el=document.getElementById('categorySubtotal-'+cardId); if(!el) return;
+    const subtotal=formLines.filter(l=>l.cardId===Number(cardId)).reduce((sum,l)=>sum+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0);
+    el.textContent='Rs '+nfmt(subtotal); }
+  function setQty(i,v){ formLines[i].qty=v; updateCategorySubtotal(formLines[i].cardId); updateTotal(); saveDraft(); }
+  function setPrice(i,v){ formLines[i].price=v; updateCategorySubtotal(formLines[i].cardId); updateTotal(); saveDraft(); }
+  function setLineName(i,v){ formLines[i].name=v; saveDraft(); }
+  function expenseLineHtml(l,i){ l.item=''; l.cataloged=false; l.unit='Bill'; l.qty='1';
+    return `<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:10px;">
+      <div style="display:flex;align-items:flex-end;gap:7px;">
+        <div style="flex:1.4;min-width:0;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Item</div><input id="expName-${i}" value="${esc(l.name||'')}" oninput="setLineName(${i},this.value)" placeholder="e.g. April bill" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:10px 11px;font-size:14px;color:var(--text-strong);"></div>
+        <div style="flex:1;min-width:0;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Amount</div><div style="display:flex;align-items:center;gap:4px;border:1.5px solid var(--border-default);background:var(--surface-sunken);border-radius:var(--radius-sm);padding:10px 9px;"><span class="mono" style="font-size:11px;color:var(--text-muted);">Rs</span><input value="${esc(String(l.price))}" oninput="setPrice(${i},this.value)" type="number" inputmode="decimal" placeholder="0" style="width:100%;min-width:0;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:14px;color:var(--text-strong);"></div></div>
+        <button onclick="removeLine(${i})" aria-label="Remove description" style="width:34px;height:38px;border-radius:var(--radius-sm);border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></button>
       </div>
-      <div id="pickerList" style="max-height:240px;overflow-y:auto;"></div>
-      <div id="pickerNew" style="border-top:1px solid var(--border-subtle);"></div>`;
-    renderPickerList(); }
-  function renderPickerList(){ const list=document.getElementById('pickerList'); const nw=document.getElementById('pickerNew'); if(!list) return;
-    const q=(pickerQuery||'').trim().toLowerCase(); const added=formLines.map(l=>l.item);
-    let avail=catalog.filter(c=>!added.includes(c.item)); if(q) avail=avail.filter(c=>(c.name||'').toLowerCase().includes(q));
-    list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine('${c.item}')" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${c.unit}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
-    nw.innerHTML=`<button onclick="openNewItem()" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(pickerQuery.trim())}”`:''}</button>`;
+    </div>`; }
+  function billLineHtml(l,i,card){ l.category=card.category; if(!hasItemList(card.category)) return expenseLineHtml(l,i); if(l.cataloged===undefined) l.cataloged=!!l.item; const price=parseFloat(l.price)||0; const stockLine=l.cataloged; const changed=stockLine&&!isAssetCategory(card.category)&&l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
+    return `<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:10px;">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;"><span style="font-size:19px;flex:none;">${isAssetCategory(card.category)?'🏷️':emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">${isAssetCategory(card.category)?'Creates a draft ERPNext Asset after approval':('current Rs '+nfmt(l.cur)+' / '+esc(l.unit)+(isStockCategory(card.category)?'':' · stock not affected'))}</div></div><button onclick="removeLine(${i})" aria-label="Remove item" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${esc(l.unit)})</div><input value="${esc(String(l.qty))}" oninput="setQty(${i},this.value)" onchange="renderCategoryCards()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
+        <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Price / ${esc(l.unit)}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${esc(String(l.price))}" oninput="setPrice(${i},this.value)" onchange="renderCategoryCards()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
+        <div style="flex:none;text-align:right;padding-bottom:9px;min-width:72px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Line</div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt((parseFloat(l.qty)||0)*price)}</div></div>
+      </div>
+      ${changed?`<div style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:${up?'var(--color-danger)':'var(--color-success)'};margin-top:9px;background:${up?'var(--color-danger-subtle)':'var(--color-success-subtle)'};border-radius:var(--radius-pill);padding:3px 10px;"><i data-lucide="${up?'trending-up':'trending-down'}" style="width:12px;height:12px;"></i> ${up?'Up':'Down'} Rs ${nfmt(diff)} from current</div>`:''}
+    </div>`; }
+  function renderCategoryCards(){ const wrap=document.getElementById('categoryCards'); if(!wrap) return;
+    const cats=expCats.includes(DEFAULT_PURCHASE_CATEGORY)?expCats:[DEFAULT_PURCHASE_CATEGORY,...expCats];
+    categoryCards.forEach(card=>{ if(card.category&&!hasItemList(card.category)&&!formLines.some(l=>l.cardId===card.id)) addExpenseLine('', 'Bill', card.id, false); });
+    const used=new Set(categoryCards.map(c=>c.category).filter(Boolean));
+    wrap.innerHTML=categoryCards.map((card,cardIndex)=>{ const lines=formLines.map((l,i)=>[l,i]).filter(([l])=>l.cardId===card.id); const listed=hasItemList(card.category); const cardSubtotal=lines.reduce((sum,[l])=>sum+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); const opts=`<option value="" ${card.category?'':'selected'} disabled>Choose category</option>`+cats.map(c=>`<option value="${esc(c)}" ${c===card.category?'selected':''} ${c!==card.category&&used.has(c)?'disabled':''}>${esc(c)}</option>`).join('');
+      return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-lg);padding:13px;background:var(--surface-card);box-shadow:var(--shadow-xs);">
+        <div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:700;margin-bottom:4px;">CATEGORY ${cardIndex+1}</div><select class="inp" onchange="setCardCategory(${card.id},this.value)" style="padding:10px 11px;">${opts}</select></div><button onclick="removeCategoryCard(${card.id})" aria-label="Remove category" style="width:34px;height:34px;margin-top:17px;border-radius:50%;border:1px solid var(--border-default);background:var(--surface-sunken);color:var(--color-danger);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></button></div>
+        <div>${lines.map(([l,i])=>billLineHtml(l,i,card)).join('')}</div>
+        ${listed?`<button onclick="toggleCardPicker(${card.id})" ${card.category?'':'disabled'} style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:${card.category?'var(--color-primary)':'var(--text-faint)'};border-radius:var(--radius-md);padding:11px;cursor:${card.category?'pointer':'not-allowed'};font-family:var(--font-display);font-size:13.5px;font-weight:700;margin-top:11px;"><i data-lucide="${card.pickerOpen?'chevron-up':'plus'}" style="width:16px;height:16px;"></i> ${card.category?(card.pickerOpen?'Hide items':'Add item'):'Choose category first'}</button>
+        <div id="pickerWrap-${card.id}" style="${card.pickerOpen?'':'display:none;'}border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:9px;overflow:hidden;">
+          <div style="padding:9px 10px;border-bottom:1px solid var(--border-subtle);background:var(--surface-sunken);"><input id="pickerSearch-${card.id}" value="${esc(card.query||'')}" oninput="setCardQuery(${card.id},this.value)" placeholder="Search items…" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"></div>
+          <div id="pickerList-${card.id}" style="max-height:220px;overflow-y:auto;"></div><div id="pickerNew-${card.id}" style="border-top:1px solid var(--border-subtle);"></div>
+        </div>`:`<button onclick="addExpenseTextField(${card.id})" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:13.5px;font-weight:700;margin-top:11px;"><i data-lucide="plus" style="width:16px;height:16px;"></i> Add another item</button>`}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:11px;border-top:1px solid var(--border-subtle);"><span style="font-size:12px;font-weight:700;color:var(--text-muted);">Category subtotal</span><span id="categorySubtotal-${card.id}" class="mono" style="font-size:15px;font-weight:700;color:var(--text-strong);">Rs ${nfmt(cardSubtotal)}</span></div>
+      </div>`; }).join('');
+    document.getElementById('lineCount').textContent=formLines.length+(formLines.length===1?' item':' items'); updateTotal();
+    categoryCards.filter(c=>c.pickerOpen&&hasItemList(c.category)).forEach(c=>renderCardPickerList(c.id)); icons(); }
+  function updateTotal(){ const t=formLines.reduce((a,l)=>a+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); document.getElementById('billTotal').textContent=nfmt(t); }
+  function renderCardPickerList(id){ const card=categoryCard(id), list=document.getElementById('pickerList-'+id), nw=document.getElementById('pickerNew-'+id); if(!card||!list) return;
+    const q=(card.query||'').trim().toLowerCase(); const added=formLines.map(l=>l.item).filter(Boolean);
+    let avail=catalog.filter(c=>!added.includes(c.item));
+    if(isAssetCategory(card.category)) avail=avail.filter(c=>c.is_fixed_asset&&c.asset_category===assetCategoryMap[card.category]);
+    else avail=avail.filter(c=>!c.is_fixed_asset);
+    if(q) avail=avail.filter(c=>(c.name||'').toLowerCase().includes(q));
+    list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine('${c.item}',${card.id})" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${esc(c.unit)}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
+    nw.innerHTML=`<button onclick="openNewItem(${card.id})" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(card.query.trim())}”`:''}</button>`;
     icons(); }
-  function openNewItem(){ const nm=(pickerQuery||'').trim();
-    document.getElementById('pickerNew').innerHTML=`
+  function openNewItem(id){ const card=categoryCard(id); if(!card) return; const nm=(card.query||'').trim(), target=document.getElementById('pickerNew-'+id); if(!target) return;
+    target.innerHTML=`
       <div style="padding:12px;background:var(--surface-sunken);border-top:1px solid var(--border-subtle);">
         <div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">New item</div>
-        <input id="niName" value="${esc(nm)}" placeholder="Item name" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);margin-bottom:8px;">
+        <input id="niName-${id}" value="${esc(nm)}" placeholder="Item name" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);margin-bottom:8px;">
         <div style="display:flex;gap:8px;">
-          <select id="niUnit" style="flex:1;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"><option>Nos</option><option>Kg</option><option>g</option><option>L</option><option>ml</option><option>Pkt</option><option>Box</option><option>Dozen</option></select>
-          <button id="niBtn" onclick="createNewItem()" style="flex:none;padding:0 16px;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:14px;">Create &amp; add</button>
+          <select id="niUnit-${id}" style="flex:1;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"><option>Nos</option><option>Kg</option><option>g</option><option>L</option><option>ml</option><option>Pkt</option><option>Box</option><option>Dozen</option><option>Bill</option></select>
+          <button id="niBtn-${id}" onclick="createNewItem(${id})" style="flex:none;padding:0 16px;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:14px;">Create & add</button>
         </div>
+        <div style="font-size:11px;color:var(--text-faint);margin-top:7px;">${isAssetCategory(card.category)?'Saved as a Fixed Asset Item; approval creates the draft Asset.':('Saved to Items'+(isStockCategory(card.category)?' and received into stock after approval':' · this category does not affect stock')+'.')}</div>
       </div>`;
-    const el=document.getElementById('niName'); if(el){ el.focus(); } icons(); }
-  async function createNewItem(){ const name=(document.getElementById('niName').value||'').trim(); const unit=document.getElementById('niUnit').value||'Nos';
+    const el=document.getElementById('niName-'+id); if(el){ el.focus(); } icons(); }
+  async function createNewItem(id){ const card=categoryCard(id), nameEl=document.getElementById('niName-'+id), unitEl=document.getElementById('niUnit-'+id); if(!card||!nameEl||!unitEl) return;
+    const name=(nameEl.value||'').trim(), unit=unitEl.value||'Nos', category=card.category;
     if(!name){ toast('Enter an item name'); return; }
-    const btn=document.getElementById('niBtn'); btn.disabled=true;
-    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+    if(!hasItemList(category)){ toast('This category uses descriptions, not Items'); return; }
+    const btn=document.getElementById('niBtn-'+id); btn.disabled=true;
+    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit,category:category}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ const it=d.message;
-        if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:''});
-        pickerQuery=''; addLine(it.item); toast(it.existed?'Item already existed — added':'Item created & added'); }
+        if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:'',is_fixed_asset:it.is_fixed_asset||0,asset_category:it.asset_category||''});
+        card.query=''; addLine(it.item,id); toast(it.existed?'Item already existed — added':'Item created & added'); }
       else { toast((d.message&&d.message.message)||srvMsg(d,'Could not create item')); btn.disabled=false; } }
     catch(e){ toast('Connection error'); btn.disabled=false; } }
   // ── Draft persistence ──
@@ -686,7 +775,7 @@ function lfPoll(fn, ms){
       let d=null;
       if(sheetOpen('addOverlay')) d={sheet:'bill',
         category:document.getElementById('fCategory').value,
-        lines:formLines,receipt:newReceipt,
+        lines:formLines,cards:categoryCards,receipt:newReceipt,
         vendor:document.getElementById('fVendor').value,note:document.getElementById('fNote').value,
         date:document.getElementById('fDate').value,
         amount:document.getElementById('fAmount').value,billref:document.getElementById('fBillRef').value,
@@ -700,14 +789,19 @@ function lfPoll(fn, ms){
     try{
       openAdd();
       document.getElementById('fCategory').value=d.category||''; onCategoryChange();
-      formLines=Array.isArray(d.lines)?d.lines:[]; newReceipt=d.receipt||'';
+      formLines=Array.isArray(d.lines)?d.lines.map(l=>Object.assign({category:DEFAULT_PURCHASE_CATEGORY},l)):[]; newReceipt=d.receipt||'';
+      if(!d.category){
+        if(Array.isArray(d.cards)&&d.cards.length){ categoryCards=d.cards.map(c=>({id:Number(c.id),category:c.category===undefined?DEFAULT_PURCHASE_CATEGORY:c.category,pickerOpen:!!c.pickerOpen,query:c.query||''})); nextCategoryCardId=Math.max(...categoryCards.map(c=>c.id))+1; }
+        else { categoryCards=[]; const byCategory=new Map(); formLines.forEach(l=>{ const cat=l.category||DEFAULT_PURCHASE_CATEGORY; if(!byCategory.has(cat)){ const card=makeCategoryCard(cat); byCategory.set(cat,card); categoryCards.push(card); } l.cardId=byCategory.get(cat).id; }); if(!categoryCards.length) categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)]; }
+        const fallback=categoryCards[0]; formLines.forEach(l=>{ if(!categoryCard(l.cardId)){ const card=categoryCards.find(c=>c.category===l.category)||fallback; l.cardId=card.id; l.category=card.category; } });
+      }
       document.getElementById('fVendor').value=d.vendor||'';
       document.getElementById('fNote').value=d.note||'';
       if(d.date) document.getElementById('fDate').value=d.date;
       document.getElementById('fAmount').value=d.amount||'';
       document.getElementById('fBillRef').value=d.billref||'';
       if(newReceipt){ const img=document.getElementById('photoImg'); img.src=newReceipt; img.style.display='block'; document.getElementById('photoHint').style.display='none'; }
-      renderLines(); renderPicker();
+      renderCategoryCards();
     }catch(e){}
     restoringDraft=false; saveDraft();
     toast('Draft restored — continue where you left off');
@@ -744,8 +838,7 @@ function lfPoll(fn, ms){
       hint.style.display='none'; toast('Receipt added'); saveDraft();
     }catch(e){ hint.textContent=hintIdle; toast('Upload failed'); } }
 
-  // Category "" (Purchase Bill) posts to create_purchase_bill; any Expense
-  // Category posts to create_expense instead. Photo, date and note are shared.
+  // Bills post the lines assembled by category cards; Expenses post one amount.
   async function submitBill(){ const err=document.getElementById('formErr'); const em=document.getElementById('formErrMsg');
     const category=document.getElementById('fCategory').value;
     const isExp=category!=='';
@@ -758,8 +851,10 @@ function lfPoll(fn, ms){
       if(pdate<localDaysAgo(MAX_BACKDATE_DAYS)){ em.textContent='The purchase date cannot be more than '+MAX_BACKDATE_DAYS+' days ago.'; err.style.display='flex'; return; }
       if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
       if(!paidTo){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
+      if(formLines.some(l=>!(l.name||'').trim())){ em.textContent='Add a description for every line.'; err.style.display='flex'; return; }
       if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
-      const lines=formLines.map(l=>({item:l.item,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
+      if(formLines.some(l=>!l.category)){ em.textContent='Choose a category for every item.'; err.style.display='flex'; return; }
+      const lines=formLines.map(l=>({item:l.item,name:l.name,category:l.category,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
       btn.disabled=true; err.style.display='none';
       try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:paidTo,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
         if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); loadVendors(); }
@@ -814,54 +909,14 @@ function lfPoll(fn, ms){
     window.addEventListener('mouseup',()=>{ _iv.mouseDown=false; });
   })();
 
-  // ── Search (the Bills list itself only holds the 60 newest) ──
-  // Rows come back without their items, so a search is cheap however many bills
-  // exist; tapping a card fetches that one bill's lines.
-  let sq='', sOffset=0, sRows=[], sMore=false, sTimer=null, sBusy=false;
+  // ── Unified local search (recent bills + expenses already loaded above) ──
+  let sq='';
 
-  function onSearch(v){ sq=(v||'').trim();
+  function onSearch(v){ sq=feedQuery=(v||'').trim();
     document.getElementById('billSearchX').style.display=sq?'block':'none';
-    clearTimeout(sTimer);
-    if(sq.length<2){ showSearch(false); return; }      // 1 letter matches half the shop
-    sTimer=setTimeout(()=>runSearch(true),300); }
+    renderUnifiedFeed(); }
   function clearSearch(){ document.getElementById('billSearch').value=''; onSearch(''); }
-  function showSearch(on){ document.getElementById('searchList').style.display=on?'block':'none';
-    document.getElementById('expList').style.display=on?'none':'block'; }
-
-  async function runSearch(reset){ if(sBusy) return; sBusy=true;
-    const box=document.getElementById('searchList');
-    if(reset){ sOffset=0; sRows=[]; box.innerHTML='<div style="color:var(--text-faint);text-align:center;padding:40px 20px;font-size:14px;">Searching…</div>'; }
-    showSearch(true);
-    try{ const r=await _post('/api/method/luuvcrm.api.search_purchase_bills',{q:sq,limit:30,offset:sOffset});
-      if(r){ const d=await r.json(); const m=d.message||{bills:[]};
-        sRows=sRows.concat(m.bills||[]); sMore=!!m.more; sOffset=sRows.length; renderSearch(); }
-    }catch(e){ box.innerHTML='<div style="color:var(--text-faint);text-align:center;padding:40px 20px;font-size:14px;">Could not search — check your connection.</div>'; }
-    sBusy=false; }
-
-  function renderSearch(){
-    const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
-    const box=document.getElementById('searchList');
-    if(!sRows.length){ box.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:50px 20px;text-align:center;color:var(--text-faint);"><i data-lucide="search-x" style="width:28px;height:28px;"></i><div style="font-size:14px;">No bill matches “'+esc(sq)+'”.</div></div>'; icons(); return; }
-    box.innerHTML=sRows.map(b=>{ const t=TONE[b.status]||TONE.pending;
-      return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
-        <div onclick="openBillByName('${esc(b.name)}')" style="display:flex;gap:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🏪'}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
-            <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.date||b.time)}${b.by?(' · '+esc(b.by)):''}</div>
-            <span class="badge ${t[0]}">${t[1]}</span>
-          </div>
-        </div>
-      </div>`; }).join('')
-      +(sMore?`<button onclick="runSearch(false)" style="width:100%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--color-primary);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:11px;">Load more</button>`:'')
-      +`<div style="text-align:center;color:var(--text-faint);font-size:12px;padding:2px 0 8px;">${sRows.length} bill${sRows.length===1?'':'s'} found</div>`;
-    icons(); }
-
-  async function openBillByName(name){
-    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bill',{name:name}); if(!r) return;
-      const d=await r.json(); const b=d.message; if(!b){ toast(srvMsg(d,'Could not open the bill')); return; }
-      openDetail('bill',b);
-    }catch(e){ toast('Connection error'); } }
+  function showSearch(){ renderUnifiedFeed(); }
 
   // ── Detail sheet: one bill or expense in full, with Edit for a manager ──
   let billRows=[], expRows=[], detKind=null, detRec=null;
@@ -873,7 +928,9 @@ function lfPoll(fn, ms){
     document.getElementById('detMeta').textContent=exp?['Expense',rec.category].filter(Boolean).join(' · '):'Purchase bill';
     const photo=rec.receipt_image?`<img src="${esc(rec.receipt_image)}" onclick="viewImg('${esc(rec.receipt_image)}')" style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:4px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:10px;text-align:center;">Tap the photo to open it full size</div>`:'';
     const dateTxt=exp?(rec.date?new Date(rec.date+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):''):rec.date;
-    let rows=detRow('Category',esc(exp?rec.category:'Purchase Bill'))
+    const billCats=[...new Set((rec.lines||[]).map(l=>l.category).filter(Boolean))];
+    const billCategory=rec.category_label||(billCats.length===1?billCats[0]:(billCats.length>1?'Mixed item categories':''));
+    let rows=detRow('Category',esc(exp?rec.category:billCategory))
       +detRow(exp?'Paid to':'Vendor',esc(exp?rec.payee:rec.vendor))
       +detRow(exp?'Date':'Bought on',esc(dateTxt))
       +(exp?detRow('Bill / account no',esc(rec.bill_ref)):'')
@@ -883,7 +940,7 @@ function lfPoll(fn, ms){
     let money='';
     if(exp){ money=(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0 0;color:var(--text-muted);"><span>Original subtotal</span><span class="mono">Rs ${nfmt(rec.source_subtotal)}</span></div><div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0 0;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')+`<div style="display:flex;justify-content:space-between;padding:14px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(rec.amount)}</span></div>`; }
     else {
-      const lines=(rec.lines||[]).map(l=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;"><span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> ${esc(l.name||'')} <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span></span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`).join('');
+      const lines=(rec.lines||[]).map(l=>{ const listed=l.has_item_list===undefined?l.is_stock:l.has_item_list; const asset=l.asset?`<a href="/app/asset/${encodeURIComponent(l.asset)}" onclick="event.stopPropagation()" style="display:inline-flex;margin-top:4px;color:var(--color-success);font-size:11px;font-weight:700;text-decoration:none;">🏷 ${esc(l.asset)} · ${esc(l.asset_status||'Draft')}</a>`:(l.is_fixed_asset?'<span style="display:block;margin-top:4px;color:var(--color-warning);font-size:11px;font-weight:700;">🏷 Asset creates after approval</span>':''); return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;">${listed?`<span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> `:''}${esc(l.name||'')}${listed?` <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span>`:''}<span style="display:block;color:var(--color-primary);font-size:11px;margin-top:2px;">${esc(l.category||DEFAULT_PURCHASE_CATEGORY)}</span>${asset}</span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`; }).join('');
       money=`<div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:14px 0 2px;">Items</div>${lines||'<div style="color:var(--text-faint);font-size:13px;padding:8px 0;">No items on this bill.</div>'}`
         +(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0 0;color:var(--text-muted);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')
         +`<div style="display:flex;justify-content:space-between;padding:12px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(rec.total)}</span></div>`;
@@ -897,7 +954,7 @@ function lfPoll(fn, ms){
   function closeDetail(){ document.getElementById('detOverlay').style.display='none'; }
   function editDetail(){ const kind=detKind, rec=detRec; if(!rec) return;
     openBillEdit(kind,rec,fresh=>{ Object.assign(rec,fresh); openDetail(kind,rec);
-      if(kind==='expense') loadExpenses(); else { loadBills(); if(tab==='due') loadDue(); if(sq.length>=2) runSearch(true); } }); }
+      if(kind==='expense') loadExpenses(); else { loadBills(); if(tab==='due') loadDue(); } }); }
 
   // ── Approvals (purchase bills waiting on a second person) ──
   // Not manager-only: whoever is on the page can clear a colleague's bill. Your own
@@ -905,7 +962,7 @@ function lfPoll(fn, ms){
   const apprCmts={};   // typed comment per approval, kept across the 20s poll re-render
   let apprRows=[], apprQ='';
   function onApprSearch(v){ apprQ=(v||'').trim().toLowerCase(); renderAppr(); }
-  function apprHay(a){ return [a.title, a.by, a.flag_text, ...(a.lines||[]).map(l=>l.name)].join(' ').toLowerCase(); }
+  function apprHay(a){ return [a.title, a.by, a.flag_text, ...(a.lines||[]).flatMap(l=>[l.name,l.category])].join(' ').toLowerCase(); }
   function apprCmt(name,v){ apprCmts[name]=v; }
   // What the vendor took off the whole bill, entered at the moment somebody is
   // holding the paper. It reduces the total and nothing else — the items keep
@@ -942,13 +999,13 @@ function lfPoll(fn, ms){
         const col=up?'var(--color-danger)':'var(--color-success)';
         return `<label style="display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 0;border-top:1px dashed var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
         <input type="checkbox" ${tk[ix]?'checked':''} onchange="apprTick('${esc(a.name)}',${ix},this,${nl})" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;">
-        <span style="flex:1;min-width:0;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="mono" style="color:var(--text-faint);">${esc(l.qtyStr||'')}</span> ${esc(l.name||'')}</span>
+        <span style="flex:1;min-width:0;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="mono" style="color:var(--text-faint);">${esc(l.qtyStr||'')}</span> ${esc(l.name||'')}${l.category?` <span style="color:var(--color-primary);font-size:10.5px;font-weight:700;">${esc(l.category)}</span>`:''}</span>
         ${note?`<span style="color:${col};font-weight:700;font-size:10.5px;flex:none;">${note}</span>`:''}
         <span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></label>`;
       }).join('');
       const foot=(a.mine
           ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
-          : `${(a.category_options||[]).length?`<div style="margin-top:12px;"><label style="display:block;font-size:12.5px;font-weight:700;color:var(--text-body);margin-bottom:6px;">Category</label><select onchange="apprCategory('${esc(a.name)}',this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 12px;font-size:13.5px;color:var(--text-strong);background:var(--surface-card);outline:none;">${a.category_options.map(c=>`<option value="${esc(c.value)}" ${apprCats[a.name]===c.value?'selected':''}>${c.value===''?'🧾 ':''}${esc(c.label)}</option>`).join('')}</select><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Same categories as New bill / expense. Reclassifying as an expense skips stock receipt and buying-price updates.</div></div>`:''}${a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:12px;">
+          : `${a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:12px;">
               <span style="font-size:12.5px;font-weight:700;color:var(--text-body);white-space:nowrap;">Discount Rs</span>
               <input type="text" inputmode="decimal" value="${esc(apprDiscs[a.name]||'')}" oninput="apprDisc('${esc(a.name)}',this.value)" placeholder="0" style="flex:1;min-width:0;box-sizing:border-box;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px 12px;font-size:14px;color:var(--text-strong);outline:none;background:var(--surface-card);">
             </div><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Comes off this bill's total. The items keep the prices they were bought at.</div>`:''}<input type="text" value="${esc(apprCmts[a.name]||'')}" oninput="apprCmt('${esc(a.name)}',this.value)" placeholder="Comment (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;background:var(--surface-card);">
@@ -993,8 +1050,11 @@ function lfPoll(fn, ms){
   // init
   icons();
   document.getElementById('subline').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · {{ current_user_full or "Staff" }}';
-  loadBills(); loadCatalog(); loadExpCats(); restoreDraft();
-  lfPoll(()=>{ if(sheetOpen('addOverlay')) return; loadBills(); if(tab==='expenses') loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
+  // Restore only after category flags arrive: Staff Meals is item-listed but
+  // non-stock, and rendering it with the old fallback would flatten its saved
+  // item rows into free-text expense lines.
+  loadBills(); loadExpenses(); loadCatalog(); loadExpCats().then(restoreDraft);
+  lfPoll(()=>{ if(sheetOpen('addOverlay')) return; loadBills(); loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/purchases_sw.js',{scope:'/purchases'}).catch(()=>{}); }
 </script>
 {% include "templates/includes/bill_edit.html" %}

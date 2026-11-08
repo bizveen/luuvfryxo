@@ -9,6 +9,7 @@ URL of one installable staff PWA.
 """
 
 import importlib
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -189,6 +190,26 @@ class TestTheRestaurantComesFirst(LauncherTestCase):
         self.as_user(email)
         self.assertEqual(self.land()[1].chosen, other)
 
+    def test_the_chooser_uses_the_restaurant_name_and_location(self):
+        other = _restaurant(self, "LAUNCH-LABEL")
+        email = _user(self, "own-label", roles.RESTAURANT_OWNER)
+        branch.select(other, email)
+        self.as_user(email)
+
+        with patch.object(branch, "display_label",
+                          side_effect=lambda name: f"Luuv Fryxo — {name}"):
+            where, context = self.land()
+
+        self.assertEqual(where, "chooser")
+        self.assertEqual(context.chosen_label, f"Luuv Fryxo — {other}")
+        self.assertEqual(
+            {row["name"]: row["label"] for row in context.branches}[other],
+            f"Luuv Fryxo — {other}",
+        )
+        template = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "staff.html"))
+        self.assertIn('<span class="lb">{{ b.label }}</span>', template)
+        self.assertIn('btn.dataset.label || btn.dataset.branch', template)
+
     def test_a_manager_pinned_to_a_branch_is_not_asked(self):
         """Their branch is not a preference; `branch.select` would refuse the
         other one anyway."""
@@ -290,3 +311,20 @@ class TestSigningOut(LauncherTestCase):
             with self.subTest(page=page):
                 self.assertNotIn("/api/method/logout", html)
                 self.assertIn("/api/method/luuvcrm.launcher.sign_out", html)
+
+    def test_the_pos_webview_navigates_to_login_after_sign_out(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos.html"))
+        self.assertIn("fetch('/api/method/luuvcrm.launcher.sign_out'", html)
+        self.assertIn("window.location.replace('/pos-login')", html)
+        logout = html[html.index("async function doLogout"):html.index("function tick")]
+        self.assertIn("await lfConfirm('Log out?'", logout)
+        self.assertNotIn("window.confirm(", logout)
+        self.assertNotIn("if(confirm(", logout)
+
+    def test_the_waiter_webview_uses_an_in_page_logout_confirmation(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "waiter.html"))
+        self.assertIn('id="logoutConfirm"', html)
+        self.assertIn("fetch('/api/method/luuvcrm.launcher.sign_out'", html)
+        self.assertIn("window.location.replace('/pos-login')", html)
+        logout = html[html.index("function openLogoutConfirm"):html.index("// ─── WhatsApp")]
+        self.assertNotIn("confirm(", logout)
