@@ -93,7 +93,6 @@ from luuvcrm.api.errors import (
 )
 from luuvcrm.api.expenses import (
     EXPENSE_CATEGORIES,
-    FOOD_PURCHASE_CATEGORY,
     _decide_expense,
     _ensure_select_option,
     _expense_dict,

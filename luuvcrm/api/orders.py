@@ -182,35 +182,6 @@ def send_to_kitchen():
                     "deduped": True,
                 }
 
-    # A waiter serves the table's bill, not a private ticket belonging to one
-    # device or one staff member.  Lock the table while resolving its open bill
-    # so two waiters sending at the same time cannot both create a second order.
-    # POS-created orders count too: floor staff must be able to add a customer's
-    # later request to the same unpaid bill regardless of who opened it.
-    if order_source == "Waiter" and table and not is_draft and not amended_from:
-        frappe.db.sql(
-            "select name from `tabRestaurant Table` where name=%s for update",
-            (table,),
-        )
-        open_orders = frappe.get_list(
-            "POS Order",
-            filters=[
-                ["docstatus", "=", 0],
-                ["restaurant_table", "=", table],
-                ["pos_invoice", "is", "not set"],
-                [branch.FIELD, "=", branch.viewing()],
-            ],
-            order_by="creation asc",
-            pluck="name",
-            limit_page_length=2,
-        )
-        if len(open_orders) > 1:
-            frappe.throw(
-                _("This table has more than one open order. Select the correct order from Orders.")
-            )
-        if open_orders:
-            return _append_waiter_items(open_orders[0], items)
-
     pos_order = frappe.get_doc({
         "doctype": "POS Order",
         "naming_series": "POS-",
@@ -698,86 +669,23 @@ def get_table_orders():
     return {"orders": orders}
 @frappe.whitelist()
 def get_my_orders():
-    """Today's orders for the active restaurant, shared by all floor staff.
-
-    A table remains the same table when the waiter changes.  This powers the
-    waiter app's ``Orders`` tab, where any waiter can add a later request to the
-    existing unpaid order or mark it served.
-    """
-    roles.require_waiter()
+    """The logged-in waiter's OWN orders for today (not the whole restaurant, unlike
+    get_kitchen_orders which the kitchen display needs). Powers the waiter app's 'My Orders'
+    tab: shows status, lets the waiter add more items (Add items) or mark served."""
     today = frappe.utils.today()
     orders = frappe.get_list("POS Order",
-        filters={"creation": [">=", today],
+        filters={"owner": frappe.session.user, "creation": [">=", today],
                  branch.FIELD: branch.viewing()},
         fields=["name", "restaurant_table", "kitchen_status", "grand_total", "creation",
-                "order_source", "waiter_name", "notes", "pos_invoice", "owner"],
-        order_by="creation desc",
-        limit_page_length=SCREEN_ORDER_CEILING,
+                "order_source", "notes", "pos_invoice"],
+        order_by="creation desc"
     )
     lines = lines_by_order([o.name for o in orders])
-    staff_logs = _waiter_order_staff_logs(orders)
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
         o["paid"] = 1 if o.get("pos_invoice") else 0
         o["items"] = [_line_dict(i) for i in lines.get(o.name, [])]
-        o["staff_log"] = staff_logs.get(o.name, [])
     return {"orders": orders}
-
-
-def _waiter_order_staff_logs(orders):
-    """Return the small, order-scoped audit trail shown to floor staff.
-
-    The order document is the authority for who created the ticket.  Every
-    later waiter append already writes one ``order.append`` LF Activity Log row
-    with the authenticated session user, so this only reads and groups those
-    rows; it does not invent a second audit mechanism.
-    """
-    logs = {}
-    order_names = [o.name for o in orders]
-    if not order_names:
-        return logs
-
-    # Creation is not a Version row in Frappe, so make it the first visible
-    # event from the immutable document owner/creation fields.
-    for o in orders:
-        creator = o.get("waiter_name") or activity._full_name(o.get("owner")) or o.get("owner")
-        logs[o.name] = [{
-            "action": "created",
-            "user": o.get("owner") or "",
-            "user_full": creator or "",
-            "created": str(o.get("creation") or ""),
-            "time_ago": frappe.utils.pretty_date(o.get("creation")),
-        }]
-
-    # A partially migrated site must still be able to open the waiter screen.
-    if not frappe.db.exists("DocType", activity.DOCTYPE):
-        return logs
-
-    appends = frappe.get_all(
-        activity.DOCTYPE,
-        filters={
-            "ref_doctype": "POS Order",
-            "ref_name": ["in", order_names],
-            "action": "order.append",
-            # Test databases can recycle a rolled-back naming-series value;
-            # production restores can also leave an orphaned old activity row.
-            # Neither belongs to this incarnation of the order.
-            "creation": [">=", min(o.get("creation") for o in orders)],
-        },
-        fields=["ref_name", "creation", "user", "user_full", "qty"],
-        order_by="creation asc",
-        limit_page_length=1000,
-    )
-    for row in appends:
-        logs.setdefault(row.ref_name, []).append({
-            "action": "added",
-            "user": row.user or "",
-            "user_full": row.user_full or row.user or "",
-            "created": str(row.creation or ""),
-            "time_ago": frappe.utils.pretty_date(row.creation),
-            "lines": int(row.qty or 0),
-        })
-    return logs
 @frappe.whitelist(methods=["POST"])
 def waiter_append_items():
     """Append NEW item lines to an existing unpaid draft order (waiter 'add to the bill').
@@ -796,11 +704,6 @@ def waiter_append_items():
         frappe.throw(_("At least one item is required"))
 
     branch.require_access("POS Order", order_name)
-    return _append_waiter_items(order_name, items)
-
-
-def _append_waiter_items(order_name, items):
-    """Append priced lines to one branch-visible, unpaid order."""
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Only draft orders can be added to"))
@@ -853,11 +756,7 @@ def _append_waiter_items(order_name, items):
         amount=float(pos_order.grand_total or 0) - before_total,
         total_before=before_total, total_after=float(pos_order.grand_total or 0),
         detail={"added": [it.get("item") for it in items]})
-    return {
-        "name": pos_order.name,
-        "grand_total": pos_order.grand_total,
-        "appended": True,
-    }
+    return {"name": pos_order.name, "grand_total": pos_order.grand_total}
 @frappe.whitelist()
 def compare_orders():
     """Return details for two orders side by side (cancelled + re-created)."""

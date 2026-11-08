@@ -102,7 +102,7 @@ class TestTheCostLines(PnlTestCase):
         """Add a category to the seed and forget the statement, and its money
         would still be in Other cost — but nobody would be told. Say so."""
         mapped = {c for _, cats in pnl.COST_LINES for c in cats}
-        strays = set(EXPENSE_CATEGORIES) - mapped - {api.FOOD_PURCHASE_CATEGORY}
+        strays = set(EXPENSE_CATEGORIES) - mapped
         self.assertEqual(strays, {"Cleaning & Consumables", "Licences/Fees", "Other"},
                          "a seeded category has no line on the statement")
 

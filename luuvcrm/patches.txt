@@ -22,6 +22,3 @@ luuvcrm.patches.v1_0.add_tour_company_invoice_fields
 luuvcrm.patches.v1_0.add_packaging_expense_category
 luuvcrm.patches.v1_0.add_bom_inventory_fields
 luuvcrm.patches.v1_0.backfill_pos_invoice_cost_centers
-luuvcrm.patches.v1_0.allow_fractional_nos
-luuvcrm.patches.v1_0.add_purchase_item_categories
-luuvcrm.patches.v1_0.add_expense_category_stock_flag

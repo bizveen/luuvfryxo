@@ -107,9 +107,8 @@ def get_wastage(days=7):
     return {"rows": rows, "total": round(total, 2), "days": days}
 @frappe.whitelist()
 def get_food_cost_report(days=7, start=None, end=None):
-    """Sales vs costs for the range: food-category purchase lines (wastage is
-    reported but not added), overheads (approved Expenses plus non-food lines
-    from mixed supplier bills) and
+    """Sales vs costs for the range: food cost (approved purchase bills;
+    wastage is reported but not added), overheads (approved Expenses — rent/salaries/utilities etc.) and
     the resulting profit, all against POS revenue. Period-level (no recipes/BOM
     → no per-dish costing). The window is the last N days by default, or an
     explicit start/end — a whole calendar month picked in the UI.
@@ -129,41 +128,11 @@ def get_food_cost_report(days=7, start=None, end=None):
     rest_cond, rest_params = branch.sql_restaurant()
     inv_cond, inv_params = branch.sql_cost_center()
     purchases = 0.0
-    food_purchases = 0.0
     if frappe.db.exists("DocType", "Purchase Bill"):
         purchases = float(frappe.db.sql("""
             select coalesce(sum(total), 0) from `tabPurchase Bill`
             where status = 'approved' and purchase_date >= %s and purchase_date < %s
         """ + rest_cond, (start, dt_end) + rest_params)[0][0] or 0)
-        if frappe.db.has_column("Purchase Bill Item", "category"):
-            from luuvcrm.api.expenses import FOOD_PURCHASE_CATEGORY
-
-            food_purchases = float(frappe.db.sql("""
-                SELECT COALESCE(SUM(pbi.qty * pbi.price * (
-                    CASE WHEN sub.subtotal > 0
-                         THEN pb.total / sub.subtotal ELSE 1 END
-                )), 0)
-                FROM `tabPurchase Bill Item` pbi
-                INNER JOIN `tabPurchase Bill` pb ON pb.name = pbi.parent
-                INNER JOIN (
-                    SELECT parent, SUM(qty * price) AS subtotal
-                    FROM `tabPurchase Bill Item` GROUP BY parent
-                ) sub ON sub.parent = pb.name
-                WHERE pb.status = 'approved'
-                  AND pb.purchase_date >= %s AND pb.purchase_date < %s
-                  AND (pbi.category = %s OR IFNULL(pbi.category, '') = '')
-            """ + rest_cond,
-                (start, dt_end, FOOD_PURCHASE_CATEGORY) + rest_params)[0][0] or 0)
-            food_purchases += float(frappe.db.sql("""
-                SELECT COALESCE(SUM(pb.total), 0)
-                FROM `tabPurchase Bill` pb
-                WHERE pb.status = 'approved'
-                  AND pb.purchase_date >= %s AND pb.purchase_date < %s
-                  AND NOT EXISTS (SELECT 1 FROM `tabPurchase Bill Item` pbi
-                                  WHERE pbi.parent = pb.name)
-            """ + rest_cond, (start, dt_end) + rest_params)[0][0] or 0)
-        else:
-            food_purchases = purchases
     wastage = 0.0
     if frappe.db.exists("DocType", "Wastage"):
         wastage = float(frappe.db.sql("""
@@ -171,25 +140,12 @@ def get_food_cost_report(days=7, start=None, end=None):
             where creation >= %s and creation < %s
         """ + rest_cond, (start, dt_end) + rest_params)[0][0] or 0)
     overhead = 0.0
-    food_expenses = 0.0
     if frappe.db.exists("DocType", "Expense"):
-        from luuvcrm.api.expenses import FOOD_PURCHASE_CATEGORY
-
         overhead = float(frappe.db.sql("""
             select coalesce(sum(amount), 0) from `tabExpense`
             where status = 'approved'
               and coalesce(expense_date, date(creation)) between %s and %s
         """ + rest_cond, (start, end) + rest_params)[0][0] or 0)
-        food_expenses = float(frappe.db.sql("""
-            select coalesce(sum(amount), 0) from `tabExpense`
-            where status = 'approved' and category = %s
-              and coalesce(expense_date, date(creation)) between %s and %s
-        """ + rest_cond,
-            (FOOD_PURCHASE_CATEGORY, start, end) + rest_params)[0][0] or 0)
-    # The rest of a mixed receipt (staff meals, stationery, cleaning, etc.) is
-    # still a real cost, just not food cost. Subtraction also catches a legacy
-    # or manager-created category without needing a hard-coded category list.
-    overhead = max(overhead - food_expenses, 0) + max(purchases - food_purchases, 0)
     revenue = float(frappe.db.sql("""
         select coalesce(sum(grand_total), 0) from `tabPOS Invoice`
         where docstatus = 1 and posting_date between %s and %s
@@ -198,7 +154,7 @@ def get_food_cost_report(days=7, start=None, end=None):
     # in `purchases`, so adding it counted the same money twice; it is still
     # reported, as a memo. Same rule as the P&L statement (api/pnl.py), so the
     # card and the statement agree on profit.
-    food_cost = round(food_purchases + food_expenses, 2)
+    food_cost = round(purchases, 2)
     profit = round(revenue - food_cost - overhead, 2)
     # No sales, no percentage. It used to be 0, so a week with rent paid and
     # nothing sold read "0% overheads · 0% margin" beside a loss — a card that

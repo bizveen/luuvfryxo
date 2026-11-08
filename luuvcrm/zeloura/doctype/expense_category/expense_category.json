@@ -8,7 +8,6 @@
  "engine": "InnoDB",
  "field_order": [
   "category_name",
-  "in_stock",
   "disabled"
  ],
  "fields": [
@@ -19,14 +18,6 @@
    "label": "Category",
    "reqd": 1,
    "unique": 1
-  },
-  {
-   "default": "0",
-   "description": "On = lines in this category are saved as Items and received into stock. Keep off for utilities and other expenses.",
-   "fieldname": "in_stock",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "In Stock"
   },
   {
    "default": "0",

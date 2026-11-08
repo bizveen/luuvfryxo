@@ -23,7 +23,6 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from luuvcrm import branch, roles, setup_doctype as setup
-from luuvcrm.patches.v1_0.allow_fractional_nos import execute as allow_fractional_nos
 
 
 class TestTheDeclarationMatchesTheSite(FrappeTestCase):
@@ -63,13 +62,6 @@ class TestItCarriesThePatchesWork(FrappeTestCase):
 
     def test_execute_provisions_the_branch_column(self):
         self.assertIn(branch.ensure_branch_field, _steps())
-
-    def test_execute_provisions_fractional_nos(self):
-        self.assertIn(allow_fractional_nos, _steps())
-        self.assertEqual(
-            int(frappe.db.get_value("UOM", "Nos", "must_be_whole_number") or 0),
-            0,
-        )
 
     def test_the_revoke_runs_after_every_grant(self):
         """Order matters: revoking first would take away what a later grant puts

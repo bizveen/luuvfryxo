@@ -177,11 +177,8 @@ def pos_open_shift():
     data = frappe.local.form_dict
     pos_profile_name = _resolve_pos_profile_name(data.get("pos_profile", ""))
 
-    # Use the same active-restaurant scope as get_pos_shift()/pos_close_shift().
-    # Otherwise an owner with an old open till at another outlet sees this
-    # error while the current outlet correctly shows no shift — leaving no
-    # Close shift button and no way to open this till.
-    existing = _active_open_shift_name()
+    existing = frappe.db.get_value("POS Opening Entry",
+        {"status": "Open", "user": frappe.session.user}, "name")
     if existing:
         frappe.throw(_("A shift is already open. Close it first."))
 
