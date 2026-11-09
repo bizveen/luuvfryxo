@@ -628,7 +628,6 @@ let tab = {{ initial_tab | tojson }};
 let cart = {};            // code -> qty
 let _loy = null;          // cached loyalty info
 let _refInfo = null;      // validated referral code + server-configured discount
-let _ordersCache = null;  // shared by Home and Orders so opening both is instant
 let _ordersPromise = null;
 
 if (_ref) localStorage.setItem('lf_ref', _ref);
@@ -708,14 +707,11 @@ function setTab(t){
 }
 
 /* ─────────── home / current status ─────────── */
+// Share concurrent reads only; revisiting a tab must fetch the latest status.
 async function loadCustomerOrders(force){
-  if(!isAuthed()) return {success:false,error:'Login required'};
-  if(_ordersCache&&!force) return _ordersCache;
-  if(_ordersPromise&&!force) return _ordersPromise;
+  if(!isAuthed()) return {success:false,error:'Login required'};  if(_ordersPromise&&!force) return _ordersPromise;
   _ordersPromise=_call('luuvcrm.api.customer_get_orders',{token:_token}).then(r=>{
-    const d=r&&r.message;
-    if(d&&d.success) _ordersCache=d;
-    return d||{success:false};
+    const d=r&&r.message;    return d||{success:false};
   }).catch(()=>({success:false,error:'Connection error'})).finally(()=>{ _ordersPromise=null; });
   return _ordersPromise;
 }
@@ -908,9 +904,7 @@ async function placeOrder(){
     const savedMsg=res.message.referral_discount_applied?(' · Referral deal saved Rs '+nf(saved)+' 💸'):'';
     localStorage.removeItem('lf_ref'); _ref=''; _refInfo=null;
     const rb=document.getElementById('referralBar'); if(rb) rb.style.display='none';
-    cart={}; syncCart(); closeCart();
-    _ordersCache=null;
-    if(res.message.promo_item){ toast('Order placed! 🎉 Free '+res.message.promo_item+' added 🎁'+savedMsg+(res.message.pickup_outlet?(' · 📍 collect at '+res.message.pickup_outlet):'')+(res.message.scheduled_time?(' · ⏰ '+res.message.scheduled_time.slice(0,16)):'')); }
+    cart={}; syncCart(); closeCart();    if(res.message.promo_item){ toast('Order placed! 🎉 Free '+res.message.promo_item+' added 🎁'+savedMsg+(res.message.pickup_outlet?(' · 📍 collect at '+res.message.pickup_outlet):'')+(res.message.scheduled_time?(' · ⏰ '+res.message.scheduled_time.slice(0,16)):'')); }
     else toast('Order placed! 🎉 #'+res.message.name+savedMsg);
     promoBanner();
     if(res.message.needs_wa_confirm && res.message.confirm_link){ openWaConfirm(res.message); }
@@ -1125,9 +1119,7 @@ async function acctRegister(){
   else acErr((r.message&&r.message.error)||'Could not create account');
 }
 async function saveSession(token,mobile,name){
-  _token=token; _mobile=mobile; _name=name||'';
-  _ordersCache=null;
-  localStorage.setItem('lf_token',_token); localStorage.setItem('lf_mobile',_mobile); localStorage.setItem('lf_name',_name);
+  _token=token; _mobile=mobile; _name=name||'';  localStorage.setItem('lf_token',_token); localStorage.setItem('lf_mobile',_mobile); localStorage.setItem('lf_name',_name);
   // Attach now so the relationship survives, but keep the code until checkout:
   // kiosk_place_order is the server-authoritative first-order discount path.
   if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{token:_token,ref_code:_ref}); }catch(e){} }
@@ -1142,7 +1134,7 @@ async function saveSession(token,mobile,name){
   }
   reflectAuth(); promoBanner(); toast('Welcome'+(_name?', '+_name:'')+'! 🍔'); setTab('home'); profilePrompt();
 }
-function doLogout(go){ _token=''; _mobile=''; _name=''; _ordersCache=null; localStorage.removeItem('lf_token'); localStorage.removeItem('lf_mobile'); localStorage.removeItem('lf_name'); reflectAuth(); if(go!==false) setTab('account'); }
+function doLogout(go){ _token=''; _mobile=''; _name=''; localStorage.removeItem('lf_token'); localStorage.removeItem('lf_mobile'); localStorage.removeItem('lf_name'); reflectAuth(); if(go!==false) setTab('account'); }
 function logout(){ doLogout(true); toast('Signed out'); }
 function reflectAuth(){
   document.getElementById('hdLogout').style.display='flex';
