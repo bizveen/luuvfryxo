@@ -6,12 +6,21 @@
 <title>{{ restaurant_name or brand_name }}</title>
 <script>
 const BRAND={{ brand_name | tojson }};
-(function(){
+const LF_SYSTEM_THEME=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');
+function lfThemeMode(){
   try{
     const saved=localStorage.getItem('lf_theme');
-    document.documentElement.dataset.theme=saved||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');
-  }catch(e){ document.documentElement.dataset.theme='light'; }
-})();
+    return saved==='light'||saved==='dark'?saved:'system';
+  }catch(e){ return 'system'; }
+}
+function applyTheme(mode){
+  const selected=mode==='light'||mode==='dark'?mode:'system';
+  document.documentElement.dataset.themeMode=selected;
+  document.documentElement.dataset.theme=selected==='system'
+    ? (LF_SYSTEM_THEME&&LF_SYSTEM_THEME.matches?'dark':'light')
+    : selected;
+}
+applyTheme(lfThemeMode());
 </script>  <!-- the name for the strings JavaScript builds: WhatsApp text, printed footers -->
 <meta name="csrf-token" content="{{ csrf_token }}">
 <link rel="manifest" href="/api/method/luuvcrm.api.manifest?app=cus">
@@ -72,12 +81,12 @@ input,button{font-family:inherit;}
 .scroll>div{animation:fade .24s ease both;}
 
 /* tab nav */
-.navbar{position:sticky;bottom:0;z-index:30;background:rgba(20,18,16,.97);backdrop-filter:blur(18px);border-top:1px solid rgba(255,255,255,.08);display:flex;padding:8px 8px max(11px,env(safe-area-inset-bottom));gap:1px;box-shadow:0 -10px 30px rgba(20,18,16,.16);}
-.navb{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:transparent;cursor:pointer;padding:3px 0 1px;color:var(--gray-400);}
+.navbar{position:sticky;bottom:0;z-index:30;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-top:1px solid rgba(229,224,219,.9);display:flex;padding:8px 8px max(11px,env(safe-area-inset-bottom));gap:1px;box-shadow:0 -10px 30px rgba(41,28,19,.1);}
+.navb{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:transparent;cursor:pointer;padding:3px 0 1px;color:var(--text-muted);}
 .navb>i,.navb>svg,.navb>span:first-child{width:38px;height:32px;border-radius:12px;display:flex;align-items:center;justify-content:center;transition:background var(--duration-base),transform var(--duration-base),color var(--duration-base);}
 .navb>i,.navb>svg{padding:7px;}
 .navb>span:first-child i{width:20px;height:20px;}
-.navb.active{color:var(--orange-400);}
+.navb.active{color:var(--orange-600);}
 .navb.active>i,.navb.active>svg,.navb.active>span:first-child{background:rgba(241,82,7,.17);transform:translateY(-1px);}
 .navb span.lbl{font-size:10.5px;font-weight:800;font-family:var(--font-display);}
 .navb .dot{position:absolute;top:-2px;right:calc(50% - 18px);min-width:16px;height:16px;border-radius:8px;background:var(--color-primary);color:#fff;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center;padding:0 4px;}
@@ -116,7 +125,7 @@ input,button{font-family:inherit;}
 .mcard .view-label{display:none;}
 .add{min-width:58px;height:36px;padding:0 11px;border-radius:11px;border:none;background:var(--color-primary);color:#fff;font-family:var(--font-display);font-size:12px;font-weight:800;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;flex:none;box-shadow:0 6px 14px rgba(241,82,7,.26);}
 .mcard .add{width:42px;min-width:42px;height:42px;padding:0;border-radius:50%;background:#fff;color:var(--orange-600);font-size:0;box-shadow:0 8px 20px rgba(0,0,0,.22);}
-.mcard .add b{font-size:24px;}
+.mcard .add b{display:grid;place-items:center;width:100%;height:100%;font-size:24px;line-height:1;font-weight:500;transform:translateY(-1px);}
 .add b{font-size:17px;line-height:1;font-weight:600;}
 .add:active{transform:scale(.9);}
 .qctrl{display:flex;align-items:center;gap:9px;}
@@ -295,7 +304,7 @@ html[data-theme="dark"]{
   --surface-card:#171918;--surface-sunken:#101211;--border-subtle:#292c2a;--border-default:#3b3f3c;
   --shadow-xs:0 1px 2px rgba(0,0,0,.22);--shadow-sm:0 2px 7px rgba(0,0,0,.25);--shadow-lg:0 14px 32px rgba(0,0,0,.38);
 }
-body,.card,.topbar,.top-account,.quick-card,.popular-card,.panel,.status-shell,.offer-card,.search,.mcard,.ord,.sheet,.gate,.account-hero{transition:background-color .24s ease,border-color .24s ease,color .24s ease,box-shadow .24s ease;}
+body,.card,.topbar,.top-account,.navbar,.quick-card,.popular-card,.panel,.status-shell,.offer-card,.search,.mcard,.ord,.sheet,.gate,.account-hero{transition:background-color .24s ease,border-color .24s ease,color .24s ease,box-shadow .24s ease;}
 html[data-theme="dark"] body{background:#050606;}
 html[data-theme="dark"] .wrap{background:linear-gradient(180deg,#050606,#101311);}
 html[data-theme="dark"] .card{background:linear-gradient(180deg,#0b0d0c 0,#0b0d0c 62px,#0b0d0c 260px);box-shadow:0 0 60px rgba(0,0,0,.42);}
@@ -320,7 +329,9 @@ html[data-theme="dark"] .pill.Ready{background:#171918;}
 html[data-theme="dark"] .mcard .group-label{background:rgba(17,19,18,.84);border-color:rgba(255,255,255,.12);color:#d5d8d5;}
 html[data-theme="dark"] .codebox{background:rgba(241,82,7,.1);border-color:rgba(251,116,48,.55);}
 html[data-theme="dark"] .no-menu-results{background:#141615;border-color:#3b3f3c;}
-html[data-theme="dark"] .navbar{background:rgba(5,7,6,.98);}
+html[data-theme="dark"] .navbar{background:rgba(5,7,6,.98);border-color:rgba(255,255,255,.08);box-shadow:0 -10px 30px rgba(0,0,0,.28);}
+html[data-theme="dark"] .navb{color:var(--gray-400);}
+html[data-theme="dark"] .navb.active{color:var(--orange-400);}
 
 @media (min-width:431px){.mcard:hover{transform:translateY(-3px);box-shadow:0 11px 24px rgba(41,28,19,.11)}.mcard:hover .img img:not(.placeholder){transform:scale(1.04)}}
 @media (max-width:350px){.grid{gap:12px}.home-hero{min-height:216px;padding-left:17px}.home-hero .hero-copy{width:55%;min-width:0}.home-hero h1{font-size:24px}.home-hero p{max-width:145px}.hero-actions .secondary{display:none}.hero-food{width:310px;height:225px;right:-158px;bottom:-39px}.hero-food img{width:365px;height:365px}.quick-card{padding:11px 8px}.quick-card .qtitle{font-size:10.5px}.mcard{height:282px}.mcard .body{padding:12px}.mcard .nm{font-size:14px}.mcard .desc{font-size:10px}.navb span.lbl{font-size:9.5px}.item-detail-info{padding-inline:17px}.item-detail-actions{padding-inline:17px}}
@@ -637,20 +648,36 @@ if (_promo) localStorage.setItem('lf_promo', _promo);
 function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
 function syncThemeControl(){
   const isDark=document.documentElement.dataset.theme==='dark';
+  const mode=document.documentElement.dataset.themeMode||'system';
   const btn=document.getElementById('themeToggle');
   if(!btn) return;
-  btn.innerHTML='<i data-lucide="'+(isDark?'sun':'moon')+'" style="width:18px;height:18px;"></i>';
-  btn.title=isDark?'Use light mode':'Use dark mode';
+  btn.innerHTML='<i data-lucide="'+(mode==='system'?'monitor':(isDark?'moon':'sun'))+'" style="width:18px;height:18px;"></i>';
+  btn.title=mode==='system'
+    ? 'Using system appearance · tap for light mode'
+    : (mode==='light'?'Using light mode · tap for dark mode':'Using dark mode · tap for system mode');
   btn.setAttribute('aria-label',btn.title);
   const meta=document.querySelector('meta[name="theme-color"]');
   if(meta) meta.content=isDark?'#0B0D0C':'#F15207';
   icons();
 }
 function toggleTheme(){
-  const next=document.documentElement.dataset.theme==='dark'?'light':'dark';
-  document.documentElement.dataset.theme=next;
-  try{ localStorage.setItem('lf_theme',next); }catch(e){}
+  const current=document.documentElement.dataset.themeMode||'system';
+  const next=current==='system'?'light':(current==='light'?'dark':'system');
+  applyTheme(next);
+  try{
+    if(next==='system') localStorage.removeItem('lf_theme');
+    else localStorage.setItem('lf_theme',next);
+  }catch(e){}
   syncThemeControl();
+}
+function followSystemTheme(){
+  if((document.documentElement.dataset.themeMode||'system')!=='system') return;
+  applyTheme('system');
+  syncThemeControl();
+}
+if(LF_SYSTEM_THEME){
+  if(LF_SYSTEM_THEME.addEventListener) LF_SYSTEM_THEME.addEventListener('change',followSystemTheme);
+  else if(LF_SYSTEM_THEME.addListener) LF_SYSTEM_THEME.addListener(followSystemTheme);
 }
 function isAuthed(){ return !!_token; }
 function nf(n){ return Math.round(n||0).toLocaleString('en-US'); }
