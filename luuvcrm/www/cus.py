@@ -1,11 +1,42 @@
 
 import frappe
+from frappe.utils import add_days, now_datetime
 
 from luuvcrm import branch, settings
 from luuvcrm.api import menu_groups
 
 no_cache = 1
 login_required = False
+
+
+def _popular_item_codes(restaurant, eligible_codes):
+    """Top-selling active-menu items over the trailing 30 days.
+
+    Paid POS Orders are the sales authority used by the manager reports too.
+    ``eligible_codes`` is already stripped of Add-ons, so sauce/cheese extras
+    can never displace a meal or drink in the customer carousel.
+    """
+    codes = list(dict.fromkeys(code for code in eligible_codes if code))
+    if not restaurant or not codes:
+        return []
+    placeholders = ", ".join(["%s"] * len(codes))
+    rows = frappe.db.sql(
+        f"""
+        SELECT soi.item, SUM(soi.qty) AS sold_qty
+        FROM `tabPOS Order Item` soi
+        INNER JOIN `tabPOS Order` so ON so.name = soi.parent
+        WHERE so.pos_invoice IS NOT NULL AND so.pos_invoice != ''
+          AND so.creation >= %s
+          AND so.`{branch.FIELD}` = %s
+          AND soi.item IN ({placeholders})
+        GROUP BY soi.item
+        ORDER BY sold_qty DESC, SUM(soi.rate * soi.qty) DESC, soi.item ASC
+        LIMIT 5
+        """,
+        (add_days(now_datetime(), -30), restaurant, *codes),
+        as_dict=True,
+    )
+    return [row.item for row in rows]
 
 
 def redirect_to_cus():
@@ -132,7 +163,17 @@ def get_context(context):
         ]
         pictured_food = [item for item in food_items if item.get("image")]
         context.hero_item = (pictured_food or food_items or visible_items or [None])[0]
-        # A visual carousel with empty tiles is worse than no carousel; outlets
-        # without uploaded food photos keep the clean fallback hero instead.
-        context.popular_items = pictured_food[:3]
+        item_by_code = {item["code"]: item for item in visible_items}
+        popular_codes = _popular_item_codes(
+            restaurant_name,
+            [item["code"] for item in visible_items if item.get("group") != "Add-ons"],
+        )
+        # Sales define popularity. If the branch has no paid sales in the
+        # window, omit the carousel rather than claiming arbitrary items are
+        # popular. Items without an image are omitted from this visual strip.
+        context.popular_items = [
+            item_by_code[code]
+            for code in popular_codes
+            if code in item_by_code and item_by_code[code].get("image")
+        ]
         context.menu_item_count = len(visible_items)
