@@ -9,7 +9,7 @@ import frappe
 from frappe import _
 import secrets
 from frappe.utils import now_datetime
-from luuvcrm import roles, settings
+from luuvcrm import branch, roles, settings
 
 from luuvcrm.api.customers import (
     _get_or_create_customer_token,
@@ -224,6 +224,8 @@ def promo_register():
     data = frappe.local.form_dict
     mobile = (data.get("mobile") or "").strip()
     code = (data.get("code") or "").strip().upper()
+    pickup_outlet = (branch.public(restaurant=(data.get("restaurant") or "").strip())
+                     or settings.get("pickup_outlet"))
     res = _claim_promo_code(code, mobile)
     if not res.get("ok"):
         return {"ok": False, "error": res.get("error") or "Could not claim"}
@@ -244,7 +246,8 @@ def promo_register():
         wa_sent = bool(wa._send_wa_reply(_wa_number(mobile), msg))
     except Exception as e:
         frappe.log_error(f"Promo WhatsApp error: {str(e)}", "QR Promo")
-    return {"ok": True, "item_name": item_name, "whatsapp_sent": wa_sent}
+    return {"ok": True, "item_name": item_name, "whatsapp_sent": wa_sent,
+            "pickup_outlet": pickup_outlet}
 @frappe.whitelist(allow_guest=True)
 def promo_check():
     """Validate a scanned promo code for the /app landing banner (no side effects)."""
@@ -332,6 +335,10 @@ def promo_status():
     Includes the within-N-hours window so the client caps the time picker."""
     from frappe.utils import add_to_date
     mobile = (frappe.local.form_dict.get("mobile") or "").strip()
+    pickup_outlet = (
+        branch.public(restaurant=(frappe.local.form_dict.get("restaurant") or "").strip())
+        or settings.get("pickup_outlet")
+    )
     promo = _pending_promo_for(mobile)
     if not promo or not promo.get("free_item"):
         return {"pending": bool(promo), "item_name": ""}
@@ -339,4 +346,4 @@ def promo_status():
     max_time = add_to_date(now_datetime(), hours=PROMO_WINDOW_HOURS).strftime("%Y-%m-%d %H:%M:%S")
     return {"pending": True, "item_name": item_name,
             "window_hours": PROMO_WINDOW_HOURS, "max_time": max_time,
-            "pickup_outlet": settings.get("pickup_outlet")}
+            "pickup_outlet": pickup_outlet}

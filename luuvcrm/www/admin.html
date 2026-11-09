@@ -398,7 +398,7 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
       <div class="bar" style="margin-top:14px">
         <div><label for="mBranch">Restaurant</label>
           <select id="mBranch" onchange="setWorking(this.value)"></select></div>
-        <div id="mCardWrap" style="display:none"><label for="mCard">Menu card</label>
+        <div id="mCardWrap" style="display:none"><label for="mCard">Menu version</label>
           <select id="mCard" onchange="switchCard(this.value)"></select></div>
         <div class="grow"><label for="mSearch">Search</label>
           <input type="text" id="mSearch" placeholder="Item name…" oninput="renderMenu()"></div>
@@ -1185,7 +1185,8 @@ async function loadMenu(restaurant){
   MENU = d;
   WORKING = d.restaurant;
   document.getElementById('menuSub').textContent =
-    d.menu ? d.items.length + ' items on ' + d.menu : 'No live menu on this restaurant yet';
+    d.menu ? d.items.length + ' items · ' + d.restaurant
+           : d.restaurant + ' · no live menu configured yet';
   document.getElementById('navMenu').textContent = d.items.length || '';
   fillBranchPickers(d.restaurants, d.restaurant);
 
@@ -1195,7 +1196,7 @@ async function loadMenu(restaurant){
   if((d.menus || []).length > 1){
     cardWrap.style.display = '';
     document.getElementById('mCard').innerHTML = d.menus.map(m =>
-      `<option value="${esc(m.name)}"${m.name === d.menu ? ' selected' : ''}>${esc(m.name)} · ${m.items} item${m.items === 1 ? '' : 's'}${m.enabled ? '' : ' (off)'}</option>`).join('');
+      `<option value="${esc(m.name)}"${m.name === d.menu ? ' selected' : ''}>${esc(m.label || (d.restaurant + ' · ' + m.name))} · ${m.items} item${m.items === 1 ? '' : 's'}${m.enabled ? '' : ' (off)'}</option>`).join('');
   } else {
     cardWrap.style.display = 'none';
   }
@@ -1214,7 +1215,7 @@ function renderMenu(){
     (!g || i.group === g) && (!q || i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)));
   const box = document.getElementById('menuList');
   if(!MENU.menu){
-    box.innerHTML = '<div class="empty">This branch has no active menu yet. Set one on the Restaurant, then come back.</div>';
+    box.innerHTML = '<div class="empty">' + esc(MENU.restaurant) + ' has no active menu yet. Set one on the Restaurant, then come back.</div>';
     return;
   }
   if(!rows.length){ box.innerHTML = '<div class="empty">Nothing matches.</div>'; return; }
@@ -1241,7 +1242,7 @@ function renderOffMenu(){
   if(!MENU || !MENU.off_menu.length){ wrap.style.display = 'none'; return; }
   wrap.style.display = '';
   document.getElementById('offSummary').textContent =
-    'Not on this menu — ' + MENU.off_menu.length + ' item(s) that already exist';
+    'Not served at ' + MENU.restaurant + ' — ' + MENU.off_menu.length + ' item(s) that already exist';
   document.getElementById('offList').innerHTML = MENU.off_menu.map(i =>
     `<div class="li"><span></span><div class="nm">${esc(i.name)}</div>
        <span class="chip">${esc(i.group)}</span>
@@ -1261,7 +1262,7 @@ async function switchCard(menu){
   if(!MENU || menu === MENU.menu) return;
   const r = await call('set_active_menu', {restaurant: MENU.restaurant, menu});
   if(!r){ loadMenu(MENU.restaurant); return; }
-  toast(MENU.restaurant + ' now serves ' + menu);
+  toast(MENU.restaurant + ' live menu updated');
   LOADED.items = false;
   loadMenu(MENU.restaurant);
 }

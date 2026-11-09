@@ -4,6 +4,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Keep local/debug builds working before the Firebase project credentials are
+// copied in. Production FCM is enabled automatically when this file exists.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.luuvgrand.luuv_customer"
     compileSdk = flutter.compileSdkVersion

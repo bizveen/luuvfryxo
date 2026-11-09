@@ -86,6 +86,8 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
   late final WebViewController _controller;
 
   int _progress = 0;
+  bool _showLaunchScreen = true;
+  DateTime _launchStartedAt = DateTime.now();
   bool _mainFrameFailed = false;
   bool _hasOrderSnapshot = false;
   Map<String, String> _orderStatuses = {};
@@ -134,6 +136,7 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
           onPageFinished: (_) async {
             if (mounted) setState(() => _progress = 100);
             await _installWindowOpenBridge();
+            await _revealPortal();
           },
           onWebResourceError: (error) {
             if (error.isForMainFrame ?? false) {
@@ -369,8 +372,21 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
     setState(() {
       _mainFrameFailed = false;
       _progress = 0;
+      _showLaunchScreen = true;
+      _launchStartedAt = DateTime.now();
     });
     _controller.loadRequest(_portalUri);
+  }
+
+  Future<void> _revealPortal() async {
+    const minimumBrandTime = Duration(milliseconds: 850);
+    final elapsed = DateTime.now().difference(_launchStartedAt);
+    if (elapsed < minimumBrandTime) {
+      await Future<void>.delayed(minimumBrandTime - elapsed);
+    }
+    if (mounted && !_mainFrameFailed) {
+      setState(() => _showLaunchScreen = false);
+    }
   }
 
   @override
@@ -405,6 +421,17 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
                       backgroundColor: const Color(0xFFFFE2D2),
                     ),
                   ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    ignoring: !_showLaunchScreen,
+                    child: AnimatedOpacity(
+                      opacity: _showLaunchScreen ? 1 : 0,
+                      duration: const Duration(milliseconds: 360),
+                      curve: Curves.easeOutCubic,
+                      child: _PortalLoadingView(progress: _progress),
+                    ),
+                  ),
+                ),
                 if (_mainFrameFailed) _OfflineView(onRetry: _retry),
                 if (systemNavigationInset > 0)
                   Positioned(
@@ -417,6 +444,164 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PortalLoadingView extends StatelessWidget {
+  const _PortalLoadingView({required this.progress});
+
+  final int progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final progressValue = progress <= 3 || progress >= 100
+        ? null
+        : progress / 100;
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFAF6), Color(0xFFFFE8D8)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          const Positioned(
+            right: -72,
+            top: -58,
+            child: _LoadingGlow(size: 210, opacity: .075),
+          ),
+          const Positioned(
+            left: -88,
+            bottom: -76,
+            child: _LoadingGlow(size: 235, opacity: .055),
+          ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 34),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: .9, end: 1),
+                    duration: const Duration(milliseconds: 650),
+                    curve: Curves.easeOutBack,
+                    builder: (context, scale, child) =>
+                        Transform.scale(scale: scale, child: child),
+                    child: Container(
+                      width: 112,
+                      height: 112,
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(34),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x2E9D3E08),
+                            blurRadius: 30,
+                            offset: Offset(0, 15),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(27),
+                        child: Image.asset(
+                          'assets/icon.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Luuv Fryxo',
+                    style: TextStyle(
+                      color: Color(0xFF1F1915),
+                      fontSize: 29,
+                      height: 1,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  const Text(
+                    'Freshly made. Ready when you are.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF8D7D73),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: 156,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(99),
+                      child: LinearProgressIndicator(
+                        value: progressValue,
+                        minHeight: 5,
+                        color: _brandColor,
+                        backgroundColor: const Color(0xFFFFD3B8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    progress >= 75 ? 'Almost ready…' : 'Preparing your menu…',
+                    style: const TextStyle(
+                      color: Color(0xFFB05A24),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 34,
+            child: Text(
+              'ORDER  •  TRACK  •  REWARD',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFFBB7250),
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.25,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingGlow extends StatelessWidget {
+  const _LoadingGlow({required this.size, required this.opacity});
+
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _brandColor.withValues(alpha: opacity),
+        border: Border.all(
+          color: _brandColor.withValues(alpha: opacity * .9),
+          width: 28,
         ),
       ),
     );

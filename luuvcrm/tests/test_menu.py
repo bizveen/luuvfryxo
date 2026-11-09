@@ -197,6 +197,15 @@ class TestAMenuBelongsToARestaurant(MenuTestCase):
         self.assertEqual(admin["restaurant"], other)
         self.assertIn(self.restaurant, [r["name"] for r in admin["restaurants"]])
 
+    def test_a_stale_cross_restaurant_active_menu_is_never_served(self):
+        """Older branch creation copied the first outlet's active_menu link.
+        A bad link must become no menu, not another restaurant's food and prices."""
+        other = self.second_restaurant()
+        frappe.db.set_value("Restaurant", other, "active_menu", self.menu)
+        self.assertIsNone(M.active_menu_name(other))
+        with self.assertRaises(frappe.ValidationError):
+            M._active_menu_doc(other)
+
     def test_editing_names_the_restaurant_it_edits(self):
         """`_active_menu_doc(restaurant)` is what makes this work; without the
         argument the same call edits whichever menu branch.current() lands on."""
@@ -277,9 +286,11 @@ class TestWhichCardIsLive(MenuTestCase):
 
     def test_the_editor_lists_the_cards_it_could_switch_to(self):
         other = self.second_menu()
-        names = [m["name"] for m in api.get_menu_admin(restaurant=self.restaurant)["menus"]]
+        menus = api.get_menu_admin(restaurant=self.restaurant)["menus"]
+        names = [m["name"] for m in menus]
         self.assertIn(other, names)
         self.assertIn(self.menu, names)
+        self.assertTrue(all(m["label"].startswith(self.restaurant + " · ") for m in menus))
 
     def test_a_card_belonging_to_another_restaurant_is_refused(self):
         """Otherwise a branch quietly starts selling another branch's card."""

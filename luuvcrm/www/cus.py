@@ -1,4 +1,6 @@
 
+from random import sample
+
 import frappe
 from frappe.utils import add_days, now_datetime
 
@@ -10,7 +12,7 @@ login_required = False
 
 
 def _popular_item_codes(restaurant, eligible_codes):
-    """Top-selling active-menu items over the trailing 30 days.
+    """Top five active-menu items sold over the trailing 24 hours.
 
     Paid POS Orders are the sales authority used by the manager reports too.
     ``eligible_codes`` is already stripped of Add-ons, so sauce/cheese extras
@@ -33,10 +35,16 @@ def _popular_item_codes(restaurant, eligible_codes):
         ORDER BY sold_qty DESC, SUM(soi.rate * soi.qty) DESC, soi.item ASC
         LIMIT 5
         """,
-        (add_days(now_datetime(), -30), restaurant, *codes),
+        (add_days(now_datetime(), -1), restaurant, *codes),
         as_dict=True,
     )
     return [row.item for row in rows]
+
+
+def _random_menu_picks(items):
+    """Choose up to five non-addon items when there are no recent sales."""
+    candidates = [item for item in items if item.get("group") != "Add-ons"]
+    return sample(candidates, min(5, len(candidates)))
 
 
 def redirect_to_cus():
@@ -96,6 +104,8 @@ def get_context(context):
     context.menu_groups = []
     context.hero_item = None
     context.popular_items = []
+    context.popular_has_sales = False
+    context.popular_sales_count = 0
     context.menu_item_count = 0
 
     # Build the menu (same logic as the online order page).
@@ -168,12 +178,15 @@ def get_context(context):
             restaurant_name,
             [item["code"] for item in visible_items if item.get("group") != "Add-ons"],
         )
-        # Sales define popularity. If the branch has no paid sales in the
-        # window, omit the carousel rather than claiming arbitrary items are
-        # popular. Items without an image are omitted from this visual strip.
-        context.popular_items = [
+        # Paid sales from the trailing 24 hours define the ranked top picks.
+        # A branch with no sales in that window gets five random active-menu
+        # picks so the home section remains useful.
+        sold_items = [
             item_by_code[code]
             for code in popular_codes
-            if code in item_by_code and item_by_code[code].get("image")
-        ]
+            if code in item_by_code
+        ][:5]
+        context.popular_has_sales = bool(sold_items)
+        context.popular_sales_count = len(sold_items)
+        context.popular_items = sold_items or _random_menu_picks(visible_items)
         context.menu_item_count = len(visible_items)
