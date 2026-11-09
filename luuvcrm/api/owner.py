@@ -64,10 +64,11 @@ def _branch_numbers(restaurant, start, end, previous_start=None, previous_end=No
     is "cannot be attributed", which is a different thing from zero and must not
     be shown as a takings figure of nil."""
     centre = branch.cost_center(restaurant)
-    details = frappe.db.get_value("Restaurant", restaurant, ["warehouse", "company"],
+    details = frappe.db.get_value("Restaurant", restaurant, ["warehouse", "company", "city"],
                                   as_dict=True) or frappe._dict()
     out = {
         "restaurant": restaurant,
+        "city": details.get("city") or "",
         "cost_center": centre,
         "warehouse": details.get("warehouse"),
         "company": details.get("company"),
