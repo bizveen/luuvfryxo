@@ -6,7 +6,7 @@ from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 
 import frappe
 
-from luuvcrm import settings
+from luuvcrm import branch, settings
 from frappe import _
 from frappe.utils import now_datetime
 
@@ -22,7 +22,7 @@ from luuvcrm.api.pricing import (
     _server_item_rate,
     _service_charge_on,
 )
-from luuvcrm.api.promos import PROMO_PICKUP_OUTLET, PROMO_WINDOW_HOURS, _pending_promo_for
+from luuvcrm.api.promos import PROMO_WINDOW_HOURS, _pending_promo_for
 from luuvcrm.api.wa import wa_number
 from luuvcrm.api.whatsapp import send_customer_whatsapp, send_order_whatsapp
 
@@ -45,6 +45,7 @@ def kiosk_place_order():
     order_type = data.get("order_type", "")
     wa_confirm = str(data.get("wa_confirm") or "") in ("1", "true", "True")
     scheduled_raw = (data.get("scheduled_time") or "").strip()
+    restaurant = branch.public(restaurant=(data.get("restaurant") or "").strip())
 
     # Validate table exists — if not, silently ignore it
     if table:
@@ -65,8 +66,8 @@ def kiosk_place_order():
         scheduled_dt = None
     promo = _pending_promo_for(mobile)
     if promo and promo.get("free_item"):
-        # Free meal = pickup-only at the fixed outlet → force Take Away (no delivery,
-        # no dine-in table, no service charge). The customer collects at PROMO_PICKUP_OUTLET.
+        # Free meal = pickup-only at the restaurant selected in the customer app
+        # → force Take Away (no delivery, no dine-in table, no service charge).
         order_type = "Take Away"
         table = ""
         # Preferred time must be within the next PROMO_WINDOW_HOURS. Time is optional
@@ -93,6 +94,7 @@ def kiosk_place_order():
         "customer_name": customer_name,
         "waiter_name": waiter_name,
         "mobile": mobile,
+        branch.FIELD: restaurant,
         "restaurant_table": table,
         "order_source": order_source,
         # WhatsApp-confirmed app orders are HELD (Draft = hidden from kitchen)
@@ -202,7 +204,7 @@ def kiosk_place_order():
         "customer_name": customer_name,
         "mobile": mobile,
         "promo_item": promo_item_name,
-        "pickup_outlet": settings.get("pickup_outlet") if promo_item_name else "",
+        "pickup_outlet": (restaurant or settings.get("pickup_outlet")) if promo_item_name else "",
         "scheduled_time": scheduled_dt.strftime("%Y-%m-%d %H:%M:%S") if scheduled_dt else "",
         "needs_wa_confirm": wa_confirm,
         "confirm_link": confirm_link,

@@ -1,9 +1,15 @@
 // Luuv Fryxo Customer App — service worker (PWA shell)
-const CACHE = 'lf-app-v3';
+const CACHE = 'lf-app-v4';
 
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 
-self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('lf-app-') && key !== CACHE).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+  );
+});
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
@@ -11,7 +17,7 @@ self.addEventListener('fetch', (e) => {
   // Network-first for the app shell; fall back to the cached page when offline.
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then((res) => { const c = res.clone(); caches.open(CACHE).then((ca) => ca.put('/cus', c)); return res; })
         .catch(() => caches.match('/cus'))
     );

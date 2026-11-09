@@ -193,9 +193,9 @@ class TestTheComparison(OwnerTestCase):
 
 class TestSettingABranchUp(OwnerTestCase):
     def test_adding_one_copies_what_a_second_outlet_shares(self):
-        """Company, default customer, menu and service charge belong to the
-        business, not the outlet — asking for them again is a way to get them
-        wrong."""
+        """Company and default customer belong to the business. A menu does
+        not: each Restaurant Menu names exactly one restaurant, so copying the
+        link would make the new outlet silently sell the first outlet's card."""
         other = self.second_branch()
         row = frappe.db.get_value("Restaurant", other,
                                   ["company", "default_customer", "active_menu"], as_dict=True)
@@ -203,6 +203,7 @@ class TestSettingABranchUp(OwnerTestCase):
                                    ["company", "default_customer", "active_menu"], as_dict=True)
         self.assertEqual(row.company, home.company)
         self.assertEqual(row.default_customer, home.default_customer)
+        self.assertIsNone(row.active_menu)
 
     def test_a_duplicate_name_is_refused(self):
         self.as_user(self.owner)

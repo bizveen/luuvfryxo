@@ -344,7 +344,7 @@ def create_branch(restaurant_name=None, company=None, cost_center=None, warehous
         frappe.throw(f"{name} already exists")
 
     existing = frappe.db.get_value("Restaurant", {}, ["company", "default_customer",
-                                                      "active_menu", "service_charge"],
+                                                      "service_charge"],
                                    as_dict=True) or frappe._dict()
     doc = frappe.get_doc({
         "doctype": "Restaurant",
@@ -352,7 +352,10 @@ def create_branch(restaurant_name=None, company=None, cost_center=None, warehous
         "company": company or existing.company,
         "default_customer": existing.default_customer,
         "invoice_series_prefix": "".join(c for c in name.upper() if c.isalnum())[:4] or "REST",
-        "active_menu": existing.active_menu,
+        # A Restaurant Menu belongs to one Restaurant. Copying the first
+        # outlet's link here makes a new outlet silently serve the wrong menu.
+        # Leave it blank until this restaurant's own menu is configured.
+        "active_menu": None,
         "service_charge": existing.service_charge,
         "cost_center": cost_center,
         "warehouse": warehouse,

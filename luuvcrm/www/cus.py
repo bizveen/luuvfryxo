@@ -1,11 +1,75 @@
 
+from random import sample
+
 import frappe
+from frappe.utils import add_days, now_datetime
 
 from luuvcrm import branch, settings
 from luuvcrm.api import menu_groups
 
 no_cache = 1
 login_required = False
+
+
+def _popular_item_codes(restaurant, eligible_codes):
+    """Top five active-menu items sold over the trailing 24 hours.
+
+    Paid POS Orders are the sales authority used by the manager reports too.
+    ``eligible_codes`` is already stripped of Add-ons, so sauce/cheese extras
+    can never displace a meal or drink in the customer carousel.
+    """
+    codes = list(dict.fromkeys(code for code in eligible_codes if code))
+    if not restaurant or not codes:
+        return []
+    placeholders = ", ".join(["%s"] * len(codes))
+    rows = frappe.db.sql(
+        f"""
+        SELECT soi.item, SUM(soi.qty) AS sold_qty
+        FROM `tabPOS Order Item` soi
+        INNER JOIN `tabPOS Order` so ON so.name = soi.parent
+        WHERE so.pos_invoice IS NOT NULL AND so.pos_invoice != ''
+          AND so.creation >= %s
+          AND so.`{branch.FIELD}` = %s
+          AND soi.item IN ({placeholders})
+        GROUP BY soi.item
+        ORDER BY sold_qty DESC, SUM(soi.rate * soi.qty) DESC, soi.item ASC
+        LIMIT 5
+        """,
+        (add_days(now_datetime(), -1), restaurant, *codes),
+        as_dict=True,
+    )
+    return [row.item for row in rows]
+
+
+def _random_menu_picks(items):
+    """Choose up to five non-addon items when there are no recent sales."""
+    candidates = [item for item in items if item.get("group") != "Add-ons"]
+    return sample(candidates, min(5, len(candidates)))
+
+
+def _customer_branch(context):
+    """Send branch-neutral customer links to Kurunegala for now.
+
+    Explicit branch and table links still win: they may already be printed on
+    branch-specific QR codes.  Only a bare ``/cus`` (including referral,
+    promotion and phone deep links) skips the chooser and opens Kurunegala.
+    """
+    form = frappe.form_dict
+    if form.get("r") or form.get("restaurant") or form.get("table"):
+        return branch.for_page(context)
+
+    default = next(
+        (name for name in branch.all_restaurants()
+         if name.casefold() == "kurunegala"),
+        None,
+    )
+    if not default:
+        return branch.for_page(context)
+
+    context.branch = default
+    context.branch_choices = []
+    branch.remember(default)
+    return default
 
 
 def redirect_to_cus():
@@ -50,21 +114,16 @@ def get_context(context):
         "home", "order", "orders", "offers", "account"
     } else "home"
 
-    # A referral QR is deliberately branch-neutral. Always show its two branch
-    # cards before ordering, even when this phone has an older branch cookie.
-    # Once a card adds ?r=, the explicit choice is respected and remembered.
-    form = frappe.form_dict
-    force_branch_choice = bool(
-        context.ref_code
-        and not (form.get("r") or form.get("restaurant") or form.get("table"))
-    )
-    restaurant_name = branch.for_page(
-        context, force_choose=force_branch_choice
-    )
+    # Branch-neutral customer links currently open Kurunegala directly. Keep
+    # explicit branch/table QR links working so already-printed links remain
+    # safe and deterministic.
+    restaurant_name = _customer_branch(context)
     context.restaurant_name = restaurant_name or settings.get("brand_name")
     context.menu_groups = []
     context.hero_item = None
     context.popular_items = []
+    context.popular_has_sales = False
+    context.popular_sales_count = 0
     context.menu_item_count = 0
 
     # Build the menu (same logic as the online order page).
@@ -132,7 +191,20 @@ def get_context(context):
         ]
         pictured_food = [item for item in food_items if item.get("image")]
         context.hero_item = (pictured_food or food_items or visible_items or [None])[0]
-        # A visual carousel with empty tiles is worse than no carousel; outlets
-        # without uploaded food photos keep the clean fallback hero instead.
-        context.popular_items = pictured_food[:3]
+        item_by_code = {item["code"]: item for item in visible_items}
+        popular_codes = _popular_item_codes(
+            restaurant_name,
+            [item["code"] for item in visible_items if item.get("group") != "Add-ons"],
+        )
+        # Paid sales from the trailing 24 hours define the ranked top picks.
+        # A branch with no sales in that window gets five random active-menu
+        # picks so the home section remains useful.
+        sold_items = [
+            item_by_code[code]
+            for code in popular_codes
+            if code in item_by_code
+        ][:5]
+        context.popular_has_sales = bool(sold_items)
+        context.popular_sales_count = len(sold_items)
+        context.popular_items = sold_items or _random_menu_picks(visible_items)
         context.menu_item_count = len(visible_items)

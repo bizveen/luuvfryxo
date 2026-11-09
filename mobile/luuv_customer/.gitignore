@@ -31,8 +31,13 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/build
 /releases/
 /coverage/
+
+# Firebase native app configuration is project/environment-specific.
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
 
 # Symbolication related
 app.*.symbols

@@ -47,4 +47,20 @@ void main() {
 
     expect(newlyReadyOrders(previous, current), ['ORD-1']);
   });
+
+  test('restaurant topic is stable and Firebase-safe', () {
+    expect(
+      restaurantTopic('Luuv Grand - Kurunegala'),
+      'luuv_luuv_grand_-_kurunegala',
+    );
+    expect(restaurantTopic('   '), isEmpty);
+  });
+
+  test('notification routes cannot escape the customer portal origin', () {
+    expect(
+      notificationRoute('/cus?r=Kurunegala&tab=offers', portal).toString(),
+      'https://luuvgrand.com/cus?r=Kurunegala&tab=offers',
+    );
+    expect(notificationRoute('https://evil.example/cus', portal), isNull);
+  });
 }

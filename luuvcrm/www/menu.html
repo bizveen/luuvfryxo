@@ -218,15 +218,26 @@
       .menu-item .rate { font-size: 1.2rem; }
     }
   </style>
+<link rel="stylesheet" href="/assets/luuvcrm/css/menu-feast.css">
 {% include "templates/includes/brand.html" %}
 </head>
 <body>
 {%- if branch or not branch_choices %}
 
   <div class="hero">
-    <div class="brand">{{ brand_name }} &bull; Restaurant</div>
-    <h1>{% if restaurant %}{{ restaurant.name }}{% else %}Our Menu{% endif %}</h1>
-    <p>Freshly prepared with love. Every dish tells a story of flavour and tradition.</p>
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <div class="brand-lockup"><img src="/assets/luuvcrm/app/icon-192.png" alt=""><span>{{ brand_name }}<br>Loaded fries &bull; good vibes</span></div>
+        <div class="hero-brush">Fresh, bold &amp; fully loaded</div>
+        <h1>{% if restaurant %}{{ restaurant.name }} Menu{% else %}Our Menu{% endif %}</h1>
+        <p>Big flavour, crispy fries and generous toppings—made fresh when you order.</p>
+        <div class="hero-facts"><span class="hero-fact">FRESHLY MADE</span><span class="hero-fact">BOLD FLAVOURS</span><span class="hero-fact">PICKUP READY</span></div>
+      </div>
+      <div class="hero-food" aria-hidden="true">
+        <div class="hero-stamp">Explore<strong>{{ menu_items|length if menu_items else 0 }}</strong>menu picks</div>
+        <img src="/assets/luuvcrm/app/hero-loaded-fries-cutout.png" alt="">
+      </div>
+    </div>
   </div>
 
   <div class="container">
@@ -248,21 +259,23 @@
       {% for group in groups %}
         {% set category_id = category_ids.get(group.grouper, loop.index) if kurunegala_menu else loop.index %}
         <section class="category" id="menu-category-{{ category_id }}" data-category-section>
-          <div class="category-header"><h2>{{ group.grouper }}</h2></div>
-          {% for item in group.list %}
-            <div class="menu-item">
-              <div class="thumb">
-                <img src="{{ item.image or '/assets/luuvcrm/app/menu-placeholder.svg' }}" alt="{{ item.name }}" loading="lazy" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg'">
+          <div class="category-header"><h2>{{ group.grouper }}</h2><span class="category-count">{{ group.list|length }} picks</span></div>
+          <div class="category-items">
+            {% for item in group.list %}
+              <div class="menu-item">
+                <div class="thumb">
+                  <img src="{{ item.image or '/assets/luuvcrm/app/menu-placeholder.svg' }}" alt="{{ item.name }}" loading="lazy" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg'">
+                </div>
+                <div class="info">
+                  <div class="name">{{ item.name }}</div>
+                  {% if item.description and item.description != item.name %}
+                    <div class="desc">{{ item.description }}</div>
+                  {% endif %}
+                </div>
+                <div class="rate">{% if kurunegala_menu %}Rs {{ '{:,.0f}'.format(item.rate) }}{% else %}{{ '%.0f' % item.rate }}{% endif %}</div>
               </div>
-              <div class="info">
-                <div class="name">{{ item.name }}</div>
-                {% if item.description and item.description != item.name %}
-                  <div class="desc">{{ item.description }}</div>
-                {% endif %}
-              </div>
-              <div class="rate">{% if kurunegala_menu %}Rs {{ '{:,.0f}'.format(item.rate) }}{% else %}{{ '%.0f' % item.rate }}{% endif %}</div>
-            </div>
-          {% endfor %}
+            {% endfor %}
+          </div>
         </section>
       {% endfor %}
     {% else %}

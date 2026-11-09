@@ -4,6 +4,18 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Keep local/debug builds working before the Firebase project credentials are
+// copied in. The debug app has a separate package id so it can coexist with
+// the release app; Firebase is enabled for release builds when configured.
+val buildingDebugOnly = gradle.startParameter.taskNames.any {
+    it.contains("debug", ignoreCase = true)
+} && gradle.startParameter.taskNames.none {
+    it.contains("release", ignoreCase = true)
+}
+if (file("google-services.json").exists() && !buildingDebugOnly) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.luuvgrand.luuv_customer"
     compileSdk = flutter.compileSdkVersion
@@ -28,9 +40,15 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["appLabel"] = "Luuv Fryxo"
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            manifestPlaceholders["appLabel"] = "Luuv Fryxo Debug"
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

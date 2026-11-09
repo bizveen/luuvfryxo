@@ -679,17 +679,40 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
         self.assertNotIn("chart.googleapis.com", html)
         self.assertIn("/assets/luuvcrm/js/qrcode.js", html)
 
-    def test_referral_qr_forces_the_branch_cards_before_the_menu(self):
+    def test_branch_neutral_customer_links_open_kurunegala_without_a_chooser(self):
         page = importlib.import_module("luuvcrm.www.cus")
         previous = frappe.local.form_dict
         try:
             frappe.local.form_dict = frappe._dict(ref="LVAB12")
-            with patch.object(page.branch, "for_page", return_value=None) as resolver:
-                page.get_context(frappe._dict())
+            with patch.object(page.branch, "all_restaurants",
+                              return_value=["Dambulla", "Kurunegala"]), \
+                    patch.object(page.branch, "remember") as remember, \
+                    patch.object(page.branch, "for_page") as resolver, \
+                    patch.object(page, "menu_groups", return_value=[]):
+                context = frappe._dict()
+                page.get_context(context)
         finally:
             frappe.local.form_dict = previous
-        resolver.assert_called_once()
-        self.assertTrue(resolver.call_args.kwargs["force_choose"])
+        resolver.assert_not_called()
+        remember.assert_called_once_with("Kurunegala")
+        self.assertEqual(context.branch, "Kurunegala")
+        self.assertEqual(context.branch_choices, [])
+        self.assertEqual(context.restaurant_name, "Kurunegala")
+
+    def test_customer_app_keeps_explicit_branch_links(self):
+        page = importlib.import_module("luuvcrm.www.cus")
+        previous = frappe.local.form_dict
+        try:
+            frappe.local.form_dict = frappe._dict(r="Dambulla")
+            with patch.object(page.branch, "for_page",
+                              return_value="Dambulla") as resolver, \
+                    patch.object(page, "menu_groups", return_value=[]):
+                context = frappe._dict()
+                page.get_context(context)
+        finally:
+            frappe.local.form_dict = previous
+        resolver.assert_called_once_with(context)
+        self.assertEqual(context.restaurant_name, "Dambulla")
 
     def test_branch_chooser_is_mobile_stacked_and_marks_the_default(self):
         template = frappe.read_file(frappe.get_app_path(
@@ -707,14 +730,82 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
             frappe.local.form_dict = frappe._dict(tab="rewards")
             rewards = frappe._dict()
             page.get_context(rewards)
-            self.assertEqual(rewards.initial_tab, "rewards")
+            self.assertEqual(rewards.initial_tab, "offers")
+
+            frappe.local.form_dict = frappe._dict(tab="order")
+            order = frappe._dict()
+            page.get_context(order)
+            self.assertEqual(order.initial_tab, "order")
 
             frappe.local.form_dict = frappe._dict(tab="not-a-real-tab")
             fallback = frappe._dict()
             page.get_context(fallback)
-            self.assertEqual(fallback.initial_tab, "order")
+            self.assertEqual(fallback.initial_tab, "home")
         finally:
             frappe.local.form_dict = previous
+
+    def test_customer_app_has_a_home_status_menu_and_offers_navigation(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
+        self.assertIn('id="tabHome"', html)
+        self.assertIn('id="homeStatus"', html)
+        self.assertIn('data-tab="order"', html)
+        self.assertIn('data-tab="offers"', html)
+        self.assertIn('id="offerHighlights"', html)
+        self.assertIn('id="searchInput"', html)
+        self.assertIn('id="itemDetailOverlay"', html)
+        self.assertIn('class="page-hero"', html)
+        self.assertIn('class="hero-food', html)
+        self.assertIn('class="popular-row"', html)
+        self.assertIn('Good food, less waiting.', html)
+        self.assertIn("grid-template-columns:minmax(0,1fr)", html)
+        self.assertIn('class="desc">{{ item.description }}', html)
+        self.assertIn('data-search=', html)
+        self.assertIn('<b>+</b> Add', html)
+        self.assertEqual(html.count('id="acPin2"'), 1)
+        self.assertIn('/assets/luuvcrm/app/menu-placeholder.svg', html)
+        self.assertIn("this.onerror=null;this.src=", html)
+        self.assertIn("const RESTAURANT =", html)
+        self.assertIn("restaurant:RESTAURANT", html)
+        self.assertNotIn("Kurunegala", html)
+        self.assertIn("function renderHome()", html)
+        self.assertIn("function renderOffers()", html)
+
+    def test_customer_top_picks_use_sales_from_the_last_24_hours(self):
+        page = importlib.import_module("luuvcrm.www.cus")
+        now = object()
+        cutoff = object()
+        rows = [frappe._dict(item="DISH-1")]
+
+        with patch.object(page, "now_datetime", return_value=now), \
+                patch.object(page, "add_days", return_value=cutoff) as add_days, \
+                patch.object(page.frappe.db, "sql", return_value=rows) as sql:
+            result = page._popular_item_codes("Main Branch", ["DISH-1", "DISH-2"])
+
+        add_days.assert_called_once_with(now, -1)
+        query, values = sql.call_args.args[:2]
+        self.assertIn("SUM(soi.qty)", query)
+        self.assertIn("LIMIT 5", query)
+        self.assertEqual(values, (cutoff, "Main Branch", "DISH-1", "DISH-2"))
+        self.assertEqual(result, ["DISH-1"])
+
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
+        self.assertIn("Top picks at", html)
+        self.assertIn("Top 5 sellers from the last 24 hours", html)
+        self.assertNotIn("Fresh picks", html)
+
+    def test_customer_top_picks_fall_back_to_five_random_menu_items(self):
+        page = importlib.import_module("luuvcrm.www.cus")
+        menu_items = [
+            {"code": f"DISH-{index}", "group": "Food"}
+            for index in range(1, 7)
+        ] + [{"code": "EXTRA-1", "group": "Add-ons"}]
+        chosen = menu_items[1:6]
+
+        with patch.object(page, "sample", return_value=chosen) as sample:
+            result = page._random_menu_picks(menu_items)
+
+        sample.assert_called_once_with(menu_items[:6], 5)
+        self.assertEqual(result, chosen)
 
 
 class TestTheAdminPortal(PageTestCase):
@@ -859,6 +950,19 @@ class TestTheAdminPortal(PageTestCase):
         self.assertIn('.li.table-row{grid-template-columns:minmax(0,1fr) auto}', html)
         self.assertIn('<div class="li table-row"${off}>', html)
         self.assertIn('<div class="tags">${seats}${open}</div>', html)
+
+    def test_menu_screens_identify_the_restaurant_not_the_menu_record(self):
+        """Restaurant Menu names are internal card/version identifiers. Staff
+        must see which restaurant they are changing, especially when one is
+        unfortunately named something generic such as "New"."""
+        admin = self.page()
+        manager = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "manager.html"))
+        self.assertIn("d.items.length + ' items · ' + d.restaurant", admin)
+        self.assertIn("d.restaurant + ' · no live menu configured yet'", admin)
+        self.assertNotIn("' items on ' + d.menu", admin)
+        self.assertIn("(m.restaurant||'Restaurant')+' · '+m.items.length+' items'", manager)
+        self.assertIn("'New item for '+(setData.restaurant||'this restaurant')", manager)
+        self.assertNotIn("(m.menu||'Menu')+' · '", manager)
 
     def test_purchases_has_the_same_bom_editor_as_admin(self):
         """Purchasing staff should maintain recipes without opening Desk."""
