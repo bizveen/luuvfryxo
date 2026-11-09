@@ -286,7 +286,20 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
 .trend-sales header{display:flex;align-items:center;gap:12px;padding:18px;border-bottom:1px solid var(--border-subtle);position:sticky;top:0;background:white;z-index:1}
 .trend-sales h3{margin:0;font-size:18px}.trend-sales .content{padding:18px}
 .trend-sales table{width:100%;border-collapse:collapse;font-size:13px}.trend-sales th,.trend-sales td{padding:11px 6px;border-bottom:1px solid var(--border-subtle);text-align:left}.trend-sales .amount{text-align:right;white-space:nowrap}
-.trend-sales small{display:block;color:var(--text-muted);margin-top:4px}.trend-sales-summary{font-weight:700;margin-bottom:12px}
+.trend-sales small{display:block;color:var(--text-muted);margin-top:4px}.trend-sales-summary{display:grid;grid-template-columns:1.55fr 1fr 1fr;gap:10px;margin-bottom:22px}
+.trend-sales{--sales-accent:#F15207;background:#fcfbfa}
+.trend-sales header{padding:20px 22px;border-top:4px solid var(--sales-accent)}
+.trend-sales .content{padding:20px 22px}
+.trend-sales-kicker{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sales-accent);margin-bottom:5px}
+.trend-sales h3{font-family:var(--font-display);font-size:22px;letter-spacing:-.03em}
+.trend-sales .sales-close{display:flex;align-items:center;justify-content:center;padding:0;line-height:1;width:34px;height:34px;flex:none;border:1px solid var(--border-subtle);border-radius:50%;background:#fff;color:var(--text-muted);font-size:24px;cursor:pointer}
+.sales-stat{min-width:0;padding:17px 14px;border:1px solid #eae5df;border-radius:15px;background:#fff;box-shadow:0 3px 10px #20181004}
+.sales-stat.primary{background:color-mix(in srgb,var(--sales-accent) 8%,white);border-color:color-mix(in srgb,var(--sales-accent) 22%,white)}
+.sales-stat-label{display:block;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#786f65;margin-bottom:9px}
+.sales-stat-value{display:block;font-family:var(--font-display);font-size:20px;font-weight:800;letter-spacing:-.035em;font-variant-numeric:tabular-nums;color:#25211d;overflow-wrap:anywhere}
+.sales-stat.primary .sales-stat-value{color:var(--sales-accent);font-size:25px}
+.sales-stat-hint{display:block;font-size:10px;color:#8a8075;margin-top:7px}
+@media(max-width:520px){.trend-sales-summary{grid-template-columns:1fr 1fr}.sales-stat.primary{grid-column:1/-1}.sales-stat.primary .sales-stat-value{font-size:30px}.trend-sales .content,.trend-sales header{padding:16px}.sales-stat{padding:15px}}
 .trend-bar{cursor:pointer}.trend-bar:hover,.trend-bar:focus{opacity:.75;stroke:var(--text-strong);stroke-width:2;outline:none}
 </style>
 {% include "templates/includes/brand.html" %}
@@ -494,8 +507,8 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
 
 <!-- ── menu item editor ─────────────────────────────────────────────── -->
 <dialog id="trendSales" class="trend-sales" aria-labelledby="trendSalesTitle" onclick="if(event.target===this)closeTrendSales()" onclose="TREND_SALES_REQUEST++;TREND_SALES=null;">
-  <header><div style="flex:1"><h3 id="trendSalesTitle">Daily sales</h3><small id="trendSalesDate"></small></div><button class="btn" onclick="closeTrendSales()" aria-label="Close daily sales">Close</button></header>
-  <div class="content"><div id="trendSalesSummary" class="trend-sales-summary"></div><div id="trendSalesBody" aria-live="polite"></div><button id="trendSalesMore" class="btn" style="display:none;margin-top:14px" onclick="loadTrendSales(true)">Load more</button></div>
+  <header><div style="flex:1"><div class="trend-sales-kicker">Daily sales summary</div><h3 id="trendSalesTitle">Daily sales</h3><small id="trendSalesDate"></small></div><button class="sales-close" onclick="closeTrendSales()" aria-label="Close daily sales">&times;</button></header>
+  <div class="content"><div id="trendSalesSummary" class="trend-sales-summary" aria-live="polite"></div><div id="trendSalesBody" aria-live="polite"></div><button id="trendSalesMore" class="btn" style="display:none;margin-top:14px" onclick="loadTrendSales(true)">Load more</button></div>
 </dialog>
 <div class="sheet" id="itemSheet" onclick="if(event.target===this) closeItem()">
   <div class="panelbox" role="dialog" aria-modal="true" aria-labelledby="itemTitle">
@@ -793,15 +806,20 @@ function managerOverview(report, strip){
 // Branch colors follow identity, even when revenue ranking changes row order.
 let TREND_SALES=null,TREND_SALES_REQUEST=0;
 function daySalesMoney(value){ return 'Rs '+Number(value||0).toLocaleString('en-LK',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function renderTrendSalesSummary(result){
+  const count=Number(result?.count)||0,total=Number(result?.total)||0;
+  const stats=[['Total sales',result?daySalesMoney(total):'&mdash;','For the selected day','primary'],['Bills',result?nfmt(count):'&mdash;','Sales bills',''],['Average bill',result?daySalesMoney(count?total/count:0):'&mdash;','Per bill','']];
+  document.getElementById('trendSalesSummary').innerHTML=stats.map(([label,value,hint,kind])=>'<div class="sales-stat '+kind+'"><span class="sales-stat-label">'+label+'</span><strong class="sales-stat-value">'+value+'</strong><span class="sales-stat-hint">'+hint+'</span></div>').join('');
+}
 function openTrendSales(bar){
   TREND_SALES_REQUEST++;
   TREND_SALES={restaurant:IS_OWNER?bar.dataset.restaurant:'',date:bar.dataset.date,offset:0,bills:[]};
   document.getElementById('trendSalesTitle').textContent=bar.dataset.city+' sales';
   document.getElementById('trendSalesDate').textContent=bar.dataset.date;
-  document.getElementById('trendSalesSummary').textContent='';
+  renderTrendSalesSummary(null);
   document.getElementById('trendSalesBody').innerHTML='<div class="empty">Loading sales...</div>';
   document.getElementById('trendSalesMore').style.display='none';
-  const dialog=document.getElementById('trendSales');if(!dialog.open)dialog.showModal();
+  const dialog=document.getElementById('trendSales');dialog.style.setProperty('--sales-accent',overviewBranchColor({restaurant:bar.dataset.restaurant}));if(!dialog.open)dialog.showModal();
   loadTrendSales(false);
 }
 function closeTrendSales(){ TREND_SALES_REQUEST++;TREND_SALES=null;document.getElementById('trendSales').close(); }
@@ -818,7 +836,7 @@ async function loadTrendSales(more){
   state.bills=more?state.bills.concat(result.bills||[]):(result.bills||[]);state.offset=state.bills.length;
   document.getElementById('trendSalesTitle').textContent=result.city+' sales';
   document.getElementById('trendSalesDate').textContent=result.label;
-  document.getElementById('trendSalesSummary').textContent=result.count+' bills � '+daySalesMoney(result.total);
+  renderTrendSalesSummary(result);
   const rows=state.bills.map(b=>'<tr><td><strong>'+esc((b.orders||[]).map(o=>o.name).join(', ')||b.name)+'</strong><small>'+esc(b.name)+(b.is_return?' � Return':'')+'</small>'+((b.orders||[]).some(o=>o.table)?'<small>'+esc(b.orders.map(o=>o.table).filter(Boolean).join(', '))+'</small>':'')+'</td><td>'+esc(b.time||'�')+'<small>'+esc((b.modes||[]).join(' + ')||'�')+'</small></td><td class="amount">'+esc(daySalesMoney(b.total))+'</td></tr>').join('');
   document.getElementById('trendSalesBody').innerHTML=rows?'<table><thead><tr><th>Bill / order</th><th>Time / payment</th><th class="amount">Amount</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">No submitted sales for this day.</div>';
   button.style.display=result.more?'inline-flex':'none';
