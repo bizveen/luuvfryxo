@@ -47,6 +47,31 @@ def _random_menu_picks(items):
     return sample(candidates, min(5, len(candidates)))
 
 
+def _customer_branch(context):
+    """Send branch-neutral customer links to Kurunegala for now.
+
+    Explicit branch and table links still win: they may already be printed on
+    branch-specific QR codes.  Only a bare ``/cus`` (including referral,
+    promotion and phone deep links) skips the chooser and opens Kurunegala.
+    """
+    form = frappe.form_dict
+    if form.get("r") or form.get("restaurant") or form.get("table"):
+        return branch.for_page(context)
+
+    default = next(
+        (name for name in branch.all_restaurants()
+         if name.casefold() == "kurunegala"),
+        None,
+    )
+    if not default:
+        return branch.for_page(context)
+
+    context.branch = default
+    context.branch_choices = []
+    branch.remember(default)
+    return default
+
+
 def redirect_to_cus():
     """301 to /cus, carrying the query string.
 
@@ -89,17 +114,10 @@ def get_context(context):
         "home", "order", "orders", "offers", "account"
     } else "home"
 
-    # A referral QR is deliberately branch-neutral. Always show its two branch
-    # cards before ordering, even when this phone has an older branch cookie.
-    # Once a card adds ?r=, the explicit choice is respected and remembered.
-    form = frappe.form_dict
-    force_branch_choice = bool(
-        context.ref_code
-        and not (form.get("r") or form.get("restaurant") or form.get("table"))
-    )
-    restaurant_name = branch.for_page(
-        context, force_choose=force_branch_choice
-    )
+    # Branch-neutral customer links currently open Kurunegala directly. Keep
+    # explicit branch/table QR links working so already-printed links remain
+    # safe and deterministic.
+    restaurant_name = _customer_branch(context)
     context.restaurant_name = restaurant_name or settings.get("brand_name")
     context.menu_groups = []
     context.hero_item = None

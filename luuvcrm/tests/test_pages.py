@@ -679,17 +679,40 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
         self.assertNotIn("chart.googleapis.com", html)
         self.assertIn("/assets/luuvcrm/js/qrcode.js", html)
 
-    def test_referral_qr_forces_the_branch_cards_before_the_menu(self):
+    def test_branch_neutral_customer_links_open_kurunegala_without_a_chooser(self):
         page = importlib.import_module("luuvcrm.www.cus")
         previous = frappe.local.form_dict
         try:
             frappe.local.form_dict = frappe._dict(ref="LVAB12")
-            with patch.object(page.branch, "for_page", return_value=None) as resolver:
-                page.get_context(frappe._dict())
+            with patch.object(page.branch, "all_restaurants",
+                              return_value=["Dambulla", "Kurunegala"]), \
+                    patch.object(page.branch, "remember") as remember, \
+                    patch.object(page.branch, "for_page") as resolver, \
+                    patch.object(page, "menu_groups", return_value=[]):
+                context = frappe._dict()
+                page.get_context(context)
         finally:
             frappe.local.form_dict = previous
-        resolver.assert_called_once()
-        self.assertTrue(resolver.call_args.kwargs["force_choose"])
+        resolver.assert_not_called()
+        remember.assert_called_once_with("Kurunegala")
+        self.assertEqual(context.branch, "Kurunegala")
+        self.assertEqual(context.branch_choices, [])
+        self.assertEqual(context.restaurant_name, "Kurunegala")
+
+    def test_customer_app_keeps_explicit_branch_links(self):
+        page = importlib.import_module("luuvcrm.www.cus")
+        previous = frappe.local.form_dict
+        try:
+            frappe.local.form_dict = frappe._dict(r="Dambulla")
+            with patch.object(page.branch, "for_page",
+                              return_value="Dambulla") as resolver, \
+                    patch.object(page, "menu_groups", return_value=[]):
+                context = frappe._dict()
+                page.get_context(context)
+        finally:
+            frappe.local.form_dict = previous
+        resolver.assert_called_once_with(context)
+        self.assertEqual(context.restaurant_name, "Dambulla")
 
     def test_branch_chooser_is_mobile_stacked_and_marks_the_default(self):
         template = frappe.read_file(frappe.get_app_path(
