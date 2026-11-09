@@ -779,11 +779,19 @@ function managerOverview(report, strip){
     totals:{revenue,expenses,sales_count:sales,avg_ticket:report.avg_ticket||0,cash,cash_share:revenue?cash*100/revenue:0,approvals_pending:((strip&&strip.approvals)||[]).filter(a=>a.status==='pending').length,revenue_change:null},
     leaders:{best_branch:'',best_day:report.best_day||null},problems:[],single_branch:true};
 }
+// Branch colors follow identity, even when revenue ranking changes row order.
+function overviewBranchColor(b){
+  const key=b.restaurant||'';
+  if(key==='Kurunegala') return '#F15207';
+  if(key==='Luuv Fryxo') return '#2D74D6';
+  let hash=0; for(const ch of key) hash=(hash*31+ch.charCodeAt(0))>>>0;
+  return OV_COLORS[hash%OV_COLORS.length];
+}
 function overviewBranchLabel(b){ return (b.city||'').trim()||b.restaurant; }
 function renderTrend(d){
   const host=document.getElementById('ovTrend'),daily=d.daily||[],expenseMode=TREND_MODE==='expenses';
   const bs=(d.branches||[]).filter(b=>expenseMode?b.expenses!==null:b.revenue!==null),seriesKey=expenseMode?'expense_branches':'branches',measure=expenseMode?'Expenses':'Revenue';
-  document.getElementById('ovLegend').innerHTML=bs.map((b,i)=>`<span><i style="background:${OV_COLORS[i%OV_COLORS.length]}"></i>${esc(overviewBranchLabel(b))}</span>`).join('');
+  document.getElementById('ovLegend').innerHTML=bs.map((b,i)=>`<span><i style="background:${overviewBranchColor(b)}"></i>${esc(overviewBranchLabel(b))}</span>`).join('');
   if(!daily.length||!bs.length){ host.innerHTML=`<div class="empty">No ${expenseMode?'expense':'sales'} data in this period.</div>`; return; }
   const W=Math.max(320,Math.round(host.clientWidth||800)),compact=W<520,H=250,L=compact?48:62,R=compact?8:18,T=14,B=34,plotW=W-L-R,plotH=H-T-B;
   const max=Math.max(1,...daily.flatMap(day=>bs.map(b=>Number((day[seriesKey]||{})[b.restaurant])||0)));
@@ -794,7 +802,7 @@ function renderTrend(d){
   const labelEvery=daily.length<=10?1:Math.ceil(daily.length/6);
   daily.forEach((day,i)=>{ const groupX=L+i*slot+(slot-groupW)/2;
     bs.forEach((b,bi)=>{ const value=Number((day[seriesKey]||{})[b.restaurant])||0,height=value*plotH/max,x=groupX+bi*(barW+gap),y=T+plotH-height;
-      if(height>0) svg+=`<rect x="${x}" y="${y}" width="${barW}" height="${height}" rx="2" fill="${OV_COLORS[bi%OV_COLORS.length]}"><title>${esc(day.label||day.date)} · ${esc(overviewBranchLabel(b))} · ${measure}: ${esc(money(value))}</title></rect>`;
+      if(height>0) svg+=`<rect x="${x}" y="${y}" width="${barW}" height="${height}" rx="2" fill="${overviewBranchColor(b)}"><title>${esc(day.label||day.date)} · ${esc(overviewBranchLabel(b))} · ${measure}: ${esc(money(value))}</title></rect>`;
     });
     if(i%labelEvery===0||i===daily.length-1) svg+=`<text x="${L+i*slot+slot/2}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="#837A70">${esc(day.label||day.date)}</text>`;
   });
@@ -802,7 +810,7 @@ function renderTrend(d){
 }
 function renderBars(d){
   const bs=(d.branches||[]).filter(b=>b.revenue!==null).sort((a,b)=>(b.revenue||0)-(a.revenue||0)),max=Math.max(1,...bs.map(b=>b.revenue||0));
-  document.getElementById('ovBars').innerHTML=bs.length?bs.map((b,i)=>`<div><div class="ov-bar-top"><span class="ov-rank">${i+1}</span><span class="ov-bar-name">${esc(overviewBranchLabel(b))}</span><span class="ov-bar-val">${esc(compactMoney(b.revenue))}</span></div><div class="ov-track"><div class="ov-fill" style="width:${Math.max(2,(b.revenue||0)*100/max)}%;background:${OV_COLORS[i%OV_COLORS.length]}"></div></div><div style="margin-left:30px;margin-top:3px;font-size:10.5px;color:var(--text-faint)">${(b.share||0).toFixed(1)}% of total${b.revenue_change===null?'':` · ${b.revenue_change>=0?'↑':'↓'} ${Math.abs(b.revenue_change).toFixed(1)}%`}</div></div>`).join(''):'<div class="empty">No configured restaurant data.</div>';
+  document.getElementById('ovBars').innerHTML=bs.length?bs.map((b,i)=>`<div><div class="ov-bar-top"><span class="ov-rank">${i+1}</span><span class="ov-bar-name">${esc(overviewBranchLabel(b))}</span><span class="ov-bar-val">${esc(compactMoney(b.revenue))}</span></div><div class="ov-track"><div class="ov-fill" style="width:${Math.max(2,(b.revenue||0)*100/max)}%;background:${overviewBranchColor(b)}"></div></div><div style="margin-left:30px;margin-top:3px;font-size:10.5px;color:var(--text-faint)">${(b.share||0).toFixed(1)}% of total${b.revenue_change===null?'':` · ${b.revenue_change>=0?'↑':'↓'} ${Math.abs(b.revenue_change).toFixed(1)}%`}</div></div>`).join(''):'<div class="empty">No configured restaurant data.</div>';
 }
 function decisionMetric(label,value,max,color,formatted){
   const width=value>0?Math.max(2,Math.min(100,value*100/Math.max(1,max))):0;
