@@ -2223,7 +2223,7 @@ function lfPoll(fn, ms){
     if(setLoaded && !force) return; setLoaded=true;
     try{ const r=await _post('/api/method/luuvcrm.api.get_menu_settings',{}); if(!r) return; const d=await r.json(); const m=d.message; if(!m||!m.items){ document.getElementById('setSub').textContent=srvErr(d)||'Could not load the menu'; return; }
       setData=m;
-      document.getElementById('setSub').textContent=(m.restaurant||'Restaurant')+' · '+m.items.length+' items';
+      document.getElementById('setSub').textContent=(m.menu||'Menu')+' · '+m.items.length+' items'+(m.price_list?(' · prices in '+m.price_list):'');
       renderSetList(); }catch(e){}
   }
   function renderSetList(){
@@ -2258,7 +2258,7 @@ function lfPoll(fn, ms){
   function openItemAdd(){
     if(!setData){ toast('Menu still loading…'); return; } editIdx=null;
     document.getElementById('itemTitle').textContent='Add menu item';
-    document.getElementById('itemCodeLine').textContent='New item for '+(setData.restaurant||'this restaurant');
+    document.getElementById('itemCodeLine').innerHTML='New item on '+(setData.menu||'the menu');
     document.getElementById('itemName').value='';
     document.getElementById('itemRate').value='';
     document.getElementById('itemGdPct').value='';

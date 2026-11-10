@@ -49,10 +49,6 @@ def active_menu_name(restaurant=None):
     name = frappe.db.get_value("Restaurant", restaurant, "active_menu")
     if not name or not frappe.db.exists("Restaurant Menu", name):
         return None
-    # The link can be stale (older create_branch copied another outlet's active
-    # menu). Never let one restaurant silently serve another restaurant's card.
-    if frappe.db.get_value("Restaurant Menu", name, "restaurant") != restaurant:
-        return None
     return name if frappe.db.get_value("Restaurant Menu", name, "enabled") else None
 
 
@@ -257,12 +253,7 @@ def _active_menu_doc(restaurant=None):
     active = frappe.get_value("Restaurant", restaurant_name, "active_menu") if restaurant_name else None
     if not active:
         frappe.throw(_("No active menu is configured on the Restaurant"))
-    menu = frappe.get_doc("Restaurant Menu", active)
-    if menu.restaurant != restaurant_name:
-        frappe.throw(_("The active menu configured for {0} belongs to another restaurant").format(
-            restaurant_name
-        ))
-    return menu
+    return frappe.get_doc("Restaurant Menu", active)
 def _winning_pos_price_row(item_code, price_list):
     """Name of the Item Price row _resolve_item_rate would pick from the POS
     price list today (same filters + ordering), or None."""
@@ -322,8 +313,7 @@ def get_menu_settings():
     items.sort(key=lambda x: (x["group"], x["name"]))
     groups = sorted({i["group"] for i in items})
     all_groups = frappe.get_all("Item Group", filters={"is_group": 0}, order_by="name", pluck="name")
-    return {"menu": menu.name, "restaurant": menu.restaurant or branch.viewing() or "",
-            "price_list": price_list or "",
+    return {"menu": menu.name, "price_list": price_list or "",
             "items": items, "groups": groups, "all_groups": all_groups}
 @frappe.whitelist(methods=["POST"])
 def update_menu_item(item_code=None, item_name=None, rate=None, guide_pct=None,
@@ -527,8 +517,7 @@ def get_menu_admin(restaurant=None):
     # what makes that switch visible instead of a field in the Desk.
     menus = []
     if chosen:
-        menus = [{"name": m.name, "label": "%s · %s" % (chosen, m.name),
-                  "enabled": int(m.enabled or 0),
+        menus = [{"name": m.name, "enabled": int(m.enabled or 0),
                   "items": frappe.db.count("Restaurant Menu Item", {"parent": m.name})}
                  for m in frappe.get_all("Restaurant Menu",
                                          filters={"restaurant": chosen},
@@ -580,10 +569,9 @@ def set_active_menu(restaurant=None, menu=None):
         frappe.throw(_("Pick a menu"))
     if frappe.db.get_value("Restaurant Menu", menu, "restaurant") != restaurant:
         # Otherwise a branch quietly starts selling another branch's card.
-        owner = frappe.db.get_value("Restaurant Menu", menu, "restaurant") or _("another restaurant")
-        frappe.throw(_("The selected menu belongs to {0}, not {1}").format(owner, restaurant))
+        frappe.throw(_("{0} belongs to another restaurant").format(menu))
     if not frappe.db.get_value("Restaurant Menu", menu, "enabled"):
-        frappe.throw(_("The selected menu for {0} is disabled — enable it first").format(restaurant))
+        frappe.throw(_("{0} is disabled — enable it before making it the live menu").format(menu))
 
     was = frappe.db.get_value("Restaurant", restaurant, "active_menu")
     frappe.db.set_value("Restaurant", restaurant, "active_menu", menu)
