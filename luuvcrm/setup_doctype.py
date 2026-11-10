@@ -104,6 +104,7 @@ EXPECTED_DOCTYPES = (
     # migrate. api/wa.py reads it when present and creates nothing.
     "Customer Account",
     "Customer Token",
+    "Customer Push Token",
     "Loyalty Customer",
     "Cashback Transaction",
     "Loyalty Settings",

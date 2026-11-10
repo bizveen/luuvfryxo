@@ -139,7 +139,11 @@ def mark_kitchen_ready():
         frappe.throw(_("Order name required"))
     branch.require_access("POS Order", order_name)
     frappe.db.set_value("POS Order", order_name, "kitchen_status", "Ready")
-    return {"status": "ready", "name": order_name}
+    # Delivery is asynchronous and starts only after this transaction commits;
+    # the kitchen button must never wait on Firebase or fail because it is down.
+    from luuvcrm.api.push import queue_order_ready_push
+    push_queued = queue_order_ready_push(order_name)
+    return {"status": "ready", "name": order_name, "push_queued": push_queued}
 @frappe.whitelist(methods=["POST"])
 def mark_kitchen_served():
     roles.require_kitchen()

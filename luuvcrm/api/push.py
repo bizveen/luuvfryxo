@@ -149,32 +149,41 @@ def _send_one(device, title, body, data, fcm_context):
     access_token, project_id = fcm_context
     kind = data.get("type") or "promotion"
     channel = "order_updates" if kind == "order_ready" else "offers_promotions"
-    response = requests.post(
-        f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json; charset=UTF-8",
-        },
-        json={
-            "message": {
-                "token": device.device_token,
-                "notification": {"title": title, "body": body},
-                "data": _push_data(data),
-                "android": {
-                    "priority": "HIGH" if kind == "order_ready" else "NORMAL",
-                    "notification": {
-                        "channel_id": channel,
-                        "sound": "default",
-                        "click_action": "FLUTTER_NOTIFICATION_CLICK",
+    try:
+        response = requests.post(
+            f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json; charset=UTF-8",
+            },
+            json={
+                "message": {
+                    "token": device.device_token,
+                    "notification": {"title": title, "body": body},
+                    "data": _push_data(data),
+                    "android": {
+                        "priority": "HIGH" if kind == "order_ready" else "NORMAL",
+                        "notification": {
+                            "channel_id": channel,
+                            "sound": "default",
+                            "click_action": "FLUTTER_NOTIFICATION_CLICK",
+                        },
                     },
-                },
-                "apns": {
-                    "payload": {"aps": {"sound": "default", "badge": 1}},
-                },
-            }
-        },
-        timeout=FCM_TIMEOUT_SECONDS,
-    )
+                    "apns": {
+                        "payload": {"aps": {"sound": "default", "badge": 1}},
+                    },
+                }
+            },
+            timeout=FCM_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as error:
+        # Exception text can include the request, including its credentials.
+        # One failed device must not prevent delivery to the remaining ones.
+        frappe.log_error(
+            title="Customer push notification failed",
+            message=f"FCM transport {type(error).__name__}; token hash {device.name}",
+        )
+        return False
     if response.ok:
         return True
 
@@ -187,7 +196,7 @@ def _send_one(device, title, body, data, fcm_context):
         _disable_token(device.name)
     frappe.log_error(
         title="Customer push notification failed",
-        message=f"FCM {response.status_code}; token hash {device.name}; {error_text[:500]}",
+        message=f"FCM {response.status_code}; token hash {device.name}",
     )
     return False
 
@@ -205,9 +214,9 @@ def send_customer_push(mobile, title, body, data=None):
         return {"sent": 0, "failed": 0}
     try:
         context = _fcm_context()
-    except Exception:
+    except Exception as error:
         frappe.log_error(title="Firebase push is not configured",
-                         message=frappe.get_traceback())
+                         message=f"FCM credential setup failed ({type(error).__name__})")
         return {"sent": 0, "failed": len(devices)}
     sent = sum(bool(_send_one(device, title, body, data or {}, context))
                for device in devices)
@@ -238,8 +247,11 @@ def send_order_ready_push(order_name):
 
 def queue_order_ready_push(order_name):
     """Queue after commit so a kitchen tap never waits on Google's network."""
+    if not frappe.db.exists("DocType", PUSH_DOCTYPE):
+        return False
     mobile = frappe.db.get_value("POS Order", order_name, "mobile")
-    if not mobile:
+    if not mobile or not frappe.db.exists(
+            PUSH_DOCTYPE, {"mobile": mobile, "enabled": 1}):
         return False
     frappe.enqueue(
         "luuvcrm.api.push.send_order_ready_push",
@@ -266,10 +278,10 @@ def queue_customer_push_broadcast(kind=None, title=None, body=None, restaurant=N
         frappe.throw(_("Restaurant not found"))
     if not roles.is_owner():
         allowed = branch.available_restaurants()
-        if restaurant and restaurant not in allowed:
+        restaurant = restaurant or branch.viewing() or ""
+        if not restaurant or restaurant not in allowed:
             frappe.throw(_("You are not permitted that branch"),
                          frappe.PermissionError)
-        restaurant = restaurant or branch.viewing() or ""
 
     filters = {"restaurant": restaurant} if restaurant else {}
     recipients = len(_enabled_devices(filters))
@@ -292,9 +304,9 @@ def send_customer_push_broadcast(kind, title, body, restaurant=""):
         return {"sent": 0, "failed": 0}
     try:
         context = _fcm_context()
-    except Exception:
+    except Exception as error:
         frappe.log_error(title="Firebase push is not configured",
-                         message=frappe.get_traceback())
+                         message=f"FCM credential setup failed ({type(error).__name__})")
         return {"sent": 0, "failed": len(devices)}
     query = {"tab": "offers"}
     if restaurant:
