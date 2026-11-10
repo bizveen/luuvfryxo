@@ -1116,14 +1116,27 @@ function lfPoll(fn, ms){
         clearInterval(iv);
         if(s==='approved'){ await handlers.approved(); }
         else if(s==='rejected'){ await handlers.rejected(); }
+        else if(s==='superseded'&&handlers.superseded){ await handlers.superseded(); }
       }catch(e){} };
     iv=setInterval(tick,3000); }
+  async function reloadEditedOrder(order,table){
+    if(currentOrder!==order){ await loadOpenOrders(); return; }
+    clearTimeout(_saveTimer); _saveAgain=false;
+    let waits=0; while(_saving&&waits++<100){ await new Promise(r=>setTimeout(r,40)); }
+    if(_saving){ toast('Bill is saving - reopen it to see the latest items'); return; }
+    clearTimeout(_saveTimer); _saveAgain=false; _saveEpoch++;
+    if(currentOrder!==order) return;
+    if(table){ await refreshTableTabs(table); if(currentOrder!==order) return; const o=tableOrders.find(x=>x.name===order); if(o) selectOrderTab(order); else clearTicket(); }
+    else { await loadOpenOrders(); if(currentOrder!==order) return; if(_openOrders.find(x=>x.name===order)) resumeTakeaway(order); else clearTicket(); }
+    loadOpenOrders();
+  }
   function pollEdit(name, order, table){ pollDecision(name,{
     // The bill may have been voided by the approval (every item removed) — then
     // it is no longer on the table and the ticket must clear, not reload.
-    approved:async()=>{ toast('Edit approved ✓'); if(currentOrder!==order){ loadOpenOrders(); return; }
-      if(table){ await refreshTableTabs(table); const o=tableOrders.find(x=>x.name===order); if(o) selectOrderTab(order); else clearTicket(); } else { await loadOpenOrders(); if(_openOrders.find(x=>x.name===order)) resumeTakeaway(order); else clearTicket(); } loadOpenOrders(); },
-    rejected:()=>{ toast('Edit rejected — restoring order'); if(currentOrder===order){ cart={...editBaseline}; renderCart(); } } }); }
+    approved:async()=>{ toast('Edit approved ✓'); await reloadEditedOrder(order,table); },
+    rejected:async()=>{ toast('Edit rejected - loading current bill'); await reloadEditedOrder(order,table); },
+    superseded:()=>{ toast('Edit request expired or was replaced. Refresh the bill before requesting approval again'); }
+  }); }
   // clearTicket: reset the active ticket but keep the table selected (so its tabs stay)
   function clearTicket(){ currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; renderCart(); renderOrderTabs(); }
   function clearCart(){ currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; document.getElementById('tableSel').value=''; tableOrders=[]; updateTabsVisibility(); renderCart(); }
