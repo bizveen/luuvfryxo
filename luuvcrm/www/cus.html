@@ -151,18 +151,23 @@ input,button{font-family:inherit;}
 .mcard[data-cat="Loaded-Fries"].customizing,.mcard[data-cat="Chips"].customizing{height:332px;}
 .mcard.customizing .body{bottom:75px;}
 .mcard.customizing .row{bottom:99px;}
-.card-addon-tray{display:none;position:absolute;z-index:5;left:8px;right:8px;bottom:8px;height:60px;padding:7px;background:rgba(255,253,250,.94);border:1px solid rgba(251,108,3,.16);border-radius:17px;box-shadow:0 10px 22px rgba(61,34,19,.11);backdrop-filter:blur(16px);cursor:default;overflow:hidden;}
+.card-addon-tray{display:none;position:absolute;z-index:5;left:11px;right:11px;bottom:8px;height:60px;padding:8px 3px;background:transparent;border:0;box-shadow:none;cursor:default;overflow:hidden;}
 .mcard.customizing .card-addon-tray{display:flex;align-items:center;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:none;}
 .card-addon-tray::-webkit-scrollbar{display:none;}
-.card-addon-chip{position:relative;flex:none;height:44px;max-width:138px;display:grid;grid-template-columns:22px minmax(0,1fr);grid-template-rows:1fr 1fr;column-gap:6px;align-items:center;padding:5px 10px 5px 6px;border:1px solid var(--border-subtle);border-radius:13px;background:var(--surface-sunken);color:var(--text-strong);cursor:pointer;scroll-snap-align:start;transition:background var(--duration-base),border-color var(--duration-base),transform var(--duration-base);}
+.card-addon-chip{position:relative;flex:none;width:auto;min-width:88px;max-width:112px;height:42px;display:grid;grid-template-columns:27px minmax(0,1fr);grid-template-rows:1fr 1fr;column-gap:5px;align-items:center;padding:4px 8px 4px 5px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--surface-sunken);color:var(--text-strong);cursor:pointer;scroll-snap-align:start;transition:background var(--duration-base),border-color var(--duration-base),transform var(--duration-base),box-shadow var(--duration-base);}
 .card-addon-chip:active{transform:scale(.97);}
 .card-addon-chip>input{position:absolute;opacity:0;pointer-events:none;}
-.card-addon-chip .chip-check{grid-row:1/3;width:22px;height:22px;display:grid;place-items:center;border:1.5px solid var(--gray-300);border-radius:7px;background:#fff;color:transparent;font-size:12px;font-weight:900;}
-.card-addon-chip .chip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-display);font-size:10px;font-weight:800;line-height:1.05;}
+.card-addon-chip .chip-icon{grid-row:1/3;width:27px;height:27px;display:grid;place-items:center;overflow:hidden;border-radius:9px;background:#fff;box-shadow:0 2px 6px rgba(61,34,19,.08);}
+.card-addon-chip .chip-icon img{width:31px;height:27px;object-fit:contain;transition:transform var(--duration-base);}
+.card-addon-chip .chip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-display);font-size:9.5px;font-weight:800;line-height:1.05;}
 .card-addon-chip .chip-meta{font-size:8px;font-weight:700;color:var(--text-muted);line-height:1.05;white-space:nowrap;}
-.card-addon-chip.selected{border-color:var(--orange-300);background:var(--orange-50);}
-.card-addon-chip.selected .chip-check{border-color:var(--orange-500);background:var(--orange-500);color:#fff;box-shadow:0 3px 8px rgba(251,108,3,.22);}
+.card-addon-chip.selected{border-color:var(--orange-400);background:var(--orange-50);box-shadow:0 3px 9px rgba(251,108,3,.1);}
+.card-addon-chip.selected .chip-icon img{transform:scale(1.08);}
 .card-addon-chip.selected .chip-meta{color:var(--orange-700);}
+.card-addon-dots{display:none;position:absolute;z-index:7;left:50%;bottom:4px;transform:translateX(-50%);align-items:center;justify-content:center;gap:4px;pointer-events:none;}
+.card-addon-dots.visible{display:flex;}
+.card-addon-dots span{display:block;width:5px;height:5px;border-radius:99px;background:rgba(131,122,112,.46);transition:width var(--duration-base),background var(--duration-base);}
+.card-addon-dots span.active{width:13px;background:var(--orange-500);}
 .qctrl button{width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;}
 .qctrl .minus{background:var(--orange-100);color:var(--orange-700);}
 .qctrl .plus{background:var(--color-primary);color:#fff;}
@@ -486,9 +491,10 @@ html[data-theme="dark"] .account-hero .account-icon{background:#26201c;}
 html[data-theme="dark"] .ord.Ready{background:rgba(30,158,90,.12);}
 html[data-theme="dark"] .pill.Ready{background:#171918;}
 html[data-theme="dark"] .mcard .group-label{background:rgba(17,19,18,.84);border-color:rgba(255,255,255,.12);color:#d5d8d5;}
-html[data-theme="dark"] .card-addon-tray{background:rgba(23,25,24,.95);border-color:#353834;box-shadow:0 12px 28px rgba(0,0,0,.34);}
 html[data-theme="dark"] .card-addon-chip{background:#202321;border-color:#353936;}
 html[data-theme="dark"] .card-addon-chip.selected{background:rgba(251,108,3,.13);border-color:rgba(251,108,3,.55);}
+html[data-theme="dark"] .card-addon-dots span{background:rgba(210,203,196,.42);}
+html[data-theme="dark"] .card-addon-dots span.active{background:var(--orange-400);}
 html[data-theme="dark"] .codebox{background:rgba(251,108,3,.1);border-color:rgba(255,132,51,.55);}
 html[data-theme="dark"] .no-menu-results{background:#141615;border-color:#3b3f3c;}
 html[data-theme="dark"] .navbar{background:rgba(5,7,6,.98);border-color:rgba(255,255,255,.08);box-shadow:0 -10px 30px rgba(0,0,0,.28);}
@@ -635,7 +641,8 @@ html[data-theme="dark"] .navb.active{color:var(--orange-400);}
                 <span class="view-label">View details</span>
                 <div data-slot="{{ item.code }}"><button class="add" onclick="event.stopPropagation();addItem('{{ item.code }}')"><b>+</b> Add</button></div>
               </div>
-              <div class="card-addon-tray" data-card-addons onclick="event.stopPropagation()" aria-label="Choose add-ons for {{ item.name|e }}"></div>
+              <div class="card-addon-tray" data-card-addons onclick="event.stopPropagation()" onscroll="cardAddonScrolled(this)" aria-label="Choose add-ons for {{ item.name|e }}"></div>
+              <span class="card-addon-dots" data-addon-dots aria-hidden="true"></span>
             </article>
             {% endfor %}
           </div>
@@ -1193,24 +1200,42 @@ function itemLineNote(code){
   const removed=includedSauces(cardDescription(card)).filter(s=>options&&options.removed&&options.removed[s.key]);
   return removed.length?'Without: '+removed.map(s=>s.label).join(', '):'';
 }
+function updateCardAddonDots(tray){
+  const dots=tray&&tray.closest('.mcard')?.querySelector('[data-addon-dots]');
+  if(!tray||!dots) return;
+  const maxScroll=Math.max(0,tray.scrollWidth-tray.clientWidth);
+  if(maxScroll<8){ dots.classList.remove('visible'); dots.innerHTML=''; return; }
+  const pageCount=Math.max(2,Math.ceil(tray.scrollWidth/tray.clientWidth));
+  const active=Math.min(pageCount-1,Math.round((tray.scrollLeft/maxScroll)*(pageCount-1)));
+  dots.innerHTML=Array.from({length:pageCount},(_,index)=>'<span class="'+(index===active?'active':'')+'"></span>').join('');
+  dots.classList.add('visible');
+}
+function cardAddonScrolled(tray){
+  updateCardAddonDots(tray);
+}
 function renderCardAddons(card){
   const tray=card&&card.querySelector('[data-card-addons]');
   if(!tray) return;
+  const previousScroll=tray.scrollLeft;
   const code=card.dataset.code, enabled=(cart[code]||0)>0&&cardSupportsAddons(card);
   const included=enabled?includedSauces(cardDescription(card)):[];
   const extras=enabled?optionalAddons(cardDescription(card)):[];
   if(!enabled||(!included.length&&!extras.length)){
-    card.classList.remove('customizing'); tray.innerHTML=''; return;
+    const dots=card.querySelector('[data-addon-dots]');
+    card.classList.remove('customizing','addons-explored'); tray.innerHTML='';
+    if(dots){ dots.classList.remove('visible'); dots.innerHTML=''; }
+    return;
   }
   const options=itemOptionsFor(code), safeCode=quotedCode(code);
   const includedHtml=included.map(s=>{ const selected=!options.removed[s.key];
-    return '<label class="card-addon-chip included'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleCardIncluded(\''+safeCode+'\',\''+quotedCode(s.key)+'\',this.checked)"><span class="chip-check">✓</span><span class="chip-name">'+esc(shortAddonName(s.label))+'</span><span class="chip-meta">'+(selected?'Included':'Removed')+'</span></label>';
+    return '<label class="card-addon-chip included'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleCardIncluded(\''+safeCode+'\',\''+quotedCode(s.key)+'\',this.checked)"><span class="chip-icon"><img src="'+esc(s.image)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'"></span><span class="chip-name">'+esc(shortAddonName(s.label))+'</span><span class="chip-meta">'+(selected?'Included':'Removed')+'</span></label>';
   }).join('');
   const extrasHtml=extras.map(item=>{ const selected=!!options.extras[item.code];
-    return '<label class="card-addon-chip'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleCardExtra(\''+safeCode+'\',\''+quotedCode(item.code)+'\',this.checked)"><span class="chip-check">✓</span><span class="chip-name">'+esc(shortAddonName(item.name))+'</span><span class="chip-meta">'+(selected?'Added':' + Rs '+nf(item.rate))+'</span></label>';
+    return '<label class="card-addon-chip'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleCardExtra(\''+safeCode+'\',\''+quotedCode(item.code)+'\',this.checked)"><span class="chip-icon"><img src="'+esc(item.image)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'"></span><span class="chip-name">'+esc(shortAddonName(item.name))+'</span><span class="chip-meta">'+(selected?'Added':' + Rs '+nf(item.rate))+'</span></label>';
   }).join('');
   tray.innerHTML=extrasHtml+includedHtml;
   card.classList.add('customizing');
+  requestAnimationFrame(()=>{ if(previousScroll) tray.scrollLeft=previousScroll; updateCardAddonDots(tray); });
 }
 function toggleCardIncluded(baseCode,key,checked){
   const options=itemOptionsFor(baseCode);
