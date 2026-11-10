@@ -802,6 +802,8 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
         self.assertIn("Top picks at", html)
         self.assertIn("Top 5 sellers from the last 24 hours", html)
         self.assertNotIn("Fresh picks", html)
+        self.assertIn('<span class="popular-rank">{{ item.group }}</span>', html)
+        self.assertNotIn('TOP PICK</span>', html)
 
     def test_customer_top_picks_fall_back_to_five_random_menu_items(self):
         page = importlib.import_module("luuvcrm.www.cus")
