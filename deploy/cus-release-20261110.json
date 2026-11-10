@@ -196,6 +196,7 @@
     "pyproject.toml": "afeb33c63598368a6767548b31a8666c"
   },
   "worker_containers": [
-    "frappe_docker-queue-short-1"
+    "frappe_docker-queue-short-1",
+    "frappe_docker-queue-long-1"
   ]
 }
