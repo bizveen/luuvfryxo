@@ -12,6 +12,7 @@ continue to sign in with their PIN; they are not asked for OTP again.
 - Text.lk API token — **secret; transfer separately, never paste it into this
   file, Git, an issue, or a deployment log**.
 - Approved Text.lk Sender ID: `LUUV FRYXO`.
+- HTTP API endpoint: `https://app.text.lk/api/http/sms/send`.
 
 `TextLKDemo` is for local testing only and must not be enabled on the host.
 

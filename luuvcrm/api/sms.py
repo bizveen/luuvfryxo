@@ -6,7 +6,7 @@ import requests
 from luuvcrm import settings
 
 
-TEXTLK_SEND_URL = "https://app.text.lk/api/v3/sms/send"
+TEXTLK_SEND_URL = "https://app.text.lk/api/http/sms/send"
 
 
 def textlk_configured():
@@ -34,11 +34,11 @@ def send_textlk_sms(recipient, message):
         response = requests.post(
             TEXTLK_SEND_URL,
             headers={
-                "Authorization": f"Bearer {token}",
                 "Accept": "application/json",
                 "Content-Type": "application/json",
             },
             json={
+                "api_token": token,
                 "recipient": str(recipient or "").strip(),
                 "sender_id": sender_id,
                 "type": "plain",
@@ -51,6 +51,6 @@ def send_textlk_sms(recipient, message):
         accepted = status is True or str(status or "").lower() == "success"
         return response.ok and accepted
     except Exception as exc:
-        # The token is only in the request header and is never included here.
+        # Never include the request body or token in the error log.
         frappe.log_error(f"Text.lk SMS error: {exc}", "Text.lk SMS")
         return False

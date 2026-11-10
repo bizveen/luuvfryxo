@@ -23,6 +23,7 @@ from luuvcrm.api.pricing import (
     _service_charge_on,
 )
 from luuvcrm.api.promos import PROMO_WINDOW_HOURS, _pending_promo_for
+from luuvcrm.api.schema import _clean_item_note, _ensure_item_notes_field
 from luuvcrm.api.wa import wa_number
 from luuvcrm.api.whatsapp import send_customer_whatsapp, send_order_whatsapp
 
@@ -107,13 +108,25 @@ def kiosk_place_order():
     })
     subtotal = 0
     sc_base = 0
+    if any(_clean_item_note(item.get("notes")) for item in items):
+        _ensure_item_notes_field()
     for item_data in items:
         item_code = item_data.get("item")
         qty = max(int(item_data.get("qty", 1)), 1)
         rate = _server_item_rate(item_code)
         item_ta = _item_is_takeaway(item_data, order_type)
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
-        pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty, "rate": rate, "takeaway": 1 if item_ta else 0})
+        item_row = {
+            "item": item_code,
+            "item_name": item_name,
+            "qty": qty,
+            "rate": rate,
+            "takeaway": 1 if item_ta else 0,
+        }
+        item_note = _clean_item_note(item_data.get("notes"))
+        if item_note:
+            item_row["notes"] = item_note
+        pos_order.append("items", item_row)
         subtotal += rate * qty
         if not item_ta:
             sc_base += rate * qty

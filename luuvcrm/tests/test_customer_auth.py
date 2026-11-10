@@ -492,7 +492,7 @@ class TestSendingTheCode(CustomerAuthTestCase):
         code = re.search(r"\b(\d{4})\b", body).group(1)
         self.assertEqual(code, frappe.cache().get_value(f"sms_otp:{self.MOBILE}"))
 
-    def test_textlk_sends_plain_sms_with_bearer_auth_when_configured(self):
+    def test_textlk_sends_plain_sms_with_http_api_token_when_configured(self):
         self.configure_textlk()
         response = Mock(ok=True, content=b"{}")
         response.json.return_value = {"status": "success"}
@@ -502,10 +502,12 @@ class TestSendingTheCode(CustomerAuthTestCase):
         self.assertTrue(result["sent"])
         self.assertEqual(result["channel"], "sms")
         request = post.call_args.kwargs
+        self.assertEqual(post.call_args.args[0], "https://app.text.lk/api/http/sms/send")
         self.assertEqual(request["json"]["recipient"], "94" + self.MOBILE[1:])
         self.assertEqual(request["json"]["sender_id"], "TextLKTest")
         self.assertEqual(request["json"]["type"], "plain")
-        self.assertTrue(request["headers"]["Authorization"].startswith("Bearer "))
+        self.assertEqual(request["json"]["api_token"], "test-token")
+        self.assertNotIn("Authorization", request["headers"])
         self.assertEqual(request["timeout"], 10)
         import re
         code = re.search(r"\b(\d{4})\b", request["json"]["message"]).group(1)

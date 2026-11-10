@@ -297,6 +297,26 @@ class TestFirstOrderReferralDiscount(LoyaltyTestCase):
              "type": "Referral Discount", "reference_order": order.name},
         ))
 
+    def test_kiosk_keeps_per_item_sauce_removal_notes(self):
+        result = self.call(
+            api.kiosk_place_order,
+            items=json.dumps([{
+                "item": self.item,
+                "qty": 1,
+                "rate": 1,
+                "notes": "  Without: White Sauce, Tomato Salsa  ",
+            }]),
+            customer_name="Sauce Guest",
+            mobile=self.INVITEE,
+            restaurant="",
+        )
+
+        order = frappe.get_doc("POS Order", result["name"])
+        self.assertEqual(
+            order.items[0].notes,
+            "Without: White Sauce, Tomato Salsa",
+        )
+
     def test_the_same_phone_cannot_receive_the_deal_twice(self):
         first = self.checkout(self.INVITEE, self.code)
         second = self.checkout(self.INVITEE, self.code)

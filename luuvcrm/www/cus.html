@@ -147,6 +147,22 @@ input,button{font-family:inherit;}
 .mcard .qctrl{gap:5px;margin-right:10px;padding:4px;background:var(--orange-50);border:1px solid var(--orange-100);border-radius:99px;box-shadow:0 3px 10px rgba(61,34,19,.06);}
 .mcard .qctrl .q{color:var(--text-strong);font-size:12px;}
 .mcard .qctrl button{width:28px;height:28px;}
+.mcard.customizing{height:368px;}
+.mcard[data-cat="Loaded-Fries"].customizing,.mcard[data-cat="Chips"].customizing{height:332px;}
+.mcard.customizing .body{bottom:75px;}
+.mcard.customizing .row{bottom:99px;}
+.card-addon-tray{display:none;position:absolute;z-index:5;left:8px;right:8px;bottom:8px;height:60px;padding:7px;background:rgba(255,253,250,.94);border:1px solid rgba(251,108,3,.16);border-radius:17px;box-shadow:0 10px 22px rgba(61,34,19,.11);backdrop-filter:blur(16px);cursor:default;overflow:hidden;}
+.mcard.customizing .card-addon-tray{display:flex;align-items:center;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:none;}
+.card-addon-tray::-webkit-scrollbar{display:none;}
+.card-addon-chip{position:relative;flex:none;height:44px;max-width:138px;display:grid;grid-template-columns:22px minmax(0,1fr);grid-template-rows:1fr 1fr;column-gap:6px;align-items:center;padding:5px 10px 5px 6px;border:1px solid var(--border-subtle);border-radius:13px;background:var(--surface-sunken);color:var(--text-strong);cursor:pointer;scroll-snap-align:start;transition:background var(--duration-base),border-color var(--duration-base),transform var(--duration-base);}
+.card-addon-chip:active{transform:scale(.97);}
+.card-addon-chip>input{position:absolute;opacity:0;pointer-events:none;}
+.card-addon-chip .chip-check{grid-row:1/3;width:22px;height:22px;display:grid;place-items:center;border:1.5px solid var(--gray-300);border-radius:7px;background:#fff;color:transparent;font-size:12px;font-weight:900;}
+.card-addon-chip .chip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-display);font-size:10px;font-weight:800;line-height:1.05;}
+.card-addon-chip .chip-meta{font-size:8px;font-weight:700;color:var(--text-muted);line-height:1.05;white-space:nowrap;}
+.card-addon-chip.selected{border-color:var(--orange-300);background:var(--orange-50);}
+.card-addon-chip.selected .chip-check{border-color:var(--orange-500);background:var(--orange-500);color:#fff;box-shadow:0 3px 8px rgba(251,108,3,.22);}
+.card-addon-chip.selected .chip-meta{color:var(--orange-700);}
 .qctrl button{width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;}
 .qctrl .minus{background:var(--orange-100);color:var(--orange-700);}
 .qctrl .plus{background:var(--color-primary);color:#fff;}
@@ -220,8 +236,7 @@ input,button{font-family:inherit;}
 .detail-sauce-card{position:relative;min-width:0;min-height:72px;display:flex;align-items:center;gap:7px;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:16px;padding:6px;color:var(--text-body);box-shadow:0 4px 12px rgba(61,34,19,.045);cursor:pointer;transition:border-color var(--duration-base),background var(--duration-base),box-shadow var(--duration-base),transform var(--duration-base);}
 .detail-sauce-card:active{transform:scale(.98);}
 .detail-sauce-card.selected{background:var(--orange-50);border-color:var(--orange-300);box-shadow:0 5px 14px rgba(251,108,3,.1);}
-.detail-sauce-card.included{cursor:default;}
-.detail-sauce-card.included:active{transform:none;}
+.detail-sauce-card.included{cursor:pointer;}
 .detail-sauce-card>input{position:absolute;opacity:0;pointer-events:none;}
 .detail-sauce-visual{width:58px;height:56px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:13px;background:radial-gradient(circle at 50% 45%,#fff 0%,var(--orange-50) 75%);}
 .detail-sauce-visual img{display:block;width:66px;height:54px;object-fit:contain;filter:drop-shadow(0 5px 5px rgba(61,34,19,.15));}
@@ -471,6 +486,9 @@ html[data-theme="dark"] .account-hero .account-icon{background:#26201c;}
 html[data-theme="dark"] .ord.Ready{background:rgba(30,158,90,.12);}
 html[data-theme="dark"] .pill.Ready{background:#171918;}
 html[data-theme="dark"] .mcard .group-label{background:rgba(17,19,18,.84);border-color:rgba(255,255,255,.12);color:#d5d8d5;}
+html[data-theme="dark"] .card-addon-tray{background:rgba(23,25,24,.95);border-color:#353834;box-shadow:0 12px 28px rgba(0,0,0,.34);}
+html[data-theme="dark"] .card-addon-chip{background:#202321;border-color:#353936;}
+html[data-theme="dark"] .card-addon-chip.selected{background:rgba(251,108,3,.13);border-color:rgba(251,108,3,.55);}
 html[data-theme="dark"] .codebox{background:rgba(251,108,3,.1);border-color:rgba(255,132,51,.55);}
 html[data-theme="dark"] .no-menu-results{background:#141615;border-color:#3b3f3c;}
 html[data-theme="dark"] .navbar{background:rgba(5,7,6,.98);border-color:rgba(255,255,255,.08);box-shadow:0 -10px 30px rgba(0,0,0,.28);}
@@ -603,7 +621,7 @@ html[data-theme="dark"] .navb.active{color:var(--orange-400);}
           <h2>{{ emoji.get(g['name'],'🍽️') }} {{ g['name'] }}</h2>
           <div class="grid">
             {% for item in g['items'] %}
-            <article class="mcard" data-code="{{ item.code }}" data-cat="{{ item.group|replace(' ','-') }}" data-rate="{{ item.rate }}" data-name="{{ item.name|e }}" data-search="{{ (item.name ~ ' ' ~ item.description ~ ' ' ~ item.group)|e }}" onclick="openItemDetail('{{ item.code }}')">
+            <article class="mcard" data-code="{{ item.code }}" data-cat="{{ item.group|replace(' ','-') }}" data-rate="{{ item.rate }}" data-name="{{ item.name|e }}" data-description="{{ (item.description or '')|e }}" data-search="{{ (item.name ~ ' ' ~ item.description ~ ' ' ~ item.group)|e }}" onclick="openItemDetail('{{ item.code }}')">
               <div class="img{% if item.image %} image-loading{% endif %}">
                 <span class="group-label">{{ emoji.get(item.group,'🍽️') }} {{ item.group }}</span>
                 <span class="menu-card-price"><small>Rs</small> {{ '%.0f' % item.rate }}</span>
@@ -617,6 +635,7 @@ html[data-theme="dark"] .navb.active{color:var(--orange-400);}
                 <span class="view-label">View details</span>
                 <div data-slot="{{ item.code }}"><button class="add" onclick="event.stopPropagation();addItem('{{ item.code }}')"><b>+</b> Add</button></div>
               </div>
+              <div class="card-addon-tray" data-card-addons onclick="event.stopPropagation()" aria-label="Choose add-ons for {{ item.name|e }}"></div>
             </article>
             {% endfor %}
           </div>
@@ -835,6 +854,7 @@ let _promo = "{{ promo_code }}" || localStorage.getItem('lf_promo') || '';
 const PREFILL_PHONE = "{{ prefill_phone }}";
 let tab = {{ initial_tab | tojson }};
 let cart = {};            // code -> qty
+let itemOptions = {};     // base item -> removed included sauces + paid extras
 let _loy = null;          // cached loyalty info
 let _loyPromise = null;
 let _profile = null;      // cached customer profile for completion progress
@@ -1116,11 +1136,25 @@ async function renderOffers(){
 /* ─────────── menu / cart ─────────── */
 function rateOf(code){ const el=document.querySelector('.mcard[data-code="'+CSS.escape(code)+'"]'); return el?parseFloat(el.dataset.rate)||0:0; }
 function nameOf(code){ const el=document.querySelector('.mcard[data-code="'+CSS.escape(code)+'"]'); return el?el.dataset.name:code; }
-function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
-function cartTotal(){ return Object.entries(cart).reduce((a,[c,q])=>a+rateOf(c)*q,0); }
+function linkedAddonQuantities(){
+  const linked={};
+  Object.entries(itemOptions).forEach(([baseCode,options])=>{
+    const qty=cart[baseCode]||0;
+    if(!qty) return;
+    Object.keys(options.extras||{}).forEach(code=>{ linked[code]=(linked[code]||0)+qty; });
+  });
+  return linked;
+}
+function effectiveCart(){
+  const result={...cart};
+  Object.entries(linkedAddonQuantities()).forEach(([code,qty])=>{ result[code]=(result[code]||0)+qty; });
+  return result;
+}
+function cartCount(){ return Object.values(effectiveCart()).reduce((a,b)=>a+b,0); }
+function cartTotal(){ return Object.entries(effectiveCart()).reduce((a,[c,q])=>a+rateOf(c)*q,0); }
 function referralDiscount(){ return _refInfo ? cartTotal()*(parseFloat(_refInfo.discount_percent)||0)/100 : 0; }
 
-let _detailCode='', _detailDescription='', _detailSupportsAddons=false, _detailAddonDraft={};
+let _detailCode='', _detailDescription='', _detailSupportsAddons=false;
 const DETAIL_SAUCES=[
   {key:'hot sauce',label:'Chef Hot Sauce',image:'/files/kg-extra-hot-v3.png'},
   {key:'smoky brown sauce',label:'Smoky Brown',image:'/files/kg-extra-brown-v3.png'},
@@ -1144,6 +1178,52 @@ function optionalAddons(description){
   const included=includedSauces(description).map(s=>s.key);
   return allAddonItems().filter(item=>!included.some(key=>item.name.toLowerCase().includes(key)));
 }
+function itemOptionsFor(code){
+  if(!itemOptions[code]) itemOptions[code]={removed:{},extras:{}};
+  return itemOptions[code];
+}
+function cardDescription(card){ return (card&&card.dataset.description||'').trim(); }
+function cardSupportsAddons(card){ return !!card&&!['Drinks','Add-ons'].includes(card.dataset.cat); }
+function quotedCode(code){ return String(code||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function shortAddonName(name){ return String(name||'Add-on').replace(/chef\s+/i,'').replace(/\s+sauce$/i,'').trim(); }
+function itemLineNote(code){
+  const card=document.querySelector('.mcard[data-code="'+CSS.escape(code)+'"]');
+  if(!card) return '';
+  const options=itemOptions[code];
+  const removed=includedSauces(cardDescription(card)).filter(s=>options&&options.removed&&options.removed[s.key]);
+  return removed.length?'Without: '+removed.map(s=>s.label).join(', '):'';
+}
+function renderCardAddons(card){
+  const tray=card&&card.querySelector('[data-card-addons]');
+  if(!tray) return;
+  const code=card.dataset.code, enabled=(cart[code]||0)>0&&cardSupportsAddons(card);
+  const included=enabled?includedSauces(cardDescription(card)):[];
+  const extras=enabled?optionalAddons(cardDescription(card)):[];
+  if(!enabled||(!included.length&&!extras.length)){
+    card.classList.remove('customizing'); tray.innerHTML=''; return;
+  }
+  const options=itemOptionsFor(code), safeCode=quotedCode(code);
+  const includedHtml=included.map(s=>{ const selected=!options.removed[s.key];
+    return '<label class="card-addon-chip included'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleCardIncluded(\''+safeCode+'\',\''+quotedCode(s.key)+'\',this.checked)"><span class="chip-check">✓</span><span class="chip-name">'+esc(shortAddonName(s.label))+'</span><span class="chip-meta">'+(selected?'Included':'Removed')+'</span></label>';
+  }).join('');
+  const extrasHtml=extras.map(item=>{ const selected=!!options.extras[item.code];
+    return '<label class="card-addon-chip'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleCardExtra(\''+safeCode+'\',\''+quotedCode(item.code)+'\',this.checked)"><span class="chip-check">✓</span><span class="chip-name">'+esc(shortAddonName(item.name))+'</span><span class="chip-meta">'+(selected?'Added':' + Rs '+nf(item.rate))+'</span></label>';
+  }).join('');
+  tray.innerHTML=extrasHtml+includedHtml;
+  card.classList.add('customizing');
+}
+function toggleCardIncluded(baseCode,key,checked){
+  const options=itemOptionsFor(baseCode);
+  if(checked) delete options.removed[key]; else options.removed[key]=true;
+  syncCart();
+  if(_detailCode===baseCode) renderDetailAddons(_detailDescription,_detailSupportsAddons);
+}
+function toggleCardExtra(baseCode,addonCode,checked){
+  const options=itemOptionsFor(baseCode);
+  if(checked) options.extras[addonCode]=true; else delete options.extras[addonCode];
+  syncCart();
+  if(_detailCode===baseCode) renderDetailAddons(_detailDescription,_detailSupportsAddons);
+}
 function renderDetailAddons(description,enabled){
   const included=enabled?includedSauces(description):[];
   const extras=enabled?optionalAddons(description):[];
@@ -1151,18 +1231,25 @@ function renderDetailAddons(description,enabled){
   const list=document.getElementById('detailSauceList');
   if(!wrap||!list) return;
   wrap.style.display=(included.length||extras.length)?'block':'none';
-  const includedHtml=included.map(s=>'<div class="detail-sauce-card selected included"><span class="detail-sauce-visual"><img src="'+s.image+'" alt="" loading="lazy" onerror="this.style.display=\'none\'"></span><span class="detail-addon-copy"><span class="detail-sauce-label">'+esc(s.label)+'</span><span class="detail-addon-meta">Included</span></span><span class="detail-addon-check">✓</span></div>').join('');
-  const extrasHtml=extras.map(item=>{ const selected=!!_detailAddonDraft[item.code];
+  const options=_detailCode?itemOptionsFor(_detailCode):{removed:{},extras:{}};
+  const includedHtml=included.map(s=>{ const selected=!options.removed[s.key];
+    return '<label class="detail-sauce-card included'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleDetailIncluded(\''+quotedCode(s.key)+'\',this.checked)"><span class="detail-sauce-visual"><img src="'+s.image+'" alt="" loading="lazy" onerror="this.style.display=\'none\'"></span><span class="detail-addon-copy"><span class="detail-sauce-label">'+esc(s.label)+'</span><span class="detail-addon-meta">'+(selected?'Included':'Removed')+'</span></span><span class="detail-addon-check">✓</span></label>'; }).join('');
+  const extrasHtml=extras.map(item=>{ const selected=!!options.extras[item.code];
     return '<label class="detail-sauce-card'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleDetailAddon(\''+item.code.replace(/'/g,"\\'")+'\',this.checked)"><span class="detail-sauce-visual"><img src="'+esc(item.image)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'"></span><span class="detail-addon-copy"><span class="detail-sauce-label">'+esc(item.name)+'</span><span class="detail-addon-meta">'+(selected?'Selected · ':'+ ')+'Rs '+nf(item.rate)+'</span></span><span class="detail-addon-check">✓</span></label>'; }).join('');
   list.innerHTML=includedHtml+extrasHtml;
 }
-function toggleDetailAddon(code,checked){
-  if(checked) _detailAddonDraft[code]=true; else delete _detailAddonDraft[code];
-  if(cart[_detailCode]){ if(checked) cart[code]=Math.max(1,cart[code]||0); else delete cart[code]; syncCart(); }
-  renderDetailAddons(_detailDescription,_detailSupportsAddons);
+function toggleDetailIncluded(key,checked){
+  if(!_detailCode) return;
+  const options=itemOptionsFor(_detailCode);
+  if(checked) delete options.removed[key]; else options.removed[key]=true;
+  syncCart(); renderDetailAddons(_detailDescription,_detailSupportsAddons);
 }
-function applyDetailAddons(){
-  optionalAddons(_detailDescription).forEach(item=>{ if(_detailAddonDraft[item.code]) cart[item.code]=Math.max(1,cart[item.code]||0); else delete cart[item.code]; });
+function toggleDetailAddon(code,checked){
+  if(!_detailCode) return;
+  const options=itemOptionsFor(_detailCode);
+  if(checked) options.extras[code]=true; else delete options.extras[code];
+  syncCart();
+  renderDetailAddons(_detailDescription,_detailSupportsAddons);
 }
 function openItemDetail(code){
   const card=document.querySelector('.mcard[data-code="'+CSS.escape(code)+'"]');
@@ -1180,12 +1267,9 @@ function openItemDetail(code){
   if(detailImage.complete){ detailVisual.classList.remove('image-loading'); detailVisual.classList.add('image-loaded'); }
   document.getElementById('detailName').textContent=nameOf(code);
   document.getElementById('detailPrice').textContent='Rs '+nf(rateOf(code));
-  const desc=card.querySelector('.desc');
-  const description=(desc&&desc.textContent.trim())||'Freshly prepared by our kitchen and made to order.';
+  const description=cardDescription(card)||'Freshly prepared by our kitchen and made to order.';
   _detailDescription=description;
   _detailSupportsAddons=!['Drinks','Add-ons'].includes(card.dataset.cat);
-  _detailAddonDraft={};
-  optionalAddons(description).forEach(item=>{ if(cart[item.code]) _detailAddonDraft[item.code]=true; });
   document.getElementById('detailDescription').textContent=description;
   renderDetailAddons(description,_detailSupportsAddons);
   const group=card.querySelector('.group-label');
@@ -1211,9 +1295,8 @@ function syncDetailCart(){
 }
 function detailAdd(checkout){
   if(!_detailCode) return;
-  if(checkout){ if(!cart[_detailCode]) cart[_detailCode]=1; applyDetailAddons(); syncCart(); closeItemDetail(); openCart(); return; }
+  if(checkout){ if(!cart[_detailCode]) cart[_detailCode]=1; syncCart(); closeItemDetail(); openCart(); return; }
   cart[_detailCode]=(cart[_detailCode]||0)+1;
-  applyDetailAddons();
   syncCart();
   toast(nameOf(_detailCode)+' added');
 }
@@ -1221,8 +1304,12 @@ function detailQty(delta){ if(_detailCode) setQty(_detailCode,delta); }
 function detailOpenCart(){ if(cartCount()){ closeItemDetail(); openCart(); } else toast('Your order is empty'); }
 
 function addItem(code){ cart[code]=(cart[code]||0)+1; syncCart(); }
-function setQty(code,d){ cart[code]=(cart[code]||0)+d; if(cart[code]<=0) delete cart[code]; syncCart(); }
-function clearCart(){ cart={}; _detailAddonDraft={}; syncCart(); closeCart(); }
+function setQty(code,d){
+  cart[code]=(cart[code]||0)+d;
+  if(cart[code]<=0){ delete cart[code]; delete itemOptions[code]; }
+  syncCart();
+}
+function clearCart(){ cart={}; itemOptions={}; syncCart(); closeCart(); }
 
 function slotHtml(code){
   const q=cart[code]||0;
@@ -1234,13 +1321,22 @@ function renderCartAddons(){
   if(!section||!list) return;
   const addons=allAddonItems();
   section.style.display=addons.length?'block':'none';
-  list.innerHTML=addons.map(item=>{ const selected=!!cart[item.code];
-    return '<label class="cart-addon-card'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleCartAddon(\''+item.code.replace(/'/g,"\\'")+'\',this.checked)"><span class="cart-addon-image"><img src="'+esc(item.image)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'"></span><span class="cart-addon-copy"><span class="cart-addon-name">'+esc(item.name)+'</span><span class="cart-addon-price">'+(selected?'Added · ':'+ ')+'Rs '+nf(item.rate)+'</span></span><span class="cart-addon-check">✓</span></label>'; }).join('');
+  const linked=linkedAddonQuantities();
+  list.innerHTML=addons.map(item=>{ const selected=!!cart[item.code]||!!linked[item.code];
+    const meta=linked[item.code]?('With item × '+linked[item.code]):(selected?'Added · Rs '+nf(item.rate):'+ Rs '+nf(item.rate));
+    return '<label class="cart-addon-card'+(selected?' selected':'')+'"><input type="checkbox" '+(selected?'checked ':'')+'onchange="toggleCartAddon(\''+item.code.replace(/'/g,"\\'")+'\',this.checked)"><span class="cart-addon-image"><img src="'+esc(item.image)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'"></span><span class="cart-addon-copy"><span class="cart-addon-name">'+esc(item.name)+'</span><span class="cart-addon-price">'+meta+'</span></span><span class="cart-addon-check">✓</span></label>'; }).join('');
 }
-function toggleCartAddon(code,checked){ if(checked) cart[code]=Math.max(1,cart[code]||0); else delete cart[code]; syncCart(); }
+function toggleCartAddon(code,checked){
+  if(checked) cart[code]=Math.max(1,cart[code]||0);
+  else {
+    delete cart[code];
+    Object.values(itemOptions).forEach(options=>{ if(options.extras) delete options.extras[code]; });
+  }
+  syncCart();
+}
 function syncCart(){
   // update each item card's +/- slot
-  document.querySelectorAll('.mcard').forEach(el=>{ const slot=el.querySelector('[data-slot]'); if(slot) slot.innerHTML=slotHtml(el.dataset.code); });
+  document.querySelectorAll('.mcard').forEach(el=>{ const slot=el.querySelector('[data-slot]'); if(slot) slot.innerHTML=slotHtml(el.dataset.code); renderCardAddons(el); });
   const n=cartCount(), gross=cartTotal(), discount=referralDiscount(), tot=Math.max(0,gross-discount);
   document.getElementById('cartCnt').textContent=n;
   document.getElementById('cartBarTotal').textContent='Rs '+nf(tot);
@@ -1251,7 +1347,7 @@ function syncCart(){
     const addonCodes=new Set(allAddonItems().map(item=>item.code));
     const entries=Object.entries(cart).filter(([code])=>!addonCodes.has(code));
     ci.innerHTML = entries.length ? entries.map(([c,q])=>(
-      '<div class="citem"><div class="nm">'+esc(nameOf(c))+'<div class="ln">Rs '+nf(rateOf(c))+' × '+q+'</div></div>'+
+      '<div class="citem"><div class="nm">'+esc(nameOf(c))+'<div class="ln">Rs '+nf(rateOf(c))+' × '+q+(itemLineNote(c)?'<br><span style="color:var(--orange-700);">'+esc(itemLineNote(c))+'</span>':'')+'</div></div>'+
       '<div class="qctrl"><button class="minus" onclick="setQty(\''+c+'\',-1)">−</button><span class="q">'+q+'</span><button class="plus" onclick="setQty(\''+c+'\',1)">+</button></div>'+
       '<span class="mono" style="font-size:13px;font-weight:500;color:var(--text-strong);width:64px;text-align:right;">Rs '+nf(rateOf(c)*q)+'</span></div>'
     )).join('') : '<div class="empty" style="padding:30px 10px;"><span class="ic">🛒</span><div>Your cart is empty</div></div>';
@@ -1298,7 +1394,7 @@ async function placeOrder(){
   const phone=(document.getElementById('checkoutPhone').value||'').trim();
   const eb=document.getElementById('checkoutErr'); const em=eb.querySelector('span');
   if(phone.length<10){ em.textContent='Enter a valid 10-digit phone number'; eb.style.display='flex'; return; }
-  const entries=Object.entries(cart); if(!entries.length) return;
+  const entries=Object.entries(effectiveCart()); if(!entries.length) return;
   // free meal: preferred time is OPTIONAL (blank = ASAP); if set it must be within the window
   let sched='';
   if(_promoInfo&&_promoInfo.pending){
@@ -1307,7 +1403,7 @@ async function placeOrder(){
     if(stv&&mx&&stv>mx){ em.textContent='⏰ Free meal is within '+(_promoInfo.window_hours||6)+' hours — pick an earlier time (or leave it blank for ASAP)'; eb.style.display='flex'; return; }
     if(stv) sched=stv.replace('T',' ')+':00';
   }
-  const items=entries.map(([code,qty])=>({item:code,qty,rate:rateOf(code)}));
+  const items=entries.map(([code,qty])=>({item:code,qty,rate:rateOf(code),notes:itemLineNote(code)}));
   const btn=document.getElementById('placeBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>'; eb.style.display='none';
   let res;
   // The server links the referral, verifies first-order eligibility and computes
@@ -1320,7 +1416,7 @@ async function placeOrder(){
     const savedMsg=res.message.referral_discount_applied?(' · Referral deal saved Rs '+nf(saved)+' 💸'):'';
     localStorage.removeItem('lf_ref'); _ref=''; _refInfo=null;
     const rb=document.getElementById('referralBar'); if(rb) rb.style.display='none';
-    cart={}; syncCart(); closeCart();
+    cart={}; itemOptions={}; syncCart(); closeCart();
     if(res.message.promo_item){ toast('Order placed! 🎉 Free '+res.message.promo_item+' added 🎁'+savedMsg+(res.message.pickup_outlet?(' · 📍 collect at '+res.message.pickup_outlet):'')+(res.message.scheduled_time?(' · ⏰ '+res.message.scheduled_time.slice(0,16)):'')); }
     else toast('Order placed! 🎉 #'+res.message.name+savedMsg);
     promoBanner();
