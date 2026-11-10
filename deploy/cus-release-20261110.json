@@ -3,21 +3,22 @@
   "deployed_at": "2026-11-10T05:06:08.141Z",
   "files_md5": {
     "luuvcrm/api/push.py": "afb14be8a2a500009dd9b5e36b42714b",
-    "luuvcrm/zeloura/doctype/customer_push_token/__init__.py": "81051bcc2cf1bedf378224b0a93e2877",
-    "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.py": "146672e4d28d88669a6c15b0538db80c",
-    "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.json": "e87e216dd5fbd44f5965c9500959179a",
+    "luuvcrm/zeloura/doctype/customer_push_token/__init__.py": "68b329da9893e34099c7d8ad5cb9c940",
+    "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.py": "8e324242d1cbda441c908835ac5e4bf6",
+    "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.json": "8743d6baf36aaf8124abcbaa5b250386",
     "luuvcrm/api/menu.py": "b7b6a29ef1da71738393003381d44456",
     "luuvcrm/api/owner.py": "303e2d5c5dcca1ad68ca0fb01cb8a8c9",
     "luuvcrm/setup_doctype.py": "b75594de0397338aceebd688f2b9f7f8",
     "pyproject.toml": "afeb33c63598368a6767548b31a8666c",
-    "luuvcrm/public/css/menu-feast.css": "70d4e2c1a7573dd52d58a1610a3ad867",
+    "luuvcrm/public/css/menu-feast.css": "449dca0dfd0ad05acc514d7bc04ae993",
     "luuvcrm/www/menu.html": "b8d39579fb601ccc8ad6be50bf344baf",
     "luuvcrm/www/admin.html": "08042649cb005d3c9d6ead459f50b62c",
     "luuvcrm/www/manager.html": "629e70a5afdbc6d195f5c3fb81e3e1de",
     "luuvcrm/api/__init__.py": "3b6a6688fb441d21682a2099063235f2",
     "luuvcrm/api/kitchen.py": "b84ab80707b8bf9af4f9032984f5b245",
     "luuvcrm/settings.py": "38ea1b8a2fa2669982100de56e1c061a",
-    "luuvcrm/patches/v1_0/sync_logo_orange_brand.py": "5868067f7983a48d043e17b8217229a7"
+    "luuvcrm/patches/v1_0/sync_logo_orange_brand.py": "d3472ab78d0aabcfc11a7fbe7058c1a9",
+    "luuvcrm/patches.txt": "da523367e921d301ef69bf943a37e476"
   },
   "backend_restarted": false,
   "firebase_ready": false
