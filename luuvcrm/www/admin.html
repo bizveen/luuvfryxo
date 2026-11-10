@@ -281,6 +281,26 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
   .ov-section-head{align-items:flex-end}.ov-period{max-width:52%;text-align:right}.cmp-signal{padding:10px 12px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.trend-sales{border:0;border-radius:18px;padding:0;width:min(680px,calc(100% - 24px));max-height:88vh;color:var(--text-body);box-shadow:0 20px 60px #0003}
+.trend-sales::backdrop{background:rgba(20,18,16,.5)}
+.trend-sales header{display:flex;align-items:center;gap:12px;padding:18px;border-bottom:1px solid var(--border-subtle);position:sticky;top:0;background:white;z-index:1}
+.trend-sales h3{margin:0;font-size:18px}.trend-sales .content{padding:18px}
+.trend-sales table{width:100%;border-collapse:collapse;font-size:13px}.trend-sales th,.trend-sales td{padding:11px 6px;border-bottom:1px solid var(--border-subtle);text-align:left}.trend-sales .amount{text-align:right;white-space:nowrap}
+.trend-sales small{display:block;color:var(--text-muted);margin-top:4px}.trend-sales-summary{display:grid;grid-template-columns:1.55fr 1fr 1fr;gap:10px;margin-bottom:22px}
+.trend-sales{--sales-accent:#F15207;background:#fcfbfa}
+.trend-sales header{padding:20px 22px;border-top:4px solid var(--sales-accent)}
+.trend-sales .content{padding:20px 22px}
+.trend-sales-kicker{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sales-accent);margin-bottom:5px}
+.trend-sales h3{font-family:var(--font-display);font-size:22px;letter-spacing:-.03em}
+.trend-sales .sales-close{display:flex;align-items:center;justify-content:center;padding:0;line-height:1;width:34px;height:34px;flex:none;border:1px solid var(--border-subtle);border-radius:50%;background:#fff;color:var(--text-muted);font-size:24px;cursor:pointer}
+.sales-stat{min-width:0;padding:17px 14px;border:1px solid #eae5df;border-radius:15px;background:#fff;box-shadow:0 3px 10px #20181004}
+.sales-stat.primary{background:color-mix(in srgb,var(--sales-accent) 8%,white);border-color:color-mix(in srgb,var(--sales-accent) 22%,white)}
+.sales-stat-label{display:block;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#786f65;margin-bottom:9px}
+.sales-stat-value{display:block;font-family:var(--font-display);font-size:20px;font-weight:800;letter-spacing:-.035em;font-variant-numeric:tabular-nums;color:#25211d;overflow-wrap:anywhere}
+.sales-stat.primary .sales-stat-value{color:var(--sales-accent);font-size:25px}
+.sales-stat-hint{display:block;font-size:10px;color:#8a8075;margin-top:7px}
+@media(max-width:520px){.trend-sales-summary{grid-template-columns:1fr 1fr}.sales-stat.primary{grid-column:1/-1}.sales-stat.primary .sales-stat-value{font-size:30px}.trend-sales .content,.trend-sales header{padding:16px}.sales-stat{padding:15px}}
+.trend-bar{cursor:pointer}.trend-bar:hover,.trend-bar:focus{opacity:.75;stroke:var(--text-strong);stroke-width:2;outline:none}
 </style>
 {% include "templates/includes/brand.html" %}
 </head>
@@ -486,6 +506,10 @@ tr.tot td{background:var(--surface-sunken);font-weight:700;color:var(--text-stro
 </div>
 
 <!-- ── menu item editor ─────────────────────────────────────────────── -->
+<dialog id="trendSales" class="trend-sales" aria-labelledby="trendSalesTitle" onclick="if(event.target===this)closeTrendSales()" onclose="TREND_SALES_REQUEST++;TREND_SALES=null;">
+  <header><div style="flex:1"><div class="trend-sales-kicker">Daily sales summary</div><h3 id="trendSalesTitle">Daily sales</h3><small id="trendSalesDate"></small></div><button class="sales-close" onclick="closeTrendSales()" aria-label="Close daily sales">&times;</button></header>
+  <div class="content"><div id="trendSalesSummary" class="trend-sales-summary" aria-live="polite"></div><div id="trendSalesBody" aria-live="polite"></div><button id="trendSalesMore" class="btn" style="display:none;margin-top:14px" onclick="loadTrendSales(true)">Load more</button></div>
+</dialog>
 <div class="sheet" id="itemSheet" onclick="if(event.target===this) closeItem()">
   <div class="panelbox" role="dialog" aria-modal="true" aria-labelledby="itemTitle">
     <div class="hd"><h3 id="itemTitle">Edit item</h3><button class="ghost sm" onclick="closeItem()">Close</button></div>
@@ -779,10 +803,57 @@ function managerOverview(report, strip){
     totals:{revenue,expenses,sales_count:sales,avg_ticket:report.avg_ticket||0,cash,cash_share:revenue?cash*100/revenue:0,approvals_pending:((strip&&strip.approvals)||[]).filter(a=>a.status==='pending').length,revenue_change:null},
     leaders:{best_branch:'',best_day:report.best_day||null},problems:[],single_branch:true};
 }
+// Branch colors follow identity, even when revenue ranking changes row order.
+let TREND_SALES=null,TREND_SALES_REQUEST=0;
+function daySalesMoney(value){ return 'Rs '+Number(value||0).toLocaleString('en-LK',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function renderTrendSalesSummary(result){
+  const count=Number(result?.count)||0,total=Number(result?.total)||0;
+  const stats=[['Total sales',result?daySalesMoney(total):'&mdash;','For the selected day','primary'],['Bills',result?nfmt(count):'&mdash;','Sales bills',''],['Average bill',result?daySalesMoney(count?total/count:0):'&mdash;','Per bill','']];
+  document.getElementById('trendSalesSummary').innerHTML=stats.map(([label,value,hint,kind])=>'<div class="sales-stat '+kind+'"><span class="sales-stat-label">'+label+'</span><strong class="sales-stat-value">'+value+'</strong><span class="sales-stat-hint">'+hint+'</span></div>').join('');
+}
+function openTrendSales(bar){
+  TREND_SALES_REQUEST++;
+  TREND_SALES={restaurant:IS_OWNER?bar.dataset.restaurant:'',date:bar.dataset.date,offset:0,bills:[]};
+  document.getElementById('trendSalesTitle').textContent=bar.dataset.city+' sales';
+  document.getElementById('trendSalesDate').textContent=bar.dataset.date;
+  renderTrendSalesSummary(null);
+  document.getElementById('trendSalesBody').innerHTML='<div class="empty">Loading sales...</div>';
+  document.getElementById('trendSalesMore').style.display='none';
+  const dialog=document.getElementById('trendSales');dialog.style.setProperty('--sales-accent',overviewBranchColor({restaurant:bar.dataset.restaurant}));if(!dialog.open)dialog.showModal();
+  loadTrendSales(false);
+}
+function closeTrendSales(){ TREND_SALES_REQUEST++;TREND_SALES=null;document.getElementById('trendSales').close(); }
+async function loadTrendSales(more){
+  const state=TREND_SALES;if(!state||state.loading)return;
+  state.loading=true;const request=++TREND_SALES_REQUEST,button=document.getElementById('trendSalesMore');button.disabled=true;
+  const result=await call('owner.get_overview_day_sales',{restaurant:state.restaurant,date:state.date,offset:more?state.offset:0,limit:50});
+  if(request!==TREND_SALES_REQUEST||state!==TREND_SALES)return;
+  state.loading=false;button.disabled=false;
+  if(!result){
+    if(!more)document.getElementById('trendSalesBody').innerHTML='<div class="empty">Could not load sales. Close this popup and try again.</div>';
+    return;
+  }
+  state.bills=more?state.bills.concat(result.bills||[]):(result.bills||[]);state.offset=state.bills.length;
+  document.getElementById('trendSalesTitle').textContent=result.city+' sales';
+  document.getElementById('trendSalesDate').textContent=result.label;
+  renderTrendSalesSummary(result);
+  const rows=state.bills.map(b=>'<tr><td><strong>'+esc((b.orders||[]).map(o=>o.name).join(', ')||b.name)+'</strong><small>'+esc(b.name)+(b.is_return?' � Return':'')+'</small>'+((b.orders||[]).some(o=>o.table)?'<small>'+esc(b.orders.map(o=>o.table).filter(Boolean).join(', '))+'</small>':'')+'</td><td>'+esc(b.time||'�')+'<small>'+esc((b.modes||[]).join(' + ')||'�')+'</small></td><td class="amount">'+esc(daySalesMoney(b.total))+'</td></tr>').join('');
+  document.getElementById('trendSalesBody').innerHTML=rows?'<table><thead><tr><th>Bill / order</th><th>Time / payment</th><th class="amount">Amount</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">No submitted sales for this day.</div>';
+  button.style.display=result.more?'inline-flex':'none';
+}
+
+function overviewBranchColor(b){
+  const key=b.restaurant||'';
+  if(key==='Kurunegala') return '#F15207';
+  if(key==='Luuv Fryxo') return '#2D74D6';
+  let hash=0; for(const ch of key) hash=(hash*31+ch.charCodeAt(0))>>>0;
+  return OV_COLORS[hash%OV_COLORS.length];
+}
+function overviewBranchLabel(b){ return (b.city||'').trim()||b.restaurant; }
 function renderTrend(d){
   const host=document.getElementById('ovTrend'),daily=d.daily||[],expenseMode=TREND_MODE==='expenses';
   const bs=(d.branches||[]).filter(b=>expenseMode?b.expenses!==null:b.revenue!==null),seriesKey=expenseMode?'expense_branches':'branches',measure=expenseMode?'Expenses':'Revenue';
-  document.getElementById('ovLegend').innerHTML=bs.map((b,i)=>`<span><i style="background:${OV_COLORS[i%OV_COLORS.length]}"></i>${esc(b.restaurant)}</span>`).join('');
+  document.getElementById('ovLegend').innerHTML=bs.map((b,i)=>`<span><i style="background:${overviewBranchColor(b)}"></i>${esc(overviewBranchLabel(b))}</span>`).join('');
   if(!daily.length||!bs.length){ host.innerHTML=`<div class="empty">No ${expenseMode?'expense':'sales'} data in this period.</div>`; return; }
   const W=Math.max(320,Math.round(host.clientWidth||800)),compact=W<520,H=250,L=compact?48:62,R=compact?8:18,T=14,B=34,plotW=W-L-R,plotH=H-T-B;
   const max=Math.max(1,...daily.flatMap(day=>bs.map(b=>Number((day[seriesKey]||{})[b.restaurant])||0)));
@@ -793,7 +864,8 @@ function renderTrend(d){
   const labelEvery=daily.length<=10?1:Math.ceil(daily.length/6);
   daily.forEach((day,i)=>{ const groupX=L+i*slot+(slot-groupW)/2;
     bs.forEach((b,bi)=>{ const value=Number((day[seriesKey]||{})[b.restaurant])||0,height=value*plotH/max,x=groupX+bi*(barW+gap),y=T+plotH-height;
-      if(height>0) svg+=`<rect x="${x}" y="${y}" width="${barW}" height="${height}" rx="2" fill="${OV_COLORS[bi%OV_COLORS.length]}"><title>${esc(day.label||day.date)} · ${esc(b.restaurant)} · ${measure}: ${esc(money(value))}</title></rect>`;
+      const clickAttrs=expenseMode?'':`class="trend-bar" role="button" tabindex="0" data-restaurant="${esc(b.restaurant)}" data-date="${esc(day.date)}" data-city="${esc(overviewBranchLabel(b))}" aria-label="View sales for ${esc(overviewBranchLabel(b))}, ${esc(day.label||day.date)}" onclick="openTrendSales(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTrendSales(this)}"`;
+      if(height>0) svg+=`<rect ${clickAttrs} x="${x}" y="${y}" width="${barW}" height="${height}" rx="2" fill="${overviewBranchColor(b)}"><title>${esc(day.label||day.date)} · ${esc(overviewBranchLabel(b))} · ${measure}: ${esc(money(value))}</title></rect>`;
     });
     if(i%labelEvery===0||i===daily.length-1) svg+=`<text x="${L+i*slot+slot/2}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="#837A70">${esc(day.label||day.date)}</text>`;
   });
@@ -801,7 +873,7 @@ function renderTrend(d){
 }
 function renderBars(d){
   const bs=(d.branches||[]).filter(b=>b.revenue!==null).sort((a,b)=>(b.revenue||0)-(a.revenue||0)),max=Math.max(1,...bs.map(b=>b.revenue||0));
-  document.getElementById('ovBars').innerHTML=bs.length?bs.map((b,i)=>`<div><div class="ov-bar-top"><span class="ov-rank">${i+1}</span><span class="ov-bar-name">${esc(b.restaurant)}</span><span class="ov-bar-val">${esc(compactMoney(b.revenue))}</span></div><div class="ov-track"><div class="ov-fill" style="width:${Math.max(2,(b.revenue||0)*100/max)}%;background:${OV_COLORS[i%OV_COLORS.length]}"></div></div><div style="margin-left:30px;margin-top:3px;font-size:10.5px;color:var(--text-faint)">${(b.share||0).toFixed(1)}% of total${b.revenue_change===null?'':` · ${b.revenue_change>=0?'↑':'↓'} ${Math.abs(b.revenue_change).toFixed(1)}%`}</div></div>`).join(''):'<div class="empty">No configured restaurant data.</div>';
+  document.getElementById('ovBars').innerHTML=bs.length?bs.map((b,i)=>`<div><div class="ov-bar-top"><span class="ov-rank">${i+1}</span><span class="ov-bar-name">${esc(overviewBranchLabel(b))}</span><span class="ov-bar-val">${esc(compactMoney(b.revenue))}</span></div><div class="ov-track"><div class="ov-fill" style="width:${Math.max(2,(b.revenue||0)*100/max)}%;background:${overviewBranchColor(b)}"></div></div><div style="margin-left:30px;margin-top:3px;font-size:10.5px;color:var(--text-faint)">${(b.share||0).toFixed(1)}% of total${b.revenue_change===null?'':` · ${b.revenue_change>=0?'↑':'↓'} ${Math.abs(b.revenue_change).toFixed(1)}%`}</div></div>`).join(''):'<div class="empty">No configured restaurant data.</div>';
 }
 function decisionMetric(label,value,max,color,formatted){
   const width=value>0?Math.max(2,Math.min(100,value*100/Math.max(1,max))):0;
@@ -810,7 +882,7 @@ function decisionMetric(label,value,max,color,formatted){
 function renderNetChart(d){
   const host=document.getElementById('ovNetChart'),bs=(d.branches||[]).filter(b=>b.revenue!==null);
   if(!bs.length){ host.innerHTML='<div class="empty">No configured restaurant data.</div>'; return; }
-  const rows=bs.map(b=>({name:b.restaurant,revenue:Number(b.revenue)||0,expenses:Number(b.expenses)||0,net:(Number(b.revenue)||0)-(Number(b.expenses)||0)}));
+  const rows=bs.map(b=>({name:overviewBranchLabel(b),revenue:Number(b.revenue)||0,expenses:Number(b.expenses)||0,net:(Number(b.revenue)||0)-(Number(b.expenses)||0)}));
   const max=Math.max(1,...rows.flatMap(r=>[r.revenue,r.expenses,Math.abs(r.net)]));
   host.innerHTML=rows.map(r=>`<div class="decision-branch"><div class="decision-name"><span>${esc(r.name)}</span><span class="decision-net ${r.net>=0?'good':'bad'}">Net ${esc(money(r.net))}</span></div>${decisionMetric('Revenue',r.revenue,max,'#2D74D6',money(r.revenue))}${decisionMetric('Expenses',r.expenses,max,'#E23D3D',money(r.expenses))}${decisionMetric('Net',Math.abs(r.net),max,r.net>=0?'#1E9E5A':'#B42318',money(r.net))}</div>`).join('');
 }
@@ -818,12 +890,12 @@ function renderDriverChart(d){
   const host=document.getElementById('ovDriverChart'),bs=(d.branches||[]).filter(b=>b.revenue!==null);
   if(!bs.length){ host.innerHTML='<div class="empty">No configured restaurant data.</div>'; return; }
   const maxOrders=Math.max(1,...bs.map(b=>Number(b.sales_count)||0)),maxTicket=Math.max(1,...bs.map(b=>Number(b.avg_ticket)||0));
-  host.innerHTML=bs.map(b=>`<div class="decision-branch"><div class="decision-name"><span>${esc(b.restaurant)}</span></div>${decisionMetric('Orders',Number(b.sales_count)||0,maxOrders,'#F15207',nfmt(b.sales_count))}${decisionMetric('Avg bill',Number(b.avg_ticket)||0,maxTicket,'#8B5CF6',money(b.avg_ticket))}</div>`).join('');
+  host.innerHTML=bs.map(b=>`<div class="decision-branch"><div class="decision-name"><span>${esc(overviewBranchLabel(b))}</span></div>${decisionMetric('Orders',Number(b.sales_count)||0,maxOrders,'#F15207',nfmt(b.sales_count))}${decisionMetric('Avg bill',Number(b.avg_ticket)||0,maxTicket,'#8B5CF6',money(b.avg_ticket))}</div>`).join('');
 }
 function renderInsights(d){
   const t=d.totals||{},lead=d.leaders||{},best=lead.best_day;
   const change=t.revenue_change===null||t.revenue_change===undefined?'This is the first comparable period.':`${t.revenue_change>=0?'Revenue grew':'Revenue fell'} ${Math.abs(t.revenue_change).toFixed(1)}% against the previous ${d.days} day${d.days===1?'':'s'}.`;
-  const leader=lead.best_branch?`${lead.best_branch} led with ${compactMoney(lead.best_branch_revenue)}.`:(best?`${best.label||best.date} was strongest at ${compactMoney(best.revenue)}.`:'No sales leader yet.');
+  const leader=lead.best_branch?`${overviewBranchLabel((d.branches||[]).find(b=>b.restaurant===lead.best_branch)||{restaurant:lead.best_branch})} led with ${compactMoney(lead.best_branch_revenue)}.`:(best?`${best.label||best.date} was strongest at ${compactMoney(best.revenue)}.`:'No sales leader yet.');
   const mix=`Cash was ${(t.cash_share||0).toFixed(1)}% of revenue; average bill was ${compactMoney(t.avg_ticket)}.`;
   document.getElementById('ovInsights').innerHTML=[['💡','Period signal',change],['🏆',lead.best_branch?'Top restaurant':'Best day',leader],['💳','Payment & ticket',mix]].map(x=>`<div class="ov-insight"><span class="icon">${x[0]}</span><div><strong>${x[1]}</strong><span>${esc(x[2])}</span></div></div>`).join('');
 }
@@ -833,7 +905,7 @@ function renderCompare(d){
   const bs = d.branches || [];
   bs.forEach(b=>{ b.daily_average=b.revenue===null?null:(Number(b.revenue)||0)/Math.max(1,d.days||1); b.expense_daily_average=b.expenses===null?null:(Number(b.expenses)||0)/Math.max(1,d.days||1); });
   const totals=d.totals||{}; totals.daily_average=(Number(totals.revenue)||0)/Math.max(1,d.days||1); totals.expense_daily_average=(Number(totals.expenses)||0)/Math.max(1,d.days||1); totals.share=bs.some(b=>b.revenue!==null)?100:null;
-  const head = '<thead><tr><th></th>' + bs.map(b => `<th>${esc(b.restaurant)}</th>`).join('') +
+  const head = '<thead><tr><th></th>' + bs.map(b => `<th>${esc(overviewBranchLabel(b))}</th>`).join('') +
                (bs.length > 1 ? '<th>All</th>' : '') + '</tr></thead>';
   const tone=(key,value)=>{
     if(value===null||value===undefined) return '';
@@ -860,8 +932,8 @@ function renderCompare(d){
   const ticket=comparable.slice().sort((a,b)=>(b.avg_ticket||0)-(a.avg_ticket||0))[0];
   const pending=comparable.filter(b=>(b.approvals_pending||0)>0).sort((a,b)=>b.approvals_pending-a.approvals_pending)[0];
   const declining=comparable.filter(b=>(b.revenue_change||0)<0).sort((a,b)=>a.revenue_change-b.revenue_change)[0];
-  const attention=pending?`${pending.restaurant}: ${nfmt(pending.approvals_pending)} approval${pending.approvals_pending===1?'':'s'} waiting`:declining?`${declining.restaurant}: revenue down ${Math.abs(declining.revenue_change).toFixed(1)}%`:'No obvious branch warning in this period';
-  const signals=[['Growth leader',growth?`${growth.restaurant} · ${growth.revenue_change>=0?'↑':'↓'} ${Math.abs(growth.revenue_change).toFixed(1)}%`:'Needs a previous period'],['Highest average bill',ticket?`${ticket.restaurant} · ${money(ticket.avg_ticket)}`:'No sales yet'],['Needs attention',attention]];
+  const attention=pending?`${overviewBranchLabel(pending)}: ${nfmt(pending.approvals_pending)} approval${pending.approvals_pending===1?'':'s'} waiting`:declining?`${overviewBranchLabel(declining)}: revenue down ${Math.abs(declining.revenue_change).toFixed(1)}%`:'No obvious branch warning in this period';
+  const signals=[['Growth leader',growth?`${overviewBranchLabel(growth)} · ${growth.revenue_change>=0?'↑':'↓'} ${Math.abs(growth.revenue_change).toFixed(1)}%`:'Needs a previous period'],['Highest average bill',ticket?`${overviewBranchLabel(ticket)} · ${money(ticket.avg_ticket)}`:'No sales yet'],['Needs attention',attention]];
   document.getElementById('cmpSignals').innerHTML=signals.map(s=>`<div class="cmp-signal"><div class="label">${esc(s[0])}</div><div class="value">${esc(s[1])}</div></div>`).join('');
 
   const probs = d.problems || [];

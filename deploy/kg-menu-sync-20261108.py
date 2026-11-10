@@ -126,7 +126,7 @@ assert menu.restaurant == RESTAURANT, "Active menu belongs to another restaurant
 assert len(ITEMS) == 28
 assert len({row["code"] for row in ITEMS}) == len(ITEMS)
 
-dambulla_before = json.dumps(menu_items("Dambulla"), sort_keys=True, default=str)
+dambulla_before = json.dumps(menu_items("Luuv Fryxo"), sort_keys=True, default=str)
 for row in ITEMS:
     image_path = frappe.get_site_path("public", row["image"].lstrip("/"))
     assert os.path.exists(image_path), image_path
@@ -210,7 +210,7 @@ assert {row["code"]: row["rate"] for row in actual} == {
     row["code"]: row["rate"] for row in ITEMS
 }
 assert all(row["image"] for row in actual)
-assert json.dumps(menu_items("Dambulla"), sort_keys=True, default=str) == dambulla_before
+assert json.dumps(menu_items("Luuv Fryxo"), sort_keys=True, default=str) == dambulla_before
 
 frappe.db.commit()
 frappe.clear_cache()

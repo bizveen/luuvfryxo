@@ -69,8 +69,7 @@ button.tile:disabled{opacity:.6;cursor:progress}
     <a class="out" href="/api/method/luuvcrm.launcher.sign_out">{{ _("Sign out") }}</a>
   </header>
 
-  {#- Step 1 — which restaurant. Only for somebody who can choose, and not when
-      they came from the in-app switch. -#}
+  
   <section id="stepBranch"{% if not (branches and not asked) %} hidden{% endif %}>
     <h1>{{ _("Which restaurant?") }}</h1>
     <div class="grid">
@@ -88,7 +87,7 @@ button.tile:disabled{opacity:.6;cursor:progress}
     <p class="err" id="branchErr" hidden>{{ _("Could not choose that restaurant. Check the connection and try again.") }}</p>
   </section>
 
-  {#- Step 2 — the apps. -#}
+  
   <section id="stepApps"{% if branches and not asked %} hidden{% endif %}>
     {%- if branches %}
     <p class="cur">{{ _("Working on") }} <strong id="curName">{{ chosen_label or "—" }}</strong> · <a href="/staff">{{ _("change") }}</a></p>

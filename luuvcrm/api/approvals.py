@@ -64,6 +64,31 @@ def _discount_order_snapshot(details_json, pos_order):
     return details
 
 
+def _edit_order_snapshot(order):
+    """The bill the cashier reviewed, excluding row IDs and print bookkeeping."""
+    grouped = {}
+    for row in order.get("items") or []:
+        key = (row.item or "", float(row.rate or 0), int(row.get("takeaway") or 0),
+               _clean_item_note(row.get("notes")))
+        grouped[key] = grouped.get(key, 0.0) + float(row.qty or 0)
+    return {
+        "items": [[item, qty, rate, takeaway, notes]
+                  for (item, rate, takeaway, notes), qty in sorted(grouped.items())],
+        "order_type": order.get("order_type") or "",
+        "discount": float(order.get("discount_amount") or 0),
+        "service_charge_rate": float(order.get("service_charge_rate") or 0),
+    }
+
+
+def _snapshot_edit_payload(action_payload, order_name):
+    payload = json.loads(action_payload or "{}")
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        frappe.throw(_("Bill edit items are required"))
+    # Never trust a client-supplied baseline. Stable JSON also preserves dedupe.
+    payload["_approval_base"] = _edit_order_snapshot(frappe.get_doc("POS Order", order_name))
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
 @frappe.whitelist(methods=["POST"])
 def create_approval():
     """POS raises an approval request for a bill change that needs a manager."""
@@ -77,6 +102,8 @@ def create_approval():
         branch.require_access("POS Order", pos_order)
     action = data.get("action", "")
     action_payload = data.get("action_payload", "") or ""
+    if pos_order and action == "update_items":
+        action_payload = _snapshot_edit_payload(action_payload, pos_order)
     details_json = data.get("details_json", "") or ""
     if approval_type == "discount":
         details_json = json.dumps(_discount_order_snapshot(details_json, pos_order))
@@ -203,7 +230,7 @@ def _void_order(order_name):
     return True
 
 
-def _order_is_moot(order_name):
+def _order_is_moot(order_name, order=None):
     """Why a bill change can no longer be applied, or None when it still can.
     Approving a card whose bill has gone must not read as "done" - for weeks
     the manager saw "Approved" while the till kept the item, because the
@@ -211,7 +238,10 @@ def _order_is_moot(order_name):
     9 Sep 2026)."""
     if not frappe.db.exists("POS Order", order_name):
         return _("Bill no longer exists")
-    docstatus, invoice = frappe.db.get_value("POS Order", order_name, ["docstatus", "pos_invoice"])
+    if order is not None:
+        docstatus, invoice = order.docstatus, order.pos_invoice
+    else:
+        docstatus, invoice = frappe.db.get_value("POS Order", order_name, ["docstatus", "pos_invoice"])
     if docstatus == 2:
         return _("Bill was already voided")
     if docstatus == 1 or invoice:
@@ -224,22 +254,38 @@ def _run_bill_action(doc):
     what happened for the trail; `note` is a sentence for the manager when the
     card could not be applied as asked (it is then closed as rejected)."""
     action = doc.action or ""
-    reason = _order_is_moot(doc.pos_order)
+    current_order = None
+    if action == "update_items":
+        # Read the bill under a row lock before testing payment or its snapshot.
+        # A concurrent payment/edit must not land between validation and save.
+        if frappe.db.exists("POS Order", doc.pos_order):
+            current_order = frappe.get_doc("POS Order", doc.pos_order, for_update=True)
+    reason = _order_is_moot(doc.pos_order, order=current_order)
     if reason:
         return None, reason
     if action == "void":
         return ("voided" if _void_order(doc.pos_order) else None), None
     if action == "update_items":
+        payload = json.loads(doc.action_payload or "{}")
+        if (not current_order or
+                payload.get("_approval_base") != _edit_order_snapshot(current_order)):
+            # Older requests have no trustworthy baseline, so they also expire.
+            # Old POS tabs ignore superseded cards; rejected would restore their
+            # stale editBaseline and could wipe additions on the next autosave.
+            doc.flags.stale_item_snapshot = True
+            return None, _("Bill items changed. Refresh the bill and request approval again")
+        if any(float(row.get("paid_qty") or 0) for row in current_order.items):
+            doc.flags.stale_item_snapshot = True
+            return None, _("Bill has a partial payment. Refresh the bill before editing")
         if _is_stale_edit(doc):
             return None, _("A newer change to this bill replaced this one")
-        payload = json.loads(doc.action_payload or "{}")
         items = payload.get("items") or []
         if not items:
             # Every item taken off the bill. An order cannot be saved with no
             # items (41 of the 89 silent failures), and a bill with nothing on
             # it is a void - so that is what this is.
             return ("voided" if _void_order(doc.pos_order) else None), None
-        _apply_order_items(doc.pos_order, items)
+        _apply_order_items(doc.pos_order, items, pos_order=current_order)
         return "items_updated", None
     if action == "discount":
         payload = json.loads(doc.action_payload or "{}")
@@ -535,7 +581,7 @@ def resolve_approval():
     if decision not in ("approved", "rejected"):
         frappe.throw(_("Decision must be 'approved' or 'rejected'"))
     branch.require_access("POS Approval", name)
-    doc = frappe.get_doc("POS Approval", name)
+    doc = frappe.get_doc("POS Approval", name, for_update=True)
     if (doc.action or "") == "purchase_bill":
         roles.require_purchases()
     else:
@@ -622,9 +668,9 @@ def resolve_approval():
         # the decision back (the card stays pending) and reaches the manager.
         executed, note = _run_bill_action(doc)
         if note:
-            # Nothing to apply: the card is closed as rejected with the reason,
-            # so the queue clears and the manager reads why.
-            decision = "rejected"
+            # Expire stale snapshots without triggering old POS clients' rejected
+            # handler, which restores the cart from a now-outdated local copy.
+            decision = SUPERSEDED if doc.flags.get("stale_item_snapshot") else "rejected"
             doc.db_set("status", decision)
             if frappe.db.has_column("POS Approval", "manager_comment"):
                 doc.db_set("manager_comment", (comment + " / " if comment else "") + note)
@@ -664,18 +710,24 @@ def _apply_order_discount(order_name, payload):
     pos_order.db_set("discount_amount", amount)
     pos_order.db_set("discount_note", note)
     _apply_takeaway_service_charge(pos_order)
-def _apply_order_items(order_name, items):
+def _apply_order_items(order_name, items, pos_order=None):
     """Replace a draft POS Order's items + recompute service charge (shared by update_order
     and approved bill-edits)."""
-    pos_order = frappe.get_doc("POS Order", order_name)
+    if pos_order is None:
+        pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Only draft orders can be edited"))
     order_type = pos_order.order_type or ""
     # Preserve per-line notes across the rebuild (callers don't send notes back).
     _ensure_item_notes_field()
     notes_map = {}
+    counters = {}
     for i in (pos_order.get("items") or []):
         key = (i.item, int(i.get("takeaway") or 0))
+        counts = counters.setdefault(key, {field: 0.0 for field in
+                                          ("sent_qty", "paid_qty", "stock_consumed_qty")})
+        for field in counts:
+            counts[field] += float(i.get(field) or 0)
         n = _clean_item_note(i.get("notes"))
         if n:
             parts = [p for p in notes_map.get(key, "").split("; ") if p]
@@ -693,8 +745,15 @@ def _apply_order_items(order_name, items):
         item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
         ta_flag = 1 if item_ta else 0
         line_note = _clean_item_note(item_data.get("notes")) or notes_map.get((item_code, ta_flag), "")
+        # Retained lines keep their existing kitchen/stock/payment bookkeeping.
+        # Allocate totals once across duplicate lines; never duplicate counters.
+        remaining = counters.get((item_code, ta_flag), {})
+        kept = {field: count if field == "stock_consumed_qty" else min(qty, count)
+                for field, count in remaining.items()}
+        for field, count in kept.items():
+            remaining[field] -= count
         pos_order.append("items", {"item": item_code, "item_name": item_name, "qty": qty,
-                                   "rate": rate, "takeaway": ta_flag, "notes": line_note})
+                                   "rate": rate, "takeaway": ta_flag, "notes": line_note, **kept})
         subtotal += rate * qty
         if not item_ta:
             sc_base += rate * qty

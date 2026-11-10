@@ -59,15 +59,66 @@ def _overview_range(days=7, start=None, end=None, date=None):
     return start, end, date_diff(end, start) + 1
 
 
+@frappe.whitelist()
+def get_overview_day_sales(restaurant=None, date=None, offset=0, limit=50):
+    """The submitted invoices behind one revenue bar, without switching branches."""
+    roles.require_manager()
+    restaurant = (restaurant or branch.viewing() or "").strip()
+    if not roles.is_owner() and restaurant != branch.viewing():
+        frappe.throw("You are not permitted that branch", frappe.PermissionError)
+    if not frappe.db.exists("Restaurant", restaurant):
+        frappe.throw("Restaurant not found", frappe.DoesNotExistError)
+    day = getdate(date or _today())
+    offset = max(0, int(offset or 0))
+    limit = max(1, min(100, int(limit or 50)))
+    centre = branch.cost_center(restaurant)
+    if not centre:
+        frappe.throw("This restaurant has no cost centre configured")
+    filters = {"docstatus": 1, "posting_date": day, "cost_center": centre}
+    # Match the trend's definition exactly, including any submitted returns.
+    totals = frappe.db.sql("""
+        SELECT COUNT(*) AS count, COALESCE(SUM(grand_total), 0) AS total
+        FROM `tabPOS Invoice`
+        WHERE docstatus = 1 AND posting_date = %s AND cost_center = %s
+    """, (day, centre), as_dict=True)[0]
+    rows = frappe.get_all("POS Invoice", filters=filters,
+        fields=["name", "grand_total", "posting_time", "is_return"],
+        order_by="posting_time desc, name desc", start=offset, page_length=limit)
+    names = [r.name for r in rows]
+    modes, orders = {}, {}
+    if names:
+        for payment in frappe.get_all("Sales Invoice Payment",
+                filters={"parenttype": "POS Invoice", "parent": ["in", names]},
+                fields=["parent", "mode_of_payment", "amount"]):
+            if payment.amount:
+                modes.setdefault(payment.parent, set()).add(payment.mode_of_payment or "Other")
+        for order in frappe.get_all("POS Order",
+                filters={"pos_invoice": ["in", names], "restaurant": restaurant},
+                fields=["name", "pos_invoice", "restaurant_table"], order_by="creation asc"):
+            orders.setdefault(order.pos_invoice, []).append({
+                "name": order.name, "table": order.restaurant_table or ""})
+    return {"restaurant": restaurant,
+            "city": frappe.db.get_value("Restaurant", restaurant, "city") or restaurant,
+            "date": str(day), "label": formatdate(day, "d MMM yyyy"),
+            "count": int(totals.count), "total": float(totals.total),
+            "more": offset + len(rows) < int(totals.count),
+            "bills": [{"name": r.name, "total": float(r.grand_total or 0),
+                       "time": str(r.posting_time or "").split(".")[0],
+                       "is_return": bool(r.is_return),
+                       "modes": sorted(modes.get(r.name, [])),
+                       "orders": orders.get(r.name, [])} for r in rows]}
+
+
 def _branch_numbers(restaurant, start, end, previous_start=None, previous_end=None):
     """One branch's period. `None` for the money when it has no Cost Center — that
     is "cannot be attributed", which is a different thing from zero and must not
     be shown as a takings figure of nil."""
     centre = branch.cost_center(restaurant)
-    details = frappe.db.get_value("Restaurant", restaurant, ["warehouse", "company"],
+    details = frappe.db.get_value("Restaurant", restaurant, ["warehouse", "company", "city"],
                                   as_dict=True) or frappe._dict()
     out = {
         "restaurant": restaurant,
+        "city": details.get("city") or "",
         "cost_center": centre,
         "warehouse": details.get("warehouse"),
         "company": details.get("company"),

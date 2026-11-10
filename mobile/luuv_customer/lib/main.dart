@@ -215,7 +215,7 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
           try {
             const token = localStorage.getItem('lf_token') || '';
             const params = new URLSearchParams(location.search);
-            const restaurant = params.get('r') || window.RESTAURANT || '';
+            const restaurant = params.get('r') || (typeof RESTAURANT !== 'undefined' ? RESTAURANT : '');
             const value = JSON.stringify({token: token, restaurant: restaurant});
             if (value !== lastLuuvSession) {
               lastLuuvSession = value;
