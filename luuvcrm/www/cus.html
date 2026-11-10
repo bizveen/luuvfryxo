@@ -388,8 +388,9 @@ html.native-shell .item-detail-actions{padding-bottom:14px;}
 .status-progress{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:14px;}
 .status-progress span{height:5px;background:var(--gray-200);border-radius:99px;}
 .status-progress span.done{background:var(--color-primary);}
-.made-card{position:relative;isolation:isolate;width:100%;overflow:hidden;border:0;border-radius:24px;padding:18px;background:radial-gradient(circle at 92% 13%,rgba(251,108,3,.15),transparent 29%),linear-gradient(145deg,#fff 0%,#fff3ea 100%);color:var(--text-body);text-align:left;box-shadow:0 12px 28px rgba(71,41,24,.09);cursor:pointer;}
+.made-card{position:relative;isolation:isolate;width:100%;overflow:hidden;border:0;border-radius:24px;padding:18px;background:radial-gradient(circle at 92% 13%,rgba(251,108,3,.15),transparent 29%),linear-gradient(145deg,#fff 0%,#fff3ea 100%);color:var(--text-body);text-align:left;box-shadow:0 12px 28px rgba(71,41,24,.09);}
 .made-card::before{content:"";position:absolute;z-index:-1;right:-43px;bottom:-54px;width:145px;height:145px;border-radius:50%;border:27px solid rgba(251,108,3,.065);}
+.made-card-menu{display:block;width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;}
 .made-card-head{display:flex;align-items:center;gap:11px;margin-bottom:12px;}
 .made-card-mark{width:43px;height:43px;flex:none;border-radius:14px;display:grid;place-items:center;background:linear-gradient(145deg,var(--orange-400),var(--orange-600));color:#fff;box-shadow:0 8px 17px rgba(251,108,3,.24);}
 .made-card-kicker{display:block;color:var(--orange-700);font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px;}
@@ -397,6 +398,8 @@ html.native-shell .item-detail-actions{padding-bottom:14px;}
 .made-card-copy{display:block;max-width:315px;font-size:11.5px;line-height:1.5;color:var(--text-muted);margin:0 0 13px;}
 .made-card-points{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .made-card-point{display:inline-flex;align-items:center;gap:4px;min-height:25px;padding:0 8px;border-radius:99px;background:rgba(255,255,255,.78);color:var(--text-body);font-size:9.5px;font-weight:800;box-shadow:0 3px 10px rgba(71,41,24,.06);}
+.made-card-point[href]{text-decoration:none;transition:color var(--duration-base),background var(--duration-base),transform var(--duration-base);}
+.made-card-point[href]:active{transform:scale(.96);background:#fff;}
 .made-card-point i,.made-card-point svg{width:11px;height:11px;color:var(--orange-600);}
 .made-card-arrow{position:absolute;right:17px;top:18px;width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--orange-600);box-shadow:0 5px 13px rgba(71,41,24,.1);}
 
@@ -488,6 +491,9 @@ html[data-theme="dark"] .offers-hero{background:linear-gradient(135deg,#ff5a0b,#
 html[data-theme="dark"] .offer-card.hot{border-color:rgba(251,108,3,.42);background:linear-gradient(135deg,#171918 35%,rgba(251,108,3,.11));}
 html[data-theme="dark"] .account-hero{background:linear-gradient(145deg,#1a1512,#241710);border-color:#482516;}
 html[data-theme="dark"] .account-hero .account-icon{background:#26201c;}
+html[data-theme="dark"] .made-card{background:radial-gradient(circle at 92% 13%,rgba(251,108,3,.18),transparent 29%),linear-gradient(145deg,#171918,#251711);box-shadow:0 12px 28px rgba(0,0,0,.25);}
+html[data-theme="dark"] .made-card-point{background:rgba(255,255,255,.08);color:#e5e7e5;}
+html[data-theme="dark"] .made-card-arrow{background:#252825;}
 html[data-theme="dark"] .ord.Ready{background:rgba(30,158,90,.12);}
 html[data-theme="dark"] .pill.Ready{background:#171918;}
 html[data-theme="dark"] .mcard .group-label{background:rgba(17,19,18,.84);border-color:rgba(255,255,255,.12);color:#d5d8d5;}
@@ -591,12 +597,18 @@ html[data-theme="dark"] .navb.active{color:var(--orange-400);}
         <div id="homeStatus"></div>
       </section>
 
-      <button class="made-card" onclick="setTab('order')" aria-label="Explore the {{ restaurant_name or brand_name }} menu">
-        <span class="made-card-arrow"><i data-lucide="arrow-up-right" style="width:15px;height:15px;"></i></span>
-        <span class="made-card-head"><span class="made-card-mark"><i data-lucide="sparkles" style="width:20px;height:20px;"></i></span><span><span class="made-card-kicker">Made for {{ restaurant_name or brand_name }}</span><span class="made-card-title">Good food, less waiting.</span></span></span>
-        <span class="made-card-copy">Order ahead, follow your kitchen status and keep every reward together in one simple app.</span>
-        <span class="made-card-points"><span class="made-card-point"><i data-lucide="shopping-bag"></i>Easy ordering</span><span class="made-card-point"><i data-lucide="timer"></i>Live status</span><span class="made-card-point"><i data-lucide="gift"></i>Rewards</span></span>
-      </button>
+      <article class="made-card">
+        <button class="made-card-menu" onclick="setTab('order')" aria-label="Explore the {{ restaurant_name or brand_name }} menu">
+          <span class="made-card-arrow"><i data-lucide="arrow-up-right" style="width:15px;height:15px;"></i></span>
+          <span class="made-card-head"><span class="made-card-mark"><i data-lucide="sparkles" style="width:20px;height:20px;"></i></span><span><span class="made-card-kicker">Made for {{ restaurant_name or brand_name }}</span><span class="made-card-title">Good food, less waiting.</span></span></span>
+          <span class="made-card-copy">Order ahead, follow your kitchen status and keep every reward together in one simple app.</span>
+        </button>
+        <span class="made-card-points">
+          <a class="made-card-point" href="https://share.google/antWy8VFBBWJ7I6k9" target="_blank" rel="noopener" aria-label="Open the Kurunegala outlet in Google Maps"><i data-lucide="map-pin"></i>Directions</a>
+          <span class="made-card-point"><i data-lucide="clock-3"></i>Daily 10 AM–10 PM</span>
+          <a class="made-card-point" href="tel:{{ contact_phone|replace(' ','') }}" aria-label="Call {{ contact_phone }}"><i data-lucide="phone-call"></i>{{ contact_phone }}</a>
+        </span>
+      </article>
     </div>
 
     <!-- ═══ ORDER TAB ═══ -->
