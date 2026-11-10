@@ -20,8 +20,8 @@
     "luuvcrm/patches/v1_0/sync_logo_orange_brand.py": "d3472ab78d0aabcfc11a7fbe7058c1a9",
     "luuvcrm/patches.txt": "da523367e921d301ef69bf943a37e476"
   },
-  "backend_restarted": false,
-  "firebase_ready": false,
+  "backend_restarted": true,
+  "firebase_ready": true,
   "worker_files_md5": {
     "README.md": "554cd92ae9825e4a3fc3dd05bd1a5e13",
     "license.txt": "57d76440fc5c9183c79d1747d18d2410",
@@ -198,5 +198,46 @@
   "worker_containers": [
     "frappe_docker-queue-short-1",
     "frappe_docker-queue-long-1"
-  ]
+  ],
+  "activated_at": "2026-11-10T05:33:35.019631734Z",
+  "completed_at": "2026-11-10T05:41:00.354Z",
+  "workers_restarted": true,
+  "customer_push_schema_installed": true,
+  "firebase_project_id": "gen-lang-client-0437285569",
+  "firebase_sender_authorization_verified": true,
+  "device_delivery_tested": false,
+  "queue_probe": {
+    "passed": true,
+    "job_id": "fryxo::cus-release-probe-20261110053714",
+    "sent": 0,
+    "failed": 0,
+    "real_orders_created": 0
+  },
+  "verification": {
+    "verified_at": "2026-11-10T05:38:39.619Z",
+    "deployed_files": 207,
+    "protected_runtime_files": 70,
+    "pc_git_server_exact": true,
+    "worker_runtime_files": 171
+  },
+  "tests": [
+    "11 isolated push safety regressions passed",
+    "7 isolated brand migration cases passed",
+    "Both branch menus retained item data and prices",
+    "Default /cus selects Kurunegala; explicit branch routes passed",
+    "Both branch mobile tab and cart flows passed",
+    "Release CSS and hero exact HTTP bytes passed",
+    "Guest push registration rejected before writes",
+    "Both queue worker imports and a real no-recipient queue job passed"
+  ],
+  "known_existing_issues": [
+    "19 legacy Dambulla /files/cat_*.jpg image URLs already missing before release; original files not present in backend/frontend sites trees"
+  ],
+  "android_build": {
+    "status": "deferred_by_user",
+    "apk_built": false,
+    "firebase_configs_prepared": true,
+    "production_signing_prepared": true
+  },
+  "source_verified_commit": "eff74b978279ce7a2a6a90c3983edd34d14411a0"
 }
