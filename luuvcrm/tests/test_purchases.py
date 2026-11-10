@@ -35,7 +35,9 @@ class TestManagerPurchaseBillUI(FrappeTestCase):
         self.assertIn('id="feedDate"', html)
         self.assertIn("...billRows.map", html)
         self.assertIn("...expRows.map", html)
-        self.assertIn("Add bill / expense", html)
+        self.assertIn('id="fabLabel">Add bill</span>', html)
+        self.assertNotIn("Entry type / expense category", html)
+        self.assertIn('id="fCategory" aria-hidden="true"', html)
 
     def test_a_settled_bill_names_its_approver_and_time_in_the_sheet(self):
         html = self.manager_page()
@@ -115,10 +117,12 @@ class TestManagerPurchaseBillUI(FrappeTestCase):
         self.assertIn("Add category", html)
         self.assertIn("Choose category first", html)
 
-    def test_a_new_catalog_item_chooses_its_first_bill_category(self):
+    def test_a_new_catalog_item_asks_for_category_and_uses_its_category_card(self):
         html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "purchases.html"))
-        self.assertIn("category=card.category", html)
-        self.assertIn("addLine(it.item,id)", html)
+        self.assertIn('id="niCategory-${id}"', html)
+        self.assertIn("category=(categoryEl.value||'').trim()", html)
+        self.assertIn("targetCard=categoryCards.find(c=>c.category===category)", html)
+        self.assertIn("addLine(it.item,targetCard.id)", html)
         self.assertIn("This category uses descriptions, not Items", html)
         self.assertIn("name:l.name", html)
 

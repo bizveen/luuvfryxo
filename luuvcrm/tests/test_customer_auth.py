@@ -1,4 +1,4 @@
-"""How a customer gets into /cus — registering, signing in, and the WhatsApp code.
+"""How a customer gets into /cus — registering, signing in, and the phone code.
 
 This is the front door. It is `allow_guest` end to end, it is the only thing
 standing between a phone number and somebody's order history and loyalty
@@ -13,13 +13,13 @@ what these tests pin down is less "does it work" than "what does it refuse":
   and it stops working after seven days.
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from luuvcrm import api
-from luuvcrm.api import wa
+from luuvcrm import api, settings
+from luuvcrm.api import sms
 from luuvcrm.tests import fixtures as fx
 
 
@@ -30,6 +30,34 @@ class CustomerAuthTestCase(FrappeTestCase):
     arguments, so calling them directly with keywords would test a signature
     nothing uses.
     """
+
+    def setUp(self):
+        super().setUp()
+        previous = {
+            key: frappe.conf.get(key)
+            for key in ("luuvcrm_textlk_api_token", "luuvcrm_textlk_sender_id",
+                        "luuvcrm_textlk_allow_demo")
+        }
+        frappe.conf["luuvcrm_textlk_api_token"] = ""
+        frappe.conf["luuvcrm_textlk_sender_id"] = ""
+        frappe.conf["luuvcrm_textlk_allow_demo"] = False
+        settings.forget()
+
+        def restore_textlk_config():
+            for key, value in previous.items():
+                if value is None:
+                    frappe.conf.pop(key, None)
+                else:
+                    frappe.conf[key] = value
+            settings.forget()
+
+        self.addCleanup(restore_textlk_config)
+
+    def configure_textlk(self, token="test-token", sender_id="TextLKTest", allow_demo=False):
+        frappe.conf["luuvcrm_textlk_api_token"] = token
+        frappe.conf["luuvcrm_textlk_sender_id"] = sender_id
+        frappe.conf["luuvcrm_textlk_allow_demo"] = allow_demo
+        settings.forget()
 
     def call(self, endpoint, **kwargs):
         previous = frappe.local.form_dict
@@ -85,6 +113,7 @@ class TestSettingAPin(CustomerAuthTestCase):
         super().setUp()
         fx.drop_customer(self, self.MOBILE)
         fx.forget_customer_cache(self.MOBILE)
+        frappe.cache().set_value(f"sms_verified:{self.MOBILE}", 1, expires_in_sec=900)
 
     def test_it_creates_the_account_and_signs_the_customer_straight_in(self):
         result = self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234", name="Kamala")
@@ -109,6 +138,9 @@ class TestSettingAPin(CustomerAuthTestCase):
         who picked 1234."""
         other = "0770000203"
         fx.drop_customer(self, other)
+        fx.forget_customer_cache(other)
+        frappe.cache().set_value(f"sms_verified:{other}", 1, expires_in_sec=900)
+        self.addCleanup(fx.forget_customer_cache, other)
         self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234", name="A")
         self.call(api.customer_set_pin, mobile=other, pin="1234", name="B")
         self.assertNotEqual(self.stored_pin(self.MOBILE), self.stored_pin(other))
@@ -137,14 +169,8 @@ class TestSettingAPin(CustomerAuthTestCase):
         self.assertEqual(self.stored_pin(self.MOBILE), before)
 
 
-class TestTheWhatsAppGateOnRegistration(CustomerAuthTestCase):
-    """`customer_set_pin` will not finish while a code is outstanding.
-
-    It is a soft gate on purpose: no code sent means WhatsApp is down or absent,
-    and a restaurant losing its WhatsApp account must not lose registration
-    with it. What it does stop is a client that asks for a code and then skips
-    the screen.
-    """
+class TestThePhoneGateOnRegistration(CustomerAuthTestCase):
+    """A new account cannot bypass the one-time SMS verification."""
 
     MOBILE = "0770000204"
 
@@ -153,27 +179,32 @@ class TestTheWhatsAppGateOnRegistration(CustomerAuthTestCase):
         fx.drop_customer(self, self.MOBILE)
         fx.forget_customer_cache(self.MOBILE)
 
-    def test_registration_goes_through_when_no_code_was_ever_sent(self):
-        result = self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234", name="Sunil")
-        self.assertTrue(result["success"])
-
-    def test_an_unconfirmed_code_blocks_registration(self):
-        with patch.object(wa, "_send_wa_reply", return_value=True):
-            self.call(api.wa_send_otp, mobile=self.MOBILE)
+    def test_registration_is_blocked_when_no_code_was_ever_sent(self):
         result = self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234", name="Sunil")
         self.assertFalse(result["success"])
-        self.assertEqual(result["error"], "Confirm the WhatsApp code first")
+        self.assertEqual(result["error"], "Confirm the verification code first")
+
+    def test_an_unconfirmed_code_blocks_registration(self):
+        self.configure_textlk()
+        with patch.object(sms, "send_textlk_sms", return_value=True):
+            self.call(api.sms_send_otp, mobile=self.MOBILE)
+        result = self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234", name="Sunil")
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"], "Confirm the verification code first")
         self.assertFalse(frappe.db.exists("Customer Account", {"mobile": self.MOBILE}))
 
     def test_confirming_the_code_lets_registration_through(self):
-        sent = {}
-        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
-            self.call(api.wa_send_otp, mobile=self.MOBILE)
-            sent["body"] = send.call_args[0][1]
-        code = _code_from(sent["body"])
-        self.assertTrue(self.call(api.wa_verify_otp, mobile=self.MOBILE, code=code)["ok"])
+        self.configure_textlk()
+        with patch.object(sms, "send_textlk_sms", return_value=True):
+            self.call(api.sms_send_otp, mobile=self.MOBILE)
+        code = frappe.cache().get_value(f"sms_otp:{self.MOBILE}")
+        self.assertTrue(self.call(api.sms_verify_otp, mobile=self.MOBILE, code=code)["ok"])
         result = self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234", name="Sunil")
         self.assertTrue(result["success"])
+        self.assertIsNone(
+            frappe.cache().get_value(f"sms_verified:{self.MOBILE}", expires=True),
+            "the one-time registration grant must be spent after account creation",
+        )
 
 
 # ─── Signing in ─────────────────────────────────────────────────────────────
@@ -437,15 +468,7 @@ class TestTheProfile(CustomerAuthTestCase):
                          "Account not found")
 
 
-# ─── The WhatsApp code ──────────────────────────────────────────────────────
-
-
-def _code_from(message):
-    """Pull the 4-digit code out of the WhatsApp body the endpoint composed."""
-    import re
-    match = re.search(r"\*(\d{4})\*", message or "")
-    assert match, f"no code in the message: {message!r}"
-    return match.group(1)
+# ─── The phone verification code ───────────────────────────────────────────
 
 
 class TestSendingTheCode(CustomerAuthTestCase):
@@ -453,45 +476,81 @@ class TestSendingTheCode(CustomerAuthTestCase):
 
     def setUp(self):
         super().setUp()
+        self.configure_textlk()
         fx.forget_customer_cache(self.MOBILE)
         self.addCleanup(fx.forget_customer_cache, self.MOBILE)
 
     def test_it_sends_a_four_digit_code_to_the_international_number(self):
-        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
-            result = self.call(api.wa_send_otp, mobile=self.MOBILE)
+        with patch.object(sms, "send_textlk_sms", return_value=True) as send:
+            result = self.call(api.sms_send_otp, mobile=self.MOBILE)
         self.assertTrue(result["sent"])
+        self.assertEqual(result["channel"], "sms")
         to, body = send.call_args[0]
         self.assertEqual(to, "94" + self.MOBILE[1:],
-                         "the Cloud API wants 947XXXXXXXX, not the local form")
-        self.assertEqual(_code_from(body), frappe.cache().get_value(f"wa_otp:{self.MOBILE}"))
+                         "Text.lk wants 947XXXXXXXX, not the local form")
+        import re
+        code = re.search(r"\b(\d{4})\b", body).group(1)
+        self.assertEqual(code, frappe.cache().get_value(f"sms_otp:{self.MOBILE}"))
+
+    def test_textlk_sends_plain_sms_with_bearer_auth_when_configured(self):
+        self.configure_textlk()
+        response = Mock(ok=True, content=b"{}")
+        response.json.return_value = {"status": "success"}
+        with patch.object(sms.requests, "post", return_value=response) as post:
+            result = self.call(api.sms_send_otp, mobile=self.MOBILE)
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(result["channel"], "sms")
+        request = post.call_args.kwargs
+        self.assertEqual(request["json"]["recipient"], "94" + self.MOBILE[1:])
+        self.assertEqual(request["json"]["sender_id"], "TextLKTest")
+        self.assertEqual(request["json"]["type"], "plain")
+        self.assertTrue(request["headers"]["Authorization"].startswith("Bearer "))
+        self.assertEqual(request["timeout"], 10)
+        import re
+        code = re.search(r"\b(\d{4})\b", request["json"]["message"]).group(1)
+        self.assertEqual(code, frappe.cache().get_value(f"sms_otp:{self.MOBILE}"))
+
+    def test_textlk_demo_identity_needs_an_explicit_test_only_switch(self):
+        self.configure_textlk(sender_id="TextLKDemo", allow_demo="0")
+        with patch.object(sms.requests, "post") as post:
+            result = self.call(api.sms_send_otp, mobile=self.MOBILE)
+        self.assertFalse(result["sent"])
+        self.assertEqual(result["channel"], "sms")
+        post.assert_not_called()
+
+        fx.forget_customer_cache(self.MOBILE)
+        self.configure_textlk(sender_id="TextLKDemo", allow_demo="1")
+        with patch.object(sms, "send_textlk_sms", return_value=True) as send:
+            result = self.call(api.sms_send_otp, mobile=self.MOBILE)
+        self.assertTrue(result["sent"])
+        send.assert_called_once()
 
     def test_a_short_number_is_refused_before_anything_is_sent(self):
-        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
-            result = self.call(api.wa_send_otp, mobile="0771")
+        with patch.object(sms, "send_textlk_sms", return_value=True) as send:
+            result = self.call(api.sms_send_otp, mobile="0771")
         self.assertFalse(result["sent"])
         self.assertEqual(result["error"], "Valid mobile required")
         send.assert_not_called()
 
-    def test_nothing_is_cached_when_whatsapp_will_not_take_it(self):
-        """A site with no WhatsApp Account gets False from _send_wa_reply. If a
-        code were cached anyway, the soft gate on registration would then block
-        a customer who can never receive one."""
-        with patch.object(wa, "_send_wa_reply", return_value=False):
-            result = self.call(api.wa_send_otp, mobile=self.MOBILE)
+    def test_nothing_is_cached_when_textlk_will_not_take_it(self):
+        with patch.object(sms, "send_textlk_sms", return_value=False):
+            result = self.call(api.sms_send_otp, mobile=self.MOBILE)
         self.assertFalse(result["sent"])
-        self.assertIsNone(frappe.cache().get_value(f"wa_otp:{self.MOBILE}", expires=True))
+        self.assertIsNone(frappe.cache().get_value(f"sms_otp:{self.MOBILE}", expires=True))
 
     def test_a_second_request_inside_the_cooldown_reuses_the_first_code(self):
         """Tapping Resend twice must not invalidate the code already on the
         customer's phone — and must not send two messages."""
-        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
-            self.call(api.wa_send_otp, mobile=self.MOBILE)
-            first = _code_from(send.call_args[0][1])
-            result = self.call(api.wa_send_otp, mobile=self.MOBILE)
+        with patch.object(sms, "send_textlk_sms", return_value=True) as send:
+            self.call(api.sms_send_otp, mobile=self.MOBILE)
+            import re
+            first = re.search(r"\b(\d{4})\b", send.call_args[0][1]).group(1)
+            result = self.call(api.sms_send_otp, mobile=self.MOBILE)
             self.assertEqual(send.call_count, 1)
         self.assertTrue(result["sent"])
         self.assertTrue(result["cooldown"])
-        self.assertTrue(self.call(api.wa_verify_otp, mobile=self.MOBILE, code=first)["ok"])
+        self.assertTrue(self.call(api.sms_verify_otp, mobile=self.MOBILE, code=first)["ok"])
 
 
 class TestConfirmingTheCode(CustomerAuthTestCase):
@@ -499,62 +558,63 @@ class TestConfirmingTheCode(CustomerAuthTestCase):
 
     def setUp(self):
         super().setUp()
+        self.configure_textlk()
         fx.forget_customer_cache(self.MOBILE)
         self.addCleanup(fx.forget_customer_cache, self.MOBILE)
-        with patch.object(wa, "_send_wa_reply", return_value=True) as send:
-            self.call(api.wa_send_otp, mobile=self.MOBILE)
-            self.code = _code_from(send.call_args[0][1])
+        with patch.object(sms, "send_textlk_sms", return_value=True):
+            self.call(api.sms_send_otp, mobile=self.MOBILE)
+            self.code = frappe.cache().get_value(f"sms_otp:{self.MOBILE}")
 
     def test_the_right_code_marks_the_number_confirmed(self):
-        self.assertTrue(self.call(api.wa_verify_otp, mobile=self.MOBILE, code=self.code)["ok"])
-        self.assertTrue(frappe.cache().get_value(f"wa_verified:{self.MOBILE}", expires=True))
+        self.assertTrue(self.call(api.sms_verify_otp, mobile=self.MOBILE, code=self.code)["ok"])
+        self.assertTrue(frappe.cache().get_value(f"sms_verified:{self.MOBILE}", expires=True))
 
     def test_the_code_is_spent_once(self):
         """Replaying it must not confirm the number a second time."""
-        self.call(api.wa_verify_otp, mobile=self.MOBILE, code=self.code)
-        again = self.call(api.wa_verify_otp, mobile=self.MOBILE, code=self.code)
+        self.call(api.sms_verify_otp, mobile=self.MOBILE, code=self.code)
+        again = self.call(api.sms_verify_otp, mobile=self.MOBILE, code=self.code)
         self.assertFalse(again["ok"])
         self.assertEqual(again["error"], "Code expired — tap Resend")
 
     def test_a_wrong_code_is_refused(self):
         wrong = "0000" if self.code != "0000" else "1111"
-        result = self.call(api.wa_verify_otp, mobile=self.MOBILE, code=wrong)
+        result = self.call(api.sms_verify_otp, mobile=self.MOBILE, code=wrong)
         self.assertFalse(result["ok"])
-        self.assertEqual(result["error"], "Wrong code — check WhatsApp")
-        self.assertFalse(frappe.cache().get_value(f"wa_verified:{self.MOBILE}", expires=True))
+        self.assertEqual(result["error"], "Wrong code — check your messages")
+        self.assertFalse(frappe.cache().get_value(f"sms_verified:{self.MOBILE}", expires=True))
 
     def test_a_wrong_code_does_not_burn_the_right_one(self):
         wrong = "0000" if self.code != "0000" else "1111"
-        self.call(api.wa_verify_otp, mobile=self.MOBILE, code=wrong)
-        self.assertTrue(self.call(api.wa_verify_otp, mobile=self.MOBILE, code=self.code)["ok"])
+        self.call(api.sms_verify_otp, mobile=self.MOBILE, code=wrong)
+        self.assertTrue(self.call(api.sms_verify_otp, mobile=self.MOBILE, code=self.code)["ok"])
 
     def test_five_wrong_codes_stop_the_guessing(self):
         """Four digits again: without this, the code is guessable inside its
         five-minute life."""
         wrong = "0000" if self.code != "0000" else "1111"
         for _ in range(5):
-            self.call(api.wa_verify_otp, mobile=self.MOBILE, code=wrong)
-        result = self.call(api.wa_verify_otp, mobile=self.MOBILE, code=self.code)
+            self.call(api.sms_verify_otp, mobile=self.MOBILE, code=wrong)
+        result = self.call(api.sms_verify_otp, mobile=self.MOBILE, code=self.code)
         self.assertFalse(result["ok"], "the right code must not open a burnt-out attempt count")
         self.assertEqual(result["error"], "Too many attempts — request a new code")
 
     def test_confirming_clears_the_attempt_count(self):
         wrong = "0000" if self.code != "0000" else "1111"
-        self.call(api.wa_verify_otp, mobile=self.MOBILE, code=wrong)
-        self.call(api.wa_verify_otp, mobile=self.MOBILE, code=self.code)
-        self.assertIsNone(frappe.cache().get_value(f"wa_otp_tries:{self.MOBILE}", expires=True))
+        self.call(api.sms_verify_otp, mobile=self.MOBILE, code=wrong)
+        self.call(api.sms_verify_otp, mobile=self.MOBILE, code=self.code)
+        self.assertIsNone(frappe.cache().get_value(f"sms_otp_tries:{self.MOBILE}", expires=True))
 
     def test_a_number_with_no_code_outstanding(self):
         other = "0770000214"
         self.addCleanup(fx.forget_customer_cache, other)
         fx.forget_customer_cache(other)
-        result = self.call(api.wa_verify_otp, mobile=other, code="1234")
+        result = self.call(api.sms_verify_otp, mobile=other, code="1234")
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "Code expired — tap Resend")
 
     def test_both_a_number_and_a_code_are_required(self):
         for kwargs in ({"mobile": self.MOBILE, "code": ""}, {"mobile": "", "code": "1234"}):
             with self.subTest(**kwargs):
-                result = self.call(api.wa_verify_otp, **kwargs)
+                result = self.call(api.sms_verify_otp, **kwargs)
                 self.assertFalse(result["ok"])
                 self.assertEqual(result["error"], "Code required")

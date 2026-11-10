@@ -22,9 +22,10 @@ const _systemUiStyle = SystemUiOverlayStyle(
   systemNavigationBarContrastEnforced: false,
 );
 const _defaultPortalUrl = 'https://luuvgrand.com/cus?r=Kurunegala';
+const _debugPortalUrl = 'http://192.168.1.11:8000/cus?r=Kurunegala';
 const _portalUrl = String.fromEnvironment(
   'CUSTOMER_PORTAL_URL',
-  defaultValue: _defaultPortalUrl,
+  defaultValue: kDebugMode ? _debugPortalUrl : _defaultPortalUrl,
 );
 const _testNotificationOnStart = bool.fromEnvironment(
   'TEST_ORDER_READY_NOTIFICATION',
@@ -135,6 +136,7 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
           },
           onPageFinished: (_) async {
             if (mounted) setState(() => _progress = 100);
+            await _markNativeShell();
             await _installWindowOpenBridge();
             await _revealPortal();
           },
@@ -179,6 +181,12 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
         await AppNotifications.showOrderReady(orderName: 'TEST-ORDER');
       }
     });
+  }
+
+  Future<void> _markNativeShell() async {
+    await _controller.runJavaScript(
+      "document.documentElement.classList.add('native-shell');",
+    );
   }
 
   @override
@@ -400,49 +408,56 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
           if (!didPop) unawaited(_handleBack());
         },
         child: Scaffold(
-          // Edge-to-edge Android renders the status area over this surface.
-          // Keep it light; the bottom system-navigation inset is painted black
-          // separately below.
+          // Keep the entire WebView inside the physical display's safe bounds.
+          // Bottom sheets and fixed action bars must never sit underneath the
+          // Android navigation/gesture area.
           backgroundColor: Colors.white,
-          body: SafeArea(
-            // The page owns its app navigation. A black overlay below keeps the
-            // Android system-navigation area visually separate and predictable.
-            bottom: false,
-            child: Stack(
-              children: [
-                Positioned.fill(child: WebViewWidget(controller: _controller)),
-                if (_progress < 100 && !_mainFrameFailed)
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: LinearProgressIndicator(
-                      value: _progress == 0 ? null : _progress / 100,
-                      minHeight: 3,
-                      color: _brandColor,
-                      backgroundColor: const Color(0xFFFFE2D2),
-                    ),
-                  ),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    ignoring: !_showLaunchScreen,
-                    child: AnimatedOpacity(
-                      opacity: _showLaunchScreen ? 1 : 0,
-                      duration: const Duration(milliseconds: 360),
-                      curve: Curves.easeOutCubic,
-                      child: _PortalLoadingView(progress: _progress),
-                    ),
+          body: Stack(
+            children: [
+              // Android 15+ makes the navigation bar transparent. Paint only
+              // that inset black behind the SafeArea, never over the WebView.
+              if (systemNavigationInset > 0)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: systemNavigationInset,
+                  child: const ColoredBox(color: Colors.black),
+                ),
+              Positioned.fill(
+                child: SafeArea(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: WebViewWidget(controller: _controller),
+                      ),
+                      if (_progress < 100 && !_mainFrameFailed)
+                        Align(
+                          alignment: Alignment.topCenter,
+                          child: LinearProgressIndicator(
+                            value: _progress == 0 ? null : _progress / 100,
+                            minHeight: 3,
+                            color: _brandColor,
+                            backgroundColor: const Color(0xFFFFE2D2),
+                          ),
+                        ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          ignoring: !_showLaunchScreen,
+                          child: AnimatedOpacity(
+                            opacity: _showLaunchScreen ? 1 : 0,
+                            duration: const Duration(milliseconds: 360),
+                            curve: Curves.easeOutCubic,
+                            child: _PortalLoadingView(progress: _progress),
+                          ),
+                        ),
+                      ),
+                      if (_mainFrameFailed) _OfflineView(onRetry: _retry),
+                    ],
                   ),
                 ),
-                if (_mainFrameFailed) _OfflineView(onRetry: _retry),
-                if (systemNavigationInset > 0)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: systemNavigationInset,
-                    child: const ColoredBox(color: Colors.black),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -654,17 +669,26 @@ Uri _validatedPortalUri(String value) {
   final uri = Uri.tryParse(value);
   final secure = uri?.scheme == 'https';
   final localDebug =
-      kDebugMode &&
-      uri?.scheme == 'http' &&
-      const {'127.0.0.1', 'localhost'}.contains(uri?.host);
+      kDebugMode && uri?.scheme == 'http' && isDebugPortalHost(uri?.host ?? '');
   if (uri == null || uri.host.isEmpty || (!secure && !localDebug)) {
     throw ArgumentError.value(
       value,
       'CUSTOMER_PORTAL_URL',
-      'must be HTTPS, or localhost HTTP in a debug build',
+      'must be HTTPS, or localhost/private-LAN HTTP in a debug build',
     );
   }
   return uri;
+}
+
+bool isDebugPortalHost(String host) {
+  if (const {'127.0.0.1', 'localhost'}.contains(host)) return true;
+  final octets = host.split('.').map(int.tryParse).toList();
+  if (octets.length != 4 ||
+      octets.any((part) => part == null || part < 0 || part > 255)) {
+    return false;
+  }
+  final a = octets[0]!, b = octets[1]!;
+  return a == 10 || (a == 172 && b >= 16 && b <= 31) || (a == 192 && b == 168);
 }
 
 bool isPortalNavigation(Uri candidate, Uri portal) {

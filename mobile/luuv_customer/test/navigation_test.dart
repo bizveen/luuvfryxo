@@ -33,6 +33,17 @@ void main() {
     );
   });
 
+  test('allows only local and private LAN hosts for debug HTTP', () {
+    expect(isDebugPortalHost('127.0.0.1'), isTrue);
+    expect(isDebugPortalHost('localhost'), isTrue);
+    expect(isDebugPortalHost('192.168.1.11'), isTrue);
+    expect(isDebugPortalHost('10.0.0.5'), isTrue);
+    expect(isDebugPortalHost('172.16.4.8'), isTrue);
+    expect(isDebugPortalHost('172.32.0.1'), isFalse);
+    expect(isDebugPortalHost('8.8.8.8'), isFalse);
+    expect(isDebugPortalHost('luuvgrand.com'), isFalse);
+  });
+
   test('detects only transitions into Ready', () {
     final previous = <String, String>{
       'ORD-1': 'Processing',

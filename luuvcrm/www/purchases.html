@@ -130,7 +130,7 @@ input,button{font-family:inherit;}
 
   <!-- Add FAB — one sheet creates either a supplier bill or an expense -->
   <div id="fab" style="position:fixed;left:50%;transform:translateX(-50%);width:390px;max-width:calc(100% - 40px);bottom:88px;z-index:25;">
-    <button class="lf-btn" id="fabBtn" onclick="fabClick()"><i data-lucide="plus-circle" id="fabIcon" style="width:20px;height:20px;"></i> <span id="fabLabel">Add bill / expense</span></button>
+    <button class="lf-btn" id="fabBtn" onclick="fabClick()"><i data-lucide="plus-circle" id="fabIcon" style="width:20px;height:20px;"></i> <span id="fabLabel">Add bill</span></button>
   </div>
 
   <!-- bottom nav -->
@@ -159,10 +159,7 @@ input,button{font-family:inherit;}
       <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this)">
     </label>
 
-    <div id="entryTypeFields" style="display:block;margin-bottom:20px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Entry type / expense category</div>
-      <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()"></select>
-    </div>
+    <select id="fCategory" aria-hidden="true" tabindex="-1" style="display:none;"><option value="">Purchase Bill</option></select>
 
     <div id="billModeFields">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">Categories &amp; items</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
@@ -407,18 +404,15 @@ function lfPoll(fn, ms){
     renderUnifiedFeed();
   }catch(e){} }
 
-  // Blank means the category-card Purchase Bill flow; an actual category is
-  // the one-amount Expense flow opened from the Expenses tab.
+  // The add sheet is a direct Purchase Bill flow. Keep this hidden field so
+  // the existing submit/draft code has one unambiguous bill-mode value.
   function renderCategoryOptions(){ const sel=document.getElementById('fCategory'); if(!sel) return;
-    const cur=sel.value;
-    sel.innerHTML='<option value="">🧾 Purchase Bill (categorise each item)</option>'+expenseOnlyCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
-    if(cur && expenseOnlyCats.includes(cur)) sel.value=cur; }
+    sel.innerHTML='<option value="">Purchase Bill</option>'; sel.value=''; }
 
   // Swaps the sheet between Bill mode (items + vendor) and Expense mode
   // (amount + payee) — the photo, date and note fields stay put either way.
   function onCategoryChange(){
     const isExp=document.getElementById('fCategory').value!=='';
-    document.getElementById('entryTypeFields').style.display='block';
     document.getElementById('billModeFields').style.display=isExp?'none':'block';
     document.getElementById('expModeFields').style.display=isExp?'block':'none';
     document.getElementById('fVendorLabel').textContent=isExp?'Paid to':'Vendor / paid to';
@@ -741,9 +735,16 @@ function lfPoll(fn, ms){
     nw.innerHTML=`<button onclick="openNewItem(${card.id})" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(card.query.trim())}”`:''}</button>`;
     icons(); }
   function openNewItem(id){ const card=categoryCard(id); if(!card) return; const nm=(card.query||'').trim(), target=document.getElementById('pickerNew-'+id); if(!target) return;
+    const allCats=expCats.includes(DEFAULT_PURCHASE_CATEGORY)?expCats:[DEFAULT_PURCHASE_CATEGORY,...expCats];
+    const itemCats=allCats.filter((c,i,a)=>hasItemList(c)&&a.indexOf(c)===i);
+    if(card.category&&hasItemList(card.category)&&!itemCats.includes(card.category)) itemCats.unshift(card.category);
+    const categoryOptions=itemCats.map(c=>`<option value="${esc(c)}" ${c===card.category?'selected':''}>${esc(c)}</option>`).join('');
     target.innerHTML=`
       <div style="padding:12px;background:var(--surface-sunken);border-top:1px solid var(--border-subtle);">
         <div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">New item</div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;margin-bottom:4px;">Category</div>
+        <select id="niCategory-${id}" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);margin-bottom:8px;">${categoryOptions}</select>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;margin-bottom:4px;">Item name</div>
         <input id="niName-${id}" value="${esc(nm)}" placeholder="Item name" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);margin-bottom:8px;">
         <div style="display:flex;gap:8px;">
           <select id="niUnit-${id}" style="flex:1;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"><option>Nos</option><option>Kg</option><option>g</option><option>L</option><option>ml</option><option>Pkt</option><option>Box</option><option>Dozen</option><option>Bill</option></select>
@@ -752,15 +753,21 @@ function lfPoll(fn, ms){
         <div style="font-size:11px;color:var(--text-faint);margin-top:7px;">${isAssetCategory(card.category)?'Saved as a Fixed Asset Item; approval creates the draft Asset.':('Saved to Items'+(isStockCategory(card.category)?' and received into stock after approval':' · this category does not affect stock')+'.')}</div>
       </div>`;
     const el=document.getElementById('niName-'+id); if(el){ el.focus(); } icons(); }
-  async function createNewItem(id){ const card=categoryCard(id), nameEl=document.getElementById('niName-'+id), unitEl=document.getElementById('niUnit-'+id); if(!card||!nameEl||!unitEl) return;
-    const name=(nameEl.value||'').trim(), unit=unitEl.value||'Nos', category=card.category;
+  async function createNewItem(id){ const card=categoryCard(id), categoryEl=document.getElementById('niCategory-'+id), nameEl=document.getElementById('niName-'+id), unitEl=document.getElementById('niUnit-'+id); if(!card||!categoryEl||!nameEl||!unitEl) return;
+    const name=(nameEl.value||'').trim(), unit=unitEl.value||'Nos', category=(categoryEl.value||'').trim();
+    if(!category){ toast('Choose a category'); return; }
     if(!name){ toast('Enter an item name'); return; }
     if(!hasItemList(category)){ toast('This category uses descriptions, not Items'); return; }
     const btn=document.getElementById('niBtn-'+id); btn.disabled=true;
     try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit,category:category}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ const it=d.message;
         if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:'',is_fixed_asset:it.is_fixed_asset||0,asset_category:it.asset_category||''});
-        card.query=''; addLine(it.item,id); toast(it.existed?'Item already existed — added':'Item created & added'); }
+        let targetCard=categoryCards.find(c=>c.category===category);
+        if(!targetCard){
+          if(!formLines.some(l=>l.cardId===card.id)){ card.category=category; targetCard=card; }
+          else { targetCard=makeCategoryCard(category); categoryCards.push(targetCard); }
+        }
+        card.query=''; targetCard.query=''; addLine(it.item,targetCard.id); toast((it.existed?'Item already existed — added':'Item created & added')+' · '+category); }
       else { toast((d.message&&d.message.message)||srvMsg(d,'Could not create item')); btn.disabled=false; } }
     catch(e){ toast('Connection error'); btn.disabled=false; } }
   // ── Draft persistence ──
@@ -788,7 +795,7 @@ function lfPoll(fn, ms){
     restoringDraft=true;
     try{
       openAdd();
-      document.getElementById('fCategory').value=d.category||''; onCategoryChange();
+      document.getElementById('fCategory').value=''; onCategoryChange();
       formLines=Array.isArray(d.lines)?d.lines.map(l=>Object.assign({category:DEFAULT_PURCHASE_CATEGORY},l)):[]; newReceipt=d.receipt||'';
       if(!d.category){
         if(Array.isArray(d.cards)&&d.cards.length){ categoryCards=d.cards.map(c=>({id:Number(c.id),category:c.category===undefined?DEFAULT_PURCHASE_CATEGORY:c.category,pickerOpen:!!c.pickerOpen,query:c.query||''})); nextCategoryCardId=Math.max(...categoryCards.map(c=>c.id))+1; }

@@ -11,10 +11,16 @@ flutter pub get
 flutter run
 ```
 
-The default portal is:
+The release default portal is:
 
 ```text
 https://luuvgrand.com/cus?r=Kurunegala
+```
+
+Debug builds default to the development PC on the local network:
+
+```text
+http://192.168.1.11:8000/cus?r=Kurunegala
 ```
 
 Use another deployment without editing source code:
@@ -47,8 +53,17 @@ flutter build appbundle --release \
 - A local eight-second order-status check remains as a foreground fallback and
   duplicate Ready alerts are suppressed.
 
-For local Android development, run the Frappe server and reverse its port to a
-USB-connected phone:
+For local Android development on the same Wi-Fi network, run the Frappe server
+on port 8000 and start the debug app. Override the IP if the development PC's
+DHCP address changes:
+
+```bash
+flutter run \
+  --dart-define=CUSTOMER_PORTAL_URL=http://192.168.1.11:8000/cus?r=Kurunegala \
+  --dart-define=TEST_ORDER_READY_NOTIFICATION=true
+```
+
+USB port reversal remains available when the phone is not on the same network:
 
 ```bash
 adb reverse tcp:8000 tcp:8000

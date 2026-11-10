@@ -423,8 +423,9 @@ def forget_customer_cache(mobile):
     None instead of the code the endpoint just wrote.
     """
     cache = frappe.cache()
-    for key in (f"wa_otp:{mobile}", f"wa_otp_cool:{mobile}", f"wa_otp_tries:{mobile}",
-                f"wa_verified:{mobile}", f"lf_pin_fail:{mobile}"):
+    for key in (f"sms_otp:{mobile}", f"sms_otp_channel:{mobile}",
+                f"sms_otp_cool:{mobile}", f"sms_otp_tries:{mobile}",
+                f"sms_verified:{mobile}", f"lf_pin_fail:{mobile}"):
         cache.delete_value(key)
 
 
