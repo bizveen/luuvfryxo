@@ -15,7 +15,9 @@
     "luuvcrm/www/admin.html": "08042649cb005d3c9d6ead459f50b62c",
     "luuvcrm/www/manager.html": "629e70a5afdbc6d195f5c3fb81e3e1de",
     "luuvcrm/api/__init__.py": "3b6a6688fb441d21682a2099063235f2",
-    "luuvcrm/api/kitchen.py": "b84ab80707b8bf9af4f9032984f5b245"
+    "luuvcrm/api/kitchen.py": "b84ab80707b8bf9af4f9032984f5b245",
+    "luuvcrm/settings.py": "38ea1b8a2fa2669982100de56e1c061a",
+    "luuvcrm/patches/v1_0/sync_logo_orange_brand.py": "5868067f7983a48d043e17b8217229a7"
   },
   "backend_restarted": false,
   "firebase_ready": false
