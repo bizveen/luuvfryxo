@@ -67,9 +67,9 @@ KEYS = [
     # A second restaurant is not a second Luuv Fryxo. These are read into every
     # page's context by overrides/branding.py and rendered as CSS custom
     # properties, so one value changes the accent on 24 screens at once.
-    Key("brand_color", OWNER, "#FB6C03",
+    Key("brand_color", OWNER, "#F15207",
         "The accent: buttons, links, the highlighted tab. A hex colour."),
-    Key("brand_color_dark", OWNER, "#E85C00",
+    Key("brand_color_dark", OWNER, "#D84804",
         "The pressed/hover shade of the accent. A little darker than it."),
     Key("brand_logo", OWNER, "/assets/luuvcrm/app/icon-192.png",
         "Shown in page headers. Any URL the browser can reach — upload one in "
