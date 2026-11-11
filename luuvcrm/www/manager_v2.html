@@ -1000,6 +1000,26 @@ function lfPoll(fn, ms){
     icons();
   }
 
+  // Category choices belong to individual bill rows, including duplicate Items.
+  function approvalLineCategory(a,li,ix,locked){
+    if(a.type!=='bill'||a.status!=='pending'||!li.row_name||!(a.line_category_options||[]).length) return '';
+    const st=apprState[a.name]||{};
+    const selected=(st.lineCategories||{})[li.row_name]||li.category||'Food / Ingredients';
+    const options=a.line_category_options.slice();
+    if(!options.some(o=>o.value===selected)) options.unshift({value:selected,label:selected});
+    const changed=selected!==(li.category||'Food / Ingredients');
+    const choice=options.find(o=>o.value===selected)||{};
+    const hint=changed?(choice.in_stock?'Stock will be received on approval.':'This line will not add stock. Saved on approval.'):'Saved when you approve this bill.';
+    return `<label style="display:block;margin:7px 0 5px 25px;font-size:11.5px;font-weight:700;color:var(--text-muted);">
+      Category
+      <select aria-label="Category for ${esc(li.name||'item '+(ix+1))}" ${locked?'disabled':''}
+        onchange="apprLineCategory('${a.name}',${ix},this.value)"
+        style="display:block;width:100%;min-width:0;margin-top:4px;padding:9px 10px;border:1.5px solid ${changed?'var(--color-primary)':'var(--border-default)'};border-radius:var(--radius-md);background:var(--surface-card);color:var(--text-strong);font-size:13px;">
+        ${options.map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''} ${o.has_item_list&&!li.has_item?'disabled':''}>${esc(o.label||o.value)}${o.has_item_list&&!li.has_item?' — linked item required':''}</option>`).join('')}
+      </select><span style="display:block;margin-top:4px;font-size:11px;font-weight:400;">${hint}</span>
+    </label>`;
+  }
+
   // ── Every other approval type: unchanged per-request card (ticks and all) ──
   function renderApprovalCard(a){
     const t=TONE[a.type]||TONE.item; const pending=a.status==='pending';
@@ -1017,7 +1037,8 @@ function lfPoll(fn, ms){
       const note=up?('↑ was Rs '+nfmt(op)):(down?('↓ was Rs '+nfmt(op)):'');
       const col=up?'var(--color-danger)':'var(--color-success)';
       const qtyText=Object.prototype.hasOwnProperty.call(li,'qtyStr')?li.qtyStr:(li.qty||'');
-      return `<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${qtyText}</span> ${li.name||''}${li.category?` <span style="color:var(--color-primary);font-weight:700;font-size:10.5px;">${esc(li.category)}</span>`:''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>`;
+      const categoryLabel=(st.lineCategories||{})[li.row_name]||li.category;
+      return `<div><div style="display:flex;align-items:center;gap:8px;font-size:13.5px;">${pending&&!locked?`<input type="checkbox" ${st.ticks[ix]?'checked':''} onchange="apprTick('${a.name}',${ix},this,${nLines})" style="width:17px;height:17px;accent-color:var(--color-primary);flex:none;">`:''}<span style="flex:1;color:var(--text-strong);"><span class="mono" style="color:var(--text-muted);">${qtyText}</span> ${li.name||''}${categoryLabel?` <span style="color:var(--color-primary);font-weight:700;font-size:10.5px;">${esc(categoryLabel)}</span>`:''}${note?` <span style="color:${col};font-weight:700;font-size:10.5px;">${note}</span>`:''}</span><span class="mono" style="color:var(--text-strong);flex:none;">${li.totalStr||''}</span></div>${approvalLineCategory(a,li,ix,locked)}</div>`;
     }).join('');
     const footer=a.footer_label?`<div style="display:flex;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:14.5px;color:var(--text-strong);"><span>${a.footer_label}</span><span class="mono">${a.footer_value||''}</span></div>`:'';
     const orderLines=(a.order_lines||[]).map(li=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span class="mono" style="color:var(--text-muted);flex:none;">${esc(li.qtyStr||'')}</span><span style="color:var(--text-strong);flex:1;min-width:0;">${esc(li.name||'')}</span><span class="mono" style="color:var(--text-strong);flex:none;">${esc(li.totalStr||'')}</span></div>`).join('');
@@ -1057,6 +1078,17 @@ function lfPoll(fn, ms){
     const ticked=Object.values(st.ticks).filter(Boolean).length;
     const btn=document.getElementById('app_'+name); if(btn) btn.disabled=ticked<total;
     const cnt=document.getElementById('cnt_'+name); if(cnt) cnt.textContent='Tick every line to enable Approve · '+ticked+'/'+total+' checked'; }
+  function apprLineCategory(name,ix,value){
+    const approval=(_apprView.all||[]).find(a=>a.name===name);
+    const line=approval&&(approval.lines||[])[ix];
+    if(!line||!line.row_name||approval.status!=='pending'||(approval.mine&&!approval.self_ok)) return;
+    const st=apprState[name]=apprState[name]||{ticks:{},comment:''};
+    st.lineCategories=st.lineCategories||{};
+    if(value===(line.category||'Food / Ingredients')) delete st.lineCategories[line.row_name];
+    else st.lineCategories[line.row_name]=value;
+    st.ticks[ix]=false; // Review this line again after reclassifying it.
+    renderApprovalFeed();
+  }
   function apprCmt(name,v){ (apprState[name]=apprState[name]||{ticks:{},comment:''}).comment=v; }
   function apprCategory(name,v){ (apprState[name]=apprState[name]||{ticks:{},comment:''}).category=v; }
   // What the vendor took off the whole bill. Asked for here because approving is
@@ -1069,6 +1101,10 @@ function lfPoll(fn, ms){
     const comment=(st.comment||'').trim();
     const payload={name:name,decision:decision,comment:comment};
     if(decision==='approved' && st.category!==undefined) payload.category=st.category;
+    if(decision==='approved' && st.lineCategories && Object.keys(st.lineCategories).length){
+      payload.line_categories=JSON.stringify(Object.entries(st.lineCategories).map(([row_name,category])=>({row_name,category})));
+      delete payload.category;
+    }
     // Only on approve, and only when something was typed: rejecting a bill with
     // a discount in the box should not quietly write the discount.
     const disc=parseFloat(st.discount);

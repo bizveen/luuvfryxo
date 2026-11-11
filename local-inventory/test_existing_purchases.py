@@ -47,6 +47,45 @@ class ExistingPurchasesTest(unittest.TestCase):
         self.assertEqual(self.stock()[self.item]['balance'],before)
         self.assertEqual(self.stock()[self.item]['pending_qty'],0)
 
+    def test_each_duplicate_item_row_keeps_its_own_category_and_amount(self):
+        before = self.stock()[self.item]['balance']
+        name = self.call('create_purchase_bill', vendor='Category review', lines=json.dumps([
+            dict(item=self.item, qty=2, price=100, unit='L', category='Food / Ingredients'),
+            dict(item=self.item, qty=3, price=200, unit='L', category='Food / Ingredients'),
+        ]))['name']
+        card = self.call('get_pending_approvals', _actor='Local manager')['approvals'][0]
+        self.assertTrue(card['line_category_options'])
+        rows = card['lines']
+        self.call('resolve_approval', name=name, decision='approved', _actor='Local manager',
+                  line_categories=json.dumps([dict(row_name=rows[0]['row_name'], category='Packaging')]))
+        self.assertEqual(self.stock()[self.item]['balance'], before+3)
+        bill = next(b for b in self.call('get_purchase_bills')['bills'] if b['name']==name)
+        self.assertEqual([r['category'] for r in bill['lines']], ['Packaging', 'Food / Ingredients'])
+        self.assertEqual(bill['total'], 800)
+        with self.store.connect() as db:
+            original = json.loads(db.execute('SELECT payload FROM purchase_bills WHERE name=?', (name,)).fetchone()[0])
+            self.assertEqual(original['lines'][0]['category'], 'Food / Ingredients')
+            with self.assertRaisesRegex(sqlite3.IntegrityError, 'immutable'):
+                db.execute('UPDATE purchase_bills SET resolved_payload=? WHERE name=?', ('{}',name))
+
+    def test_bad_row_or_category_rolls_back_and_rejection_ignores_edits(self):
+        name = self.bill()
+        card = self.call('get_pending_approvals', _actor='Local manager')['approvals'][0]
+        row = card['lines'][0]['row_name']
+        before = self.stock()[self.item]['balance']
+        for changes in ([dict(row_name='foreign-row', category='Packaging')],
+                        [dict(row_name=row, category='Missing category')]):
+            with self.assertRaises(ValueError):
+                self.call('resolve_approval', name=name, decision='approved', _actor='Local manager',
+                          line_categories=json.dumps(changes))
+            self.assertEqual(self.stock()[self.item]['balance'], before)
+            self.assertEqual(self.call('get_purchase_bills')['bills'][0]['status'], 'pending')
+        self.call('resolve_approval', name=name, decision='rejected', _actor='Local manager',
+                  line_categories=json.dumps([dict(row_name=row, category='Packaging')]))
+        bill = self.call('get_purchase_bills')['bills'][0]
+        self.assertEqual(bill['lines'][0]['category'], 'Food / Ingredients')
+        self.assertEqual(self.stock()[self.item]['balance'], before)
+
     def test_permissions_branch_and_immutable_history(self):
         name=self.bill(actor='Local manager')
         with self.assertRaisesRegex(ValueError,'Someone else'):self.resolve(name)

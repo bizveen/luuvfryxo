@@ -25,6 +25,14 @@ def initialize(db):
         CREATE TRIGGER IF NOT EXISTS immutable_purchase_bill_delete BEFORE DELETE ON purchase_bills
         BEGIN SELECT RAISE(ABORT,'Purchase bill history is immutable'); END;
     ''')
+    if 'resolved_payload' not in {r['name'] for r in db.execute('PRAGMA table_info(purchase_bills)')}:
+        db.execute('ALTER TABLE purchase_bills ADD COLUMN resolved_payload TEXT')
+    db.executescript('''
+        CREATE TRIGGER IF NOT EXISTS immutable_resolved_purchase
+        BEFORE UPDATE OF resolved_payload ON purchase_bills
+        WHEN OLD.status != 'pending'
+        BEGIN SELECT RAISE(ABORT,'Approved purchase history is immutable'); END;
+    ''')
 
 
 def pending_quantities(db):
@@ -37,7 +45,10 @@ def pending_quantities(db):
 
 
 def bill_dict(bill):
-    payload = json.loads(bill['payload'])
+    payload = json.loads(bill['resolved_payload'] or bill['payload'])
+    for index, line in enumerate(payload['lines']):
+        line['row_name'] = f"{bill['name']}-LINE-{index+1}"
+        line['has_item'] = int(bool(line.get('item')))
     total = sum(line['qty'] * line['price'] for line in payload['lines'])
     return dict(payload, name=bill['name'], status=bill['status'], by=bill['requested_by'],
                 time=bill['creation'], date=payload['purchase_date'], total=total, subtotal=total,
@@ -60,6 +71,7 @@ def approvals(db, actor):
             mine=bill['requested_by']==actor, self_ok=False, time=bill['creation'],
             requested_at=bill['creation'], lines=lines, footer_label='Bill total',
             footer_value=f"Rs {data['total']:,.2f}", category_value='',
+            line_category_options=[dict(value=c['name'], label=c['name'], **c) for c in CATEGORIES],
             comment=bill['comment'] or '', image=data.get('receipt_image','')))
     return result
 
@@ -124,8 +136,29 @@ def handle(db, method, p, catalog, actor='Local purchaser'):
         if p.get('discount') or p.get('category'):
             raise ValueError('Discounts and reclassification are outside this inventory preview.')
         receipt=None; movements=[]
+        payload = bill_dict(bill)
         if decision=='approved':
-            for line in json.loads(bill['payload'])['lines']:
+            changes = p.get('line_categories') or []
+            if isinstance(changes, str): changes = json.loads(changes)
+            if not isinstance(changes, list): raise ValueError('Line categories must be a list.')
+            by_row = {line['row_name']: line for line in payload['lines']}
+            categories = {c['name']: c for c in CATEGORIES}
+            history = []
+            for change in changes:
+                if not isinstance(change, dict) or change.get('row_name') not in by_row:
+                    raise ValueError('A bill line is missing or belongs to another bill.')
+                category = categories.get(change.get('category'))
+                if not category: raise ValueError('Pick a valid category for every item.')
+                line = by_row[change['row_name']]
+                if category['name'] == line['category']: continue
+                if category['has_item_list'] and not line.get('item'):
+                    raise ValueError('An item-list category needs a linked Item.')
+                history.append(dict(row_name=line['row_name'], before=line['category'], after=category['name']))
+                line['category'] = category['name']
+                if not category['has_item_list']:
+                    line.update(item=None, price=line['qty']*line['price'], qty=1, unit='Bill', old_price=0)
+            payload['category_changes'] = history
+            for line in payload['lines']:
                 if line['category']!='Food / Ingredients': continue
                 row=db.execute('SELECT * FROM stock WHERE item=?',(line['item'],)).fetchone()
                 if not row or row['stock_uom']!=line['unit']: raise ValueError('A stock item or unit changed. Review the bill.')
@@ -138,8 +171,9 @@ def handle(db, method, p, catalog, actor='Local purchaser'):
                 receipt='LOCAL-RECEIPT-'+bill['name'].removeprefix('LOCAL-BILL-')
                 db.execute('INSERT INTO movements VALUES(?,?,?,?,?)',(receipt,now(),actor,'purchase_bill',
                     json.dumps(dict(bill=bill['name'],lines=movements))))
-        db.execute('UPDATE purchase_bills SET status=?,resolved_by=?,resolved_at=?,comment=?,stock_entry=? WHERE name=?',
-                   (decision,actor,now(),(p.get('comment') or '')[:1000],receipt,bill['name']))
+        db.execute('UPDATE purchase_bills SET status=?,resolved_by=?,resolved_at=?,comment=?,stock_entry=?,resolved_payload=? WHERE name=?',
+                   (decision,actor,now(),(p.get('comment') or '')[:1000],receipt,
+                    json.dumps(payload) if decision=='approved' else None,bill['name']))
         return dict(ok=True,stock_entry=receipt)
     if method == 'get_manager_dashboard':
         return dict(revenue=0,sales_count=0,avg_ticket=0,void_count=0,date=date.today().isoformat(),payments=[],hourly=[],top_items=[])
