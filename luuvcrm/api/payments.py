@@ -15,7 +15,7 @@ from luuvcrm.api.guides import (
     _finalize_guide_redeem,
     _parse_guide_redeem,
 )
-from luuvcrm.api.orders import _order_fully_paid
+from luuvcrm.api.orders import _order_fully_paid, _require_cus_call_released
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
     _get_service_charge_rate,
@@ -83,6 +83,8 @@ def get_tour_company_options():
 def place_order():
     roles.require_pos()
     data = frappe.local.form_dict
+    from luuvcrm.api.pos_inventory import FIELD as INVENTORY_MODE, creation_mode
+    inventory_mode = creation_mode()
 
     items_raw = data.get("items")
     items = frappe.parse_json(items_raw) if isinstance(items_raw, str) else items_raw
@@ -187,6 +189,7 @@ def place_order():
         "restaurant_table": table,
         "order_source": order_source,
         "kitchen_status": "Pending",
+        INVENTORY_MODE: inventory_mode,
         "grand_total": grand_total,
         "service_charge_rate": sc_rate,
         "service_charge_amount": sc_amount,
@@ -270,6 +273,7 @@ def process_payment():
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Order is not in draft state"))
+    _require_cus_call_released(pos_order)
     if pos_order.pos_invoice:
         frappe.throw(_("Payment already processed for this order"))
     if any(int(i.get("paid_qty") or 0) > 0 for i in pos_order.items):
@@ -384,6 +388,7 @@ def pay_split():
     pos_order = frappe.get_doc("POS Order", order_name)
     if pos_order.docstatus != 0:
         frappe.throw(_("Order is not open"))
+    _require_cus_call_released(pos_order)
 
     payment_mode = data.get("payment_mode", "Cash")
     cash_amount = float(data.get("cash_amount", 0))

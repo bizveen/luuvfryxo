@@ -90,7 +90,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ brand_name }} POS</title>
+<title>{{ brand_name }} {% if inventory_pos %}Inventory {% endif %}POS</title>
 <!-- what the counter prints when the Print Format cannot be read: the name, the town under it, the number to call -->
 <script>const BRAND={{ brand_name | tojson }}, OUTLET={{ brand().outlet_line | tojson }}, PHONE={{ brand().contact_phone | tojson }};</script>
 <meta name="csrf-token" content="{{ csrf_token }}">
@@ -228,7 +228,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
       <div class="tb-brand" style="display:flex;align-items:center;gap:13px;flex:none;">
         <div class="tb-logo" style="width:46px;height:46px;border-radius:var(--radius-md);background:var(--color-primary);color:#fff;font-family:var(--font-display);font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-brand);">LF</div>
         <div>
-          <div class="tb-title" style="font-family:var(--font-display);font-weight:800;font-size:var(--tb-title,22px);letter-spacing:-.01em;color:var(--text-strong);line-height:1.12;">New order</div>
+          <div class="tb-title" style="font-family:var(--font-display);font-weight:800;font-size:var(--tb-title,22px);letter-spacing:-.01em;color:var(--text-strong);line-height:1.12;">{% if inventory_pos %}Inventory POS{% else %}New order{% endif %}</div>
           <div class="tb-restaurant" data-active-restaurant style="max-width:220px;font-size:11.5px;font-weight:700;line-height:1.3;color:var(--orange-700);">{{ (restaurant.get("restaurant_name") or restaurant.name) if restaurant else "No restaurant selected" }}{% if restaurant and restaurant.get("city") %} — {{ restaurant.city }}{% endif %}</div>
         </div>
       </div>
@@ -665,9 +665,19 @@ function lfPoll(fn, ms){
   // category pill emojis
   document.querySelectorAll('.catp[data-cat]').forEach(p=>{ if(p.dataset.cat!=='__all__'){ const e=p.querySelector('.cemoji'); if(e) e.textContent=emojiFor(p.dataset.cat); } });
 
+  const INVENTORY_POS = {{ (inventory_pos or false) | tojson }};
+  const POS_ROUTE = INVENTORY_POS ? "/pos-inventory" : "/pos";
   async function _api(url,opts){ opts=opts||{}; opts.headers=opts.headers||{}; opts.headers['X-Frappe-CSRF-Token']=CSRF; opts.credentials='include';
-    try{ const r=await fetch(url,opts); if(r.status===401){ location.href='/login?redirect-to=/pos'; return null;} return r;}catch(e){ return null; } }
-  async function _post(url,data){ const fd=new URLSearchParams(); fd.set('csrf_token',CSRF); for(const[k,v] of Object.entries(data)) fd.set(k,v); return _api(url,{method:'POST',body:fd}); }
+    try{ const r=await fetch(url,opts); if(r.status===401){ location.href='/pos-login?redirect='+encodeURIComponent(POS_ROUTE); return null;} return r;}catch(e){ return null; } }
+  async function _post(url,data){
+    if(INVENTORY_POS && ['/api/method/luuvcrm.api.send_to_kitchen','/api/method/luuvcrm.api.place_order'].includes(url)){
+      url=url.replace('luuvcrm.api.','luuvcrm.api.pos_inventory.');
+    }
+    const fd=new URLSearchParams(); fd.set('csrf_token',CSRF);
+    for(const[k,v] of Object.entries(data)) fd.set(k,v);
+    fd.set('pos_channel',INVENTORY_POS?'inventory':'legacy');
+    return _api(url,{method:'POST',body:fd});
+  }
 
   // ── nav: switch SPA screens ──
   function setNav(n){ document.querySelectorAll('.navp').forEach(b=>b.classList.toggle('active',b.dataset.nav===n));
@@ -700,6 +710,62 @@ function lfPoll(fn, ms){
   function openTable(name){ setNav('sale'); const sel=document.getElementById('tableSel'); sel.value=name; orderType='Dine In';
     document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active'); onTableChange(); }
 
+  // Online channels keep the historical order_source while carrying their own label.
+  function orderChannel(o){
+    if(o.order_source==='Online') return ['CUS','Kiosk'].includes(o.waiter_name)?o.waiter_name:'Online';
+    return o.order_source==='Waiter'?'Waiter':'';
+  }
+  function cusAwaitingCall(o){ return orderChannel(o)==='CUS' && o.kitchen_status==='Draft'; }
+  function orderSourceBadge(o){
+    const label=orderChannel(o); if(!label) return '';
+    const colors={CUS:['#0369A1','#E0F2FE'],Kiosk:['#047857','#D1FAE5'],Waiter:['#4F46E5','#E0E7FF'],Online:['#475569','#F1F5F9']}[label];
+    return `<span style="display:inline-flex;font-size:11px;font-weight:800;color:${colors[0]};background:${colors[1]};padding:2px 7px;border-radius:var(--radius-pill);">${label}</span>`;
+  }
+  let _cusConfirmBusy=false;
+  async function reviewCusOrder(name){
+    await loadOpenOrders();
+    const o=(_openOrders||[]).find(x=>x.name===name);
+    if(!o){ toast('Order changed — refresh the order list'); return; }
+    if(cusAwaitingCall(o)) return confirmCusOrder(name);
+    let items=[]; try{ items=JSON.parse(o.items_json||'[]'); }catch(e){}
+    const decision=lfConfirm('CUS order · #'+shortNo(name),
+      (o.customer_name||'Customer')+' · '+(o.mobile||'No phone')+' · '+(o.kitchen_status||'Pending'),
+      'Take payment','Close');
+    document.getElementById('dupeRows').innerHTML=items.map(i=>`<div style="padding:8px 0;">${i.qty} × ${escq(i.item_name||i.item)}</div>`).join('')+
+      `<div style="font-weight:700;padding:12px 0;">Total Rs ${nfmt(o.grand_total||0)}</div><button class="lf-btn lf-btn--ghost lf-btn--md" onclick="reprintKOT('${o.name}')">Reprint KOT</button>`;
+    if(!(await decision)) return;
+    if(!shiftOpen){ openShiftModal(); toast('Open a shift first'); return; }
+    // Charge the saved customer order without rebuilding/repricing promo lines.
+    openPayForOrder(name,o.grand_total||0,o.items_count||items.length,o.restaurant_table||'');
+    payCtx.preserveTicket=true;
+    payCtx.itemCodes=items.map(i=>i.item);
+    document.getElementById('pmCtx').textContent='CUS order';
+    document.getElementById('pmTable').textContent='#'+shortNo(name);
+  }
+  async function confirmCusOrder(name){
+    if(_cusConfirmBusy) return;
+    _cusConfirmBusy=true;
+    try{
+      await loadOpenOrders();
+      const o=(_openOrders||[]).find(x=>x.name===name);
+      if(!o || !cusAwaitingCall(o)){ toast('Order changed — refresh the order list'); return; }
+      let items=[]; try{ items=JSON.parse(o.items_json||'[]'); }catch(e){}
+      const decision=lfConfirm('Call customer · #'+shortNo(name),
+        (o.customer_name||'Customer')+' · '+(o.mobile||'No phone number')+(o.scheduled_time?' · Pickup '+o.scheduled_time:'')+' — confirm this order by phone before printing the KOT.',
+        'Call confirmed · Print KOT','Not yet');
+      const phone=String(o.mobile||'').replace(/[^+0-9]/g,'');
+      document.getElementById('dupeRows').innerHTML=(phone?`<a href="tel:${phone}" class="lf-btn lf-btn--ghost lf-btn--md">Call ${escq(o.mobile)}</a>`:'')+
+        items.map(i=>`<div style="padding:8px 0;border-bottom:1px solid var(--border-subtle);">${i.qty} × ${escq(i.item_name||i.item)}${i.notes?`<div style="font-size:12px;color:var(--text-muted);">${escq(i.notes)}</div>`:''}</div>`).join('')+
+        `<div style="padding-top:12px;font-weight:700;">Total Rs ${nfmt(o.grand_total||0)}</div>`;
+      if(!(await decision)) return;
+      if(await printKOT(name,{callConfirmed:true})){
+        toast('CUS order confirmed — sent to kitchen #'+shortNo(name));
+        await loadOpenOrders(); await loadOrders();
+      }
+    }catch(e){ console.error('CUS confirmation',e); toast('Could not confirm the order — refresh and try again'); }
+    finally{ _cusConfirmBusy=false; }
+  }
+
   // ── Orders screen ──
   async function loadOrders(){
     let ongoing=[],done=[];
@@ -709,17 +775,17 @@ function lfPoll(fn, ms){
     document.getElementById('ordStats').innerHTML=[['Open',ongoing.length],['Completed',done.length],['Sales',nfmt(sales)]].map(s=>
       `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:18px 24px;min-width:188px;box-shadow:var(--shadow-xs);"><div style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">${s[0]}</div><div style="font-family:var(--font-display);font-weight:800;font-size:31px;color:var(--text-strong);margin-top:6px;">${s[1]}</div></div>`).join('');
     const rows=[...ongoing.map(o=>({...o,_done:false})),...done.map(o=>({...o,_done:true}))];
-    document.getElementById('ticketList').innerHTML=rows.map(o=>{ const ta=o.order_type==='Take Away'; const ch=ta?'shopping-bag':'utensils-crossed'; const chL=ta?'Takeaway':('Table '+(o.restaurant_table?o.restaurant_table.split('-').pop():'—'));
+    document.getElementById('ticketList').innerHTML=rows.map(o=>{ const ta=o.order_type==='Take Away'||!o.restaurant_table; const ch=ta?'shopping-bag':'utensils-crossed'; const chL=ta?'Takeaway':('Table '+(o.restaurant_table?o.restaurant_table.split('-').pop():'—'));
       let items=''; try{ items=(JSON.parse(o.items_json||'[]')).map(i=>i.qty+'× '+(i.item_name||i.item)).join(', '); }catch(e){}
-      const tone=o._done?'lf-badge--success':'lf-badge--warning'; const stat=o._done?'Paid':'Open';
-      return `<div style="display:flex;align-items:center;gap:18px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px 22px;box-shadow:var(--shadow-xs);">
-        <div class="mono" style="font-weight:500;font-size:17px;color:var(--text-strong);width:90px;flex:none;">#${(o.name||'').split('-').pop()}</div>
+      const tone=o._done?'lf-badge--success':'lf-badge--warning'; const stat=o._done?'Paid':(cusAwaitingCall(o)?'Call to confirm':'Open');
+      return `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px 22px;box-shadow:var(--shadow-xs);">
+        <div class="mono" style="font-weight:500;font-size:17px;color:var(--text-strong);width:90px;flex:none;">#${(o.name||'').split('-').pop()}<div style="margin-top:5px;">${orderSourceBadge(o)}</div></div>
         <div style="display:flex;align-items:center;gap:8px;width:138px;flex:none;color:var(--text-body);font-size:16px;font-weight:700;"><i data-lucide="${ch}" style="width:16px;height:16px;color:var(--text-muted);"></i> ${chL}</div>
-        <div style="flex:1;min-width:0;color:var(--text-muted);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${items||'—'}</div>
+        <div style="flex:1;min-width:0;color:var(--text-muted);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escq(items)||'—'}${orderChannel(o)==='CUS'?`<div style="margin-top:5px;color:var(--text-body);">${escq(o.customer_name||'Customer')} · ${escq(o.mobile||'No phone')}${o.scheduled_time?' · '+escq(o.scheduled_time):''}</div>`:''}</div>
         <div style="display:flex;align-items:center;gap:7px;color:var(--text-faint);font-size:14px;width:120px;flex:none;"><i data-lucide="clock" style="width:15px;height:15px;"></i> ${o.time_ago||o.completed_at||''}</div>
         <span class="lf-badge ${tone}">${stat}</span>
         <div class="mono" style="font-weight:500;font-size:18px;color:var(--text-strong);width:84px;text-align:right;flex:none;">${nfmt(o.grand_total||0)}</div>
-        ${o._done?`<button onclick="printReceipt('${o.name}')" title="Reprint bill" style="flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="printer" style="width:18px;height:18px;"></i></button>`:`<button onclick="reprintKOT('${o.name}')" title="Reprint the kitchen ticket (does not re-fire items)" style="flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="chef-hat" style="width:18px;height:18px;"></i></button>`}
+        ${cusAwaitingCall(o)?`<button class="lf-btn lf-btn--primary lf-btn--sm" onclick="confirmCusOrder('${o.name}')">Call &amp; print KOT</button>`:o._done?`<button onclick="printReceipt('${o.name}')" title="Reprint bill" style="flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="printer" style="width:18px;height:18px;"></i></button>`:`<button onclick="reprintKOT('${o.name}')" title="Reprint the kitchen ticket (does not re-fire items)" style="flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="chef-hat" style="width:18px;height:18px;"></i></button>`}
       </div>`; }).join('') || '<div style="color:var(--text-faint);text-align:center;padding:40px;">No orders this shift.</div>';
     icons();
   }
@@ -918,12 +984,13 @@ function lfPoll(fn, ms){
     const chips=tableOrders.map(o=>{ const active=currentOrder===o.name; const n=(o.items&&o.items.length)||0; const isW=o.order_source==='Waiter';
       const st=active?'border:1.5px solid var(--color-primary);background:var(--color-primary);color:#fff;':(isW?'border:1.5px solid #6366F1;background:#EEF2FF;color:#3730A3;':'border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-strong);');
       const badge=active?'background:rgba(255,255,255,.25);color:#fff;':(isW?'background:#E0E7FF;color:#4F46E5;':'background:var(--orange-50);color:var(--color-primary);');
-      return `<button onclick="selectOrderTab('${o.name}')" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:14px;${st}" title="${isW?'Waiter order':''}">${isW?'👤 ':''}#${shortNo(o.name)}<span style="font-size:11px;font-weight:800;padding:1px 6px;border-radius:var(--radius-pill);${badge}">${n}</span></button>`; }).join('');
+      return `<button onclick="selectOrderTab('${o.name}')" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:14px;${st}" title="${orderChannel(o)} order">${orderSourceBadge(o)} #${shortNo(o.name)}<span style="font-size:11px;font-weight:800;padding:1px 6px;border-radius:var(--radius-pill);${badge}">${n}</span></button>`; }).join('');
     const newActive=!currentOrder; const newSt=newActive?'border:1.5px solid var(--color-primary);background:var(--orange-50);color:var(--color-primary);':'border:1.5px dashed var(--border-default);background:transparent;color:var(--color-primary);';
     const plus=`<button onclick="newTicketForTable()" title="New order on this table" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:21px;font-weight:700;line-height:1;${newSt}">+</button>`;
     tabsEl.innerHTML=chips+plus; icons();
   }
   function selectOrderTab(name){ const o=tableOrders.find(x=>x.name===name); if(!o) return;
+    if(orderChannel(o)==='CUS'){ reviewCusOrder(name); return; }
     _saveEpoch++;   // switching tickets — drop any in-flight autosave response
     currentOrder=name; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; (o.items||[]).forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.takeaway) cartTA[i.item]=(cartTA[i.item]||0)+i.qty; if(i.sent_qty){ firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; if(i.takeaway) firedTABaseline[i.item]=(firedTABaseline[i.item]||0)+i.sent_qty; } addCartNote(i.item,i.notes); });
     currentDiscount=(o.discount_amount>0)?{amount:o.discount_amount,note:o.discount_note||''}:null;
@@ -1083,7 +1150,9 @@ function lfPoll(fn, ms){
       else { const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'' };
         res=await _post('/api/method/luuvcrm.api.send_to_kitchen',body); }
       if(!res) return; const data=await res.json();
-      if(res.ok && data.message && data.message.name){ const nm=data.message.name; currentOrder=nm; toast('Sent to kitchen #'+nm); printKOT(nm);
+      if(res.ok && data.message && data.message.name){ const nm=data.message.name; currentOrder=nm;
+        if(INVENTORY_POS){ if(!(await printKOT(nm))) return; toast('Sent to kitchen #'+nm); }
+        else { toast('Sent to kitchen #'+nm); printKOT(nm); }
         // KOT fired → these items are now in the kitchen; keep the order open so more can be added.
         firedBaseline={...cart}; editBaseline={...cart};
         firedTABaseline={}; Object.keys(cart).forEach(c=>{ const n=(orderType==='Take Away')?cart[c]:Math.min(cartTA[c]||0,cart[c]); if(n>0) firedTABaseline[c]=n; });
@@ -1338,8 +1407,8 @@ function lfPoll(fn, ms){
       if(res.ok && data.message && data.message.name){ toast('Charged #'+data.message.name);
         if(payMode==='Cash'||payMode==='Cash+Card') LFPrint.openDrawer();
         printReceipt(data.message.name); hide('payModal');
-        const tbl=payCtx.table; const paidCodes=Object.keys(cart);
-        if(payCtx.kind==='new') clearCart(); else { clearTicket(); }
+        const tbl=payCtx.table; const paidCodes=payCtx.itemCodes||Object.keys(cart);
+        if(payCtx.kind==='new') clearCart(); else if(!payCtx.preserveTicket || currentOrder===payCtx.orderName){ clearTicket(); }
         if(tbl){ await refreshTableTabs(tbl); maybeWarnZombies(tbl,paidCodes); } loadOpenOrders(); loadShift(); }
       else mErr('payErr', _smsg(data,'payment failed'));
     }catch(e){ mErr('payErr','Connection error'); }
@@ -1403,9 +1472,9 @@ function lfPoll(fn, ms){
     try{ const r=await _post('/api/method/luuvcrm.api.get_ongoing_orders',{}); if(!r) return; const d=await r.json();
       const orders=(d.message&&d.message.orders)||[]; _openOrders=orders; const wrap=document.getElementById('openOrders');
       document.getElementById('ordCnt').textContent=orders.length;
-      wrap.innerHTML=orders.map(o=>{ const ta=o.order_type==='Take Away'; const isW=o.order_source==='Waiter'; const label=ta?('#'+(o.name||'').split('-').pop()):('Table '+(o.restaurant_table?o.restaurant_table.split('-').pop():'—')); const bIcon=ta?'shopping-bag':'utensils-crossed';
+      wrap.innerHTML=orders.map(o=>{ const ta=o.order_type==='Take Away'||!o.restaurant_table; const isW=o.order_source==='Waiter'; const label=ta?('#'+(o.name||'').split('-').pop()):('Table '+(o.restaurant_table?o.restaurant_table.split('-').pop():'—')); const bIcon=ta?'shopping-bag':'utensils-crossed';
         const cardBd=isW?'border:1.5px solid #6366F1;background:#EEF2FF;':'border:1.5px solid var(--border-default);background:var(--surface-card);';
-        const wtag=isW?'<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:700;color:#4F46E5;background:#E0E7FF;padding:2px 7px;border-radius:var(--radius-pill);">👤 Waiter</span>':'';
+        const wtag=orderSourceBadge(o);
         return `<button onclick="railClick('${o.name}','${(o.restaurant_table||'').replace(/'/g,'')}',${o.grand_total||0},${o.items_count||0})" style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:11px 12px;border-radius:var(--radius-md);${cardBd}cursor:pointer;width:100%;text-align:left;">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:6px;">
             <span style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);">${label}</span>
@@ -1415,17 +1484,20 @@ function lfPoll(fn, ms){
             <span class="mono" style="font-size:14px;font-weight:500;color:var(--color-primary);">${nfmt(o.grand_total||0)}</span>
             ${wtag}
           </div>
+          ${orderChannel(o)==='CUS'?`<div style="font-size:12px;color:var(--text-body);">${escq(o.customer_name||'Customer')} · ${escq(o.mobile||'No phone')}</div>`:''}
+          ${cusAwaitingCall(o)?'<div style="font-size:11px;font-weight:700;color:#B45309;">Call to confirm · Print KOT</div>':''}
         </button>`; }).join('') || '<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:28px 8px;line-height:1.5;">No open orders yet.</div>';
       icons();
     }catch(e){}
   }
   // rail click: dine-in order → resume into ticket (+tabs); takeaway → resume the ticket too,
   // so more items can be added and the remaining fired to the kitchen before charging.
-  function railClick(name,table,total,count){ if(table){ resumeOrder(name,table); } else { resumeTakeaway(name); } }
+  function railClick(name,table,total,count){ const o=(_openOrders||[]).find(x=>x.name===name); if(o&&orderChannel(o)==='CUS'){ reviewCusOrder(name); return; } if(table){ resumeOrder(name,table); } else { resumeTakeaway(name); } }
   // Resume an open Take Away order into the ticket (no table) — load its items so the cashier
   // can add more and fire a KOT for only the new items, then charge.
   function resumeTakeaway(name){
     const o=(_openOrders||[]).find(x=>x.name===name); if(!o){ openPayForOrder(name,0,0,''); return; }
+    if(orderChannel(o)==='CUS'){ reviewCusOrder(name); return; }
     setNav('sale');
     orderType='Take Away';
     document.getElementById('segDine').classList.remove('active');
@@ -1463,13 +1535,34 @@ function lfPoll(fn, ms){
   async function printWithFormat(name,kind,fallback,prefix){
     const pf=localStorage.getItem(PF_KEYS[kind]) || PF_DEFAULTS[kind];
     if(pf){ try{ const r=await _post('/api/method/luuvcrm.api.render_pos_print',{order_name:name,kind:kind,print_format:pf});
-      if(r){ const d=await r.json(); if(d.message&&d.message.html){ printRaw((prefix||'')+d.message.html); return; } } }catch(e){ console.error('print: format render failed ('+kind+')',e); } }
+      if(r){ const d=await r.json(); if(d.message&&d.message.html){ printRaw((prefix||'')+d.message.html); return true; } } }catch(e){ console.error('print: format render failed ('+kind+')',e); } }
     // Format render failed/empty → built-in layout. If THAT also fails, tell the cashier —
     // silent print failures hid the order-swap bug for a whole service.
-    try{ await fallback(); }catch(e){ console.error('print: fallback failed ('+kind+')',e); toast('Print failed — '+kind); }
+    try{ return await fallback(); }catch(e){ console.error('print: fallback failed ('+kind+')',e); toast('Print failed — '+kind); return false; }
   }
-  async function printKOT(name){ await printWithFormat(name,'kot',async()=>{ const r=await _post('/api/method/luuvcrm.api.get_kot_print_data',{order_name:name}); if(!r){ toast('KOT print failed — no connection'); return; } const d=await r.json(); if(!r.ok){ console.error('print: get_kot_print_data',d); toast('KOT print failed — '+_smsg(d,'server error')); return; } printDoc(buildKOT(d.message||{})); });
-    try{ await _post('/api/method/luuvcrm.api.mark_kot_printed',{order_name:name}); }catch(e){} }
+  async function acknowledgeKOT(name,opts){
+    opts=opts||{};
+    if(opts.callConfirmed && !LFPrint.has()){
+      if(!(await lfConfirm('Did the KOT print?', 'Finish printing this ticket before sending the order to the kitchen. If printing was cancelled or failed, choose Not printed.', 'Printed · Send to kitchen','Not printed'))) return false;
+    }
+    try{
+      const r=await _post('/api/method/luuvcrm.api.mark_kot_printed',{order_name:name,call_confirmed:opts.callConfirmed?'1':'0'});
+      const d=r?await r.json():{};
+      if(r&&r.ok&&d.message&&d.message.ok) return true;
+      toast('KOT printed, but kitchen confirmation failed — '+_smsg(d,'refresh and retry')); return false;
+    }catch(e){ toast('KOT printed, but kitchen confirmation failed — check connection and refresh'); return false; }
+  }
+  async function printKOT(name,opts){
+    const ok=await printWithFormat(name,'kot',async()=>{
+      const r=await _post('/api/method/luuvcrm.api.get_kot_print_data',{order_name:name});
+      if(!r){ toast('KOT print failed — no connection'); return false; }
+      const d=await r.json();
+      if(!r.ok){ toast('KOT print failed — '+_smsg(d,'server error')); return false; }
+      if(!((d.message||{}).items||[]).length){ toast('No new items to print'); return false; }
+      printDoc(buildKOT(d.message||{})); return true;
+    });
+    return ok?acknowledgeKOT(name,opts):false;
+  }
   async function printReceipt(name){ await printWithFormat(name,'receipt',async()=>{ const r=await _post('/api/method/luuvcrm.api.get_receipt_print_data',{order_name:name}); if(!r){ toast('Receipt print failed — no connection'); return; } const d=await r.json(); if(!r.ok){ console.error('print: get_receipt_print_data',d); toast('Receipt print failed — '+_smsg(d,'server error')); return; } printDoc(buildReceipt(d.message||{})); }); }
   // KOT + bills print in three sections: kitchen food / beverages / takeaway.
   function printSections(items){
@@ -1759,7 +1852,7 @@ function lfPoll(fn, ms){
         credentials:'include',cache:'no-store',redirect:'follow'
       });
       if(!res.ok) throw new Error('logout failed');
-      window.location.replace('/pos-login');
+      window.location.replace('/pos-login?redirect='+encodeURIComponent(POS_ROUTE));
     }catch(e){ toast('Could not log out — check your connection and try again'); }
   }
 
@@ -2464,13 +2557,20 @@ function lfPoll(fn, ms){
     printKOT = async function(name,opts){
       opts=opts||{};
       var reprint=!!opts.reprint;
+      if(INVENTORY_POS && !reprint){
+        var stockResponse=await _post('/api/method/luuvcrm.api.pos_inventory.prepare_kot',{order_name:name});
+        var stockData=stockResponse?await stockResponse.json():{};
+        if(!stockResponse || !stockResponse.ok || !stockData.message || !stockData.message.ok){
+          toast(_smsg(stockData,'Stock check failed. Retry before sending to kitchen.')); return false;
+        }
+      }
       // Legacy = no bridge AND no Google-Docs template, i.e. a plain browser.
       // Only a NORMAL fire may take that shortcut: _printKOT() is the original
       // function, it posts {order_name} with no include_sent, so a reprint sent
       // through it would ask for unfired lines only and get [] straight back —
       // the exact dead end this whole change exists to remove. A reprint always
       // takes the path below, which carries the flag.
-      if(legacy('kot') && !reprint) return _printKOT(name);
+      if(legacy('kot') && !reprint) return _printKOT(name,opts);
       var body={order_name:name, include_sent: reprint ? 1 : 0};
       var r=await _post('/api/method/luuvcrm.api.get_kot_print_data',body);
       if(!r){ toast('KOT print failed — no connection'); return false; }
@@ -2500,7 +2600,7 @@ function lfPoll(fn, ms){
       // Only mark the lines fired once paper is actually on its way. Marking
       // them after a refusal (paper out, printer not ready) would drop them
       // from the next KOT for good — the kitchen would never see them.
-      if(ok && !reprint){ try{ await _post('/api/method/luuvcrm.api.mark_kot_printed',{order_name:name}); }catch(e){} }
+      if(ok && !reprint) return acknowledgeKOT(name,opts);
       return ok;
     };
     // Explicit reprint entry point for the ticket list button.

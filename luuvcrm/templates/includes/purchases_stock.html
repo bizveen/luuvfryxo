@@ -1,0 +1,77 @@
+<style>
+.ps-stock{margin:14px 16px;padding:16px;border:1px solid #efc2b6;border-radius:16px;background:#fff7f2;color:#423d38;font-size:13px}.ps-stock h2{font-size:17px;margin:0 0 7px}.ps-stock p{line-height:1.6;margin:6px 0}.ps-stock button,.ps-stock select,.ps-stock input{font:inherit}.ps-stock button{border:1px solid #ddc9bd;border-radius:9px;padding:9px 12px;background:white;cursor:pointer;color:#9b3d16}.ps-stock button:disabled{opacity:.5;cursor:default}.ps-stock select{padding:10px;border-radius:8px;border:1px solid #ddc9bd;width:100%;background:white}.ps-row{display:grid;grid-template-columns:22px minmax(0,1fr) 80px;gap:8px;align-items:center;border-top:1px solid #efded5;padding:12px 0}.ps-row input[type=number]{width:100%;box-sizing:border-box;padding:9px 5px;border:1px solid #ddc9bd;border-radius:8px;background:white}.ps-row small{display:block;line-height:1.6;color:#837268}.ps-row b{color:#b43e32}.ps-stock a{color:#ac441b}.ps-stock .ps-error{color:#a52e23;margin-top:9px}.ps-stock .ps-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.ps-stock .ps-primary{background:#ed570e;color:white;border-color:#ed570e}.ps-stock .ps-message{padding:9px;background:white;border-radius:8px;margin-top:10px}
+</style>
+<script>
+window.LFPurchaseStock=(()=>{
+  const query=new URLSearchParams(location.search);
+  const panel=document.createElement('section');panel.className='ps-stock';panel.id='purchaseStock';
+  const home=document.querySelector('.card'),anchor=home.children[1];home.insertBefore(panel,anchor);
+  const stockButton=document.createElement('button');stockButton.type='button';stockButton.textContent='Add items from low stock';stockButton.className='lf-btn';stockButton.style.marginBottom='14px';
+  document.getElementById('billModeFields').prepend(stockButton);stockButton.onclick=load;
+  let snapshot=null,loading=false;
+  const text=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const qty=n=>Number(n||0).toLocaleString('en',{maximumFractionDigits:6});
+  function message(s){panel.querySelector('#psMessage').textContent=s;}
+  function collapsed(){panel.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><strong>Branch stock</strong><p style="margin:2px 0 0">Replenish from your Manager inventory.</p></div><button id="psOpen">View low stock</button></div>';panel.querySelector('#psOpen').onclick=load;}
+  async function load(){
+    if(loading)return;loading=true;
+    try{
+      await window.lfPurchasesReady;
+      const response=await _post('/api/method/luuvcrm.api.inventory_purchasing.restock',{restaurant:query.get('restaurant')||''});
+      if(!response)throw Error('Could not load branch stock. Try again.');
+      const body=await response.json();if(!response.ok||!body.message)throw Error(body.error||srvMsg(body,'Could not load branch stock.'));
+      snapshot=body.message;render();billOpened();
+    }catch(error){panel.innerHTML='<h2>Branch stock</h2><p class="ps-error">'+text(error.message)+'</p><button id="psRetry">Retry</button>';panel.querySelector('#psRetry').onclick=load;}
+    finally{loading=false;}
+  }
+  function render(){
+    const rows=snapshot.items.filter(row=>!row.prepared),prepared=snapshot.items.filter(row=>row.prepared);
+    panel.innerHTML='<h2>Low stock · '+text(snapshot.restaurant)+'</h2><p>Use this list to plan your purchases. Add items to a bill after they arrive, using the actual quantity and price. Stock increases after manager approval.</p><a href="/manager2.0?tab=inventory">← Manager inventory</a>'+
+      (rows.length?'<div style="margin:12px 0 6px"><label for="psCategory">Stock category for selected items</label><select id="psCategory"><option value="">Choose category…</option>'+snapshot.stock_categories.map(c=>'<option value="'+text(c)+'">'+text(c)+'</option>').join('')+'</select><small>Only categories that receive items into stock are listed.</small></div>':'<p>No purchased items are at or below MOQ.</p>')+
+      rows.map((r,i)=>'<div class="ps-row" data-restock="'+text(r.item)+'"><input type="checkbox" aria-label="Select '+text(r.name)+'" data-select="'+i+'"><div><strong>'+text(r.name)+'</strong><small>Remaining <b>'+qty(r.balance)+' '+text(r.stock_uom)+'</b> · MOQ '+qty(r.minimum_qty)+' '+text(r.stock_uom)+'</small>'+(r.pending_qty?'<small>Awaiting approval: '+qty(r.pending_qty)+' '+text(r.stock_uom)+'</small>':'')+'</div><label><input type="number" min="0" step="'+(r.stock_uom.toLowerCase()==='nos'?'1':'any')+'" value="'+(r.suggested_qty||'')+'" placeholder="Qty" aria-label="Bill quantity for '+text(r.name)+'" data-qty="'+i+'"><small>'+text(r.stock_uom)+'</small></label></div>').join('')+
+      (prepared.length?'<p>Prepare in branch: '+prepared.map(r=>text(r.name)+' ('+qty(r.balance)+' '+text(r.stock_uom)+')').join(', ')+'. Use its recipe in Manager.</p>':'')+
+      '<div class="ps-actions">'+(rows.length?'<button class="ps-primary" id="psAdd">Add selected to bill</button>':'')+'<button id="psRefresh">Refresh stock</button></div><p id="psMessage" role="status"></p>';
+    panel.querySelector('#psRefresh').onclick=load;
+    if(rows.length)panel.querySelector('#psAdd').onclick=()=>addToBill(rows);
+  }
+  async function addToBill(rows){
+    const button=panel.querySelector('#psAdd');button.disabled=true;
+    try{
+      const category=panel.querySelector('#psCategory').value;
+      if(!category||!snapshot.stock_categories.includes(category))throw Error('Choose a stock category first.');
+      const selected=[...panel.querySelectorAll('[data-select]:checked')].map(el=>{
+        const index=Number(el.dataset.select),row=rows[index],amount=Number(panel.querySelector('[data-qty="'+index+'"]').value);
+        if(!Number.isFinite(amount)||amount<=0)throw Error('Enter the received quantity for '+row.name+'.');
+        if(row.stock_uom.toLowerCase()==='nos'&&!Number.isInteger(amount))throw Error('Enter a whole number of nos for '+row.name+'.');
+        return {row,amount};
+      });
+      if(!selected.length)throw Error('Select the items for this supplier bill.');
+      // Recheck the authenticated branch immediately before touching the draft.
+      const response=await _post('/api/method/luuvcrm.api.inventory_purchasing.restock',{restaurant:snapshot.restaurant});
+      const body=response&&await response.json();
+      if(!response||!response.ok||body?.message?.restaurant!==snapshot.restaurant)throw Error(body?.error||srvMsg(body,'The branch changed. Refresh before adding items.'));
+      if(!body.message.stock_categories.includes(category))throw Error('This category no longer receives stock. Choose another category.');
+      await loadCatalog();
+      for(const {row} of selected){const item=catalog.find(c=>c.item===row.item);if(!item||item.unit!==row.stock_uom)throw Error(row.name+' is unavailable in the purchase catalog or its unit changed. Refresh first.');}
+      if(sheetOpen('addOverlay')&&document.getElementById('fCategory').value)throw Error('Finish or close the current expense draft before starting a stock bill.');
+      // Existing vendor, receipt, date, quantities and prices are preserved.
+      if(!sheetOpen('addOverlay'))openAdd();
+      let card=categoryCards.find(c=>c.category===category);
+      if(!card){card=makeCategoryCard(category);categoryCards.push(card);}
+      let added=0,skipped=0;
+      for(const {row,amount} of selected){
+        if(formLines.some(line=>line.item===row.item)){skipped++;continue;}
+        addLine(row.item,card.id);const line=formLines.find(line=>line.item===row.item);line.qty=String(amount);added++;
+      }
+      card.pickerOpen=false;renderCategoryCards();saveDraft();
+      const result=added+' item(s) added.'+(skipped?' '+skipped+' already in this bill; existing quantities kept.':'')+' Check actual prices, vendor and receipt before sending for approval.';
+      message(result);toast(result);
+    }catch(error){message(error.message);}
+    finally{button.disabled=false;}
+  }
+  function billOpened(){if(snapshot&&sheetOpen('addOverlay')){stockButton.after(panel);stockButton.style.display='none';}}
+  function billClosed(){home.insertBefore(panel,anchor);stockButton.style.display='';}
+  collapsed();if(query.has('inventory')||query.get('low')==='1')load();
+  return {load,billOpened,billClosed};
+})();
+</script>

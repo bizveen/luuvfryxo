@@ -44,7 +44,13 @@ def kiosk_place_order():
     ref_code = data.get("ref_code", "").strip().upper()
     table = data.get("table", "")
     order_type = data.get("order_type", "")
-    wa_confirm = str(data.get("wa_confirm") or "") in ("1", "true", "True")
+    is_cus = str(data.get("order_channel") or "").strip().upper() == "CUS"
+    if is_cus and order_type not in ("Dine In", "Take Away", "Delivery"):
+        order_type = "Take Away"
+    # Customer-app orders wait for a staff call and KOT; WhatsApp no longer
+    # confirms them. Keep the older kiosk/QR confirmation path unchanged.
+    wa_confirm = not is_cus and str(data.get("wa_confirm") or "") in ("1", "true", "True")
+    held = is_cus or wa_confirm
     scheduled_raw = (data.get("scheduled_time") or "").strip()
     restaurant = branch.public(restaurant=(data.get("restaurant") or "").strip())
 
@@ -80,7 +86,7 @@ def kiosk_place_order():
                     "max_time": max_dt.strftime("%Y-%m-%d %H:%M:%S")}
 
     order_source = "Online"
-    waiter_name = "Kiosk"
+    waiter_name = "CUS" if is_cus else "Kiosk"
 
     # Attach the referral before the order is inserted.  The order endpoint is
     # the authority for this path; the client cannot grant itself a discount by
@@ -98,9 +104,9 @@ def kiosk_place_order():
         branch.FIELD: restaurant,
         "restaurant_table": table,
         "order_source": order_source,
-        # WhatsApp-confirmed app orders are HELD (Draft = hidden from kitchen)
-        # until the customer's wa.me confirmation message arrives.
-        "kitchen_status": "Draft" if wa_confirm else "Pending",
+        **({"order_type": order_type} if is_cus else {}),
+        # Draft stays out of the kitchen until the relevant confirmation.
+        "kitchen_status": "Draft" if held else "Pending",
         "grand_total": 0,
         "service_charge_rate": 0,
         "service_charge_amount": 0,
@@ -163,7 +169,7 @@ def kiosk_place_order():
         pos_order.db_set("scheduled_time", scheduled_dt)
     if wa_confirm:
         pos_order.db_set("whatsapp_status", "Awaiting Confirmation")
-    else:
+    if not held:
         from luuvcrm.api.inventory import consume_order_stock
 
         consume_order_stock(pos_order.name)
@@ -179,9 +185,9 @@ def kiosk_place_order():
         except Exception as e:
             frappe.log_error(f"Promo redeem error: {str(e)}", "QR Promo")
 
-    if not wa_confirm:
+    if not held:
         # instant orders (in-store kiosk): notify + cashback right away.
-        # wa_confirm orders run these on the customer's WhatsApp confirmation.
+        # CUS cashback runs after the staff-confirmed first KOT instead.
         if mobile and pos_order.grand_total > 0:
             try:
                 _process_cashback(mobile, pos_order.name, pos_order.grand_total)
@@ -220,6 +226,8 @@ def kiosk_place_order():
         "pickup_outlet": (restaurant or settings.get("pickup_outlet")) if promo_item_name else "",
         "scheduled_time": scheduled_dt.strftime("%Y-%m-%d %H:%M:%S") if scheduled_dt else "",
         "needs_wa_confirm": wa_confirm,
+        "needs_call_confirm": is_cus,
+        "order_channel": waiter_name,
         "confirm_link": confirm_link,
     }
 # ─── Kiosk Setup ─────────────────────────────────────────

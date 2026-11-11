@@ -133,6 +133,8 @@ EXPECTED_DOCTYPES = (
 # Kitchen Group link have something to attach to.
 # Order matters only where `insert_after` points at another row in this list.
 CUSTOM_FIELDS = [
+    {"dt": "POS Order", "fieldname": "luuv_inventory_pos", "label": "Inventory POS",
+     "fieldtype": "Check", "default": "0", "read_only": 1, "no_copy": 1},
     # Kiosk / menu presentation
     {"dt": "Item", "fieldname": "speciality_tags", "label": "Speciality Tags", "fieldtype": "Small Text",
      "description": "Comma-separated: Chef's Special, Most Popular, Spicy, Vegan, Gluten-Free"},

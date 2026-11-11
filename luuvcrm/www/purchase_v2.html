@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>{{ brand_name }} Purchases 2.0</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<!-- First script on the page so it is listening before anything below can throw. See /errors. -->
+<script src="/lferr.js?v=1" data-app="purchases"></script>
+<meta name="theme-color" content="#F15207">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LF Purchases">
+<link rel="apple-touch-icon" href="/assets/luuvcrm/manager/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{
+  --orange-50:#FFF3EC;--orange-100:#FFE2D2;--orange-200:#FFC3A3;--orange-300:#FF9E68;--orange-400:#FB7430;
+  --orange-500:#F15207;--orange-600:#D84804;--orange-700:#B23A05;--white:#FFFFFF;
+  --gray-50:#FAF8F6;--gray-100:#F2EFEC;--gray-200:#E5E0DB;--gray-300:#D2CBC4;--gray-400:#A89F96;
+  --gray-500:#837A70;--gray-600:#5E564E;--gray-700:#423D38;--gray-900:#1A1714;--ink:#141210;
+  --green-500:#1E9E5A;--amber-500:#F0A323;--red-500:#E23D3D;--blue-500:#2D74D6;
+  --color-primary:var(--orange-500);--color-primary-hover:var(--orange-600);--color-on-primary:#fff;
+  --text-strong:var(--gray-900);--text-body:var(--gray-700);--text-muted:var(--gray-500);--text-faint:var(--gray-400);
+  --surface-card:#fff;--surface-sunken:var(--gray-50);--surface-brand:var(--orange-500);
+  --border-subtle:var(--gray-200);--border-default:var(--gray-300);
+  --color-success:var(--green-500);--color-success-subtle:#E6F5EC;--color-warning:var(--amber-500);--color-warning-subtle:#FDF1DC;
+  --color-danger:var(--red-500);--color-danger-subtle:#FBE7E7;--color-info:var(--blue-500);--color-info-subtle:#E6EFFB;
+  --font-display:'Poppins',system-ui,-apple-system,sans-serif;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--font-mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-2xl:28px;--radius-pill:999px;
+  --shadow-xs:0 1px 2px rgba(20,18,16,.06);--shadow-sm:0 1px 3px rgba(20,18,16,.08),0 1px 2px rgba(20,18,16,.04);
+  --shadow-lg:0 12px 28px rgba(20,18,16,.12),0 4px 8px rgba(20,18,16,.06);--shadow-xl:0 24px 48px rgba(20,18,16,.18);--shadow-brand:0 8px 22px rgba(241,82,7,.30);
+  --duration-base:200ms;--ease-out:cubic-bezier(0.16,1,0.3,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+}
+*,*::before,*::after{box-sizing:border-box;}
+*::-webkit-scrollbar{width:0;height:0;}
+body{margin:0;font-family:var(--font-body);color:var(--text-body);background:var(--surface-sunken);-webkit-font-smoothing:antialiased;}
+input,button{font-family:inherit;}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.lf-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-display);font-weight:700;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-pill);cursor:pointer;box-shadow:var(--shadow-brand);width:100%;height:52px;font-size:16px;}
+.lf-btn:active{transform:scale(.98);}
+.badge{display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:11px;line-height:1;letter-spacing:.02em;padding:5px 9px;border-radius:var(--radius-pill);}
+.badge.success{background:var(--color-success-subtle);color:var(--color-success);}
+.badge.warning{background:var(--color-warning-subtle);color:#9a6207;}
+.badge.danger{background:var(--color-danger-subtle);color:var(--color-danger);}
+@keyframes peFade{from{opacity:0;}to{opacity:1;}}
+@keyframes peUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+@keyframes peSheet{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.wrap{min-height:100vh;width:100%;background:var(--surface-sunken);display:flex;align-items:flex-start;justify-content:center;}
+.card{width:430px;max-width:100%;min-height:100vh;background:var(--surface-card);position:relative;box-shadow:0 0 60px rgba(20,18,16,.07);display:flex;flex-direction:column;}
+.navb{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;border:none;background:transparent;cursor:pointer;padding:6px 0;color:var(--text-muted);}
+.navb.active{color:var(--color-primary);}
+.navb i{width:23px;height:23px;}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--radius-pill);font-size:14px;font-weight:600;display:none;z-index:1100;box-shadow:var(--shadow-lg);}
+.inp{width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-md);padding:13px 15px;font-family:var(--font-body);font-size:15px;color:var(--text-strong);}
+</style>
+{% include "templates/includes/brand.html" %}
+</head>
+<body>
+<div class="wrap"><div class="card">
+
+  <!-- header -->
+  <div style="position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--border-subtle);padding:16px 20px 14px;">
+    <div style="display:flex;align-items:center;gap:11px;">
+      <span style="width:40px;height:40px;border-radius:12px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:21px;flex:none;">🧾</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--text-strong);line-height:1.15;">Purchases &amp; expenses</div>
+        <div style="font-size:12.5px;color:var(--text-muted);" id="subline">{{ current_user_full or "Staff" }}</div>
+        <div data-active-restaurant title="Active restaurant" style="display:inline-flex;align-items:center;max-width:100%;margin-top:4px;padding:3px 8px;border-radius:999px;background:var(--orange-50);color:var(--orange-700);font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🏪 {{ restaurant_name or "No restaurant selected" }}</div>
+      </div>
+      <a href="/api/method/luuvcrm.launcher.sign_out" onclick="return confirm('Sign out?')" title="Sign out" style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="log-out" style="width:17px;height:17px;"></i></a>
+    </div>
+    <div style="display:flex;gap:9px;margin-top:14px;">
+      <div style="flex:1;background:var(--surface-sunken);border-radius:var(--radius-md);padding:9px 12px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;">Approved today</div><div class="mono" style="font-size:16px;color:var(--text-strong);margin-top:1px;">Rs <span id="stApproved">0</span></div></div>
+      <div style="flex:1;background:var(--orange-50);border-radius:var(--radius-md);padding:9px 12px;"><div style="font-size:11px;color:var(--orange-700);font-weight:600;">Pending</div><div class="mono" style="font-size:16px;color:var(--text-strong);margin-top:1px;">Rs <span id="stPending">0</span></div></div>
+      <div style="flex:1;background:var(--surface-sunken);border-radius:var(--radius-md);padding:9px 12px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;">This week</div><div class="mono" style="font-size:16px;color:var(--text-strong);margin-top:1px;">Rs <span id="stWeek">0</span></div></div>
+    </div>
+  </div>
+
+  <!-- body -->
+  <div style="flex:1;overflow-y:auto;padding:18px 20px 150px;">
+    <div id="tabList">
+      <div style="position:relative;margin-bottom:13px;">
+        <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint);pointer-events:none;"></i>
+        <input id="billSearch" type="text" placeholder="Search vendor, item or expense" oninput="onSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:11px 34px 11px 37px;font-size:14px;color:var(--text-strong);">
+        <button id="billSearchX" onclick="clearSearch()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:7px;line-height:1;font-size:15px;">&times;</button>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:7px;margin-bottom:13px;">
+        <select id="feedCategory" class="inp" onchange="setFeedFilter('category',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All categories</option></select>
+        <select id="feedStatus" class="inp" onchange="setFeedFilter('status',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
+        <select id="feedDate" class="inp" onchange="setFeedFilter('date',this.value)" style="padding:9px 8px;font-size:12px;"><option value="">All dates</option><option value="today">Today</option><option value="7">7 days</option><option value="30">30 days</option></select>
+      </div>
+      <div id="feedCount" style="font-size:11.5px;color:var(--text-faint);margin:0 3px 9px;"></div>
+      <div id="expList"></div>
+    </div>
+    <div id="tabDue" style="display:none;">
+      <div style="background:var(--ink);color:#fff;border-radius:var(--radius-xl);padding:18px 20px;box-shadow:var(--shadow-lg);margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;opacity:.8;letter-spacing:.03em;"><i data-lucide="alarm-clock" style="width:16px;height:16px;"></i> Owed to vendors</div>
+        <div class="mono" style="font-weight:500;font-size:34px;letter-spacing:-.02em;margin-top:4px;">Rs <span id="dueTotal">0</span></div>
+        <div style="font-size:12px;opacity:.65;margin-top:3px;"><span id="dueCount">0</span> approved bill(s) not yet paid</div>
+        <div id="dueVendors" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:12px;"><i data-lucide="info" style="width:15px;height:15px;color:var(--color-primary);flex:none;"></i> Approved bills waiting to be paid. Tap “Mark paid” once the vendor is settled.</div>
+      <div style="position:relative;margin-bottom:12px;">
+        <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-faint);pointer-events:none;"></i>
+        <input id="dueSearch" type="text" placeholder="Filter by vendor or item" oninput="onDueSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:10px 14px 10px 36px;font-size:13.5px;color:var(--text-strong);">
+      </div>
+      <div id="dueList"></div>
+    </div>
+    <div id="tabAppr" style="display:none;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;"><i data-lucide="stamp" style="width:16px;height:16px;color:var(--color-primary);flex:none;"></i> Bills waiting on a second pair of eyes. Approving one updates the price book.</div>
+      <div style="position:relative;margin-bottom:12px;">
+        <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-faint);pointer-events:none;"></i>
+        <input id="apprSearch" type="text" placeholder="Filter by vendor, item or who sent it" oninput="onApprSearch(this.value)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:10px 14px 10px 36px;font-size:13.5px;color:var(--text-strong);">
+      </div>
+      <div id="apprList"></div>
+    </div>
+    <div id="tabPrices" style="display:none;">
+      <div style="display:flex;align-items:flex-start;gap:7px;font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.45;"><i data-lucide="boxes" style="width:16px;height:16px;color:var(--color-primary);flex:none;margin-top:1px;"></i><span>Buying prices and BOM recipes in one place. Tap an item to edit its recipe; use the pencil to fix its name or unit.</span></div>
+      <div style="position:relative;margin-bottom:9px;">
+        <i data-lucide="search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-faint);pointer-events:none;"></i>
+        <input id="recipeSearch" type="text" placeholder="Search item, category or BOM" oninput="renderRecipeItems()" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-pill);padding:10px 14px 10px 36px;font-size:13.5px;color:var(--text-strong);">
+      </div>
+      <div id="itemBookSummary" style="font-size:11.5px;color:var(--text-faint);margin:0 3px 11px;"></div>
+      <div id="priceList" style="display:flex;flex-direction:column;gap:9px;"></div>
+    </div>
+  </div>
+
+  <!-- Add FAB — one sheet creates either a supplier bill or an expense -->
+  <div id="fab" style="position:fixed;left:50%;transform:translateX(-50%);width:390px;max-width:calc(100% - 40px);bottom:88px;z-index:25;">
+    <button class="lf-btn" id="fabBtn" onclick="fabClick()"><i data-lucide="plus-circle" id="fabIcon" style="width:20px;height:20px;"></i> <span id="fabLabel">Add bill / expense</span></button>
+  </div>
+
+  <!-- bottom nav -->
+  <div style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:10px 8px 14px;gap:4px;">
+    <button class="navb active" data-tab="list" onclick="setTab('list')"><span style="position:relative;display:inline-flex;"><i data-lucide="receipt"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Purchases</span></button>
+    <button class="navb" data-tab="due" onclick="setTab('due')"><span style="position:relative;display:inline-flex;"><i data-lucide="alarm-clock"></i><span id="dueBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-danger);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Due</span></button>
+    <button class="navb" data-tab="appr" onclick="setTab('appr')"><span style="position:relative;display:inline-flex;"><i data-lucide="stamp"></i><span id="apprBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-primary);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Approve</span></button>
+    <button class="navb" data-tab="prices" onclick="setTab('prices')"><span style="position:relative;display:inline-flex;"><i data-lucide="boxes"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Items</span></button>
+  </div>
+</div></div>
+
+<!-- Add sheet — choose supplier bill or an expense category inside the sheet -->
+<div id="addOverlay" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeAdd()">
+  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
+    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
+    <div id="addTitle" style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">New bill</div>
+    <div id="addSubtitle" style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Add each item and its purchase price — it goes to the manager for approval.</div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;"><span id="photoStepLabel">Receipt photo</span> <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div>
+    <label id="photoBox" style="display:flex;align-items:center;justify-content:center;width:100%;height:150px;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);background:var(--surface-sunken);cursor:pointer;margin-bottom:8px;overflow:hidden;color:var(--text-muted);font-size:14px;font-weight:600;">
+      <span id="photoHint">📷 Tap to snap receipt</span>
+      <img id="photoImg" style="display:none;width:100%;height:100%;object-fit:cover;">
+      <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" onchange="uploadReceipt(this)">
+    </label>
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--color-primary);cursor:pointer;margin-bottom:20px;"><i data-lucide="image" style="width:15px;height:15px;"></i> Choose from gallery instead
+      <input id="photoInputG" type="file" accept="image/*" style="display:none;" onchange="uploadReceipt(this)">
+    </label>
+
+    <div id="entryTypeFields" style="display:block;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Entry type / expense category</div>
+      <select id="fCategory" class="inp" onchange="onCategoryChange();saveDraft()"></select>
+    </div>
+
+    <div id="billModeFields">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;font-weight:700;color:var(--text-strong);">Categories &amp; items</span><span class="mono" style="font-size:12.5px;color:var(--text-muted);" id="lineCount">0 items</span></div>
+      <div id="categoryCards" style="display:flex;flex-direction:column;gap:12px;"></div>
+      <button onclick="addCategoryCard()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:12px;"><i data-lucide="plus" style="width:17px;height:17px;"></i> Add category</button>
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding:14px 2px 4px;border-top:1px solid var(--border-subtle);"><span style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);">Bill total</span><span class="mono" style="font-size:24px;color:var(--text-strong);">Rs <span id="billTotal">0</span></span></div>
+    </div>
+
+    <div id="expModeFields" style="display:none;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">Amount</div>
+      <div style="display:flex;align-items:center;gap:6px;border:1.5px solid var(--border-default);background:var(--surface-sunken);border-radius:var(--radius-md);padding:13px 15px;margin-bottom:14px;">
+        <span class="mono" style="font-size:14px;color:var(--text-muted);">Rs</span>
+        <input id="fAmount" type="number" inputmode="decimal" placeholder="0" oninput="saveDraft()" style="flex:1;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:16px;color:var(--text-strong);">
+      </div>
+      <div style="margin-bottom:6px;"><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Bill / account no <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fBillRef" class="inp" placeholder="e.g. 0412345678" oninput="saveDraft()"></div>
+      <div style="margin-top:10px;display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text-muted);background:var(--surface-sunken);border-radius:var(--radius-md);padding:10px 12px;line-height:1.5;"><i data-lucide="info" style="width:14px;height:14px;flex:none;margin-top:2px;"></i> <span>This is a record for the manager — it does not change the cash drawer count. If you paid out of the till, still count the drawer as you always have.</span></div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px;">
+      <div><div id="fVendorLabel" style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Vendor / paid to</div><input id="fVendor" class="inp" placeholder="Start typing — pick from the list" autocomplete="off" oninput="onVendorInput();saveDraft()" onfocus="onVendorInput()" onblur="setTimeout(hideVendorSug,150)">
+        <div id="vendorSug" style="display:none;margin-top:6px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden;background:var(--surface-card);box-shadow:var(--shadow-xs);"></div>
+        <div id="vendorHint" style="display:none;font-size:12.5px;margin-top:6px;"></div></div>
+      <div><div id="fDateLabel" style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Purchase date</div><input id="fDate" class="inp" type="date" onchange="saveDraft()"></div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Note <span style="color:var(--text-faint);font-weight:500;">(optional)</span></div><input id="fNote" class="inp" placeholder="Anything the manager should know" oninput="saveDraft()"></div>
+    </div>
+    <div id="formErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="formErrMsg"></span></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button onclick="closeAdd()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
+      <div style="flex:1;"><button class="lf-btn" id="submitBtn" onclick="submitBill()">Send for approval</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Fix a purchase item's name (typo) — opened from a price-book row -->
+<div id="renameOverlay" style="position:fixed;inset:0;z-index:70;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeRename()">
+  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
+    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">Fix item name</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Correct a spelling. Only the name changes — the price and bills already raised stay as they are.</div>
+    <input type="hidden" id="renameItem">
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Item name</div>
+    <input id="renameName" class="inp" placeholder="Item name" onkeydown="if(event.key==='Enter')submitRename()" style="margin-bottom:14px;">
+    <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Unit</div>
+    <select id="renameUnit" class="inp"></select>
+    <div id="renameErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="renameErrMsg"></span></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button onclick="closeRename()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
+      <div style="flex:1;"><button class="lf-btn" id="renameSaveBtn" onclick="submitRename()">Save</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOM editor — available here as well as Admin so purchasing can maintain recipes -->
+<div id="recipeOverlay" style="position:fixed;inset:0;z-index:72;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeRecipe()">
+  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:93vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
+    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <div style="flex:1;min-width:0;">
+        <div id="recipeTitle" style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Recipe</div>
+        <div id="recipeMeta" style="font-size:12.5px;color:var(--text-muted);margin-top:2px;"></div>
+      </div>
+      <span class="badge warning" id="recipeBomBadge">No BOM</span>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted);margin:14px 0;line-height:1.5;">Ingredients needed for one unit. Prepared items and raw materials can be used together.</div>
+    <div id="recipeLines" style="display:flex;flex-direction:column;gap:9px;"></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:8px;margin-top:12px;">
+      <div><div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:5px;">Ingredient</div><select id="recipeIngredient" class="inp"></select></div>
+      <div><div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:5px;">Qty</div><input id="recipeIngredientQty" class="inp" inputmode="decimal" placeholder="0.000"></div>
+    </div>
+    <button onclick="addRecipeIngredient()" style="width:100%;margin-top:9px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:13.5px;font-weight:700;">+ Add ingredient</button>
+    <div id="recipeErr" style="display:none;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:11px;"></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button onclick="closeRecipe()" style="flex:none;padding:0 20px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;">Cancel</button>
+      <div style="flex:1;"><button class="lf-btn" id="recipeSaveBtn" onclick="savePurchaseRecipe()">Save BOM</button></div>
+    </div>
+    <div id="recipeBatch" style="display:none;margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;"><div style="font-family:var(--font-display);font-size:14px;font-weight:800;color:var(--text-strong);">Prepare stock batch</div><span class="badge success" id="recipeBalance">In stock: 0</span></div>
+      <div style="display:flex;gap:9px;align-items:end;">
+        <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:5px;">Quantity prepared</div><input id="recipeBatchQty" class="inp" inputmode="decimal" placeholder="0.000"></div>
+        <button id="recipeBatchBtn" onclick="preparePurchaseBatch()" style="height:47px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:0 17px;cursor:pointer;font-family:var(--font-display);font-size:13px;font-weight:700;">Prepare</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bill / expense detail — opened by tapping any card in the Bills, Expenses, Due or search lists -->
+<div id="detOverlay" style="position:fixed;inset:0;z-index:75;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeDetail()">
+  <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;max-height:88vh;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 24px;display:flex;flex-direction:column;animation:peSheet var(--duration-base) var(--ease-spring);">
+    <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 14px;flex:none;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex:none;">
+      <div style="flex:1;min-width:0;">
+        <div id="detTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</div>
+        <div id="detMeta" style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">—</div>
+      </div>
+      <button onclick="closeDetail()" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div id="detBody" style="overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- Fullscreen receipt viewer: a bill photo is unreadable at thumbnail size, and the
+     photo is the whole point of approving. Pinch / double-tap / wheel to zoom. -->
+<div id="imgViewer" style="position:fixed;inset:0;background:rgba(10,9,8,.96);display:none;align-items:center;justify-content:center;z-index:1300;overflow:hidden;touch-action:none;">
+  <img id="imgViewerImg" draggable="false" style="max-width:96vw;max-height:88vh;object-fit:contain;border-radius:10px;transform-origin:center center;will-change:transform;user-select:none;-webkit-user-select:none;">
+  <button onclick="closeImgViewer()" style="position:absolute;top:14px;right:14px;width:40px;height:40px;border:none;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:19px;font-weight:700;cursor:pointer;line-height:1;z-index:2;">✕</button>
+  <div style="position:absolute;bottom:20px;left:0;right:0;text-align:center;color:#fff;font-size:12.5px;opacity:.7;pointer-events:none;">Pinch or double-tap to zoom · drag to move · tap outside to close</div>
+</div>
+
+<script>
+// Polling pauses while the tab is hidden — a phone in a pocket and a tablet on
+// a locked screen were both still asking the server every few seconds — and
+// catches up the moment it comes back, so nobody reads a stale screen.
+function lfPoll(fn, ms){
+  setInterval(function(){ if(!document.hidden) fn(); }, ms);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) fn(); });
+}
+  const CSRF=document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  const CAN_EDIT={{ "true" if can_edit_bills else "false" }};
+  const DEFAULT_PURCHASE_CATEGORY='Food / Ingredients';
+  let tab='list', catalog=[], formLines=[], categoryCards=[], nextCategoryCardId=1, newReceipt='', priceItems=[], recipeItems=[], ACTIVE_RECIPE=null;
+  let feedCategory='', feedStatus='', feedDate='', feedQuery='';
+  let expStats={}, billStats={}, expCats=[], expenseOnlyCats=[], stockCats=[], itemListCats=[], assetCats=[], assetCategoryMap={};
+  function icons(){ try{ window.lucide && window.lucide.createIcons(); }catch(e){} }
+  function nfmt(n){ return (Math.round(n)).toLocaleString('en-US'); }
+  // The phone's own calendar day. toISOString() is UTC, which in Sri Lanka is
+  // still yesterday until 5:30 in the morning.
+  function localToday(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  // The earliest purchase date the server takes (purchases.MAX_BACKDATE_DAYS).
+  const MAX_BACKDATE_DAYS=30;
+  function localDaysAgo(n){ const d=new Date(); d.setDate(d.getDate()-n); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2800); }
+  async function _api(u,o){ o=o||{}; o.headers=o.headers||{}; o.headers['X-Frappe-CSRF-Token']=CSRF; o.credentials='include'; try{ const r=await fetch(u,o); if(r.status===403||r.status===401){ location.href='/login?redirect-to=/purchase2.0'; return null;} return r;}catch(e){ return null; } }
+  async function _post(u,d){ const fd=new URLSearchParams(); fd.set('csrf_token',CSRF); for(const[k,v] of Object.entries(d||{})) fd.set(k,v); return _api(u,{method:'POST',body:fd}); }
+  // Frappe errors arrive as _server_messages / exception, not message.message — dig the real text out.
+  function srvMsg(d,fallback){ try{
+      if(d && d._server_messages){ const a=JSON.parse(d._server_messages); if(a.length){ const m=JSON.parse(a[0]); const t=(m.message||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); if(t) return t; } }
+      if(d && d.exception){ const t=String(d.exception).replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); const i=t.indexOf(':'); return (i>-1?t.slice(i+1):t).trim().slice(0,160)||fallback; }
+    }catch(e){} return fallback; }
+  const CAT_EMOJI={tomato:'🍅',lettuce:'🥬',onion:'🧅',potato:'🥔',veg:'🥬',chicken:'🍗',beef:'🥩',meat:'🥩',fish:'🐟',cheese:'🧀',milk:'🥛',dairy:'🥛',bun:'🍞',bread:'🍞',oil:'🛢️',gas:'⛽',box:'📦',cup:'🥤',pack:'📦',rice:'🍚',flour:'🌾',egg:'🥚',sugar:'🧂',salt:'🧂',spice:'🌶️',sauce:'🥫',drink:'🥤',water:'💧'};
+  function emojiFor(s){ const n=(s||'').toLowerCase(); for(const k in CAT_EMOJI){ if(n.includes(k)) return CAT_EMOJI[k]; } return '🧾'; }
+
+  function setTab(t){ tab=t; document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+    document.getElementById('tabList').style.display=t==='list'?'block':'none';
+    document.getElementById('tabDue').style.display=t==='due'?'block':'none';
+    document.getElementById('tabPrices').style.display=t==='prices'?'block':'none';
+    document.getElementById('tabAppr').style.display=t==='appr'?'block':'none';
+    document.getElementById('fab').style.display=(t==='prices'||t==='due'||t==='appr')?'none':'block';
+    if(t==='prices') loadPriceBook();
+    if(t==='due') loadDue();
+    if(t==='appr') loadApprovals();
+    paintStats(); icons(); }
+  // One popup handles both supplier bills and standalone expenses.
+  function fabClick(){ openAdd(); }
+
+  // Header totals now describe the unified purchase + expense feed.
+  function paintStats(){
+    document.getElementById('stApproved').textContent=nfmt((billStats.approved_today||0)+(expStats.approved_today||0));
+    document.getElementById('stPending').textContent=nfmt((billStats.pending_amt||0)+(expStats.pending_amt||0));
+    document.getElementById('stWeek').textContent=nfmt((billStats.week||0)+(expStats.week||0)); }
+
+  function paintDueBadge(){ const n=(billStats&&billStats.due_count)||0; const b=document.getElementById('dueBadge');
+    if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
+  function paintApprBadge(){ const n=(billStats&&billStats.appr_count)||0; const b=document.getElementById('apprBadge');
+    if(n>0){ b.style.display='flex'; b.textContent=n; } else b.style.display='none'; }
+  async function loadBills(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
+    billStats=m; paintStats(); paintDueBadge(); paintApprBadge(); billRows=m.bills||[];
+    renderUnifiedFeed();
+  }catch(e){} }
+
+  const EXP_EMOJI={electric:'⚡',water:'💧',gas:'🔥',rent:'🏠',internet:'📶',phone:'📶',salar:'👥',wage:'👥',repair:'🔧',mainten:'🔧',transport:'🚚',fuel:'⛽',clean:'🧽',consum:'🧽',licen:'📄',fee:'📄'};
+  function expEmoji(c){ const n=(c||'').toLowerCase(); for(const k in EXP_EMOJI){ if(n.includes(k)) return EXP_EMOJI[k]; } return '🧾'; }
+
+  function setFeedFilter(kind,value){
+    if(kind==='category') feedCategory=value||'';
+    if(kind==='status') feedStatus=value||'';
+    if(kind==='date') feedDate=value||'';
+    renderUnifiedFeed(); }
+  function openFeedRecord(kind,name){
+    const rows=kind==='bill'?billRows:expRows;
+    const rec=rows.find(r=>r.name===name); if(rec) openDetail(kind,rec); }
+  function renderUnifiedFeed(){
+    const TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
+    const all=[
+      ...billRows.map((rec,i)=>({kind:'bill',rec,date:rec.purchase_date||'',order:i})),
+      ...expRows.map((rec,i)=>({kind:'expense',rec,date:rec.date||'',order:i+billRows.length}))
+    ];
+    let cutoff='';
+    if(feedDate==='today') cutoff=localToday();
+    else if(feedDate==='7') cutoff=localDaysAgo(6);
+    else if(feedDate==='30') cutoff=localDaysAgo(29);
+    const q=feedQuery.toLowerCase();
+    const rows=all.filter(x=>{
+      const r=x.rec;
+      const cats=x.kind==='bill'?(r.categories||[...(r.lines||[]).map(l=>l.category)]):[r.category];
+      if(feedCategory&&!cats.includes(feedCategory)) return false;
+      if(feedStatus&&r.status!==feedStatus) return false;
+      if(cutoff&&(!x.date||x.date<cutoff)) return false;
+      if(q){ const hay=(x.kind==='bill'
+        ?[r.vendor,r.category_label,...(r.lines||[]).flatMap(l=>[l.name,l.category])]
+        :[r.payee,r.category,r.bill_ref,r.note]).filter(Boolean).join(' ').toLowerCase();
+        if(!hay.includes(q)) return false; }
+      return true;
+    }).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||a.order-b.order);
+    document.getElementById('feedCount').textContent=`${rows.length} of ${all.length} record${all.length===1?'':'s'}`;
+    document.getElementById('expList').innerHTML=rows.length?rows.map(x=>{ const r=x.rec,t=TONE[r.status]||TONE.pending,isBill=x.kind==='bill';
+      const amount=isBill?r.total:r.amount;
+      const title=isBill?r.vendor:(r.payee||r.category);
+      const category=isBill?(r.category_label||'Purchase bill'):r.category;
+      const date=isBill?(r.date||r.time):(r.date||r.when);
+      const icon=r.receipt_image?`<img src="${esc(r.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:(isBill?emojiFor(((r.lines||[])[0]||{}).name):expEmoji(r.category));
+      return `<div onclick="openFeedRecord('${x.kind}','${esc(r.name)}')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;gap:13px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div style="width:54px;height:54px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:22px;overflow:hidden;">${icon}</div>
+        <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(title)||'—'}</span><span class="mono" style="font-size:15px;color:var(--text-strong);flex:none;">Rs ${nfmt(amount)}</span></div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin:1px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(category)} · ${esc(date)}</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:10.5px;font-weight:800;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;">${isBill?'Bill':'Expense'}</span><span class="badge ${t[0]}">${t[1]}</span></div></div></div>`;
+    }).join(''):'<div style="color:var(--text-faint);text-align:center;padding:50px 20px;font-size:14px;">No purchases match these filters.</div>';
+    icons(); }
+
+  async function loadExpenses(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expenses',{}); if(!r) return; const d=await r.json(); const m=d.message||{expenses:[]};
+    expStats=m; paintStats(); expRows=m.expenses||[]; renderUnifiedFeed();
+  }catch(e){} }
+
+  async function loadExpCats(){ try{ const r=await _post('/api/method/luuvcrm.api.get_expense_categories',{}); if(!r) return; const d=await r.json();
+    expCats=(d.message&&d.message.categories)||[];
+    expenseOnlyCats=(d.message&&d.message.expense_categories)||expCats;
+    const details=(d.message&&d.message.category_details)||[];
+    stockCats=details.filter(c=>c.in_stock).map(c=>c.name);
+    itemListCats=details.filter(c=>c.has_item_list).map(c=>c.name);
+    assetCats=details.filter(c=>c.is_fixed_asset).map(c=>c.name);
+    assetCategoryMap={}; details.forEach(c=>{ if(c.is_fixed_asset) assetCategoryMap[c.name]=c.asset_category||''; });
+    const feedSel=document.getElementById('feedCategory');
+    if(feedSel){ const cur=feedSel.value; feedSel.innerHTML='<option value="">All categories</option>'+expCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join(''); feedSel.value=expCats.includes(cur)?cur:''; }
+    if(!stockCats.length&&expCats.includes(DEFAULT_PURCHASE_CATEGORY)) stockCats=[DEFAULT_PURCHASE_CATEGORY];
+    if(!itemListCats.length&&expCats.includes(DEFAULT_PURCHASE_CATEGORY)) itemListCats=[DEFAULT_PURCHASE_CATEGORY];
+    renderCategoryOptions();
+    const sel=document.getElementById('fCategory');
+    if(sel.value==='') renderCategoryCards();
+    renderUnifiedFeed();
+  }catch(e){} }
+
+  // Blank means the category-card Purchase Bill flow; an actual category is
+  // the one-amount Expense flow opened from the Expenses tab.
+  function renderCategoryOptions(){ const sel=document.getElementById('fCategory'); if(!sel) return;
+    const cur=sel.value;
+    sel.innerHTML='<option value="">🧾 Purchase Bill (categorise each item)</option>'+expenseOnlyCats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if(cur && expenseOnlyCats.includes(cur)) sel.value=cur; }
+
+  // Swaps the sheet between Bill mode (items + vendor) and Expense mode
+  // (amount + payee) — the photo, date and note fields stay put either way.
+  function onCategoryChange(){
+    const isExp=document.getElementById('fCategory').value!=='';
+    document.getElementById('entryTypeFields').style.display='block';
+    document.getElementById('billModeFields').style.display=isExp?'none':'block';
+    document.getElementById('expModeFields').style.display=isExp?'block':'none';
+    document.getElementById('fVendorLabel').textContent=isExp?'Paid to':'Vendor / paid to';
+    document.getElementById('fVendor').placeholder=isExp?'e.g. CEB, Water Board':'Start typing — pick from the list';
+    document.getElementById('fDateLabel').textContent=isExp?'Date':'Purchase date';
+    document.getElementById('addTitle').textContent=isExp?'New expense':'New bill';
+    document.getElementById('addSubtitle').textContent=isExp
+      ?'A utility bill, gas, rent — anything that isn’t a stock purchase. It goes to the manager for approval.'
+      :'Choose a category, add all its items, then add another category if this receipt needs one.';
+    document.getElementById('photoStepLabel').textContent=isExp?'Bill photo':'Receipt photo';
+    if(document.getElementById('photoImg').style.display==='none'){
+      document.getElementById('photoHint').textContent=isExp?'📷 Tap to snap the bill':'📷 Tap to snap receipt'; }
+    const fd=document.getElementById('fDate');
+    if(isExp){ fd.removeAttribute('min'); fd.removeAttribute('max'); }
+    else { fd.max=localToday(); fd.min=localDaysAgo(MAX_BACKDATE_DAYS); }
+    if(isExp){ hideVendorSug(); document.getElementById('vendorHint').style.display='none'; }
+    icons(); }
+
+  // ── Due bills (approved, not yet paid to the vendor) ──
+  // Filtering happens here, not at the server: the whole owed list is already in hand.
+  let dueRows=[], dueQ='';
+  function onDueSearch(v){ dueQ=(v||'').trim().toLowerCase(); renderDue(); }
+  function billHay(b){ return [b.vendor, b.by, ...(b.lines||[]).flatMap(l=>[l.name,l.category])].join(' ').toLowerCase(); }
+  async function loadDue(){ try{ const r=await _post('/api/method/luuvcrm.api.get_due_bills',{}); if(!r) return; const d=await r.json(); const m=d.message||{bills:[]};
+    document.getElementById('dueTotal').textContent=nfmt(m.total_due||0);
+    document.getElementById('dueCount').textContent=m.count||0;
+    document.getElementById('dueVendors').innerHTML=(m.vendors||[]).slice(0,6).map(v=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border-radius:var(--radius-pill);padding:5px 11px;">${esc(v.vendor)} <span class="mono" style="opacity:.8;">Rs ${nfmt(v.amount)}</span></span>`).join('');
+    dueRows=m.bills||[]; renderDue();
+    icons();
+  }catch(e){} }
+
+  function renderDue(){
+    const rows=dueQ?dueRows.filter(b=>billHay(b).includes(dueQ)):dueRows;
+    document.getElementById('dueList').innerHTML=rows.length?(dueQ?`<div style="font-size:12px;color:var(--text-faint);margin:-2px 0 10px;">${rows.length} of ${dueRows.length} bill${dueRows.length===1?'':'s'}</div>`:'')+rows.map(b=>`
+      <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div onclick="openDetail('bill',dueRows.find(x=>x.name==='${esc(b.name)}'))" style="display:flex;gap:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <div style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;">${b.receipt_image?`<img src="${esc(b.receipt_image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:emojiFor((b.lines[0]||{}).name)}</div>
+          <div style="flex:1;min-width:0;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.vendor)||'—'}</span><span class="mono" style="font-size:16px;color:var(--text-strong);flex:none;">Rs ${nfmt(b.total)}</span></div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${b.lines.length} item${b.lines.length===1?'':'s'} · ${esc(b.date||b.time)}${b.by?(' · '+esc(b.by)):''}</div></div>
+        </div>
+        <button onclick="markPaid('${esc(b.name)}',this)" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid</button>
+      </div>`).join(''):(dueQ
+      ?`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 20px;text-align:center;color:var(--text-faint);"><i data-lucide="search-x" style="width:26px;height:26px;"></i><div style="font-size:13.5px;">Nothing owed matches “${esc(dueQ)}”.</div></div>`
+      :'<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:56px 20px;text-align:center;color:var(--text-faint);"><span style="width:60px;height:60px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:28px;height:28px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);">All settled 🎉</div><div style="font-size:13px;max-width:230px;line-height:1.5;">No approved bills waiting to be paid.</div></div>');
+    icons(); }
+  async function markPaid(name,btn){ if(btn){ btn.disabled=true; btn.innerHTML='<i data-lucide="loader" style="width:16px;height:16px;"></i> Saving…'; icons(); }
+    try{ const r=await _post('/api/method/luuvcrm.api.mark_bill_paid',{name:name,paid:1}); if(!r){ if(btn) btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Marked paid ✓'); loadDue(); loadBills(); }
+      else { toast(srvMsg(d,'Could not update')); if(btn){ btn.disabled=false; btn.innerHTML='<i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid'; icons(); } }
+    }catch(e){ toast('Connection error'); if(btn){ btn.disabled=false; btn.innerHTML='<i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark paid'; icons(); } } }
+
+  async function loadPriceBook(){
+    const box=document.getElementById('priceList');
+    box.innerHTML='<div style="color:var(--text-faint);text-align:center;padding:35px;font-size:14px;">Loading items…</div>';
+    try{
+      const [priceRes,recipeRes]=await Promise.all([
+        _post('/api/method/luuvcrm.api.get_price_book',{}),
+        _post('/api/method/luuvcrm.api.get_purchase_recipe_items',{})
+      ]);
+      if(!priceRes||!recipeRes) return;
+      const [priceData,recipeData]=await Promise.all([priceRes.json(),recipeRes.json()]);
+      if(!priceRes.ok||!recipeRes.ok){ box.innerHTML=`<div style="color:var(--color-danger);text-align:center;padding:35px;font-size:13px;">${esc(srvMsg(!priceRes.ok?priceData:recipeData,'Could not load items'))}</div>`; return; }
+      priceItems=(priceData.message&&priceData.message.items)||[];
+      recipeItems=(recipeData.message&&recipeData.message.items)||[];
+      const known=new Set(recipeItems.map(i=>i.item));
+      priceItems.forEach(p=>{ if(!known.has(p.item)) recipeItems.push({item:p.item,name:p.name,uom:p.unit,group:p.group||'',is_stock_item:1,bom:''}); });
+      renderRecipeItems();
+    }catch(e){ box.innerHTML='<div style="color:var(--color-danger);text-align:center;padding:35px;font-size:13px;">Connection error</div>'; }
+  }
+  // ── Fix a purchase item's name/unit (typo) — display only; price and existing bills untouched ──
+  const RENAME_UNITS=['Nos','Kg','g','L','ml','Pkt','Box','Dozen'];
+  function openRename(ix){ const p=priceItems[ix]; if(!p) return;
+    document.getElementById('renameItem').value=p.item;
+    const inp=document.getElementById('renameName'); inp.value=p.name||'';
+    const units=RENAME_UNITS.includes(p.unit)?RENAME_UNITS:[p.unit,...RENAME_UNITS];
+    document.getElementById('renameUnit').innerHTML=units.map(u=>`<option${u===p.unit?' selected':''}>${esc(u)}</option>`).join('');
+    document.getElementById('renameErr').style.display='none';
+    document.getElementById('renameOverlay').style.display='flex';
+    setTimeout(()=>{ inp.focus(); inp.select(); },50); icons(); }
+  function closeRename(){ document.getElementById('renameOverlay').style.display='none'; }
+  async function submitRename(){
+    const item=document.getElementById('renameItem').value;
+    const name=(document.getElementById('renameName').value||'').trim();
+    const unit=document.getElementById('renameUnit').value||'';
+    const err=document.getElementById('renameErr'), errMsg=document.getElementById('renameErrMsg');
+    if(!name){ errMsg.textContent='Name cannot be empty'; err.style.display='flex'; return; }
+    const btn=document.getElementById('renameSaveBtn'); btn.disabled=true;
+    try{ const r=await _post('/api/method/luuvcrm.api.rename_purchase_item',{item:item,new_name:name,unit:unit});
+      if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ closeRename(); toast('Item updated ✏️'); await loadCatalog(); loadPriceBook(); }
+      else{ errMsg.textContent=(d.message&&d.message.message)||srvMsg(d,'could not update'); err.style.display='flex'; btn.disabled=false; }
+    }catch(e){ errMsg.textContent='Connection error'; err.style.display='flex'; btn.disabled=false; } }
+
+  // ── BOM editor ──
+  // Purchasers already maintain the stock catalogue and its prices here. The
+  // same item list now opens the native BOM instead of sending them to Desk or
+  // making a manager repeat the recipe in /admin.
+  function renderRecipeItems(){
+    const q=(document.getElementById('recipeSearch').value||'').trim().toLowerCase();
+    const prices=new Map(priceItems.map((p,ix)=>[p.item,{p,ix}]));
+    const rows=recipeItems.map((p,ix)=>({p,ix,price:prices.get(p.item)}))
+      .filter(x=>!q||[x.p.name,x.p.item,x.p.group,x.p.bom,x.price?'price':''].join(' ').toLowerCase().includes(q))
+      .sort((a,b)=>Number(Boolean(b.price))-Number(Boolean(a.price))||Number(Boolean(b.p.bom))-Number(Boolean(a.p.bom))||(a.p.name||'').localeCompare(b.p.name||''));
+    const bomCount=recipeItems.filter(p=>p.bom).length;
+    document.getElementById('itemBookSummary').textContent=`${priceItems.length} buying price${priceItems.length===1?'':'s'} · ${bomCount} BOM${bomCount===1?'':'s'}${q?' · '+rows.length+' shown':''}`;
+    document.getElementById('priceList').innerHTML=rows.length?rows.map(x=>{ const p=x.p, priced=x.price&&x.price.p;
+      const raw=(p.group||'').toLowerCase()==='raw materials';
+      const kind=raw?'<span class="badge">ingredient</span>':(p.is_stock_item?'<span class="badge success">stock</span>':'<span class="badge warning">dish</span>');
+      const state=p.bom?'<span class="badge success">BOM ready</span>':'<span class="badge warning">No BOM</span>';
+      const price=priced?`<div class="mono" style="font-size:15px;color:var(--text-strong);white-space:nowrap;">Rs ${nfmt(priced.price)}</div>`:'<div style="font-size:11.5px;color:var(--text-faint);white-space:nowrap;">No price</div>';
+      const edit=priced?`<button onclick="event.stopPropagation();openRename(${x.price.ix})" title="Edit name / unit" aria-label="Edit ${esc(p.name)}" style="flex:none;width:34px;height:34px;border:1px solid var(--border-subtle);background:var(--surface-card);color:var(--text-muted);border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="pencil" style="width:15px;height:15px;"></i></button>`:'<i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);flex:none;"></i>';
+      return `<div onclick="openPurchaseRecipe(${x.ix})" title="Open BOM recipe" style="display:flex;align-items:center;gap:11px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 13px;box-shadow:var(--shadow-xs);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <span style="width:40px;height:40px;border-radius:11px;background:var(--orange-50);display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${emojiFor(p.name)}</span>
+        <div style="flex:1;min-width:0;"><div style="font-size:14.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(p.name)}</div><div style="font-size:11.5px;color:var(--text-muted);margin-top:1px;">${esc(p.group||'Item')} · per ${esc(p.uom||'unit')}</div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;">${kind}${state}</div></div>
+        <div style="display:flex;align-items:center;gap:7px;">${price}${edit}</div></div>`;
+    }).join(''):`<div style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">${q?'No item matches.':'No items available.'}</div>`;
+    icons();
+  }
+  async function openPurchaseRecipe(ix){
+    const picked=recipeItems[ix]; if(!picked) return;
+    document.getElementById('recipeOverlay').style.display='flex';
+    document.getElementById('recipeTitle').textContent=picked.name||picked.item;
+    document.getElementById('recipeMeta').textContent='Loading BOM…';
+    document.getElementById('recipeLines').innerHTML='<div style="color:var(--text-faint);padding:18px 0;">Loading ingredients…</div>';
+    document.getElementById('recipeErr').style.display='none'; ACTIVE_RECIPE=null;
+    try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_recipe',{item_code:picked.item}); if(!r) return;
+      const d=await r.json();
+      if(!r.ok){ showRecipeErr(srvMsg(d,'Could not load BOM')); return; }
+      ACTIVE_RECIPE=d.message; renderPurchaseRecipe();
+    }catch(e){ showRecipeErr('Connection error'); }
+  }
+  function closeRecipe(){ document.getElementById('recipeOverlay').style.display='none'; ACTIVE_RECIPE=null; }
+  function showRecipeErr(msg){ const e=document.getElementById('recipeErr'); e.textContent=msg; e.style.display='block'; }
+  function renderPurchaseRecipe(){
+    const r=ACTIVE_RECIPE; if(!r) return;
+    document.getElementById('recipeTitle').textContent=r.name||r.item;
+    document.getElementById('recipeMeta').textContent=(r.group||'Item')+' · per 1 '+(r.uom||'unit');
+    const badge=document.getElementById('recipeBomBadge'); badge.textContent=r.bom||'No BOM'; badge.className='badge '+(r.bom?'success':'warning');
+    document.getElementById('recipeIngredient').innerHTML='<option value="">Pick ingredient</option>'+r.catalog.map(i=>`<option value="${esc(i.item)}">${esc(i.name)} · ${esc(i.uom)}</option>`).join('');
+    document.getElementById('recipeLines').innerHTML=r.ingredients.length?r.ingredients.map((i,n)=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) 82px 34px;gap:7px;align-items:center;background:var(--surface-sunken);border-radius:var(--radius-md);padding:9px;">
+      <div style="min-width:0;"><div style="font-size:13.5px;font-weight:700;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(i.name||i.item)}</div><div style="font-size:11.5px;color:var(--text-muted);">${esc(i.uom||'')}</div></div>
+      <input class="inp" value="${esc(String(i.qty))}" inputmode="decimal" aria-label="Quantity for ${esc(i.name||i.item)}" oninput="ACTIVE_RECIPE.ingredients[${n}].qty=parseFloat(this.value)||0" style="padding:9px;">
+      <button onclick="removeRecipeIngredient(${n})" aria-label="Remove" style="width:34px;height:34px;border:1px solid var(--border-subtle);background:#fff;color:var(--color-danger);border-radius:9px;cursor:pointer;font-size:18px;">×</button></div>`).join(''):'<div style="color:var(--text-faint);text-align:center;padding:18px 6px;font-size:13px;">No BOM yet. Add the ingredients required for one unit.</div>';
+    const batch=document.getElementById('recipeBatch'); batch.style.display=r.is_stock_item?'block':'none';
+    if(r.is_stock_item){ document.getElementById('recipeBalance').textContent='In stock: '+Number(r.balance||0).toLocaleString('en-US',{maximumFractionDigits:3})+' '+(r.uom||''); document.getElementById('recipeBatchBtn').disabled=!r.bom; }
+    document.getElementById('recipeErr').style.display='none'; icons();
+  }
+  function addRecipeIngredient(){
+    if(!ACTIVE_RECIPE) return;
+    const code=document.getElementById('recipeIngredient').value;
+    const qty=parseFloat(document.getElementById('recipeIngredientQty').value)||0;
+    if(!code||qty<=0){ showRecipeErr('Pick an ingredient and enter a quantity above zero'); return; }
+    const cat=ACTIVE_RECIPE.catalog.find(i=>i.item===code), old=ACTIVE_RECIPE.ingredients.find(i=>i.item===code);
+    if(old) old.qty=(parseFloat(old.qty)||0)+qty;
+    else ACTIVE_RECIPE.ingredients.push({item:code,name:(cat&&cat.name)||code,uom:(cat&&cat.uom)||'',qty:qty});
+    document.getElementById('recipeIngredientQty').value=''; renderPurchaseRecipe();
+  }
+  function removeRecipeIngredient(n){ if(ACTIVE_RECIPE){ ACTIVE_RECIPE.ingredients.splice(n,1); renderPurchaseRecipe(); } }
+  async function savePurchaseRecipe(){
+    const r=ACTIVE_RECIPE; if(!r) return;
+    if(!r.ingredients.length){ showRecipeErr('Add at least one ingredient'); return; }
+    if(r.ingredients.some(i=>!(parseFloat(i.qty)>0))){ showRecipeErr('Every ingredient needs a quantity above zero'); return; }
+    const btn=document.getElementById('recipeSaveBtn'); btn.disabled=true;
+    try{ const res=await _post('/api/method/luuvcrm.api.save_purchase_recipe',{item_code:r.item,ingredients:JSON.stringify(r.ingredients.map(i=>({item:i.item,qty:parseFloat(i.qty)})))}); if(!res){ btn.disabled=false; return; }
+      const d=await res.json();
+      if(res.ok&&d.message){ ACTIVE_RECIPE=d.message; const row=recipeItems.find(i=>i.item===ACTIVE_RECIPE.item); if(row) row.bom=ACTIVE_RECIPE.bom; renderPurchaseRecipe(); renderRecipeItems(); toast('BOM saved ✓'); }
+      else showRecipeErr(srvMsg(d,'Could not save BOM'));
+    }catch(e){ showRecipeErr('Connection error'); }
+    btn.disabled=false;
+  }
+  async function preparePurchaseBatch(){
+    const r=ACTIVE_RECIPE; if(!r||!r.is_stock_item||!r.bom) return;
+    const qty=parseFloat(document.getElementById('recipeBatchQty').value)||0;
+    if(qty<=0){ showRecipeErr('Enter the quantity prepared'); return; }
+    const btn=document.getElementById('recipeBatchBtn'); btn.disabled=true;
+    try{ const res=await _post('/api/method/luuvcrm.api.prepare_item_batch',{item_code:r.item,qty:qty}); if(!res){ btn.disabled=false; return; }
+      const d=await res.json();
+      if(res.ok&&d.message){ ACTIVE_RECIPE=Object.assign({},r,d.message,{is_stock_item:1,group:r.group}); document.getElementById('recipeBatchQty').value=''; renderPurchaseRecipe(); toast(qty+' '+(r.uom||'')+' prepared · stock updated'); }
+      else showRecipeErr(srvMsg(d,'Could not prepare batch'));
+    }catch(e){ showRecipeErr('Connection error'); }
+    btn.disabled=false;
+  }
+
+
+  // ── Add bill ──
+  // ── Vendor suggestions ──
+  // Vendor is typed, so one supplier used to turn up in the reports under
+  // several spellings. The sheet offers the names already used; a pick is the
+  // same vendor, anything else is saved as new (the server also folds a name
+  // that differs only in case or spacing into the existing one).
+  let vendors=[];
+  async function loadVendors(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_vendors',{}); if(!r) return; const d=await r.json(); vendors=(d.message&&d.message.vendors)||[]; }catch(e){} }
+  function vkey(s){ return (s||'').trim().replace(/\s+/g,' ').toLowerCase(); }
+  let vendorShown=[];
+  function vendorMatches(q){ const k=vkey(q); if(!k) return vendors.slice(0,6);
+    // Whole text first, then any typed word that starts a word of the name —
+    // "nuwara grens" still finds Nuwara Eliya Greens through "nuwara".
+    const words=k.split(' ').filter(w=>w.length>=2); const scored=[];
+    for(const v of vendors){ const n=vkey(v.name), vw=n.split(' ');
+      let sc=n.startsWith(k)?100:(k.length>=3&&n.includes(k)?50:0);
+      // A word typed right scores 10; one with a typo still scores 4 if its
+      // first three letters are right ("vally" → Valley). Matching the name's
+      // own first word counts double, so "green vally" puts Green Valley first.
+      words.forEach((w,i)=>{ const hit=x=>x.startsWith(w)?10:(w.length>=4&&x.slice(0,3)===w.slice(0,3)?4:0);
+        const best=Math.max(0,...vw.map(hit)); sc+=best; if(i===0&&best&&hit(vw[0])===best) sc+=best; });
+      if(sc) scored.push([sc,v]); }
+    return scored.sort((a,b)=>b[0]-a[0]||b[1].count-a[1].count).slice(0,6).map(x=>x[1]); }
+  function onVendorInput(){ const el=document.getElementById('fVendor'), box=document.getElementById('vendorSug'), hint=document.getElementById('vendorHint');
+    if(document.getElementById('fCategory').value!==''){ box.style.display='none'; hint.style.display='none'; return; }
+    const k=vkey(el.value), exact=k&&vendors.find(v=>vkey(v.name)===k);
+    vendorShown=exact?[]:vendorMatches(el.value);
+    if(vendorShown.length&&document.activeElement===el){
+      box.innerHTML=vendorShown.map((v,i)=>`<div onpointerdown="event.preventDefault();pickVendor(${i})" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;"><span style="font-size:14.5px;font-weight:600;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(v.name)}</span><span style="font-size:11.5px;color:var(--text-faint);flex:none;">${v.count} bill${v.count===1?'':'s'}</span></div>`).join('');
+      box.style.display='block'; } else hideVendorSug();
+    if(exact){ hint.style.color='var(--green-500)'; hint.textContent='✓ '+exact.name; hint.style.display='block'; }
+    else if(k.length>=2){ hint.style.color='var(--text-muted)'; hint.textContent=vendorShown.length?'Same vendor as one above? Tap it. Otherwise this is saved as a new vendor.':'New vendor — it will be saved as “'+el.value.trim().replace(/\s+/g,' ')+'”.'; hint.style.display='block'; }
+    else hint.style.display='none'; }
+  function hideVendorSug(){ document.getElementById('vendorSug').style.display='none'; }
+  function pickVendor(i){ const v=vendorShown[i]; if(!v) return; const el=document.getElementById('fVendor'); el.value=v.name; hideVendorSug(); el.blur(); onVendorInput(); saveDraft(); }
+
+  async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
+  // Has Item List controls the picker; In Stock separately controls inventory.
+  function isStockCategory(category){ return stockCats.includes(category)||(!stockCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
+  function hasItemList(category){ return itemListCats.includes(category)||(!itemListCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
+  function isAssetCategory(category){ return assetCats.includes(category); }
+  function makeCategoryCard(category){ const chosen=category===undefined?DEFAULT_PURCHASE_CATEGORY:category; return {id:nextCategoryCardId++,category:chosen,pickerOpen:!!chosen,query:''}; }
+  function categoryCard(id){ return categoryCards.find(c=>c.id===Number(id)); }
+  function openAdd(){ formLines=[]; categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)]; newReceipt=''; document.getElementById('fVendor').value=''; document.getElementById('fNote').value='';
+    document.getElementById('fAmount').value=''; document.getElementById('fBillRef').value='';
+    document.getElementById('fDate').value=localToday();
+    document.getElementById('vendorHint').style.display='none'; hideVendorSug(); loadVendors();
+    document.getElementById('photoImg').style.display='none'; const _ph=document.getElementById('photoHint'); _ph.style.display='block'; _ph.textContent='📷 Tap to snap receipt'; document.getElementById('formErr').style.display='none';
+    // Tapping the FAB right after load can beat the initial category fetch; harmless
+    // here since the sheet still opens with just the Purchase Bill option and fills
+    // in the rest the moment the list arrives.
+    if(!expCats.length) loadExpCats();
+    renderCategoryOptions();
+    document.getElementById('fCategory').value='';
+    onCategoryChange();
+    if(!catalog.length) loadCatalog().then(renderCategoryCards); renderCategoryCards();
+    document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); window.LFPurchaseStock?.billOpened(); }
+  function closeAdd(){ document.getElementById('addOverlay').style.display='none'; clearDraft(); window.LFPurchaseStock?.billClosed(); }
+  function addCategoryCard(){ categoryCards.push(makeCategoryCard('')); renderCategoryCards(); saveDraft(); }
+  function removeCategoryCard(id){ const card=categoryCard(id); if(!card) return;
+    formLines=formLines.filter(l=>l.cardId!==card.id); categoryCards=categoryCards.filter(c=>c.id!==card.id);
+    if(!categoryCards.length) categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)];
+    renderCategoryCards(); saveDraft(); }
+  function setCardCategory(id,value){ const card=categoryCard(id); if(!card||!value) return; const lines=formLines.filter(l=>l.cardId===card.id);
+    const hadList=hasItemList(card.category), willList=hasItemList(value);
+    // Item-list categories and simple expense categories use different line
+    // inputs. Switching between them starts that card clean, so the user can
+    // change category directly instead of removing an auto-added blank line.
+    const assetTypeChanged=(assetCategoryMap[card.category]||'')!==(assetCategoryMap[value]||'');
+    if(hadList!==willList||assetTypeChanged) formLines=formLines.filter(l=>l.cardId!==card.id);
+    card.category=value; card.pickerOpen=willList; lines.forEach(l=>l.category=value);
+    if(!willList&&!formLines.some(l=>l.cardId===card.id)) addExpenseLine('', 'Bill', id, false);
+    renderCategoryCards(); saveDraft(); }
+  function toggleCardPicker(id){ const card=categoryCard(id); if(!card) return; if(!card.category){ toast('Choose a category first'); return; } card.pickerOpen=!card.pickerOpen; renderCategoryCards(); }
+  function setCardQuery(id,value){ const card=categoryCard(id); if(!card) return; card.query=value; renderCardPickerList(id); }
+  function addLine(item,cardId){ const c=catalog.find(x=>x.item===item), card=categoryCard(cardId); if(!c||!card) return;
+    formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,category:card.category,cardId:card.id,cataloged:true,qty:'1',price:String(c.price)}); renderCategoryCards(); saveDraft(); }
+  function addExpenseLine(name,unit,cardId,rerender=true){ const card=categoryCard(cardId); if(!card) return;
+    formLines.push({item:'',name:name,unit:unit,cur:0,category:card.category,cardId:card.id,cataloged:false,qty:'1',price:''});
+    if(rerender){ renderCategoryCards(); saveDraft(); } }
+  function addExpenseTextField(cardId){ addExpenseLine('', 'Bill', cardId); const i=formLines.length-1; setTimeout(()=>document.getElementById('expName-'+i)?.focus(),0); }
+  function removeLine(i){ formLines.splice(i,1); renderCategoryCards(); saveDraft(); }
+  // NB: oninput must NOT re-render the line list — rebuilding wrap.innerHTML while the
+  // user types destroys the focused input, so the mobile keyboard closes after every digit.
+  // Keep typing light (model + totals only); refresh the Up/Down badge, border and line
+  // total on blur via onchange="renderCategoryCards()" on the inputs (focus already gone by then).
+  function updateCategorySubtotal(cardId){ const el=document.getElementById('categorySubtotal-'+cardId); if(!el) return;
+    const subtotal=formLines.filter(l=>l.cardId===Number(cardId)).reduce((sum,l)=>sum+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0);
+    el.textContent='Rs '+nfmt(subtotal); }
+  function setQty(i,v){ formLines[i].qty=v; updateCategorySubtotal(formLines[i].cardId); updateTotal(); saveDraft(); }
+  function setPrice(i,v){ formLines[i].price=v; updateCategorySubtotal(formLines[i].cardId); updateTotal(); saveDraft(); }
+  function setLineName(i,v){ formLines[i].name=v; saveDraft(); }
+  function expenseLineHtml(l,i){ l.item=''; l.cataloged=false; l.unit='Bill'; l.qty='1';
+    return `<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:10px;">
+      <div style="display:flex;align-items:flex-end;gap:7px;">
+        <div style="flex:1.4;min-width:0;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Item</div><input id="expName-${i}" value="${esc(l.name||'')}" oninput="setLineName(${i},this.value)" placeholder="e.g. April bill" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:10px 11px;font-size:14px;color:var(--text-strong);"></div>
+        <div style="flex:1;min-width:0;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Amount</div><div style="display:flex;align-items:center;gap:4px;border:1.5px solid var(--border-default);background:var(--surface-sunken);border-radius:var(--radius-sm);padding:10px 9px;"><span class="mono" style="font-size:11px;color:var(--text-muted);">Rs</span><input value="${esc(String(l.price))}" oninput="setPrice(${i},this.value)" type="number" inputmode="decimal" placeholder="0" style="width:100%;min-width:0;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:14px;color:var(--text-strong);"></div></div>
+        <button onclick="removeLine(${i})" aria-label="Remove description" style="width:34px;height:38px;border-radius:var(--radius-sm);border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></button>
+      </div>
+    </div>`; }
+  function billLineHtml(l,i,card){ l.category=card.category; if(!hasItemList(card.category)) return expenseLineHtml(l,i); if(l.cataloged===undefined) l.cataloged=!!l.item; const price=parseFloat(l.price)||0; const stockLine=l.cataloged; const changed=stockLine&&!isAssetCategory(card.category)&&l.price!==''&&price!==l.cur; const up=price>l.cur; const diff=Math.abs(price-l.cur);
+    return `<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:10px;">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;"><span style="font-size:19px;flex:none;">${isAssetCategory(card.category)?'🏷️':emojiFor(l.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(l.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">${isAssetCategory(card.category)?'Creates a draft ERPNext Asset after approval':('current Rs '+nfmt(l.cur)+' / '+esc(l.unit)+(isStockCategory(card.category)?'':' · stock not affected'))}</div></div><button onclick="removeLine(${i})" aria-label="Remove item" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-sunken);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Qty (${esc(l.unit)})</div><input value="${esc(String(l.qty))}" oninput="setQty(${i},this.value)" onchange="renderCategoryCards()" type="number" inputmode="decimal" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div>
+        <div style="flex:1.3;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Price / ${esc(l.unit)}</div><div style="display:flex;align-items:center;gap:6px;border:1.5px solid ${changed?(up?'var(--color-danger)':'var(--color-success)'):'var(--border-default)'};background:var(--surface-sunken);border-radius:var(--radius-sm);padding:9px 11px;"><span class="mono" style="font-size:13px;color:var(--text-muted);">Rs</span><input value="${esc(String(l.price))}" oninput="setPrice(${i},this.value)" onchange="renderCategoryCards()" type="number" inputmode="numeric" style="width:100%;border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:15px;color:var(--text-strong);"></div></div>
+        <div style="flex:none;text-align:right;padding-bottom:9px;min-width:72px;"><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">Line</div><div class="mono" style="font-size:15px;color:var(--text-strong);">Rs ${nfmt((parseFloat(l.qty)||0)*price)}</div></div>
+      </div>
+      ${changed?`<div style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:${up?'var(--color-danger)':'var(--color-success)'};margin-top:9px;background:${up?'var(--color-danger-subtle)':'var(--color-success-subtle)'};border-radius:var(--radius-pill);padding:3px 10px;"><i data-lucide="${up?'trending-up':'trending-down'}" style="width:12px;height:12px;"></i> ${up?'Up':'Down'} Rs ${nfmt(diff)} from current</div>`:''}
+    </div>`; }
+  function renderCategoryCards(){ const wrap=document.getElementById('categoryCards'); if(!wrap) return;
+    const cats=expCats.includes(DEFAULT_PURCHASE_CATEGORY)?expCats:[DEFAULT_PURCHASE_CATEGORY,...expCats];
+    categoryCards.forEach(card=>{ if(card.category&&!hasItemList(card.category)&&!formLines.some(l=>l.cardId===card.id)) addExpenseLine('', 'Bill', card.id, false); });
+    const used=new Set(categoryCards.map(c=>c.category).filter(Boolean));
+    wrap.innerHTML=categoryCards.map((card,cardIndex)=>{ const lines=formLines.map((l,i)=>[l,i]).filter(([l])=>l.cardId===card.id); const listed=hasItemList(card.category); const cardSubtotal=lines.reduce((sum,[l])=>sum+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); const opts=`<option value="" ${card.category?'':'selected'} disabled>Choose category</option>`+cats.map(c=>`<option value="${esc(c)}" ${c===card.category?'selected':''} ${c!==card.category&&used.has(c)?'disabled':''}>${esc(c)}</option>`).join('');
+      return `<div style="border:1.5px solid var(--border-default);border-radius:var(--radius-lg);padding:13px;background:var(--surface-card);box-shadow:var(--shadow-xs);">
+        <div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;"><div style="font-size:11px;color:var(--text-muted);font-weight:700;margin-bottom:4px;">CATEGORY ${cardIndex+1}</div><select class="inp" onchange="setCardCategory(${card.id},this.value)" style="padding:10px 11px;">${opts}</select></div><button onclick="removeCategoryCard(${card.id})" aria-label="Remove category" style="width:34px;height:34px;margin-top:17px;border-radius:50%;border:1px solid var(--border-default);background:var(--surface-sunken);color:var(--color-danger);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></button></div>
+        <div>${lines.map(([l,i])=>billLineHtml(l,i,card)).join('')}</div>
+        ${listed?`<button onclick="toggleCardPicker(${card.id})" ${card.category?'':'disabled'} style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:${card.category?'var(--color-primary)':'var(--text-faint)'};border-radius:var(--radius-md);padding:11px;cursor:${card.category?'pointer':'not-allowed'};font-family:var(--font-display);font-size:13.5px;font-weight:700;margin-top:11px;"><i data-lucide="${card.pickerOpen?'chevron-up':'plus'}" style="width:16px;height:16px;"></i> ${card.category?(card.pickerOpen?'Hide items':'Add item'):'Choose category first'}</button>
+        <div id="pickerWrap-${card.id}" style="${card.pickerOpen?'':'display:none;'}border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-top:9px;overflow:hidden;">
+          <div style="padding:9px 10px;border-bottom:1px solid var(--border-subtle);background:var(--surface-sunken);"><input id="pickerSearch-${card.id}" value="${esc(card.query||'')}" oninput="setCardQuery(${card.id},this.value)" placeholder="Search items…" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"></div>
+          <div id="pickerList-${card.id}" style="max-height:220px;overflow-y:auto;"></div><div id="pickerNew-${card.id}" style="border-top:1px solid var(--border-subtle);"></div>
+        </div>`:`<button onclick="addExpenseTextField(${card.id})" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px dashed var(--border-default);background:var(--surface-sunken);color:var(--color-primary);border-radius:var(--radius-md);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:13.5px;font-weight:700;margin-top:11px;"><i data-lucide="plus" style="width:16px;height:16px;"></i> Add another item</button>`}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:11px;border-top:1px solid var(--border-subtle);"><span style="font-size:12px;font-weight:700;color:var(--text-muted);">Category subtotal</span><span id="categorySubtotal-${card.id}" class="mono" style="font-size:15px;font-weight:700;color:var(--text-strong);">Rs ${nfmt(cardSubtotal)}</span></div>
+      </div>`; }).join('');
+    document.getElementById('lineCount').textContent=formLines.length+(formLines.length===1?' item':' items'); updateTotal();
+    categoryCards.filter(c=>c.pickerOpen&&hasItemList(c.category)).forEach(c=>renderCardPickerList(c.id)); icons(); }
+  function updateTotal(){ const t=formLines.reduce((a,l)=>a+(parseFloat(l.qty)||0)*(parseFloat(l.price)||0),0); document.getElementById('billTotal').textContent=nfmt(t); }
+  function renderCardPickerList(id){ const card=categoryCard(id), list=document.getElementById('pickerList-'+id), nw=document.getElementById('pickerNew-'+id); if(!card||!list) return;
+    const q=(card.query||'').trim().toLowerCase(); const added=formLines.map(l=>l.item).filter(Boolean);
+    let avail=catalog.filter(c=>!added.includes(c.item));
+    if(isAssetCategory(card.category)) avail=avail.filter(c=>c.is_fixed_asset&&c.asset_category===assetCategoryMap[card.category]);
+    else avail=avail.filter(c=>!c.is_fixed_asset);
+    if(q) avail=avail.filter(c=>(c.name||'').toLowerCase().includes(q));
+    list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine('${c.item}',${card.id})" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${esc(c.unit)}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
+    nw.innerHTML=`<button onclick="openNewItem(${card.id})" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(card.query.trim())}”`:''}</button>`;
+    icons(); }
+  function openNewItem(id){ const card=categoryCard(id); if(!card) return; const nm=(card.query||'').trim(), target=document.getElementById('pickerNew-'+id); if(!target) return;
+    target.innerHTML=`
+      <div style="padding:12px;background:var(--surface-sunken);border-top:1px solid var(--border-subtle);">
+        <div style="font-size:12px;font-weight:700;color:var(--text-strong);margin-bottom:8px;">New item</div>
+        <input id="niName-${id}" value="${esc(nm)}" placeholder="Item name" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);margin-bottom:8px;">
+        <div style="display:flex;gap:8px;">
+          <select id="niUnit-${id}" style="flex:1;box-sizing:border-box;border:1.5px solid var(--border-default);outline:none;background:var(--surface-card);border-radius:var(--radius-sm);padding:9px 11px;font-size:14px;color:var(--text-strong);"><option>Nos</option><option>Kg</option><option>g</option><option>L</option><option>ml</option><option>Pkt</option><option>Box</option><option>Dozen</option><option>Bill</option></select>
+          <button id="niBtn-${id}" onclick="createNewItem(${id})" style="flex:none;padding:0 16px;border:none;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:14px;">Create & add</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-faint);margin-top:7px;">${isAssetCategory(card.category)?'Saved as a Fixed Asset Item; approval creates the draft Asset.':('Saved to Items'+(isStockCategory(card.category)?' and received into stock after approval':' · this category does not affect stock')+'.')}</div>
+      </div>`;
+    const el=document.getElementById('niName-'+id); if(el){ el.focus(); } icons(); }
+  async function createNewItem(id){ const card=categoryCard(id), nameEl=document.getElementById('niName-'+id), unitEl=document.getElementById('niUnit-'+id); if(!card||!nameEl||!unitEl) return;
+    const name=(nameEl.value||'').trim(), unit=unitEl.value||'Nos', category=card.category;
+    if(!name){ toast('Enter an item name'); return; }
+    if(!hasItemList(category)){ toast('This category uses descriptions, not Items'); return; }
+    const btn=document.getElementById('niBtn-'+id); btn.disabled=true;
+    try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_item',{item_name:name,unit:unit,category:category}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ const it=d.message;
+        if(!catalog.find(c=>c.item===it.item)) catalog.push({item:it.item,name:it.name,unit:it.unit,price:it.price||0,group:'',is_fixed_asset:it.is_fixed_asset||0,asset_category:it.asset_category||''});
+        card.query=''; addLine(it.item,id); toast(it.existed?'Item already existed — added':'Item created & added'); }
+      else { toast((d.message&&d.message.message)||srvMsg(d,'Could not create item')); btn.disabled=false; } }
+    catch(e){ toast('Connection error'); btn.disabled=false; } }
+  // ── Draft persistence ──
+  // Low-RAM Androids kill this tab the moment the camera app opens; the page
+  // reloads from scratch when the staffer comes back. Every form change is
+  // snapshotted to localStorage so the reload can put the sheet back exactly
+  // as it was. Cancel / backdrop-tap / successful submit clear the draft.
+  const DRAFT_KEY='lf_purch_v2_draft';
+  let restoringDraft=false;
+  function sheetOpen(id){ return document.getElementById(id).style.display==='flex'; }
+  function saveDraft(){ if(restoringDraft) return; try{
+      let d=null;
+      if(sheetOpen('addOverlay')) d={sheet:'bill',
+        category:document.getElementById('fCategory').value,
+        lines:formLines,cards:categoryCards,receipt:newReceipt,
+        vendor:document.getElementById('fVendor').value,note:document.getElementById('fNote').value,
+        date:document.getElementById('fDate').value,
+        amount:document.getElementById('fAmount').value,billref:document.getElementById('fBillRef').value,
+        at:Date.now()};
+      if(d) localStorage.setItem(DRAFT_KEY,JSON.stringify(d));
+    }catch(e){} }
+  function clearDraft(){ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} }
+  async function restoreDraft(){ let d=null; try{ d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null'); }catch(e){}
+    if(!d||!d.at||Date.now()-d.at>12*3600*1000||d.sheet!=='bill'){ if(d) clearDraft(); return; }
+    restoringDraft=true;
+    try{
+      openAdd();
+      document.getElementById('fCategory').value=d.category||''; onCategoryChange();
+      formLines=Array.isArray(d.lines)?d.lines.map(l=>Object.assign({category:DEFAULT_PURCHASE_CATEGORY},l)):[]; newReceipt=d.receipt||'';
+      if(!d.category){
+        if(Array.isArray(d.cards)&&d.cards.length){ categoryCards=d.cards.map(c=>({id:Number(c.id),category:c.category===undefined?DEFAULT_PURCHASE_CATEGORY:c.category,pickerOpen:!!c.pickerOpen,query:c.query||''})); nextCategoryCardId=Math.max(...categoryCards.map(c=>c.id))+1; }
+        else { categoryCards=[]; const byCategory=new Map(); formLines.forEach(l=>{ const cat=l.category||DEFAULT_PURCHASE_CATEGORY; if(!byCategory.has(cat)){ const card=makeCategoryCard(cat); byCategory.set(cat,card); categoryCards.push(card); } l.cardId=byCategory.get(cat).id; }); if(!categoryCards.length) categoryCards=[makeCategoryCard(DEFAULT_PURCHASE_CATEGORY)]; }
+        const fallback=categoryCards[0]; formLines.forEach(l=>{ if(!categoryCard(l.cardId)){ const card=categoryCards.find(c=>c.category===l.category)||fallback; l.cardId=card.id; l.category=card.category; } });
+      }
+      document.getElementById('fVendor').value=d.vendor||'';
+      document.getElementById('fNote').value=d.note||'';
+      if(d.date) document.getElementById('fDate').value=d.date;
+      document.getElementById('fAmount').value=d.amount||'';
+      document.getElementById('fBillRef').value=d.billref||'';
+      if(newReceipt){ const img=document.getElementById('photoImg'); img.src=newReceipt; img.style.display='block'; document.getElementById('photoHint').style.display='none'; }
+      renderCategoryCards();
+    }catch(e){}
+    restoringDraft=false; saveDraft();
+    toast('Draft restored — continue where you left off');
+  }
+
+  // Camera photos are 3–10 MB; decoding + uploading one at full size is what
+  // pushes a 1–2 GB phone over the edge. Downscale to ≤1400px JPEG (~200–400 KB)
+  // before upload. Any failure falls back to the original file.
+  async function shrinkPhoto(f){
+    if(!/^image\//.test(f.type||'')||f.size<400*1024) return f;
+    try{
+      const bmp=await createImageBitmap(f,{imageOrientation:'from-image'});
+      const MAX=1400, sc=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
+      const w=Math.round(bmp.width*sc), h=Math.round(bmp.height*sc);
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(bmp,0,0,w,h); if(bmp.close) bmp.close();
+      const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.8));
+      if(blob&&blob.size<f.size) return new File([blob],((f.name||'receipt').replace(/\.\w+$/,'')||'receipt')+'.jpg',{type:'image/jpeg'});
+    }catch(e){}
+    return f;
+  }
+
+  async function uploadReceipt(input){ let f=input.files&&input.files[0]; input.value=''; if(!f) return;
+    const hint=document.getElementById('photoHint');
+    const hintIdle=document.getElementById('fCategory').value!==''?'📷 Tap to snap the bill':'📷 Tap to snap receipt';
+    hint.textContent='⏳ Uploading…';
+    f=await shrinkPhoto(f);
+    const fd=new FormData(); fd.append('file',f,f.name); fd.append('is_private',0); fd.append('csrf_token',CSRF);
+    try{ const r=await _api('/api/method/upload_file',{method:'POST',body:fd}); if(!r){ hint.textContent=hintIdle; return; }
+      const d=await r.json(); const url=d.message&&(d.message.file_url||d.message.file_name);
+      if(!url){ hint.textContent=hintIdle; toast('Upload failed — try again'); return; }
+      newReceipt=url;
+      const img=document.getElementById('photoImg'); img.src=url; img.style.display='block';
+      hint.style.display='none'; toast('Receipt added'); saveDraft();
+    }catch(e){ hint.textContent=hintIdle; toast('Upload failed'); } }
+
+  // Bills post the lines assembled by category cards; Expenses post one amount.
+  async function submitBill(){ const err=document.getElementById('formErr'); const em=document.getElementById('formErrMsg');
+    const category=document.getElementById('fCategory').value;
+    const isExp=category!=='';
+    const paidTo=document.getElementById('fVendor').value.trim();
+    const pdate=document.getElementById('fDate').value||localToday();
+    const btn=document.getElementById('submitBtn');
+
+    if(!isExp){
+      if(pdate>localToday()){ em.textContent='The purchase date cannot be in the future.'; err.style.display='flex'; return; }
+      if(pdate<localDaysAgo(MAX_BACKDATE_DAYS)){ em.textContent='The purchase date cannot be more than '+MAX_BACKDATE_DAYS+' days ago.'; err.style.display='flex'; return; }
+      if(!formLines.length){ em.textContent='Add at least one item.'; err.style.display='flex'; return; }
+      if(!paidTo){ em.textContent='Add who you paid (vendor).'; err.style.display='flex'; return; }
+      if(formLines.some(l=>!(l.name||'').trim())){ em.textContent='Add a description for every line.'; err.style.display='flex'; return; }
+      if(formLines.some(l=>(parseFloat(l.qty)||0)<=0||(parseFloat(l.price)||0)<=0)){ em.textContent='Each item needs a qty and price.'; err.style.display='flex'; return; }
+      if(formLines.some(l=>!l.category)){ em.textContent='Choose a category for every item.'; err.style.display='flex'; return; }
+      const lines=formLines.map(l=>({item:l.item,name:l.name,category:l.category,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
+      btn.disabled=true; err.style.display='none';
+      try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:paidTo,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+        if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); loadVendors(); }
+        else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false;
+      return;
+    }
+
+    const amount=parseFloat(document.getElementById('fAmount').value)||0;
+    if(amount<=0){ em.textContent='Enter how much was paid.'; err.style.display='flex'; return; }
+    btn.disabled=true; err.style.display='none';
+    try{ const r=await _post('/api/method/luuvcrm.api.create_expense',{category:category,amount:amount,
+        payee:paidTo,
+        bill_ref:document.getElementById('fBillRef').value.trim(),
+        expense_date:pdate,
+        note:document.getElementById('fNote').value.trim(), receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; }
+      const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadExpenses(); }
+      else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; }
+    }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false; }
+
+  // ── Fullscreen receipt viewer (same behaviour as the manager app) ──
+  // Zoomable image viewer: pinch / double-tap / wheel to zoom, drag to pan.
+  const _iv={scale:1,tx:0,ty:0,startDist:0,startScale:1,panX:0,panY:0,startTx:0,startTy:0,lastTap:0,moved:false,mouseDown:false};
+  function viewImg(src){ const img=document.getElementById('imgViewerImg'); img.src=src; ivReset(); document.getElementById('imgViewer').style.display='flex'; }
+  function closeImgViewer(){ document.getElementById('imgViewer').style.display='none'; ivReset(); }
+  function ivReset(){ _iv.scale=1; _iv.tx=0; _iv.ty=0; ivApply(); }
+  function ivApply(){ document.getElementById('imgViewerImg').style.transform='translate('+_iv.tx+'px,'+_iv.ty+'px) scale('+_iv.scale+')'; }
+  (function(){
+    const v=document.getElementById('imgViewer');
+    const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+    v.addEventListener('touchstart',e=>{
+      if(e.touches.length===2){ _iv.startDist=dist(e.touches); _iv.startScale=_iv.scale; }
+      else if(e.touches.length===1){ _iv.panX=e.touches[0].clientX; _iv.panY=e.touches[0].clientY; _iv.startTx=_iv.tx; _iv.startTy=_iv.ty; _iv.moved=false; }
+    },{passive:true});
+    v.addEventListener('touchmove',e=>{ e.preventDefault();
+      if(e.touches.length===2){ _iv.scale=Math.min(6,Math.max(1,_iv.startScale*dist(e.touches)/(_iv.startDist||1))); if(_iv.scale===1){_iv.tx=0;_iv.ty=0;} ivApply(); _iv.moved=true; }
+      else if(e.touches.length===1&&_iv.scale>1){ _iv.tx=_iv.startTx+(e.touches[0].clientX-_iv.panX); _iv.ty=_iv.startTy+(e.touches[0].clientY-_iv.panY); ivApply(); _iv.moved=true; }
+      else if(e.touches.length===1&&(Math.abs(e.touches[0].clientX-_iv.panX)>8||Math.abs(e.touches[0].clientY-_iv.panY)>8)){ _iv.moved=true; }
+    },{passive:false});
+    v.addEventListener('touchend',e=>{
+      if(e.touches.length) return;
+      if(_iv.moved){ _iv.moved=false; return; }
+      const now=Date.now();
+      if(now-_iv.lastTap<300&&e.target.id==='imgViewerImg'){ if(_iv.scale>1) ivReset(); else { _iv.scale=2.5; ivApply(); } _iv.lastTap=0; }
+      else _iv.lastTap=now;
+    });
+    v.addEventListener('click',e=>{ if(e.target===v&&_iv.scale===1) closeImgViewer(); });
+    v.addEventListener('dblclick',e=>{ if(e.target.id==='imgViewerImg'){ if(_iv.scale>1) ivReset(); else { _iv.scale=2.5; ivApply(); } } });
+    v.addEventListener('wheel',e=>{ e.preventDefault(); _iv.scale=Math.min(6,Math.max(1,_iv.scale*(e.deltaY<0?1.15:0.87))); if(_iv.scale===1){_iv.tx=0;_iv.ty=0;} ivApply(); },{passive:false});
+    v.addEventListener('mousedown',e=>{ if(_iv.scale>1){ _iv.mouseDown=true; _iv.panX=e.clientX; _iv.panY=e.clientY; _iv.startTx=_iv.tx; _iv.startTy=_iv.ty; e.preventDefault(); } });
+    window.addEventListener('mousemove',e=>{ if(_iv.mouseDown){ _iv.tx=_iv.startTx+(e.clientX-_iv.panX); _iv.ty=_iv.startTy+(e.clientY-_iv.panY); ivApply(); } });
+    window.addEventListener('mouseup',()=>{ _iv.mouseDown=false; });
+  })();
+
+  // ── Unified local search (recent bills + expenses already loaded above) ──
+  let sq='';
+
+  function onSearch(v){ sq=feedQuery=(v||'').trim();
+    document.getElementById('billSearchX').style.display=sq?'block':'none';
+    renderUnifiedFeed(); }
+  function clearSearch(){ document.getElementById('billSearch').value=''; onSearch(''); }
+  function showSearch(){ renderUnifiedFeed(); }
+
+  // ── Detail sheet: one bill or expense in full, with Edit for a manager ──
+  let billRows=[], expRows=[], detKind=null, detRec=null;
+  const DET_TONE={approved:['success','✓ Approved'],pending:['warning','Waiting for manager'],rejected:['danger','Rejected']};
+  function detRow(label,value){ return value?`<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:13.5px;"><span style="color:var(--text-muted);flex:none;">${label}</span><span style="color:var(--text-strong);font-weight:600;text-align:right;min-width:0;overflow-wrap:anywhere;">${value}</span></div>`:''; }
+  function openDetail(kind,rec){ if(!rec) return; detKind=kind; detRec=rec;
+    const exp=kind==='expense', t=DET_TONE[rec.status]||DET_TONE.pending;
+    document.getElementById('detTitle').textContent=(exp?(rec.payee||rec.category):rec.vendor)||'—';
+    document.getElementById('detMeta').textContent=exp?['Expense',rec.category].filter(Boolean).join(' · '):'Purchase bill';
+    const photo=rec.receipt_image?`<img src="${esc(rec.receipt_image)}" onclick="viewImg('${esc(rec.receipt_image)}')" style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--border-subtle);cursor:zoom-in;margin-bottom:4px;"><div style="font-size:11.5px;color:var(--text-faint);margin-bottom:10px;text-align:center;">Tap the photo to open it full size</div>`:'';
+    const dateTxt=exp?(rec.date?new Date(rec.date+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):''):rec.date;
+    const billCats=[...new Set((rec.lines||[]).map(l=>l.category).filter(Boolean))];
+    const billCategory=rec.category_label||(billCats.length===1?billCats[0]:(billCats.length>1?'Mixed item categories':''));
+    let rows=detRow('Category',esc(exp?rec.category:billCategory))
+      +detRow(exp?'Paid to':'Vendor',esc(exp?rec.payee:rec.vendor))
+      +detRow(exp?'Date':'Bought on',esc(dateTxt))
+      +(exp?detRow('Bill / account no',esc(rec.bill_ref)):'')
+      +detRow('Entered by',esc([rec.by,exp?rec.when:rec.time].filter(Boolean).join(' · ')))
+      +(rec.status!=='pending'?detRow(rec.status==='rejected'?'Rejected by':'Approved by',esc([rec.resolved_by||'Approver not recorded',rec.resolved_when,rec.resolved_time].filter(Boolean).join(' · '))):'')
+      +(!exp&&rec.status==='approved'?detRow('Payment',rec.payment_status==='paid'?'Paid':'<span style="color:var(--color-warning);">Not paid yet</span>'):'');
+    let money='';
+    if(exp){ money=(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0 0;color:var(--text-muted);"><span>Original subtotal</span><span class="mono">Rs ${nfmt(rec.source_subtotal)}</span></div><div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0 0;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')+`<div style="display:flex;justify-content:space-between;padding:14px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Amount</span><span class="mono">Rs ${nfmt(rec.amount)}</span></div>`; }
+    else {
+      const lines=(rec.lines||[]).map(l=>{ const listed=l.has_item_list===undefined?l.is_stock:l.has_item_list; const asset=l.asset?`<a href="/app/asset/${encodeURIComponent(l.asset)}" onclick="event.stopPropagation()" style="display:inline-flex;margin-top:4px;color:var(--color-success);font-size:11px;font-weight:700;text-decoration:none;">🏷 ${esc(l.asset)} · ${esc(l.asset_status||'Draft')}</a>`:(l.is_fixed_asset?'<span style="display:block;margin-top:4px;color:var(--color-warning);font-size:11px;font-weight:700;">🏷 Asset creates after approval</span>':''); return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--border-subtle);"><span style="color:var(--text-body);min-width:0;">${listed?`<span class="mono" style="color:var(--text-muted);">${Math.round((l.qty||0)*100)/100} ${esc(l.unit||'')}</span> `:''}${esc(l.name||'')}${listed?` <span style="color:var(--text-faint);">× Rs ${nfmt(l.price||0)}</span>`:''}<span style="display:block;color:var(--color-primary);font-size:11px;margin-top:2px;">${esc(l.category||DEFAULT_PURCHASE_CATEGORY)}</span>${asset}</span><span class="mono" style="color:var(--text-strong);flex:none;">Rs ${nfmt((l.qty||0)*(l.price||0))}</span></div>`; }).join('');
+      money=`<div style="font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text-strong);margin:14px 0 2px;">Items</div>${lines||'<div style="color:var(--text-faint);font-size:13px;padding:8px 0;">No items on this bill.</div>'}`
+        +(rec.discount?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0 0;color:var(--text-muted);"><span>Discount</span><span class="mono">− Rs ${nfmt(rec.discount)}</span></div>`:'')
+        +`<div style="display:flex;justify-content:space-between;padding:12px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(rec.total)}</span></div>`;
+    }
+    document.getElementById('detBody').innerHTML=`<span class="badge ${t[0]}" style="margin-bottom:12px;display:inline-block;">${t[1]}</span>${photo}${rows}`
+      +(rec.note?`<div style="font-size:13px;color:var(--text-body);background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-top:12px;">📝 ${esc(rec.note)}</div>`:'')
+      +(rec.manager_comment?`<div style="font-size:13px;color:var(--text-body);background:var(--color-info-subtle);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 13px;margin-top:12px;"><b>Approval note</b><div style="margin-top:3px;">${esc(rec.manager_comment)}</div></div>`:'')
+      +money
+      +(CAN_EDIT&&rec.name?`<button onclick="editDetail()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit</button>`:'');
+    document.getElementById('detOverlay').style.display='flex'; icons(); }
+  function closeDetail(){ document.getElementById('detOverlay').style.display='none'; }
+  function editDetail(){ const kind=detKind, rec=detRec; if(!rec) return;
+    openBillEdit(kind,rec,fresh=>{ Object.assign(rec,fresh); openDetail(kind,rec);
+      if(kind==='expense') loadExpenses(); else { loadBills(); if(tab==='due') loadDue(); } }); }
+
+  // ── Approvals (purchase bills waiting on a second person) ──
+  // Not manager-only: whoever is on the page can clear a colleague's bill. Your own
+  // bill is greyed out here and refused by the server — see _block_self_approval().
+  const apprCmts={};   // typed comment per approval, kept across the 20s poll re-render
+  let apprRows=[], apprQ='';
+  function onApprSearch(v){ apprQ=(v||'').trim().toLowerCase(); renderAppr(); }
+  function apprHay(a){ return [a.title, a.by, a.flag_text, ...(a.lines||[]).flatMap(l=>[l.name,l.category])].join(' ').toLowerCase(); }
+  function apprCmt(name,v){ apprCmts[name]=v; }
+  // What the vendor took off the whole bill, entered at the moment somebody is
+  // holding the paper. It reduces the total and nothing else — the items keep
+  // the prices they were bought at, so one haggle does not rewrite the price book.
+  const apprDiscs={};
+  function apprDisc(name,v){ apprDiscs[name]=v; }
+  const apprCats={};
+  function apprCategory(name,v){ apprCats[name]=v; }
+  // Approve stays disabled until every line has been ticked off against the receipt —
+  // the point of the tab is that someone actually read the bill.
+  const apprTicks={};
+  function apprTick(name,ix,el,total){ const t=apprTicks[name]=apprTicks[name]||{};
+    if(el.checked) t[ix]=true; else delete t[ix];
+    const n=Object.keys(t).length, btn=document.getElementById('app_'+name), cnt=document.getElementById('cnt_'+name);
+    if(btn){ btn.disabled=n<total; btn.style.opacity=n<total?'.45':'1'; }
+    if(cnt) cnt.textContent=n<total?('Tick every line to approve · '+n+'/'+total):('All '+total+' checked'); }
+  async function loadApprovals(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_approvals',{}); if(!r) return; const d=await r.json(); const m=d.message||{approvals:[]};
+    const ae=document.activeElement;   // never repaint the list out from under a comment being typed
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='SELECT')&&document.getElementById('apprList').contains(ae)) return;
+    apprRows=(m.approvals||[]).filter(a=>a.status==='pending');   // a queue, not a history
+    renderAppr();
+  }catch(e){} }
+
+  function renderAppr(){
+    const list=apprQ?apprRows.filter(a=>apprHay(a).includes(apprQ)):apprRows;
+    document.getElementById('apprList').innerHTML=list.length?(apprQ?`<div style="font-size:12px;color:var(--text-faint);margin:-2px 0 10px;">${list.length} of ${apprRows.length} waiting</div>`:'')+list.map(a=>{
+      const nl=(a.lines||[]).length, tk=apprTicks[a.name]||{}, nTk=Object.keys(tk).length;
+      if(apprCats[a.name]===undefined) apprCats[a.name]=a.category_value||'';
+      const lines=(a.lines||[]).map((l,ix)=>{
+        // Buying-price delta: the "was" is the previous UNIT price (last price paid).
+        const op=+l.old_price||0, pr=+l.price||0;
+        const up=op>0&&pr>op, down=op>0&&pr<op;
+        const note=up?('↑ was Rs '+nfmt(op)):(down?('↓ was Rs '+nfmt(op)):'');
+        const col=up?'var(--color-danger)':'var(--color-success)';
+        return `<label style="display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 0;border-top:1px dashed var(--border-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <input type="checkbox" ${tk[ix]?'checked':''} onchange="apprTick('${esc(a.name)}',${ix},this,${nl})" style="width:18px;height:18px;accent-color:var(--color-primary);flex:none;">
+        <span style="flex:1;min-width:0;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="mono" style="color:var(--text-faint);">${esc(l.qtyStr||'')}</span> ${esc(l.name||'')}${l.category?` <span style="color:var(--color-primary);font-size:10.5px;font-weight:700;">${esc(l.category)}</span>`:''}</span>
+        ${note?`<span style="color:${col};font-weight:700;font-size:10.5px;flex:none;">${note}</span>`:''}
+        <span class="mono" style="color:var(--text-strong);flex:none;">${esc(l.totalStr||'')}</span></label>`;
+      }).join('');
+      const foot=(a.mine
+          ? `<div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--radius-pill);padding:10px;font-size:12.5px;font-weight:700;background:var(--surface-sunken);color:var(--text-faint);"><i data-lucide="lock" style="width:14px;height:14px;"></i> You entered this — someone else has to approve it</div>`
+          : `${a.type==='bill'?`<div style="display:flex;align-items:center;gap:9px;margin-top:12px;">
+              <span style="font-size:12.5px;font-weight:700;color:var(--text-body);white-space:nowrap;">Discount Rs</span>
+              <input type="text" inputmode="decimal" value="${esc(apprDiscs[a.name]||'')}" oninput="apprDisc('${esc(a.name)}',this.value)" placeholder="0" style="flex:1;min-width:0;box-sizing:border-box;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:9px 12px;font-size:14px;color:var(--text-strong);outline:none;background:var(--surface-card);">
+            </div><div style="font-size:11.5px;color:var(--text-faint);margin-top:5px;">Comes off this bill's total. The items keep the prices they were bought at.</div>`:''}<input type="text" value="${esc(apprCmts[a.name]||'')}" oninput="apprCmt('${esc(a.name)}',this.value)" placeholder="Comment (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:10px 13px;font-size:13.5px;color:var(--text-strong);outline:none;background:var(--surface-card);">
+             <div style="display:flex;gap:9px;margin-top:9px;">
+               <button onclick="resolveAppr('${esc(a.name)}','rejected',this)" style="flex:1;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;">Reject</button>
+               <button id="app_${esc(a.name)}" ${nTk<nl?'disabled':''} onclick="resolveAppr('${esc(a.name)}','approved',this)" style="flex:1.4;display:flex;align-items:center;justify-content:center;gap:7px;border:none;background:var(--color-success);color:#fff;border-radius:var(--radius-pill);padding:11px;cursor:pointer;font-family:var(--font-display);font-size:14px;font-weight:700;opacity:${nTk<nl?'.45':'1'};"><i data-lucide="check-circle" style="width:16px;height:16px;"></i> Approve</button>
+             </div>
+             <div id="cnt_${esc(a.name)}" style="text-align:center;font-size:11.5px;color:var(--text-faint);margin-top:7px;">${nTk<nl?('Tick every line to approve · '+nTk+'/'+nl):('All '+nl+' checked')}</div>`);
+      return `<div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:13px;box-shadow:var(--shadow-xs);margin-bottom:11px;">
+        <div style="display:flex;gap:13px;">
+          <div ${a.image?`onclick="viewImg('${esc(a.image)}')"`:''} style="width:48px;height:48px;border-radius:var(--radius-md);background:var(--orange-50);display:flex;align-items:center;justify-content:center;flex:none;font-size:20px;overflow:hidden;${a.image?'cursor:zoom-in;':''}">${a.image?`<img src="${esc(a.image)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">`:'🧾'}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.title)||'—'}</span><span style="font-size:11.5px;color:var(--text-faint);flex:none;">${esc(a.time||'')}</span></div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:1px;">${esc((a.subhead||'').replace(/\s*[·|-]\s*purchase bill\s*$/i,''))}${a.by?(' · '+esc(a.by)):''}</div>
+          </div>
+        </div>
+        ${(lines||a.footer_value)?`<div style="margin-top:10px;">${lines}<div style="display:flex;justify-content:space-between;gap:10px;padding-top:9px;margin-top:2px;border-top:1px solid var(--border-subtle);font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);"><span>${esc(a.footer_label||'Bill total')}</span><span class="mono" style="font-family:var(--font-display);font-weight:800;">${esc(a.footer_value||'')}</span></div></div>`:''}
+        ${a.image?`<div style="position:relative;margin-top:10px;"><img src="${esc(a.image)}" loading="lazy" decoding="async" onclick="viewImg('${esc(a.image)}')" style="width:100%;max-height:190px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:zoom-in;display:block;"><span style="position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:5px;background:rgba(20,18,16,.62);color:#fff;border-radius:var(--radius-pill);padding:4px 9px;font-size:11px;font-weight:700;pointer-events:none;"><i data-lucide="maximize-2" style="width:12px;height:12px;"></i> Tap to zoom</span></div>`:''}
+        ${a.flag_text?`<div style="margin-top:9px;font-size:12.5px;color:var(--text-muted);background:var(--surface-sunken);border-radius:var(--radius-sm);padding:8px 10px;">${esc(a.flag_text)}</div>`:''}
+        ${foot}
+      </div>`;
+    }).join(''):(apprQ
+      ?`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 20px;text-align:center;color:var(--text-faint);"><i data-lucide="search-x" style="width:26px;height:26px;"></i><div style="font-size:13.5px;">Nothing waiting matches “${esc(apprQ)}”.</div></div>`
+      :'<div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:56px 20px;text-align:center;color:var(--text-faint);"><span style="width:60px;height:60px;border-radius:50%;background:var(--color-success-subtle);color:var(--color-success);display:inline-flex;align-items:center;justify-content:center;"><i data-lucide="check-circle" style="width:28px;height:28px;"></i></span><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-body);">Nothing waiting 🎉</div><div style="font-size:13px;max-width:230px;line-height:1.5;">No purchase bills need approving right now.</div></div>');
+    icons(); }
+
+  async function resolveAppr(name,decision,btn){
+    const card=btn&&btn.parentElement; if(card) card.querySelectorAll('button').forEach(x=>x.disabled=true);
+    const payload={name:name,decision:decision,comment:(apprCmts[name]||'').trim()};
+    if(decision==='approved' && apprCats[name]!==undefined) payload.category=apprCats[name];
+    // Only on approve, and only when something was typed — rejecting a bill
+    // with a figure still in the box must not write it.
+    const disc=parseFloat(apprDiscs[name]);
+    if(decision==='approved' && disc>0) payload.discount=disc;
+    try{ const r=await _post('/api/method/luuvcrm.api.resolve_approval',payload);
+      if(!r){ if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); return; }
+      const d=await r.json();
+      if(r.ok && d.message && d.message.ok){ const done=d.message.executed==='purchase_reclassified_as_expense'?'Approved as expense ✓':(decision==='approved'?'Approved ✓':'Rejected'); delete apprCmts[name]; delete apprTicks[name]; delete apprDiscs[name]; delete apprCats[name]; toast(done); loadApprovals(); loadBills(); loadExpenses(); }
+      else { toast(srvMsg(d,'Could not resolve')); if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); }
+    }catch(e){ toast('Connection error'); if(card) card.querySelectorAll('button').forEach(x=>x.disabled=false); } }
+
+  // init
+  icons();
+  document.getElementById('subline').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · {{ current_user_full or "Staff" }}';
+  // Restore only after category flags arrive: Staff Meals is item-listed but
+  // non-stock, and rendering it with the old fallback would flatten its saved
+  // item rows into free-text expense lines.
+  loadBills(); loadExpenses(); window.lfPurchasesReady=Promise.all([loadCatalog(),loadExpCats()]).then(restoreDraft);
+  lfPoll(()=>{ if(sheetOpen('addOverlay')) return; loadBills(); loadExpenses(); if(tab==='due') loadDue(); if(tab==='appr') loadApprovals(); }, 20000);
+</script>
+{% include "templates/includes/purchases_stock.html" %}
+{% include "templates/includes/bill_edit.html" %}
+{% include "templates/includes/branch_switcher.html" %}
+{% include "templates/includes/app_switch.html" %}
+</body>
+</html>
