@@ -6,15 +6,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Keep local/debug builds working before the Firebase project credentials are
-// copied in. The debug app has a separate package id so it can coexist with
-// the release app; Firebase is enabled for release builds when configured.
-val buildingDebugOnly = gradle.startParameter.taskNames.any {
-    it.contains("debug", ignoreCase = true)
-} && gradle.startParameter.taskNames.none {
-    it.contains("release", ignoreCase = true)
-}
-if (file("google-services.json").exists() && !buildingDebugOnly) {
+// The Firebase project carries clients for both the release package and the
+// coexisting `.debug` package. Apply the generated resources to every build so
+// a locally connected customer app can register its FCM token too.
+if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 

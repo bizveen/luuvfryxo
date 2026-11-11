@@ -99,6 +99,21 @@ def get_context(context):
     context.no_header = True
     context.no_footer = True
     context.csrf_token = frappe.sessions.get_csrf_token()
+    # Firebase's web config identifies this public PWA client; it is not a
+    # credential. Sending still requires the private service account kept in
+    # the site's private directory. A project-specific VAPID public key can be
+    # added to site_config without changing the page again.
+    context.firebase_web_config = {
+        "apiKey": "AIzaSyDnyZhZ4wXIS8_dwS6LU8un1Fil6VmWEkM",
+        "authDomain": "gen-lang-client-0437285569.firebaseapp.com",
+        "projectId": "gen-lang-client-0437285569",
+        "storageBucket": "gen-lang-client-0437285569.firebasestorage.app",
+        "messagingSenderId": "944300833041",
+        "appId": "1:944300833041:web:11121e52dfc89199cc74b0",
+    }
+    context.firebase_web_vapid_key = str(
+        frappe.conf.get("firebase_web_vapid_key") or ""
+    ).strip()
 
     # Deep-link params: ?ref=<referral_code> (referral), ?phone=<mobile> (WhatsApp link),
     # ?promo=<sticker QR code> (free-meal campaign)

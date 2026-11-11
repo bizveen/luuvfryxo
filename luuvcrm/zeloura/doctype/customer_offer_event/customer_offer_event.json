@@ -1,0 +1,25 @@
+{
+ "actions": [],
+ "autoname": "field:event_key",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["event_key","offer","event_type","visitor_hash","pos_order","amount","revenue"],
+ "fields": [
+  {"fieldname":"event_key","fieldtype":"Data","label":"Event Key","reqd":1,"unique":1},
+  {"fieldname":"offer","fieldtype":"Link","label":"Offer","options":"Customer Offer","reqd":1,"in_list_view":1},
+  {"fieldname":"event_type","fieldtype":"Select","label":"Event Type","options":"View\nClaim\nRedeem\nReverse","reqd":1,"in_list_view":1},
+  {"fieldname":"visitor_hash","fieldtype":"Data","label":"Visitor Hash"},
+  {"fieldname":"pos_order","fieldtype":"Link","label":"POS Order","options":"POS Order"},
+  {"fieldname":"amount","fieldtype":"Currency","label":"Amount"},
+  {"fieldname":"revenue","fieldtype":"Currency","label":"Revenue"}
+ ],
+ "index_web_pages_for_search": 1,
+ "module": "Zeloura",
+ "name": "Customer Offer Event",
+ "naming_rule": "By fieldname",
+ "permissions": [{"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"report":1,"export":1}],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

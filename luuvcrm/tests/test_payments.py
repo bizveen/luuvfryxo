@@ -84,6 +84,14 @@ class TestPayInFull(PaymentTestCase):
         self.assertEqual(order.pos_invoice, result["invoice_name"],
                          "without the link the order looks unpaid forever")
 
+    def test_full_payment_completes_the_order_for_the_customer_app(self):
+        order = self.order([{"item": self.burger, "qty": 1}])
+        result = self.pay(order)
+        order.reload()
+        self.assertEqual(result["status"], "Served")
+        self.assertEqual(order.kitchen_status, "Served")
+        self.assertEqual(order.docstatus, 1)
+
     def test_the_invoice_is_submitted_so_it_reaches_the_shift(self):
         """A draft invoice never consolidates at shift close, so the sale would
         be invisible in the day's takings."""

@@ -49,6 +49,18 @@ class TestPushRegistration(PushTestCase):
         self.assertEqual(row.app_version, "1.2.3")
         self.assertEqual(row.enabled, 1)
 
+    def test_customer_can_register_an_installed_web_app(self):
+        result = api.customer_register_push_token(
+            customer_token=self.customer_token,
+            device_token=self.device_token,
+            platform="web",
+            app_version="pwa",
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(frappe.db.get_value(
+            api.PUSH_DOCTYPE, api._token_hash(self.device_token), "platform"), "Web")
+
     def test_a_made_up_customer_token_cannot_register(self):
         result = api.customer_register_push_token(
             customer_token="not-a-customer-session",
@@ -80,13 +92,13 @@ class TestFirebaseDelivery(PushTestCase):
     def test_http_v1_payload_uses_the_matching_notification_channel(self, post):
         post.return_value = Mock(ok=True, status_code=200, text="")
         device = frappe._dict(name=api._token_hash(self.device_token),
-                              device_token=self.device_token)
+                              device_token=self.device_token, platform="Web")
 
         sent = api._send_one(
             device,
             "Ready",
             "Your order is prepared",
-            {"type": "order_ready", "route": "/cus?tab=orders"},
+            {"type": "order_ready", "route": "https://luuv.test/cus?tab=orders"},
             ("access-token", "luuv-test"),
         )
 
@@ -95,7 +107,28 @@ class TestFirebaseDelivery(PushTestCase):
         self.assertEqual(request["json"]["message"]["android"]
                          ["notification"]["channel_id"], "order_updates")
         self.assertEqual(request["json"]["message"]["token"], self.device_token)
+        self.assertEqual(request["json"]["message"]["webpush"]
+                         ["headers"]["Urgency"], "high")
+        self.assertTrue(request["json"]["message"]["webpush"]
+                        ["fcm_options"]["link"].endswith("/cus?tab=orders"))
         self.assertNotIn(self.device_token, str(request["headers"]))
+
+    @patch("luuvcrm.api.push.requests.post")
+    def test_order_confirmation_is_a_high_priority_order_update(self, post):
+        post.return_value = Mock(ok=True, status_code=200, text="")
+        device = frappe._dict(name=api._token_hash(self.device_token),
+                              device_token=self.device_token)
+
+        self.assertTrue(api._send_one(
+            device, "Confirmed", "The restaurant accepted your order",
+            {"type": "order_confirmed", "status": "Pending"},
+            ("access-token", "luuv-test")))
+
+        message = post.call_args.kwargs["json"]["message"]
+        self.assertEqual(message["android"]["priority"], "HIGH")
+        self.assertEqual(message["android"]["notification"]["channel_id"],
+                         "order_updates")
+        self.assertNotIn("webpush", message)
 
     @patch("luuvcrm.api.push.frappe.log_error")
     @patch("luuvcrm.api.push.requests.post")
@@ -130,6 +163,20 @@ class TestFirebaseDelivery(PushTestCase):
             "luuvcrm.api.push.send_order_ready_push",
             queue="short",
             enqueue_after_commit=True,
+            order_name="POS-ORDER-0001",
+        )
+
+    @patch("luuvcrm.api.push.frappe.enqueue")
+    @patch("luuvcrm.api.push.frappe.db.exists", return_value=True)
+    @patch("luuvcrm.api.push.frappe.db.get_value")
+    def test_order_confirmation_is_queued_after_its_explicit_commit(
+            self, get_value, _exists, enqueue):
+        get_value.return_value = self.MOBILE
+
+        self.assertTrue(api.queue_order_confirmed_push("POS-ORDER-0001"))
+        enqueue.assert_called_once_with(
+            "luuvcrm.api.push.send_order_confirmed_push",
+            queue="short",
             order_name="POS-ORDER-0001",
         )
 
@@ -220,6 +267,30 @@ class TestPushSafety(TestCase):
         enqueue.assert_called_once_with(
             "luuvcrm.api.push.send_order_ready_push", queue="short",
             enqueue_after_commit=True, order_name="MOCK-ORDER")
+
+    @patch("luuvcrm.api.push._send_one", return_value=True)
+    @patch("luuvcrm.api.push._fcm_context",
+           return_value=("mock-secret", "mock-project"))
+    @patch("luuvcrm.api.push._order_ready_devices")
+    @patch("luuvcrm.api.push.frappe.db.get_value")
+    def test_confirmation_targets_order_devices_with_pending_status(
+            self, get_value, devices, _context, send):
+        get_value.return_value = frappe._dict(
+            name="POS-ORDER-0001",
+            mobile="0770000841",
+            restaurant="Kurunegala",
+        )
+        devices.return_value = [
+            frappe._dict(name="hash-one", device_token="mock-device-one")]
+
+        result = api.send_order_confirmed_push("POS-ORDER-0001")
+
+        self.assertEqual(result, {"sent": 1, "failed": 0})
+        devices.assert_called_once_with("POS-ORDER-0001", "0770000841")
+        data = send.call_args.args[3]
+        self.assertEqual(data["type"], "order_confirmed")
+        self.assertEqual(data["status"], "Pending")
+        self.assertEqual(data["route"], "/cus?r=Kurunegala&tab=orders")
 
     @patch("luuvcrm.api.push.frappe.log_error")
     @patch("luuvcrm.api.push.requests.post")

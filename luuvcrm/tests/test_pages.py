@@ -109,6 +109,103 @@ class TestThereIsOnePos(PageTestCase):
         self.assertNotIn("pos2", activity.KNOWN_APPS)
         self.assertNotIn("pos3", activity.KNOWN_APPS)
 
+    def test_customer_app_orders_can_be_marked_ready_at_the_pos(self):
+        """A customer-app order is visible at the till as well as in the kitchen. Once it
+        is prepared, the cashier needs an explicit Ready action; that endpoint
+        is also the single place that queues the customer's push notification."""
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "pos.html"))
+        self.assertIn("function onlineCanMarkReady(o)", html)
+        self.assertIn("function confirmAppOrder(name)", html)
+        self.assertIn('id="appConfirmBtn"', html)
+        self.assertIn("luuvcrm.api.confirm_app_order", html)
+        self.assertIn("function markOnlineReady(name)", html)
+        self.assertIn("channel==='CUS'?'APP':channel", html)
+        self.assertIn("label=o.mobile||'No number'", html)
+        self.assertIn("if(channel==='CUS')", html)
+        self.assertIn("'badge-check':'user-round'", html)
+        self.assertIn("orderSourceBadge(o,true)", html)
+        self.assertIn("flex:none;white-space:nowrap", html)
+        self.assertIn("ready.disabled=false", html)
+        self.assertIn("if(kot) kot.style.display=awaiting?'none':'inline-flex'", html)
+        self.assertIn("!cusAwaitingCall(o)", html)
+        self.assertIn("check-circle", html)
+        self.assertNotIn("Ready &amp; notify", html)
+        self.assertIn("const readyAction=onlineCanMarkReady(o)", html)
+        self.assertIn("luuvcrm.api.mark_kitchen_ready", html)
+        self.assertIn("result.push_queued", html)
+        self.assertIn("function openPosOrder(name)", html)
+        self.assertIn("waitForOnlineKot", html)
+        self.assertIn("Confirm this APP order first", html)
+        self.assertNotIn("Order ready ·", html)
+        self.assertIn('id="appCancelBtn"', html)
+        self.assertIn("function cancelAwaitingAppOrder(name)", html)
+        self.assertIn("luuvcrm.api.cancel_order", html)
+        self.assertIn("The customer app will show this order as cancelled.", html)
+
+    def test_customer_app_guest_push_and_kiosk_ready_alert_are_wired(self):
+        customer = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
+        kiosk = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "kiosk.html"))
+        self.assertIn("LuuvGuestOrder.postMessage", customer)
+        self.assertIn("guest_push_ticket", customer)
+        self.assertIn("rememberGuestPushOrder", customer)
+        self.assertIn("lf_guest_push_orders", customer)
+        self.assertIn('id="pwaBanner"', customer)
+        self.assertIn("beforeinstallprompt", customer)
+        self.assertIn("function enableWebNotifications()", customer)
+        self.assertIn("platform:'web'", customer)
+        self.assertIn("firebase-messaging-compat.js", customer)
+        self.assertIn("kiosk_order_status", kiosk)
+        self.assertIn("queueReadyAlert(orderName)", kiosk)
+        self.assertIn('id="readyAlert"', kiosk)
+
+    def test_customer_checkout_verifies_new_numbers_and_hides_phone_when_signed_in(self):
+        customer = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
+        self.assertIn("function syncCheckoutIdentity()", customer)
+        self.assertIn("phoneField.style.display=signedIn?'none':'block'", customer)
+        self.assertIn("function ensureCheckoutAccount(phone)", customer)
+        self.assertIn("luuvcrm.api.sms_send_otp", customer)
+        self.assertIn("function confirmCheckoutSignup()", customer)
+        self.assertIn("luuvcrm.api.sms_verify_otp", customer)
+        self.assertIn("luuvcrm.api.customer_set_pin", customer)
+        self.assertIn("customer_token:(isAuthed()&&!isDevSession())?_token:''", customer)
+        self.assertIn("?'Confirmed':", customer)
+        self.assertNotIn("Confirmed by restaurant", customer)
+        self.assertIn("function refreshCustomerOrderViews()", customer)
+        self.assertIn("setInterval(refreshCustomerOrderViews,2000)", customer)
+        self.assertIn("Pending:2,Processing:3,Ready:4", customer)
+        self.assertIn("<span>Confirmed</span><span>Cooking</span>", customer)
+        self.assertIn('id="feedbackPop"', customer)
+        self.assertIn("function maybePromptOrderFeedback(orders)", customer)
+        self.assertIn("luuvcrm.api.customer_submit_order_feedback", customer)
+        self.assertIn("Leave a review ⭐", customer)
+        self.assertIn("feedback_submitted", customer)
+        self.assertIn("feedback_rating", customer)
+        self.assertIn("order-rating-stars", customer)
+        self.assertIn("const progressBar=active?", customer)
+        self.assertIn("o.status!=='Cancelled'", customer)
+        self.assertIn('id="homeActiveOrderCount"', customer)
+        self.assertIn('id="navActiveOrderCount"', customer)
+        self.assertIn("function updateActiveOrderCount(orders)", customer)
+        self.assertIn("luuvcrm.api.customer_account_summary", customer)
+        self.assertIn("function accountSummaryMarkup()", customer)
+        self.assertIn("Total orders", customer)
+        self.assertIn("Active now", customer)
+        self.assertIn("Cashback available", customer)
+        self.assertIn("Rewards earned", customer)
+        self.assertIn("function renderAccountHero(displayName)", customer)
+        self.assertNotIn("Verified customer", customer)
+        self.assertIn('data-lucide="badge-check"', customer)
+        self.assertNotIn("body.innerHTML='<div class=\"profile-card\">'", customer)
+        self.assertNotIn('id="homeStatusShell"', customer)
+        self.assertNotIn('id="homeStatus"', customer)
+        self.assertIn("const ADDON_BASE_CATEGORIES=new Set(['Loaded-Fries','Chips'])", customer)
+        self.assertIn("function cartHasAddonBase()", customer)
+        self.assertIn("if(!cartHasAddonBase()){ section.style.display='none'", customer)
+        self.assertIn("_detailSupportsAddons=cardSupportsAddons(card)", customer)
+        self.assertIn("function imageOf(code)", customer)
+        self.assertIn("order-item-thumb", customer)
+        self.assertIn("order-item-price", customer)
+
 
 class TestTheGateOnPos(PageTestCase):
     def setUp(self):
@@ -679,6 +776,34 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
         self.assertNotIn("chart.googleapis.com", html)
         self.assertIn("/assets/luuvcrm/js/qrcode.js", html)
 
+    def test_local_customer_app_has_a_safe_sample_offer_preview(self):
+        html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
+        self.assertIn("title:'Buy 5, get 1 FREE'", html)
+        self.assertIn("if(IS_LOCAL_DEV&&!_activeOffers.length){", html)
+
+    def test_customer_and_manager_bottom_navs_have_top_elevation(self):
+        customer = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
+        manager = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "manager.html"))
+        self.assertIn("0 -18px 38px", customer)
+        self.assertIn("border-radius:22px 22px 0 0", customer)
+        self.assertIn('class="manager-bottom-nav"', manager)
+        self.assertIn("0 -18px 38px", manager)
+        self.assertIn("border-radius:22px 22px 0 0", manager)
+
+    def test_manager_has_offer_creation_and_counter_reward_redemption(self):
+        manager = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "manager.html"))
+        self.assertIn('id="tabOffersRewards"', manager)
+        self.assertIn("manager_save_offer", manager)
+        self.assertIn("manager_redeem_reward", manager)
+        self.assertIn('id="rwCode"', manager)
+        self.assertIn('id="rwOrder"', manager)
+        self.assertIn("queue_customer_push_broadcast", manager)
+        self.assertIn('id="ofGroup"', manager)
+        customer = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
+        self.assertIn("loyalty_request_redemption", customer)
+        self.assertIn("customer_track_offer_event", customer)
+        self.assertIn("offer_name:_selectedOffer", customer)
+
     def test_branch_neutral_customer_links_open_kurunegala_without_a_chooser(self):
         page = importlib.import_module("luuvcrm.www.cus")
         previous = frappe.local.form_dict
@@ -747,7 +872,7 @@ class TestNoPageIsShadowedByAnotherApp(PageTestCase):
     def test_customer_app_has_a_home_status_menu_and_offers_navigation(self):
         html = frappe.read_file(frappe.get_app_path("luuvcrm", "www", "cus.html"))
         self.assertIn('id="tabHome"', html)
-        self.assertIn('id="homeStatus"', html)
+        self.assertNotIn('id="homeStatus"', html)
         self.assertIn('data-tab="order"', html)
         self.assertIn('data-tab="offers"', html)
         self.assertIn('id="offerHighlights"', html)
@@ -1026,6 +1151,13 @@ class TestTheServiceWorkers(PageTestCase):
     """
 
     SW = ("sw.js", "cus_sw.js", "manager_sw.js", "purchases_sw.js")
+
+    def test_customer_worker_handles_firebase_background_notifications(self):
+        body = self.sw("cus_sw.js")
+        self.assertIn("firebase.messaging()", body)
+        self.assertIn("onBackgroundMessage", body)
+        self.assertIn("notificationclick", body)
+        self.assertIn("/cus?tab=orders", body)
 
     def sw(self, name):
         """The worker's code, without its comments — the comments name the very

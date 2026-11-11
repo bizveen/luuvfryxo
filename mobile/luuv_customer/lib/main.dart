@@ -93,11 +93,17 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
   bool _hasOrderSnapshot = false;
   Map<String, String> _orderStatuses = {};
   StreamSubscription<String>? _notificationRouteSubscription;
+  StreamSubscription<String>? _orderUpdateSubscription;
   StreamSubscription<String>? _pushTokenSubscription;
   String? _customerToken;
   String? _fcmToken;
   String _restaurant = '';
   String _subscribedRestaurantTopic = '';
+  final Map<String, String> _guestOrderTickets = {};
+  Timer? _guestRetryTimer;
+  Timer? _customerRetryTimer;
+  bool _registeringGuestOrders = false;
+  bool _registeringCustomerToken = false;
 
   @override
   void initState() {
@@ -120,6 +126,10 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
       ..addJavaScriptChannel(
         'LuuvSession',
         onMessageReceived: (message) => _handleCustomerSession(message.message),
+      )
+      ..addJavaScriptChannel(
+        'LuuvGuestOrder',
+        onMessageReceived: (message) => _handleGuestOrder(message.message),
       )
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -161,9 +171,13 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
     _notificationRouteSubscription = AppNotifications.routes.listen(
       _openNotificationRoute,
     );
+    _orderUpdateSubscription = AppNotifications.orderUpdates.listen((_) {
+      unawaited(_refreshVisibleOrderStatus());
+    });
     _pushTokenSubscription = AppNotifications.tokens.listen((token) {
       _fcmToken = token;
       unawaited(_registerPushToken());
+      unawaited(_registerGuestOrders());
     });
     final initialRoute = AppNotifications.takePendingRoute();
     if (initialRoute != null) {
@@ -176,6 +190,7 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
       await AppNotifications.requestPermission();
       _fcmToken = await AppNotifications.currentToken();
       await _registerPushToken();
+      await _registerGuestOrders();
       if (_testNotificationOnStart) {
         await Future<void>.delayed(const Duration(seconds: 2));
         await AppNotifications.showOrderReady(orderName: 'TEST-ORDER');
@@ -191,9 +206,25 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
 
   @override
   void dispose() {
+    _guestRetryTimer?.cancel();
+    _customerRetryTimer?.cancel();
     _notificationRouteSubscription?.cancel();
+    _orderUpdateSubscription?.cancel();
     _pushTokenSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _refreshVisibleOrderStatus() async {
+    try {
+      await _controller.runJavaScript('''
+        if (typeof refreshCustomerOrderViews === 'function') {
+          refreshCustomerOrderViews();
+        }
+      ''');
+      if (kDebugMode) debugPrint('Order status refresh requested by FCM');
+    } catch (_) {
+      // The next foreground/page polling pass refreshes a page still loading.
+    }
   }
 
   Future<void> _installWindowOpenBridge() async {
@@ -209,6 +240,9 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
         }
         if (window.__luuvNativeSessionTimer) {
           clearInterval(window.__luuvNativeSessionTimer);
+        }
+        if (window.__luuvNativeGuestOrderTimer) {
+          clearInterval(window.__luuvNativeGuestOrderTimer);
         }
         let lastLuuvSession = null;
         function reportLuuvSession() {
@@ -238,10 +272,26 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
             })));
           } catch (_) {}
         }
+        function reportLuuvGuestOrders() {
+          try {
+            const pending = JSON.parse(localStorage.getItem('lf_guest_push_orders') || '{}');
+            Object.keys(pending || {}).forEach(function (orderName) {
+              const saved = pending[orderName] || {};
+              const ticket = typeof saved === 'string' ? saved : saved.guest_ticket;
+              if (!orderName || !ticket) return;
+              LuuvGuestOrder.postMessage(JSON.stringify({
+                order_name: String(orderName),
+                guest_ticket: String(ticket),
+              }));
+            });
+          } catch (_) {}
+        }
         reportLuuvSession();
         reportLuuvOrderStatuses();
+        reportLuuvGuestOrders();
         window.__luuvNativeSessionTimer = setInterval(reportLuuvSession, 2000);
         window.__luuvNativeOrderTimer = setInterval(reportLuuvOrderStatuses, 8000);
+        window.__luuvNativeGuestOrderTimer = setInterval(reportLuuvGuestOrders, 10000);
       })();
     ''');
   }
@@ -269,20 +319,112 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
   }
 
   Future<void> _registerPushToken() async {
+    if (_registeringCustomerToken) return;
     final customerToken = _customerToken;
+    _fcmToken ??= await AppNotifications.currentToken();
     final deviceToken = _fcmToken;
     if (customerToken == null || deviceToken == null || deviceToken.isEmpty) {
       return;
     }
-    await _postPushEndpoint('customer_register_push_token', {
-      'customer_token': customerToken,
-      'device_token': deviceToken,
-      'platform': defaultTargetPlatform == TargetPlatform.iOS
-          ? 'ios'
-          : 'android',
-      'restaurant': _restaurant,
-      'app_version': _appVersion,
+    _registeringCustomerToken = true;
+    try {
+      final registered = await _postPushEndpoint(
+        'customer_register_push_token',
+        {
+          'customer_token': customerToken,
+          'device_token': deviceToken,
+          'platform': defaultTargetPlatform == TargetPlatform.iOS
+              ? 'ios'
+              : 'android',
+          'restaurant': _restaurant,
+          'app_version': _appVersion,
+        },
+      );
+      if (!registered) {
+        _customerRetryTimer?.cancel();
+        _customerRetryTimer = Timer(const Duration(seconds: 15), () {
+          unawaited(_registerPushToken());
+        });
+      }
+    } finally {
+      _registeringCustomerToken = false;
+    }
+  }
+
+  void _handleGuestOrder(String raw) {
+    try {
+      final data = jsonDecode(raw);
+      if (data is! Map<String, dynamic>) return;
+      final orderName = (data['order_name'] ?? '').toString().trim();
+      final ticket = (data['guest_ticket'] ?? '').toString().trim();
+      if (orderName.isEmpty || ticket.isEmpty) return;
+      _guestOrderTickets[orderName] = ticket;
+      if (kDebugMode) debugPrint('Guest push proof received');
+      unawaited(_registerGuestOrders());
+    } on FormatException {
+      // Ignore malformed page messages.
+    }
+  }
+
+  Future<void> _registerGuestOrders() async {
+    if (_registeringGuestOrders || _guestOrderTickets.isEmpty) return;
+    _registeringGuestOrders = true;
+    try {
+      _fcmToken ??= await AppNotifications.currentToken();
+      final deviceToken = _fcmToken;
+      if (deviceToken == null || deviceToken.isEmpty) {
+        if (kDebugMode) debugPrint('Guest push waiting for FCM token');
+        _scheduleGuestRegistrationRetry();
+        return;
+      }
+      final pending = Map<String, String>.from(_guestOrderTickets);
+      for (final entry in pending.entries) {
+        final registered = await _postPushEndpoint(
+          'customer_register_guest_order_push',
+          {
+            'order_name': entry.key,
+            'guest_ticket': entry.value,
+            'device_token': deviceToken,
+            'platform': defaultTargetPlatform == TargetPlatform.iOS
+                ? 'ios'
+                : 'android',
+            'app_version': _appVersion,
+          },
+        );
+        if (registered) {
+          if (kDebugMode) debugPrint('Guest push registration succeeded');
+          _guestOrderTickets.remove(entry.key);
+          await _forgetGuestOrder(entry.key);
+        }
+      }
+      if (_guestOrderTickets.isNotEmpty) _scheduleGuestRegistrationRetry();
+    } finally {
+      _registeringGuestOrders = false;
+    }
+  }
+
+  void _scheduleGuestRegistrationRetry() {
+    _guestRetryTimer?.cancel();
+    _guestRetryTimer = Timer(const Duration(seconds: 15), () {
+      unawaited(_registerGuestOrders());
     });
+  }
+
+  Future<void> _forgetGuestOrder(String orderName) async {
+    final encodedName = jsonEncode(orderName);
+    try {
+      await _controller.runJavaScript('''
+        (function () {
+          try {
+            const pending = JSON.parse(localStorage.getItem('lf_guest_push_orders') || '{}');
+            delete pending[$encodedName];
+            localStorage.setItem('lf_guest_push_orders', JSON.stringify(pending));
+          } catch (_) {}
+        })();
+      ''');
+    } catch (_) {
+      // The page may be navigating. Its timer will report the saved proof again.
+    }
   }
 
   Future<void> _unregisterPushToken(String customerToken) async {
@@ -294,7 +436,7 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
     });
   }
 
-  Future<void> _postPushEndpoint(
+  Future<bool> _postPushEndpoint(
     String method,
     Map<String, String> fields,
   ) async {
@@ -309,9 +451,29 @@ class _CustomerPortalScreenState extends State<CustomerPortalScreen> {
       );
       request.write(Uri(queryParameters: fields).query);
       final response = await request.close();
-      await response.drain<void>();
-    } catch (_) {
+      final raw = await utf8.decoder.bind(response).join();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        if (kDebugMode) {
+          debugPrint('Push registration $method HTTP ${response.statusCode}');
+        }
+        return false;
+      }
+      final payload = jsonDecode(raw);
+      if (payload is! Map<String, dynamic>) return false;
+      final message = payload['message'];
+      final success =
+          message is Map<String, dynamic> && message['success'] == true;
+      if (!success && kDebugMode) {
+        final error = message is Map<String, dynamic> ? message['error'] : null;
+        debugPrint('Push registration $method rejected: ${error ?? 'unknown'}');
+      }
+      return success;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('Push registration $method failed: ${error.runtimeType}');
+      }
       // Registration is retried on the next page/session or FCM token update.
+      return false;
     } finally {
       client.close(force: true);
     }
@@ -733,6 +895,8 @@ class AppNotifications {
       StreamController<String>.broadcast();
   static final StreamController<String> _tokens =
       StreamController<String>.broadcast();
+  static final StreamController<String> _orderUpdates =
+      StreamController<String>.broadcast();
   static final Map<String, DateTime> _recentReadyOrders = {};
   static final Completer<String?> _firstRegistration = Completer<String?>();
   static bool _firebaseAvailable = false;
@@ -742,7 +906,7 @@ class AppNotifications {
   static const _orderChannel = AndroidNotificationChannel(
     'order_updates',
     'Order updates',
-    description: 'Plays an alert when a customer order is ready.',
+    description: 'Confirmation and readiness updates for customer orders.',
     importance: Importance.max,
     playSound: true,
     enableVibration: true,
@@ -757,6 +921,7 @@ class AppNotifications {
 
   static Stream<String> get routes => _routes.stream;
   static Stream<String> get tokens => _tokens.stream;
+  static Stream<String> get orderUpdates => _orderUpdates.stream;
 
   static Future<void> initialize() async {
     const settings = InitializationSettings(
@@ -784,6 +949,15 @@ class AppNotifications {
     try {
       await Firebase.initializeApp();
       _firebaseAvailable = true;
+    } catch (error) {
+      _firebaseAvailable = false;
+      if (kDebugMode) {
+        debugPrint('Firebase initialization failed: ${error.runtimeType}');
+      }
+      return;
+    }
+
+    try {
       await FirebaseMessaging.instance
           .setForegroundNotificationPresentationOptions(
             alert: false,
@@ -792,20 +966,65 @@ class AppNotifications {
           );
       FirebaseMessaging.onMessage.listen(_showRemoteMessage);
       FirebaseMessaging.onMessageOpenedApp.listen(_routeRemoteMessage);
-      FirebaseMessaging.instance.onRegistered.listen((token) {
-        _currentToken = token;
-        if (!_firstRegistration.isCompleted) {
-          _firstRegistration.complete(token);
-        }
-        _tokens.add(token);
+      // Keep using the delivery token for the HTTP v1 `message.token` target.
+      // The newer onRegistered stream emits a Firebase Installation ID (FID),
+      // while onTokenRefresh still emits the actual FCM delivery token.
+      // ignore: deprecated_member_use
+      FirebaseMessaging.instance.onTokenRefresh.listen(_acceptToken);
+      // firebase_messaging 17 emits a Firebase Installation ID here, not the
+      // delivery token. Use the event only as a signal to refresh that token.
+      FirebaseMessaging.instance.onRegistered.listen((_) {
+        unawaited(_refreshCurrentToken());
       });
-      await FirebaseMessaging.instance.register();
+      await _refreshCurrentToken();
+      try {
+        await FirebaseMessaging.instance.register();
+      } catch (_) {
+        // getToken() can still return a cached/renewed delivery token when the
+        // newer FID registration endpoint is temporarily unavailable.
+      }
+      await _refreshCurrentToken();
+    } catch (error) {
+      // Firebase itself remains available. Registration is retried by
+      // currentToken and the customer/guest registration timers.
+      if (kDebugMode) {
+        debugPrint('FCM registration failed: ${error.runtimeType}');
+      }
+    }
+    try {
       final initial = await FirebaseMessaging.instance.getInitialMessage();
       if (initial != null) _routeRemoteMessage(initial);
+    } catch (_) {}
+    try {
       await FirebaseMessaging.instance.subscribeToTopic('luuv_customers');
     } catch (_) {
-      _firebaseAvailable = false;
+      // Order-ready delivery uses the per-device token, never this topic.
     }
+  }
+
+  static Future<String?> _refreshCurrentToken() async {
+    try {
+      // ignore: deprecated_member_use
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null || token.isEmpty) return null;
+      _acceptToken(token);
+      return token;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('FCM token fetch failed: ${error.runtimeType}');
+      }
+      return null;
+    }
+  }
+
+  static void _acceptToken(String token) {
+    if (token.isEmpty) return;
+    final changed = token != _currentToken;
+    _currentToken = token;
+    if (!_firstRegistration.isCompleted) {
+      _firstRegistration.complete(token);
+    }
+    if (changed) _tokens.add(token);
   }
 
   static Future<void> requestPermission() async {
@@ -827,7 +1046,17 @@ class AppNotifications {
     if (!_firebaseAvailable) return null;
     try {
       if (_currentToken != null) return _currentToken;
-      await FirebaseMessaging.instance.register();
+      final cachedToken = await _refreshCurrentToken();
+      if (cachedToken != null && cachedToken.isNotEmpty) {
+        return cachedToken;
+      }
+      try {
+        await FirebaseMessaging.instance.register();
+      } catch (_) {}
+      final registeredToken = await _refreshCurrentToken();
+      if (registeredToken != null && registeredToken.isNotEmpty) {
+        return registeredToken;
+      }
       return await _firstRegistration.future.timeout(
         const Duration(seconds: 10),
         onTimeout: () => null,
@@ -869,7 +1098,9 @@ class AppNotifications {
     final explicit = (message.data['route'] ?? '').toString().trim();
     if (explicit.isNotEmpty) return explicit;
     final kind = (message.data['type'] ?? '').toString();
-    return kind == 'order_ready' ? '/cus?tab=orders' : '/cus?tab=offers';
+    return kind == 'order_ready' || kind == 'order_confirmed'
+        ? '/cus?tab=orders'
+        : '/cus?tab=offers';
   }
 
   static void _routeRemoteMessage(RemoteMessage message) {
@@ -886,6 +1117,10 @@ class AppNotifications {
         (message.data['body'] ?? 'A new update is waiting for you.').toString();
     final route = _routeFor(message);
     final orderName = (message.data['order_name'] ?? '').toString();
+    if ((kind == 'order_confirmed' || kind == 'order_ready') &&
+        orderName.isNotEmpty) {
+      _orderUpdates.add(orderName);
+    }
     if (kind == 'order_ready' && orderName.isNotEmpty) {
       await showOrderReady(
         orderName: orderName,
@@ -932,13 +1167,13 @@ class AppNotifications {
     required String kind,
     required String route,
   }) async {
-    final order = kind == 'order_ready';
+    final order = kind == 'order_ready' || kind == 'order_confirmed';
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
         order ? 'order_updates' : 'offers_promotions',
         order ? 'Order updates' : 'Offers and promotions',
         channelDescription: order
-            ? 'Plays an alert when a customer order is ready.'
+            ? 'Confirmation and readiness updates for customer orders.'
             : 'New restaurant offers and promotions.',
         importance: order ? Importance.max : Importance.high,
         priority: Priority.high,

@@ -1,0 +1,27 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["offer","mobile","pos_order","status","discount_amount","free_item","free_quantity","order_total","notes"],
+ "fields": [
+  {"fieldname":"offer","fieldtype":"Link","label":"Offer","options":"Customer Offer","reqd":1,"in_list_view":1},
+  {"fieldname":"mobile","fieldtype":"Data","label":"Mobile","in_list_view":1,"search_index":1},
+  {"fieldname":"pos_order","fieldtype":"Link","label":"POS Order","options":"POS Order","reqd":1,"in_list_view":1,"search_index":1},
+  {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Applied\nRedeemed\nReversed","default":"Applied","reqd":1,"in_list_view":1},
+  {"fieldname":"discount_amount","fieldtype":"Currency","label":"Discount Amount"},
+  {"fieldname":"free_item","fieldtype":"Link","label":"Free Item","options":"Item"},
+  {"fieldname":"free_quantity","fieldtype":"Int","label":"Free Quantity"},
+  {"fieldname":"order_total","fieldtype":"Currency","label":"Order Total"},
+  {"fieldname":"notes","fieldtype":"Small Text","label":"Notes"}
+ ],
+ "index_web_pages_for_search": 1,
+ "module": "Zeloura",
+ "name": "Customer Offer Redemption",
+ "permissions": [{"role":"System Manager","read":1,"write":1,"create":1,"delete":1,"report":1,"export":1}],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

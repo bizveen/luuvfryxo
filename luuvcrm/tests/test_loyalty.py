@@ -340,6 +340,16 @@ class TestFirstOrderReferralDiscount(LoyaltyTestCase):
         ) or 0)
         self.assertEqual(balance, 52.25, "5% of the confirmed Rs 1,045 total")
 
+        info = self.call(api.loyalty_get_info, token=self.referrer_token)
+        invitee = next(
+            row for row in info["downline"] if row["mobile"] == self.INVITEE
+        )
+        self.assertEqual(invitee["earned_for_referrer"], 52.25)
+        self.assertEqual(
+            invitee["total_earned"], 52.25,
+            "legacy clients should receive the referrer's per-friend amount too",
+        )
+
 
 class TestSpendingTheBalance(LoyaltyTestCase):
     MOBILE = "0770000107"
@@ -354,11 +364,71 @@ class TestSpendingTheBalance(LoyaltyTestCase):
         return float(frappe.db.get_value("Loyalty Customer",
                                          {"mobile": self.MOBILE}, "cashback_balance"))
 
-    def test_redeeming_takes_it_off_the_balance(self):
+    def open_order(self):
+        item = frappe.db.get_value("Item", {"disabled": 0}, "name")
+        order = frappe.get_doc({
+            "doctype": "POS Order", "customer_name": "Reward test",
+            "mobile": self.MOBILE, "order_type": "Take Away",
+            "grand_total": 1000,
+            "items": [{"item": item, "qty": 1, "rate": 1000}],
+        }).insert(ignore_permissions=True)
+        self.addCleanup(lambda: frappe.db.exists("POS Order", order.name) and
+                        frappe.delete_doc("POS Order", order.name, force=True,
+                                          ignore_permissions=True,
+                                          delete_permanently=True))
+        return order
+
+    def test_requesting_a_redemption_reserves_nothing_until_counter_confirmation(self):
         amount = max(self.settings["min_redeem"], 100)
         result = self.call(api.loyalty_redeem, token=self.token, amount=amount)
         self.assertTrue(result["success"], result.get("error"))
+        self.assertTrue(result["code"])
+        self.assertEqual(self.balance(), 1000)
+
+    def test_manager_can_redeem_the_same_balance_at_the_counter(self):
+        amount = max(self.settings["min_redeem"], 100)
+        request = self.call(api.loyalty_redeem, token=self.token, amount=amount)
+        order = self.open_order()
+        previous_user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            result = self.call(
+                api.manager_redeem_reward,
+                code=request["code"],
+                order_name=order.name,
+                notes="Counter test",
+            )
+        finally:
+            frappe.set_user(previous_user)
+        self.assertTrue(result["success"])
         self.assertEqual(self.balance(), 1000 - amount)
+
+    def test_cancelling_an_approved_reward_restores_the_balance(self):
+        amount = max(self.settings["min_redeem"], 100)
+        request = self.call(api.loyalty_redeem, token=self.token, amount=amount)
+        order = self.open_order()
+        previous_user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            approved = self.call(api.manager_redeem_reward,
+                                 code=request["code"], order_name=order.name)
+            self.assertTrue(approved["success"])
+            self.assertTrue(api.reverse_reward_redemption(order.name))
+        finally:
+            frappe.set_user(previous_user)
+        self.assertEqual(self.balance(), 1000)
+        self.assertEqual(frappe.db.get_value("Reward Redemption Request",
+                                             request["code"], "status"), "Cancelled")
+
+    def test_manager_reward_search_returns_the_customer_balance(self):
+        previous_user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            result = self.call(api.manager_get_rewards, search=self.MOBILE)
+        finally:
+            frappe.set_user(previous_user)
+        row = next(c for c in result["customers"] if c.mobile == self.MOBILE)
+        self.assertEqual(float(row.cashback_balance), 1000)
 
     def test_spending_more_than_the_balance_is_refused(self):
         result = self.call(api.loyalty_redeem, token=self.token, amount=5000)
@@ -384,7 +454,15 @@ class TestSpendingTheBalance(LoyaltyTestCase):
 
     def test_what_was_spent_is_totalled(self):
         amount = max(self.settings["min_redeem"], 100)
-        self.call(api.loyalty_redeem, token=self.token, amount=amount)
+        request = self.call(api.loyalty_redeem, token=self.token, amount=amount)
+        order = self.open_order()
+        previous_user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            self.call(api.manager_redeem_reward, code=request["code"],
+                      order_name=order.name)
+        finally:
+            frappe.set_user(previous_user)
         self.assertEqual(
             float(frappe.db.get_value("Loyalty Customer", {"mobile": self.MOBILE},
                                       "total_redeemed")), amount)

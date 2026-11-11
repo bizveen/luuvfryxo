@@ -31,6 +31,12 @@ class FloorTestCase(FrappeTestCase):
         user = frappe.session.user
         frappe.set_user("Administrator")
         try:
+            if self._orders:
+                frappe.db.delete("Comment", {
+                    "reference_doctype": "POS Order",
+                    "reference_name": ["in", self._orders],
+                    "subject": api.CUSTOMER_FEEDBACK_SUBJECT,
+                })
             for name in self._orders:
                 if not frappe.db.exists("POS Order", name):
                     continue
@@ -113,12 +119,18 @@ class TestCancellingAnOrder(FloorTestCase):
 
         # A different person has to answer it — block_self_approval() is the rule
         # and it is tested in test_approvals; here it just has to be satisfied.
-        email = "lf-test-void-manager@example.com"
+        email = f"lf-test-void-{frappe.scrub(order.get(branch.FIELD) or 'branch')}@example.com"
         if not frappe.db.exists("User", email):
             frappe.get_doc({"doctype": "User", "email": email, "first_name": "Void Test",
                             "send_welcome_email": 0,
                             "roles": [{"role": roles.RESTAURANT_MANAGER}]}
                            ).insert(ignore_permissions=True)
+        restaurant = order.get(branch.FIELD)
+        if restaurant and not frappe.db.exists("User Permission", {
+                "user": email, "allow": "Restaurant", "for_value": restaurant}):
+            frappe.get_doc({"doctype": "User Permission", "user": email,
+                            "allow": "Restaurant", "for_value": restaurant,
+                            "apply_to_all_doctypes": 1}).insert(ignore_permissions=True)
         previous = frappe.session.user
         frappe.set_user(email)
         try:
@@ -213,6 +225,137 @@ class TestTheKitchenTicket(FloorTestCase):
         order.reload()
         self.assertEqual(order.kitchen_status, "Ready")
 
+    def test_an_online_order_can_be_ready_before_its_kot(self):
+        order = self.order(draft=1)
+        order.db_set("order_source", "Online")
+        order.db_set("waiter_name", "Kiosk")
+        self.call(api.mark_kitchen_ready, order_name=order.name)
+        order.reload()
+        self.assertEqual(order.kitchen_status, "Ready")
+
+    def app_order(self):
+        order = self.order(draft=1)
+        order.db_set("order_source", "Online")
+        order.db_set("waiter_name", "CUS")
+        return order
+
+    def test_confirming_an_app_order_releases_it_without_firing_the_kot(self):
+        order = self.app_order()
+
+        result = self.call(api.confirm_app_order, order_name=order.name)
+
+        order.reload()
+        self.assertTrue(result["confirmed"])
+        self.assertEqual(order.kitchen_status, "Pending")
+        self.assertEqual(int(order.items[0].sent_qty or 0), 0)
+
+    def test_an_app_order_cannot_fire_its_kot_before_confirmation(self):
+        order = self.app_order()
+
+        with self.assertRaises(frappe.ValidationError):
+            self.call(api.mark_kot_printed, order_name=order.name)
+
+        order.reload()
+        self.assertEqual(order.kitchen_status, "Draft")
+        self.assertEqual(int(order.items[0].sent_qty or 0), 0)
+
+    def test_an_app_order_cannot_be_ready_before_confirmation(self):
+        order = self.app_order()
+
+        with self.assertRaises(frappe.ValidationError):
+            self.call(api.mark_kitchen_ready, order_name=order.name)
+
+        self.call(api.confirm_app_order, order_name=order.name)
+        self.call(api.mark_kitchen_ready, order_name=order.name)
+        order.reload()
+        self.assertEqual(order.kitchen_status, "Ready")
+
+    def test_app_order_confirmation_is_visible_to_the_customer_session(self):
+        mobile = "0770000871"
+        fx.customer_account(self, mobile, name="App Customer")
+        token = fx.customer_token(self, mobile)
+        order = self.app_order()
+        order.db_set("mobile", mobile)
+
+        self.call(api.confirm_app_order, order_name=order.name)
+        result = self.call(api.customer_get_orders, token=token)
+
+        shown = next(row for row in result["orders"] if row["name"] == order.name)
+        self.assertEqual(shown["status"], "Pending")
+
+    def test_cancelled_unconfirmed_app_order_is_visible_to_the_customer_session(self):
+        mobile = "0770000875"
+        fx.customer_account(self, mobile, name="Cancelled App Customer")
+        token = fx.customer_token(self, mobile)
+        order = self.app_order()
+        order.db_set("mobile", mobile)
+
+        self.call(api.cancel_order, order_name=order.name,
+                  reason="cancelled before confirmation")
+        result = self.call(api.customer_get_orders, token=token)
+
+        shown = next(row for row in result["orders"] if row["name"] == order.name)
+        self.assertEqual(shown["status"], "Cancelled")
+        self.assertEqual(shown["docstatus"], 2)
+
+    def test_customer_can_review_their_completed_order_once(self):
+        mobile = "0770000872"
+        fx.customer_account(self, mobile, name="Review Customer")
+        token = fx.customer_token(self, mobile)
+        order = self.order()
+        order.db_set("mobile", mobile)
+        order.db_set("customer_name", "Review Customer")
+        self.call(api.mark_order_served, order_name=order.name)
+
+        first = self.call(
+            api.customer_submit_order_feedback,
+            token=token,
+            order_name=order.name,
+            rating=5,
+            comment="Fast service & crispy food",
+        )
+        second = self.call(
+            api.customer_submit_order_feedback,
+            token=token,
+            order_name=order.name,
+            rating=4,
+            comment="duplicate",
+        )
+
+        self.assertTrue(first["success"])
+        self.assertTrue(second["already_submitted"])
+        self.assertEqual(frappe.db.count("Comment", {
+            "reference_doctype": "POS Order",
+            "reference_name": order.name,
+            "subject": api.CUSTOMER_FEEDBACK_SUBJECT,
+        }), 1)
+        shown = next(row for row in self.call(
+            api.customer_get_orders, token=token)["orders"]
+                     if row["name"] == order.name)
+        self.assertTrue(shown["feedback_submitted"])
+        self.assertEqual(shown["feedback_rating"], 5)
+
+    def test_customer_cannot_review_an_open_or_somebody_elses_order(self):
+        owner_mobile = "0770000873"
+        other_mobile = "0770000874"
+        fx.customer_account(self, owner_mobile, name="Order Owner")
+        fx.customer_account(self, other_mobile, name="Other Customer")
+        owner_token = fx.customer_token(self, owner_mobile)
+        other_token = fx.customer_token(self, other_mobile)
+        order = self.order()
+        order.db_set("mobile", owner_mobile)
+
+        open_result = self.call(
+            api.customer_submit_order_feedback, token=owner_token,
+            order_name=order.name, rating=5)
+        self.assertFalse(open_result["success"])
+
+        self.call(api.mark_order_served, order_name=order.name)
+        other_result = self.call(
+            api.customer_submit_order_feedback, token=other_token,
+            order_name=order.name, rating=5)
+        self.assertFalse(other_result["success"])
+
     def test_the_waiter_marks_it_served(self):
         order = self.order()
         self.call(api.mark_order_served, order_name=order.name)
@@ -257,6 +400,17 @@ class TestTheKitchenTicket(FloorTestCase):
         order.reload()
         self.assertEqual(int(order.items[0].sent_qty), 1,
                          "the kitchen has this line now; a reprint must not fire it again")
+        self.assertEqual(order.kitchen_status, "Processing",
+                         "printing the KOT is the cooking start without a kitchen screen")
+
+    def test_app_order_starts_cooking_when_its_confirmed_kot_is_printed(self):
+        order = self.app_order()
+        self.call(api.confirm_app_order, order_name=order.name)
+
+        self.call(api.mark_kot_printed, order_name=order.name)
+
+        order.reload()
+        self.assertEqual(order.kitchen_status, "Processing")
 
 
 class TestWhatTheScreensShow(FloorTestCase):
@@ -408,10 +562,8 @@ class TestTheKitchenQueueCannotSwallowANewTicket(FloorTestCase):
     `SCREEN_ORDER_CEILING`. Once more tickets than that had piled up unserved —
     275 against a ceiling of 200 on the test site — the screen filled with
     ancient ones and **the order that had just been fired never appeared**.
-    Nothing anywhere said so. Nothing closes a ticket automatically either:
-    `process_payment` deliberately leaves `kitchen_status` alone, because a
-    walk-in pays before the food is cooked, so somebody has to press Served and
-    over months the ones nobody pressed accumulate.
+    Nothing anywhere said so. Older versions also left paid tickets open, so
+    over months the ones nobody explicitly served accumulated.
     """
 
     def stale_pile(self, n=3):
@@ -461,12 +613,13 @@ class TestTheKitchenQueueCannotSwallowANewTicket(FloorTestCase):
 
         self.assertGreaterEqual(KITCHEN_WINDOW_HOURS, 24)
 
-    def test_paying_still_does_not_close_the_ticket(self):
-        """Deliberate, and the reason the pile forms: a walk-in pays before the
-        food is cooked, so "paid" is not "served". The fix is the window, not
-        auto-closing work the kitchen has not done."""
+    def test_full_payment_closes_the_customer_ticket(self):
+        """The current no-kitchen-screen flow ends at payment, which must also
+        release the completion/review state in the customer app."""
         order = self.order()
         self.call(api.process_payment, order_name=order.name)
         fx.drop_invoice(self, frappe.db.get_value("POS Order", order.name, "pos_invoice"))
-        self.assertNotEqual(
-            frappe.db.get_value("POS Order", order.name, "kitchen_status"), "Served")
+        status, docstatus = frappe.db.get_value(
+            "POS Order", order.name, ["kitchen_status", "docstatus"])
+        self.assertEqual(status, "Served")
+        self.assertEqual(docstatus, 1)

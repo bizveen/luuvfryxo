@@ -4,6 +4,8 @@ Split out of the single 7,338-line api.py; every name here is re-exported
 from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
+import hmac
+
 import frappe
 
 from luuvcrm import branch, settings
@@ -13,8 +15,8 @@ from frappe.utils import now_datetime
 from luuvcrm.api.loyalty import (
     _apply_referral_for_mobile,
     _claim_first_order_referral_discount,
-    _process_cashback,
 )
+from luuvcrm.api.offers import prepare_customer_offer, record_customer_offer
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
     _is_takeaway,
@@ -23,6 +25,7 @@ from luuvcrm.api.pricing import (
     _service_charge_on,
 )
 from luuvcrm.api.promos import PROMO_WINDOW_HOURS, _pending_promo_for
+from luuvcrm.api.push import guest_order_push_ticket
 from luuvcrm.api.schema import _clean_item_note, _ensure_item_notes_field
 from luuvcrm.api.wa import wa_number
 from luuvcrm.api.whatsapp import send_customer_whatsapp, send_order_whatsapp
@@ -42,9 +45,22 @@ def kiosk_place_order():
     customer_name = data.get("customer_name", "").strip() or "Online Guest"
     mobile = data.get("mobile", "").strip() or ""
     ref_code = data.get("ref_code", "").strip().upper()
+    selected_offer = str(data.get("offer_name") or "").strip()
     table = data.get("table", "")
     order_type = data.get("order_type", "")
     is_cus = str(data.get("order_channel") or "").strip().upper() == "CUS"
+    # A signed-in customer never has to retype (or trust the browser to post)
+    # their phone number. Resolve it from the same session token used by the
+    # orders/profile APIs. Logged-out checkout can still post a phone number;
+    # the customer app verifies an unknown number before it reaches this call.
+    customer_token = str(data.get("customer_token") or "").strip()
+    if is_cus and customer_token:
+        from luuvcrm.api.customers import _mobile_from_token
+
+        signed_in_mobile = _mobile_from_token(customer_token)
+        if not signed_in_mobile:
+            return {"error": "Your session expired — sign in again"}
+        mobile = signed_in_mobile
     if is_cus and order_type not in ("Dine In", "Take Away", "Delivery"):
         order_type = "Take Away"
     # Customer-app orders wait for a staff call and KOT; WhatsApp no longer
@@ -114,6 +130,7 @@ def kiosk_place_order():
     })
     subtotal = 0
     sc_base = 0
+    priced_items = []
     if any(_clean_item_note(item.get("notes")) for item in items):
         _ensure_item_notes_field()
     for item_data in items:
@@ -133,9 +150,31 @@ def kiosk_place_order():
         if item_note:
             item_row["notes"] = item_note
         pos_order.append("items", item_row)
+        priced_items.append({"item": item_code, "qty": qty, "rate": rate})
         subtotal += rate * qty
         if not item_ta:
             sc_base += rate * qty
+
+    if selected_offer and promo and promo.get("free_item"):
+        return {"error": "The free-meal promotion cannot be combined with another offer"}
+    offer_result = {"applied": False}
+    if selected_offer and is_cus:
+        offer_result = prepare_customer_offer(
+            selected_offer, mobile, restaurant, priced_items, subtotal
+        )
+        if not offer_result.get("applied"):
+            return {"error": offer_result.get("error") or "Offer could not be applied"}
+        if offer_result.get("free_item") and offer_result.get("free_quantity"):
+            free_code = offer_result["free_item"]
+            free_name = frappe.db.get_value("Item", free_code, "item_name") or free_code
+            pos_order.append("items", {
+                "item": free_code,
+                "item_name": free_name,
+                "qty": offer_result["free_quantity"],
+                "rate": 0,
+                "takeaway": 1 if _is_takeaway(order_type) else 0,
+                "notes": f"FREE · {offer_result.get('title') or selected_offer}",
+            })
 
     # QR promo: registered sticker code + campaign free item → add at Rs 0 (first order)
     promo_item_name = ""
@@ -154,17 +193,27 @@ def kiosk_place_order():
     pos_order.insert()
 
     referral_discount = {"applied": False, "amount": 0, "percent": 0}
-    if referral_link.get("success"):
+    if referral_link.get("success") and (
+            not offer_result.get("applied") or offer_result.get("stackable")):
         referral_discount = _claim_first_order_referral_discount(
             mobile, ref_code, pos_order.name, subtotal
         )
-        if referral_discount.get("applied"):
-            pos_order.db_set("discount_amount", referral_discount["amount"])
-            pos_order.db_set(
-                "discount_note",
-                f"Referral {referral_discount['percent']:g}% · {ref_code}",
-            )
+    discounts = []
+    total_discount = 0.0
+    if referral_discount.get("applied"):
+        total_discount += float(referral_discount["amount"] or 0)
+        discounts.append(f"Referral {referral_discount['percent']:g}% · {ref_code}")
+    if offer_result.get("applied"):
+        total_discount += float(offer_result.get("order_discount") or 0)
+        discounts.append(offer_result.get("title") or selected_offer)
+        pos_order.db_set("customer_offer", offer_result["offer"])
+        pos_order.db_set("offer_discount_amount", offer_result.get("benefit_amount") or 0)
+    if total_discount:
+        pos_order.db_set("discount_amount", total_discount)
+    if discounts:
+        pos_order.db_set("discount_note", " · ".join(discounts)[:140])
     _apply_takeaway_service_charge(pos_order)
+    offer_redemption = record_customer_offer(offer_result, pos_order)
     if scheduled_dt and frappe.db.has_column("POS Order", "scheduled_time"):
         pos_order.db_set("scheduled_time", scheduled_dt)
     if wa_confirm:
@@ -186,13 +235,7 @@ def kiosk_place_order():
             frappe.log_error(f"Promo redeem error: {str(e)}", "QR Promo")
 
     if not held:
-        # instant orders (in-store kiosk): notify + cashback right away.
-        # CUS cashback runs after the staff-confirmed first KOT instead.
-        if mobile and pos_order.grand_total > 0:
-            try:
-                _process_cashback(mobile, pos_order.name, pos_order.grand_total)
-            except Exception as e:
-                frappe.log_error(f"Cashback error in kiosk: {str(e)}", "Cashback")
+        # Referral cashback is awarded by payment, not order creation.
         try:
             send_order_whatsapp(pos_order.name)
         except Exception as e:
@@ -209,6 +252,12 @@ def kiosk_place_order():
         confirm_link = ("https://wa.me/" + wa_number() + "?text="
                         + quote(f"Confirming my order #{pos_order.name} ✅"))
 
+    status_ticket = ""
+    if not is_cus:
+        from luuvcrm.api.orders import track_signature
+
+        status_ticket = track_signature(pos_order.name)
+
     return {
         "name": pos_order.name,
         "grand_total": pos_order.grand_total,
@@ -219,6 +268,11 @@ def kiosk_place_order():
         "referral_discount_applied": bool(referral_discount.get("applied")),
         "referral_discount_percent": referral_discount.get("percent") or 0,
         "referral_discount_amount": referral_discount.get("amount") or 0,
+        "offer_applied": bool(offer_result.get("applied")),
+        "offer_name": offer_result.get("offer") or "",
+        "offer_title": offer_result.get("title") or "",
+        "offer_saving": offer_result.get("benefit_amount") or 0,
+        "offer_redemption": offer_redemption or "",
         "table": table,
         "customer_name": customer_name,
         "mobile": mobile,
@@ -228,7 +282,34 @@ def kiosk_place_order():
         "needs_wa_confirm": wa_confirm,
         "needs_call_confirm": is_cus,
         "order_channel": waiter_name,
+        "guest_push_ticket": guest_order_push_ticket(pos_order.name) if is_cus else "",
+        "status_ticket": status_ticket,
         "confirm_link": confirm_link,
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def kiosk_order_status(order_name=None, status_ticket=None):
+    """Return the kitchen state for one signed kiosk order."""
+    from luuvcrm.api.orders import track_signature
+
+    order_name = str(order_name or "").strip()
+    supplied = str(status_ticket or "").strip()
+    expected = track_signature(order_name) if order_name else ""
+    if not expected or not hmac.compare_digest(supplied, expected):
+        return {"success": False}
+    order = frappe.db.get_value(
+        "POS Order", order_name,
+        ["name", "waiter_name", "order_source", "kitchen_status"],
+        as_dict=True,
+    )
+    if (not order or order.order_source != "Online"
+            or str(order.waiter_name or "").strip().upper() != "KIOSK"):
+        return {"success": False}
+    return {
+        "success": True,
+        "order_name": order.name,
+        "status": order.kitchen_status or "Pending",
     }
 # ─── Kiosk Setup ─────────────────────────────────────────
 
