@@ -71,6 +71,8 @@ from luuvcrm.api.customers import (
     customer_verify_pin,
     setup_customer_accounts,
     setup_customer_profile_fields,
+    sms_send_otp,
+    sms_verify_otp,
     wa_send_otp,
     wa_verify_otp,
 )
