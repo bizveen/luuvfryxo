@@ -41,6 +41,13 @@ boot_session = ["luuvcrm.overrides.branding.boot_session"]
 # /customer. See api.route_app_requests.
 before_request = ["luuvcrm.api.route_app_requests"]
 
+# Separate inventory UI versions; the original staff routes stay unchanged.
+# Map dotted public URLs to importable page/controller module names.
+website_route_rules = [
+    {"from_route": "/manager2.0", "to_route": "manager_v2"},
+    {"from_route": "/purchase2.0", "to_route": "purchase_v2"},
+]
+
 # ─── The public front door ───────────────────────────────────────────────────
 # /home and /order are ours, and erpnext ships pages with both names. Frappe
 # resolves a page by walking `reversed(frappe.get_installed_apps())`, so the
@@ -49,8 +56,8 @@ before_request = ["luuvcrm.api.route_app_requests"]
 # real site has (the live one included: luuvcrm sits after erpnext on both of
 # the sites it is installed on, and both pages answer 200 there).
 #
-# There used to be `website_route_rules` and a `home_page` hook here to force
-# the same outcome. Both are gone, on purpose: hooks are bench-wide, not
+# There used to be front-door `website_route_rules` and a `home_page` hook here
+# to force the same outcome. Those are gone: hooks are bench-wide, not
 # per-site, and this app is installed on a second site that is not a
 # restaurant. The rules rewrote *that* site's /home to our landing page and
 # the `home_page` hook overrode its Website Settings, so the clothing shop's

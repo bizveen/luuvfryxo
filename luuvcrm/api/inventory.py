@@ -90,7 +90,11 @@ def _new_stock_entry(purpose, company, warehouse, remarks, posting_date=None):
     return entry
 
 
-def _submit(entry):
+def _submit(entry, allow_negative_stock=False):
+    if allow_negative_stock:
+        from luuvcrm.branch_stock_entry import BranchStockEntry
+        entry = BranchStockEntry(entry.as_dict())
+        entry.flags.luuv_checked_negative_stock = True
     entry.insert(ignore_permissions=True)
     entry.flags.ignore_permissions = True
     entry.submit()
@@ -105,7 +109,7 @@ def _default_bom(item_code):
     )
 
 
-def _components(item_code, qty, company):
+def _components(item_code, qty, company, recipe_bom=None, resolve_default=True):
     """Return immediate stock-UOM ingredients for ``qty`` menu units.
 
     A stock menu item without a BOM (a can or bottle) issues itself.  A
@@ -118,7 +122,7 @@ def _components(item_code, qty, company):
     would leave the prepared stock untouched and charge the raw materials
     twice.
     """
-    bom = _default_bom(item_code)
+    bom = _default_bom(item_code) if resolve_default else recipe_bom
     if bom:
         from erpnext.manufacturing.doctype.bom.bom import get_bom_items_as_dict
 
@@ -181,17 +185,18 @@ def consume_order_stock(order_name):
     components = defaultdict(float)
     component_uom = {}
     used_boms = set()
+    from luuvcrm.api.manager_inventory import order_bom
     for line, delta in pending:
         # A BOM is company-scoped. If a warehouse is absent we can still tell a
         # non-stock/no-BOM menu line is unconfigured without blocking service.
-        bom = _default_bom(line.item)
+        bom = order_bom(line.item, restaurant, order.creation)
         direct_stock = bool(frappe.db.get_value("Item", line.item, "is_stock_item"))
         if not bom and not direct_stock:
             missing.append(line.item)
             continue
         if not company:
             _stock_context(order)  # raises a precise configuration error
-        bom, rows = _components(line.item, delta, company)
+        bom, rows = _components(line.item, delta, company, recipe_bom=bom, resolve_default=False)
         if bom:
             used_boms.add(bom)
         for row in rows:
@@ -208,6 +213,8 @@ def consume_order_stock(order_name):
         }
 
     restaurant, warehouse, company = _stock_context(order)
+    from luuvcrm.api.branch_stock_policy import check_sale
+    stock_check = check_sale(restaurant, warehouse, components, component_uom)
     entry = _new_stock_entry(
         "Material Issue",
         company,
@@ -216,6 +223,10 @@ def consume_order_stock(order_name):
     )
     if _has_field("Stock Entry", ORDER_REF_FIELD):
         entry.set(ORDER_REF_FIELD, order.name)
+    if _has_field('Stock Entry', 'luuv_stock_policy_snapshot'):
+        entry.luuv_stock_policy_snapshot = frappe.as_json(stock_check)
+    elif stock_check['warnings']:
+        frappe.throw(_('Install stock policy history before allowing negative stock'))
     if branch.cost_center(restaurant):
         entry.cost_center = branch.cost_center(restaurant)
     for item_code, qty in sorted(components.items()):
@@ -230,7 +241,7 @@ def consume_order_stock(order_name):
                 "cost_center": branch.cost_center(restaurant),
             },
         )
-    _submit(entry)
+    entry = _submit(entry, allow_negative_stock=bool(stock_check['warnings']))
 
     menu_units = 0
     for line, delta in configured:
@@ -249,6 +260,7 @@ def consume_order_stock(order_name):
             "warehouse": warehouse,
             "boms": sorted(used_boms),
             "missing_bom": sorted(set(missing)),
+            "stock_policy": stock_check,
         },
     )
     return {
@@ -256,6 +268,7 @@ def consume_order_stock(order_name):
         "consumed": menu_units,
         "missing_bom": sorted(set(missing)),
         "configured": True,
+        "stock_warnings": stock_check['warnings'],
     }
 
 
@@ -314,6 +327,13 @@ def receive_purchase_stock(purchase_bill):
             return {"entry": existing, "received": 0, "configured": True}
 
     restaurant, warehouse, company = _stock_context(doc)
+    # A partial incoming receipt must also be able to reduce an existing
+    # negative balance. It can never authorize an outgoing stock movement.
+    from luuvcrm.api.branch_stock_policy import balance
+    incoming_negative = False
+    for code in sorted({line.item for line, _uom, _conversion in stock_lines}):
+        if balance(code, warehouse) < 0:
+            incoming_negative = True
     entry = _new_stock_entry(
         "Material Receipt",
         company,
@@ -344,7 +364,7 @@ def receive_purchase_stock(purchase_bill):
             },
         )
         total_qty += flt(line.qty) * conversion
-    _submit(entry)
+    entry = _submit(entry, allow_negative_stock=incoming_negative)
     if _has_field("Purchase Bill", "stock_entry"):
         doc.db_set("stock_entry", entry.name)
     return {"entry": entry.name, "received": total_qty, "configured": True}

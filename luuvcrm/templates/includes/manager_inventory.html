@@ -1,0 +1,302 @@
+<style>
+.mi{--accent:#ed570e;--ink:#24201c;--muted:#80776f;--line:#e8e1d9;color:var(--ink);font:14px 'DM Sans',system-ui,sans-serif}.mi *{box-sizing:border-box}.mi button,.mi input,.mi select,.mi textarea{font:inherit}.mi button{cursor:pointer}.mi button:disabled{opacity:.45;cursor:not-allowed}.mi-head{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:24px}.mi h1{font-size:30px;letter-spacing:-1px;margin:0 0 5px}.mi h2{font-size:18px;margin:0 0 6px}.mi p{color:var(--muted);line-height:1.6;margin:4px 0}.mi-tabs{display:flex;gap:5px;border-bottom:1px solid var(--line);margin-bottom:24px}.mi-tabs button{padding:13px 19px;border:0;border-bottom:3px solid transparent;background:none;color:var(--muted);font-weight:700}.mi-tabs button.active{border-color:var(--accent);color:var(--accent)}.mi-btn{border:1px solid var(--line);border-radius:10px;background:white;padding:10px 15px;color:var(--ink);font-weight:650}.mi-primary{background:var(--accent);border-color:var(--accent);color:white}.mi-card{background:white;border:1px solid var(--line);border-radius:16px;padding:21px}.mi-note{border-radius:10px;padding:12px 15px;background:#fff4e9;color:#8a4a1d;line-height:1.6;margin:14px 0}.mi-error{color:#a42e23;background:#ffefed;border-radius:10px;padding:12px 15px;margin:12px 0;white-space:pre-wrap}.mi-grid{display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px}.mi-menu{display:flex;flex-direction:column;gap:7px;max-height:650px;overflow:auto}.mi-menu button{text-align:left;padding:14px;border:1px solid var(--line);border-radius:10px;background:white;line-height:1.5}.mi-menu button.active{border-color:var(--accent);background:#fff5ed}.mi-menu small{display:block;color:var(--muted);margin-top:3px}.mi-pill{display:inline-block;border-radius:30px;padding:4px 9px;font-size:11px;font-weight:750;letter-spacing:.03em;background:#f3eee8;color:#75685c}.mi-pill.green{background:#eaf5ed;color:#27714b}.mi-fields{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mi input,.mi select,.mi textarea{border:1px solid #dcd3ca;border-radius:9px;padding:10px 12px;background:white;color:var(--ink);min-width:0}.mi input:focus,.mi select:focus,.mi textarea:focus{outline:2px solid #f7c7a9;outline-offset:1px}.mi-search{width:100%;margin-bottom:14px}.mi-table-wrap{overflow-x:auto}.mi table{width:100%;border-collapse:collapse}.mi th{text-align:left;color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:650;padding:12px 10px;border-bottom:1px solid var(--line)}.mi td{padding:15px 10px;border-bottom:1px solid #f0ebe5}.mi td.num{text-align:right;font-variant-numeric:tabular-nums;font-size:17px;font-weight:700}.mi td small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:4px}.mi-recipe-row{display:grid;grid-template-columns:minmax(130px,1fr) 95px 35px 32px;gap:8px;align-items:center;margin:10px 0}.mi-recipe-row button{border:0;background:none;color:#9c4a39;font-size:22px}.mi-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:22px}.mi-history{display:flex;flex-direction:column;gap:12px}.mi-history article{border:1px solid var(--line);border-radius:12px;padding:16px}.mi-history strong{display:block}.mi-history small{color:var(--muted)}.mi-dialog{max-width:540px;width:calc(100% - 30px);max-height:90vh;border:1px solid var(--line);border-radius:18px;padding:25px;box-shadow:0 20px 80px #0003;overflow:auto}.mi-dialog::backdrop{background:#1b17156b}.mi-dialog label{display:block;color:var(--muted);font-size:12px;margin:16px 0 6px}.mi-dialog input,.mi-dialog textarea{width:100%}.mi-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.mi-summary div{background:#f7f4ef;padding:12px;border-radius:9px}.mi-summary strong{display:block;font-size:20px;margin-top:5px}.mi-empty{text-align:center;padding:45px 20px;color:var(--muted)}.mi-status{font-size:12px;color:var(--muted)}
+@media(max-width:700px){.mi-grid{grid-template-columns:1fr}.mi-menu{max-height:200px}.mi-card{padding:15px}.mi-head{align-items:flex-start}.mi h1{font-size:26px}.mi-recipe-row{grid-template-columns:minmax(95px,1fr) 70px 24px 24px;gap:5px}.mi-tabs button{padding:12px}.mi td,.mi th{padding:12px 6px}.mi td.num{font-size:15px}.mi-summary{gap:5px}.mi-summary div{padding:9px}.mi-summary strong{font-size:17px}}
+.mi-stock-tools{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px}.mi-stock-tools input{flex:1;max-width:360px;margin:0}.mi-view{display:flex;gap:3px;padding:4px;background:#eee9e2;border-radius:11px}.mi-view button{border:0;background:none;border-radius:8px;padding:8px 13px;color:var(--muted);font-weight:650}.mi-view button.active{background:#fff;box-shadow:0 2px 4px #3825140c;color:var(--ink)}.mi-stock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.mi-stock-card{--stock-color:#c99132;--stock-tint:#faf3e5;border:1px solid var(--line);border-radius:18px;background:#fff;overflow:hidden;position:relative}.mi-stock-card.low{border-color:#efb2aa}.mi-stock-top{padding:19px 20px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.mi-stock-top h3{font-size:16px;line-height:1.35;margin:4px 0 0;min-height:43px;letter-spacing:-.2px}.mi-stock-category{font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}.mi-stock-badge{white-space:nowrap;color:#a9362d;background:#fcece8;padding:5px 8px;border-radius:6px;font-size:10px;font-weight:750}.mi-stock-art{height:154px;background:radial-gradient(ellipse at 50% 65%,var(--stock-tint),#fff 70%);display:flex;align-items:center;justify-content:center}.mi-stock-art svg{height:150px;width:240px;max-width:95%;overflow:visible}.mi-stock-amount{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 20px 12px}.mi-stock-amount strong{font-size:30px;font-weight:750;letter-spacing:-1px;font-variant-numeric:tabular-nums}.mi-stock-amount span{font-size:14px;color:var(--muted);margin-left:4px}.mi-stock-amount small{display:block;font-size:10px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;margin-top:2px}.mi-stock-minimum{border:0;background:#fff3f1!important;color:#b73e34!important;border-radius:8px;padding:8px 10px!important;font-size:12px!important;white-space:nowrap;cursor:pointer}.mi-stock-meter{height:5px;margin:0 20px;background:#f0ebe5;border-radius:10px;position:relative}.mi-stock-meter>span{display:block;height:100%;background:var(--stock-color);border-radius:10px}.mi-stock-meter>i{position:absolute;top:-3px;height:11px;width:2px;background:#c93d32}.mi-stock-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:13px 20px 17px}.mi-stock-foot small{font-size:10px;color:var(--muted);line-height:1.4}.mi-stock-foot .mi-btn{padding:7px 13px;font-size:12px}.mi-attention{border:1px solid #ecc1b9;background:#fff5f2;color:#ac3b30;padding:9px 13px;border-radius:10px;font-size:12px}.mi-attention.active{background:#a83c31;color:#fff;border-color:#a83c31}.mi-stock-intro{margin-bottom:23px;display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}.mi-stock-intro h2{font-size:21px;letter-spacing:-.4px}.mi-audit-short{max-width:440px}.mi-audit-current{background:#f6f2ec;border-radius:12px;padding:14px 17px;margin:18px 0;display:flex;justify-content:space-between;align-items:center}.mi-audit-current span{color:var(--muted)}.mi-count-input{display:flex;align-items:center;border:1px solid #dcd3ca;border-radius:11px;overflow:hidden}.mi-count-input input{font-size:28px;font-weight:700;border:0;padding:12px 15px}.mi-count-input span{padding-right:16px;color:var(--muted);white-space:nowrap}.mi-quick-notes{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.mi-quick-notes button{border:1px solid var(--line);background:#faf7f2;border-radius:20px;padding:6px 10px;color:var(--muted);font-size:11px}.mi-count-difference{font-size:12px;min-height:20px;margin:8px 0;color:var(--muted)}.mi-success{padding:12px 16px;background:#eaf5ed;color:#27714b;border-radius:10px;margin:0 0 16px}
+@media(max-width:900px){.mi-stock-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.mi-stock-grid{gap:10px}.mi-stock-top{padding:14px 12px 0;display:block}.mi-stock-top h3{font-size:14px;min-height:38px}.mi-stock-badge{display:inline-block;margin:5px 0 -3px}.mi-stock-art{height:122px}.mi-stock-art svg{height:122px}.mi-stock-amount{padding:0 12px 11px;display:block}.mi-stock-amount strong{font-size:27px}.mi-stock-amount small{display:none}.mi-stock-minimum{margin-top:9px;font-size:11px!important;padding:6px 8px!important}.mi-stock-meter{margin:0 12px}.mi-stock-foot{padding:11px 12px;align-items:flex-end}.mi-stock-foot small{font-size:9px;max-width:62px}.mi-stock-foot .mi-btn{padding:7px 10px}.mi-stock-tools{gap:10px}.mi-stock-tools input{max-width:none;flex-basis:100%}.mi-stock-intro h2{font-size:20px}}
+.mi-live-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:650;color:#9c6e29;white-space:nowrap}.mi-live-status:before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}.mi-live-status.connected{color:#278253}.mi-order-summary{border:1px solid #ecc1b9;background:#fff6f2;border-radius:15px;padding:18px 20px;margin-bottom:24px}.mi-order-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:13px}.mi-order-head h2{color:#a8372d;font-size:18px;margin:0}.mi-order-head span{font-size:12px;color:#ab5f51}.mi-order-items{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.mi-order-item{background:#fff;border:1px solid #f1d9d2;border-radius:10px;padding:12px;min-width:0}.mi-order-item strong{display:block;font-size:13px;margin-bottom:7px}.mi-order-item p{font-size:11px;margin:0;line-height:1.6}.mi-order-item b{display:block;color:#b23b30;font-size:12px;margin-top:6px;font-weight:650}.mi-order-clear{background:#f2f8f0;border-color:#dcebd6;color:#407940}.mi-order-clear .mi-order-head{margin:0}.mi-order-clear .mi-order-head h2{color:#407940}.mi-stock-art{position:relative}.mi-stock-delta{position:absolute;right:16px;top:8px;font-size:12px;font-weight:750;padding:5px 8px;border-radius:7px;background:#ffebe5;color:#b24132;z-index:1}.mi-stock-delta.increase{color:#27784a;background:#e8f5e9}.mi-stock-card.changed{animation:miStockFlash 1.3s ease-out}.mi-stock-meter>span{transition:width .35s ease}.mi-graph-header{display:none}.mi-graphs-only>.mi-head,.mi-graphs-only>.mi-tabs,.mi-graphs-only .mi-stock-intro,.mi-graphs-only #miOrderSummary,.mi-graphs-only #miStockSearch,.mi-graphs-only #miLowFilter,.mi-graphs-only .mi-stock-category{display:none}.mi-graphs-only .mi-graph-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}.mi-graphs-only .mi-graph-header h2{font-size:25px;margin:0}.mi-graphs-only .mi-stock-tools{justify-content:flex-end}.mi-graphs-only .mi-stock-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.mi-graphs-only .mi-stock-top{min-height:64px;padding:16px 16px 0}.mi-graphs-only .mi-stock-top h3{font-size:14px;min-height:36px}.mi-graphs-only .mi-stock-minimum{cursor:default;display:inline-block}.mi-graphs-only .mi-stock-amount{padding:0 16px 12px}.mi-graphs-only .mi-stock-foot{padding:10px 16px}.mi-graphs-only .mi-stock-amount strong{font-size:27px}@keyframes miStockFlash{from{box-shadow:0 0 0 3px #ef9a6277}to{box-shadow:0 0 0 0 #ef9a6200}}@media(prefers-reduced-motion:reduce){.mi-stock-card.changed{animation:none}.mi-stock-meter>span{transition:none}}@media(max-width:1000px){.mi-order-items{grid-template-columns:repeat(2,minmax(0,1fr))}.mi-graphs-only .mi-stock-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:700px){.mi-graphs-only .mi-stock-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mi-order-summary{padding:15px}.mi-order-head{align-items:flex-start}.mi-order-head span{max-width:120px;text-align:right}.mi-order-item{padding:10px}.mi-order-item strong{font-size:12px}.mi-graphs-only .mi-graph-header h2{font-size:21px}.mi-stock-tools .mi-view{flex-wrap:wrap}.mi-stock-delta{font-size:10px;right:8px;top:2px}}
+</style>
+<style>
+.mi-prep-usage{padding:12px 0;border-top:1px solid var(--line);margin-top:16px}.mi-prep-usage p{display:flex;justify-content:space-between;gap:12px;font-size:13px}.mi-prep-usage strong{white-space:nowrap;color:var(--ink)}.mi-prep-help{font-size:12px;margin-top:10px!important}.mi #miVersion{max-width:100%}.mi-history details{margin-top:8px;color:var(--muted);font-size:12px}.mi-history summary{cursor:pointer}
+</style>
+<script>
+window.LFInventory=(()=>{
+  const base='/api/method/luuvcrm.api.manager_inventory.';
+  const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const num=n=>Number(n||0).toLocaleString('en',{maximumFractionDigits:4});
+  let root,data,current,mode='stock',dirty=false,busy=false,loading=false,selected='',error='';
+  let policyDraft=null,policyBranch='',policyDirty=false,ruleSearch='';
+  const requestedView=new URLSearchParams(location.search).get('view');
+  let stockView=['piles','list','graphs'].includes(requestedView)?requestedView:'piles',stockSearch='',onlyLow=false;
+  let stream=null,streamUrl='',connected=false,pendingRefresh=false,lastSnapshot=0,changeTimer,reconnectTimer;
+  let changes=new Map();
+  async function call(method,payload={}){
+    const token=document.querySelector('meta[name="csrf-token"]')?.content||'';
+    const response=await fetch(base+method,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Frappe-CSRF-Token':token},body:new URLSearchParams(payload)});
+    const body=await response.json();
+    if(!response.ok||body.exc||body.error){let msg=body.error||'Request failed';try{msg=JSON.parse(JSON.parse(body._server_messages)[0]).message}catch(e){}throw Error(msg.replace(/<[^>]*>/g,''));}
+    return body.message;
+  }
+  function init(){
+    if(root)return;
+    root=document.getElementById('tabInventory');root.classList.add('mi');
+    root.innerHTML='<div class="mi-head"><div><h1>Inventory</h1><p id="miBranch">Branch stock & recipes</p></div><div class="mi-fields"><span class="mi-live-status" data-live-status>Connecting</span><button class="mi-btn" id="miRefresh">↻ Refresh</button></div></div><div class="mi-tabs"><button data-mode="stock">Stock on hand</button><button data-mode="recipes">Recipes</button><button data-mode="audits">Audit history</button><button data-mode="rules">Stock rules</button></div><div id="miError"></div><div id="miContent"></div><p class="mi-status" id="miUpdated"></p>';
+    root.querySelector('#miRefresh').onclick=()=>load();
+    root.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;render()});
+    const dialog=document.createElement('dialog');dialog.id='miAudit';dialog.className='mi mi-dialog';document.body.appendChild(dialog);
+    // Push updates are primary. Refresh only for reconnect fallback or a
+    // periodic reconciliation; a missed event must never leave stale stock.
+    setInterval(()=>{if(!document.hidden&&root.offsetParent!==null&&(!connected||Date.now()-lastSnapshot>60000))load(true)},5000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden&&root.offsetParent!==null)load(true)});
+    window.addEventListener('online',()=>{connectStream(data?.realtime);load(true)});
+    window.addEventListener('offline',()=>{clearTimeout(reconnectTimer);stream?.close();stream=null;streamUrl='';setLive(false)});
+    window.addEventListener('pagehide',()=>{clearTimeout(reconnectTimer);stream?.close();stream=null;streamUrl='';setLive(false)});
+    window.addEventListener('pageshow',()=>{if(root&&data)connectStream(data.realtime)});
+    window.addEventListener('beforeunload',e=>{if(dirty||policyDirty){e.preventDefault();e.returnValue=''}});
+  }
+  async function load(quiet=false){
+    init();if(loading){pendingRefresh=true;return}loading=true;
+    try{
+      const next=await call('dashboard'),previous=data?.restaurant===next.restaurant?new Map(data.stock.map(r=>[r.item,Number(r.balance)])):new Map();
+      let changed=false;
+      for(const r of next.stock){if(previous.has(r.item)){const delta=Math.round((Number(r.balance)-previous.get(r.item))*1e6)/1e6;if(delta){changes.set(r.item,{delta,until:Date.now()+4500});changed=true}}}
+      if(changed){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{changes.clear();if(mode==='stock'&&root.querySelector('#miStockRows'))stockRows()},4600)}
+      data=next;error='';lastSnapshot=Date.now();
+      if(quiet&&mode==='stock'&&root.querySelector('#miStockRows')){stockRows();showError()}else if(!quiet||!['recipes','rules'].includes(mode))render();
+      connectStream(data.realtime);liveStatus();
+      root.querySelector('#miBranch').textContent=data.restaurant+' · '+data.warehouse;
+      root.querySelector('#miUpdated').textContent='Updated '+new Date().toLocaleTimeString()+(connected?' · changes appear instantly':' · reconnecting; stock is checked automatically');
+    }
+    catch(e){error=e.message;showError();if(stream?.readyState!==EventSource.OPEN)setLive(false)}finally{loading=false;if(pendingRefresh){pendingRefresh=false;queueMicrotask(()=>load(true))}}
+  }
+  function liveStatus(){root?.querySelectorAll('[data-live-status]').forEach(s=>{s.classList.toggle('connected',connected);s.textContent=connected?'Live':data&&!data.realtime?'Auto-refresh · 5s':'Reconnecting'})}
+  function setLive(value){connected=value;liveStatus()}
+  function connectStream(config){
+    if(config?.transport!=='sse'||!window.EventSource||!navigator.onLine)return;
+    const url=new URL(config.url,location.origin);if(url.origin!==location.origin)return;
+    if(stream&&streamUrl===url.href&&stream.readyState!==EventSource.CLOSED)return;
+    stream?.close();streamUrl=url.href;stream=new EventSource(url.href);
+    stream.addEventListener('ready',()=>{clearTimeout(reconnectTimer);setLive(true);load(true)});
+    stream.addEventListener('stock',()=>{setLive(true);load(true)});
+    stream.onerror=()=>{setLive(false);clearTimeout(reconnectTimer);reconnectTimer=setTimeout(()=>{if(!connected&&navigator.onLine){stream?.close();stream=null;streamUrl='';connectStream(data?.realtime)}},1500)};
+  }
+  function showError(){root.querySelector('#miError').innerHTML=error?'<div class="mi-error">'+escape(error)+'</div>':''}
+  function render(){
+    root.classList.toggle('mi-graphs-only',mode==='stock'&&stockView==='graphs');
+    root.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));showError();
+    if(!data)return;const content=root.querySelector('#miContent');
+    if(mode==='stock'){
+      content.innerHTML='<div class="mi-graph-header"><h2>'+escape(data.restaurant)+' · Stock</h2><span class="mi-live-status" data-live-status>Connecting</span></div><section id="miOrderSummary"></section><div class="mi-stock-intro"><div><h2>Your stock, at a glance</h2><p>Live quantities in each item’s defined unit. Red means at or below MOQ.</p></div><button class="mi-btn mi-primary" id="miNewIngredient">+ New ingredient</button></div><div class="mi-stock-tools"><input id="miStockSearch" placeholder="Search stock…" aria-label="Search ingredients"><button class="mi-attention" id="miLowFilter"></button><div class="mi-view" aria-label="Stock view"><button data-view="piles">▦ Piles</button><button data-view="list">☷ List</button><button data-view="graphs">◫ Graphs only</button></div></div><div id="miStockRows"></div>';
+      const input=content.querySelector('#miStockSearch');input.value=stockSearch;input.oninput=()=>{stockSearch=input.value;stockRows()};
+      content.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{stockView=b.dataset.view;const url=new URL(location.href);url.searchParams.set('view',stockView);history.replaceState(null,'',url);if(stockView==='graphs'){stockSearch='';onlyLow=false;input.value=''}stockRows()});
+      content.querySelector('#miLowFilter').onclick=()=>{onlyLow=!onlyLow;stockRows()};content.querySelector('#miNewIngredient').onclick=()=>openNewIngredient(false);stockRows();
+    }else if(mode==='recipes'){
+      content.innerHTML='<div class="mi-grid"><div>'+(data.preparation_recipes?'<button class="mi-btn" id="miNewPrepared" style="width:100%;margin-bottom:12px">+ Prepared item recipe</button>':'')+'<input id="miMenuSearch" class="mi-search" placeholder="Search recipes…" aria-label="Search menu items"><div class="mi-menu" id="miMenu"></div></div><div class="mi-card" id="miEditor"><div class="mi-empty">Select an item to view its recipe.</div></div></div>';
+      content.querySelector('#miMenuSearch').oninput=menuRows;menuRows();if(current)editor();
+      if(data.preparation_recipes)content.querySelector('#miNewPrepared').onclick=openNewPrepared;
+    }else if(mode==='rules'){rules();
+    }else{
+      content.innerHTML='<div class="mi-card"><h2>Stock count corrections</h2><p>Each correction is a new record. Past sales and stock movements stay unchanged.</p><div class="mi-history" style="margin-top:20px">'+(data.audits.length?data.audits.map(a=>{const d=a.details;return '<article><div class="mi-fields" style="justify-content:space-between"><strong>'+escape(d.name)+'</strong><span class="mi-pill">'+(d.difference>0?'+':'')+num(d.difference)+' '+escape(d.uom)+'</span></div><p>'+num(d.before)+' → '+num(d.counted)+' '+escape(d.uom)+'</p><p style="color:var(--ink)">'+escape(d.comment)+'</p><small>'+escape(a.owner)+' · '+escape(a.creation)+' · '+escape(a.name)+'</small></article>'}).join(''):'<div class="mi-empty">No corrections recorded yet.</div>')+'</div></div>';
+    }
+  }
+  function stockRows(){
+    const q=stockSearch.toLowerCase(),isLow=r=>Number(r.balance)<0||(Number(r.minimum_qty)>0&&Number(r.balance)<=Number(r.minimum_qty));
+    const list=data.stock.filter(r=>(r.name+' '+r.item).toLowerCase().includes(q)&&(!onlyLow||isLow(r)));
+    const lowItems=data.stock.filter(isLow).sort((a,b)=>(Number(a.balance)/Math.max(a.minimum_qty,1))-(Number(b.balance)/Math.max(b.minimum_qty,1)));
+    root.classList.toggle('mi-graphs-only',stockView==='graphs');liveStatus();
+    const summary=root.querySelector('#miOrderSummary');summary.className='mi-order-summary'+(lowItems.length?'':' mi-order-clear');
+    summary.innerHTML='<div class="mi-order-head"><h2>'+ (lowItems.length?(lowItems.some(r=>r.prepared)?'To order / prepare · ':'To order · ')+lowItems.length+' items':'Stock minimums covered')+'</h2><span>'+(lowItems.length?'At or below minimum stock':'No items below the configured minimums')+'</span></div>'+(lowItems.length?'<div class="mi-order-items">'+lowItems.map(r=>{const gap=Math.max(0,Number(r.minimum_qty)-Number(r.balance));return '<article class="mi-order-item" data-reorder="'+escape(r.item)+'"><strong>'+escape(r.name)+'</strong><p>Remaining <bdi>'+num(r.balance)+' '+escape(r.stock_uom)+'</bdi> · MOQ '+num(r.minimum_qty)+' '+escape(r.stock_uom)+'</p><b>'+(r.prepared?'Prepare in branch · ':'')+(gap>0?'Short by '+num(gap)+' '+escape(r.stock_uom):'At minimum · plan '+(r.prepared?'a batch':'an order'))+'</b></article>'}).join('')+'</div>':'');
+    const negativeItems=data.stock.filter(r=>Number(r.balance)<0);
+    if(negativeItems.length)summary.insertAdjacentHTML('beforeend','<p style="color:#a52e23;margin-top:12px">'+negativeItems.length+' item(s) have negative stock. Receive stock or record a physical count. Allowed shortage sales are listed in Stock rules.</p>');
+    if(data.purchasing){
+      const purchaseUrl='/purchase2.0?inventory=1&restaurant='+encodeURIComponent(data.restaurant);
+      summary.insertAdjacentHTML('beforeend','<div style="margin-top:12px"><a class="mi-btn" style="display:inline-block;text-decoration:none" href="'+escape(purchaseUrl)+'">Open Purchasing ↗</a><p style="font-size:12px;margin-top:8px">Purchase bill → manager approval → branch stock</p></div>');
+      for(const r of lowItems){if(r.pending_qty>0){const card=[...summary.querySelectorAll('[data-reorder]')].find(e=>e.dataset.reorder===r.item);if(card)card.insertAdjacentHTML('beforeend','<p style="margin-top:6px">Awaiting approval: '+num(r.pending_qty)+' '+escape(r.stock_uom)+'</p>')}}
+    }
+    const filter=root.querySelector('#miLowFilter');filter.textContent='Needs stock · '+data.stock.filter(isLow).length;filter.classList.toggle('active',onlyLow);
+    root.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===stockView));
+    const container=root.querySelector('#miStockRows');container.className=stockView!=='list'?'mi-stock-grid':'mi-card mi-table-wrap';
+    const minimumButton=r=>stockView==='graphs'?'<span class="mi-stock-minimum">MOQ '+(Number(r.minimum_qty)>0?num(r.minimum_qty)+' '+escape(r.stock_uom):'not set')+'</span>':'<button class="mi-stock-minimum" data-minimum="'+escape(r.item)+'" aria-label="Edit MOQ for '+escape(r.name)+'">MOQ '+(Number(r.minimum_qty)>0?num(r.minimum_qty)+' '+escape(r.stock_uom):'not set')+' <span aria-hidden="true">✎</span></button>';
+    if(stockView!=='list')container.innerHTML=list.map((r,i)=>{
+      const style=stockStyle(r),minimum=Number(r.minimum_qty)||0,capacity=minimum>0?minimum*4:(r.stock_uom.toLowerCase()==='nos'?100:10),fraction=Math.max(0,Math.min(1,Number(r.balance)/capacity)),low=isLow(r),empty=Number(r.balance)<=0;
+      const change=changes.get(r.item),fresh=change&&change.until>Date.now();
+      return '<article class="mi-stock-card '+(low?'low ':'')+(fresh?'changed':'')+'" style="--stock-color:'+style.color+';--stock-tint:'+style.tint+'" data-stock="'+escape(r.item)+'"><div class="mi-stock-top"><div><span class="mi-stock-category">'+style.category+'</span><h3>'+escape(r.name)+'</h3></div>'+(low?'<span class="mi-stock-badge">'+(Number(r.balance)<0?'NEGATIVE':Number(r.balance)===minimum?'AT MOQ':'BELOW MOQ')+'</span>':empty?'<span class="mi-stock-badge">NO STOCK</span>':'')+'</div><div class="mi-stock-art">'+(fresh?'<span class="mi-stock-delta '+(change.delta>0?'increase':'')+'" role="status">'+(change.delta>0?'+':'')+num(change.delta)+' '+escape(r.stock_uom)+'</span>':'')+stockGraphic(style,fraction,i,escape(r.name+' · '+num(r.balance)+' '+r.stock_uom))+'</div><div class="mi-stock-amount"><div><strong>'+num(r.balance)+'</strong><span>'+escape(r.stock_uom)+'</span><small>remaining</small></div>'+minimumButton(r)+'</div><div class="mi-stock-meter" aria-hidden="true"><span style="width:'+(fraction*100)+'%;'+(low?'background:#c84739':'')+'"></span>'+(minimum>0?'<i style="left:'+(minimum/capacity*100)+'%"></i>':'')+'</div><div class="mi-stock-foot"><small title="Illustration scale only, not storage capacity">Full graphic: '+num(capacity)+' '+escape(r.stock_uom)+(Number(r.balance)>capacity?' · capped':'')+'</small>'+(stockView!=='graphs'?'<button class="mi-btn" data-audit="'+escape(r.item)+'">Audit</button>':'')+'</div></article>';
+    }).join('')||'<div class="mi-empty" style="grid-column:1/-1">'+(onlyLow?'No matching stock at or below MOQ.':'No matching stock items.')+'</div>';
+    else container.innerHTML='<table><thead><tr><th>Stock item</th><th style="text-align:right">Remaining</th><th>Minimum</th><th></th></tr></thead><tbody>'+list.map(r=>'<tr><td><strong>'+escape(r.name)+'</strong></td><td class="num" style="'+(isLow(r)?'color:#b73e34':'')+'">'+num(r.balance)+' <span style="font-size:12px">'+escape(r.stock_uom)+'</span></td><td>'+minimumButton(r)+'</td><td><button class="mi-btn" data-audit="'+escape(r.item)+'">Audit</button></td></tr>').join('')+'</tbody></table>';
+    root.querySelectorAll('[data-audit]').forEach(b=>b.onclick=()=>openAudit(b.dataset.audit));
+    root.querySelectorAll('[data-minimum]').forEach(b=>b.onclick=()=>openMinimum(b.dataset.minimum));
+  }
+  function stockStyle(r){
+    const n=r.name.toLowerCase(),liquid=['l','litre','liter','ml','millilitre','milliliter'].includes(r.stock_uom.toLowerCase());
+    if(liquid){if(n.includes('white'))return {kind:'liquid',color:'#e4cc90',shade:'#c1a265',tint:'#fcf7e9',category:'Sauces'};if(n.includes('hot'))return {kind:'liquid',color:'#dc6041',shade:'#b83e28',tint:'#fff0e9',category:'Sauces'};if(n.includes('oil'))return {kind:'liquid',color:'#e6ba35',shade:'#b58b20',tint:'#fff7d9',category:'Cooking'};return {kind:'liquid',color:'#e89951',shade:'#bf7034',tint:'#fff1e5',category:'Sauces'}}
+    if(n.includes('potato'))return {kind:'potato',color:'#eac16a',shade:'#bc8a36',tint:'#fff5df',category:'Prepared food'};
+    if(n.includes('chicken'))return {kind:'chicken',color:'#d99564',shade:'#ad6241',tint:'#fff0e6',category:'Prepared food'};
+    if(n.includes('salad'))return {kind:'leaf',color:'#85b670',shade:'#4b854b',tint:'#edf6e8',category:'Prepared food'};
+    if(n.includes('cheese'))return {kind:'cheese',color:'#efd797',shade:'#d3ac50',tint:'#fff9e7',category:'Dairy'};
+    if(n.includes('flour'))return {kind:'powder',color:'#e3d6bf',shade:'#baaa8b',tint:'#f7f3eb',category:'Dry ingredients'};
+    if(n.includes('cup'))return {kind:'cup',color:'#b9c8d5',shade:'#829cad',tint:'#eef4f7',category:'Packaging'};
+    if(n.includes('fork'))return {kind:'fork',color:'#cca874',shade:'#a98450',tint:'#faf3e6',category:'Packaging'};
+    if(r.stock_uom.toLowerCase()==='nos'||n.includes('box'))return {kind:'box',color:'#cb9a6d',shade:'#a7784d',tint:'#f8efe6',category:'Packaging'};
+    return {kind:'powder',color:'#c9af87',shade:'#a78a5d',tint:'#f8f2e8',category:'Ingredients'};
+  }
+  function stockGraphic(s,fraction,index,label){
+    const start='<svg viewBox="0 0 240 155" role="img" aria-label="'+label+'"><ellipse cx="120" cy="140" rx="78" ry="9" fill="'+s.shade+'" opacity=".1"/>';
+    if(s.kind==='liquid'){
+      const y=137-102*fraction,id='mi-liquid-'+index;
+      return start+'<defs><clipPath id="'+id+'"><rect x="79" y="34" width="82" height="105" rx="15"/></clipPath></defs><rect x="91" y="17" width="58" height="21" rx="5" fill="#ede8e0"/><rect x="88" y="10" width="64" height="16" rx="6" fill="'+s.shade+'"/><path d="M96 14h47" stroke="#fff" stroke-opacity=".4" stroke-width="2"/><rect x="77" y="31" width="86" height="110" rx="17" fill="#faf9f6" stroke="'+s.shade+'" stroke-opacity=".24" stroke-width="2"/><g clip-path="url(#'+id+')"><rect x="78" y="'+y+'" width="85" height="'+(140-y)+'" fill="'+s.color+'"/><ellipse cx="120" cy="'+y+'" rx="42" ry="4" fill="'+s.shade+'" opacity="'+(fraction>0?'.16':'0')+'"/></g><path d="M89 47v73" stroke="white" stroke-width="6" stroke-linecap="round" opacity=".65"/>'+[0,1,2,3,4].map(n=>'<path d="M148 '+(48+n*19)+'h8" stroke="'+s.shade+'" stroke-opacity=".35" stroke-width="2"/>').join('')+'</svg>';
+    }
+    const pieces={
+      potato:'<path d="M-13-6Q-9-13 8-9L14 0Q10 10-5 10L-13 5Z" fill="'+s.color+'" stroke="'+s.shade+'" stroke-width=".8"/><path d="M-8-5L7-4" stroke="#fff3ce" stroke-width="3" stroke-linecap="round"/>',
+      chicken:'<path d="M-12-5Q-12-11-4-10Q2-15 7-8Q16-7 12 2Q16 9 5 10Q-4 15-9 7Q-16 6-12-5Z" fill="'+s.color+'" stroke="'+s.shade+'" stroke-width=".8"/><path d="M-6-4l4-2M5 1l3 2M-4 6l2 1" stroke="'+s.shade+'" stroke-width="1.6" stroke-linecap="round"/>',
+      leaf:'<path d="M-13 7Q-17-13 2-11Q18-12 12 3Q8 14-13 7Z" fill="'+s.color+'" stroke="'+s.shade+'" stroke-width=".7"/><path d="M-10 7L8-7M-3 1L-6-6M2-3l8 2" stroke="#d8edb6" stroke-width="1.5"/>',
+      cheese:'<path d="M-12-6L4-12L14-3V10L-2 14L-12 6Z" fill="'+s.color+'" stroke="'+s.shade+'" stroke-width=".7"/><path d="M-12-6L-2 1L14-3M-2 1v13" fill="none" stroke="'+s.shade+'" stroke-width=".7"/><circle cx="4" cy="6" r="2" fill="'+s.shade+'" opacity=".3"/>',
+      powder:'<path d="M-15 8Q-13 2-9 1Q-5-13 2-10Q10-11 13 3L16 9Z" fill="'+s.color+'" stroke="'+s.shade+'" stroke-opacity=".3"/><path d="M-5-1Q0-7 4-3" fill="none" stroke="#fffaf1" stroke-width="3" stroke-linecap="round"/>',
+      box:'<path d="M-13-7L1-12L14-6V8L0 13L-13 7Z" fill="'+s.color+'" stroke="'+s.shade+'" stroke-width="1"/><path d="M-13-7L0-1L14-6M0-1v14M-6-9L7-4" fill="none" stroke="'+s.shade+'"/><path d="M-5-9L8-4V0L-5-5Z" fill="#edcf99"/>',
+      cup:'<path d="M-11-8L-8 10Q0 15 8 10L11-8Z" fill="'+s.color+'" stroke="'+s.shade+'" stroke-width=".7"/><ellipse cy="-8" rx="11" ry="4" fill="#eef4f7" stroke="'+s.shade+'" stroke-width=".7"/><path d="M-6-2l2 10" stroke="white" opacity=".6" stroke-width="2"/>',
+      fork:'<path d="M-5-12v10Q-5 3 0 3Q5 3 5-2v-10M0-12v13M0 3v14" fill="none" stroke="'+s.color+'" stroke-width="3.5" stroke-linecap="round"/>'
+    };
+    let used=0,art='';[7,6,5,4,3].forEach((count,row)=>{for(let col=0;col<count;col++){
+      const amount=Math.max(0,Math.min(1,fraction*25-used)),x=120+(col-(count-1)/2)*21,y=124-row*19,angle=((col*17+row*13)%31)-15;
+      art+='<g transform="translate('+x+' '+y+') rotate('+angle+')" opacity="'+(amount>0?.25+.75*amount:.075)+'">'+pieces[s.kind]+'</g>';used++;
+    }});
+    return start+art+'</svg>';
+  }
+  function openMinimum(item){
+    const r=data.stock.find(x=>x.item===item),d=document.getElementById('miAudit');d.className='mi mi-dialog mi-audit-short';
+    d.innerHTML='<h2>Minimum stock level</h2><p>'+escape(r.name)+'</p><div class="mi-note">This item turns red when stock reaches or drops below this quantity.</div><label for="miMinimum">MOQ ('+escape(r.stock_uom)+')</label><div class="mi-count-input"><input id="miMinimum" type="number" min="0" step="'+(r.stock_uom.toLowerCase()==='nos'?'1':'any')+'" value="'+Number(r.minimum_qty||0)+'"><span>'+escape(r.stock_uom)+'</span></div><p style="font-size:12px">Use 0 to leave the minimum unset.</p><div id="miAuditError"></div><div class="mi-actions"><button class="mi-btn" id="miAuditCancel">Cancel</button><button class="mi-btn mi-primary" id="miMinimumSave">Save minimum</button></div>';
+    d.querySelector('#miAuditCancel').onclick=()=>d.close();d.querySelector('#miMinimumSave').onclick=async()=>{
+      const b=d.querySelector('#miMinimumSave');if(b.disabled)return;b.disabled=true;
+      try{await call('set_minimum',{item_code:item,minimum_qty:d.querySelector('#miMinimum').value});d.close();await load()}catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{b.disabled=false}
+    };d.showModal();d.querySelector('#miMinimum').focus();
+  }
+  function openNewIngredient(fromRecipe){
+    const d=document.getElementById('miAudit');d.className='mi mi-dialog mi-audit-short';
+    const favorites=['Kg','L','Litre','nos','Nos','g','Gram','ml','Millilitre'];
+    const units=[...(data.uoms||[])].sort((a,b)=>{const x=favorites.indexOf(a),y=favorites.indexOf(b);return (x<0?100:x)-(y<0?100:y)||a.localeCompare(b)});
+    d.innerHTML='<h2>New ingredient</h2><p>Add it once, then use it in your recipes.</p><label for="miIngredientName">Ingredient name</label><input id="miIngredientName" maxlength="80" placeholder="e.g. Garlic mayo"><label for="miIngredientUnit">Stock unit</label><select id="miIngredientUnit" style="width:100%">'+units.map(u=>'<option value="'+escape(u)+'">'+escape(u)+'</option>').join('')+'</select><label for="miIngredientMinimum" style="color:#b73e34">MOQ · minimum stock level</label><input id="miIngredientMinimum" type="number" min="0" step="any" value="0"><p style="font-size:12px">Starts with 0 stock. Use Audit to enter the first count.</p><div id="miAuditError"></div><div class="mi-actions"><button class="mi-btn" id="miAuditCancel">Cancel</button><button class="mi-btn mi-primary" id="miIngredientCreate">Create ingredient</button></div>';
+    const unit=d.querySelector('#miIngredientUnit'),minimum=d.querySelector('#miIngredientMinimum');unit.onchange=()=>{minimum.step=unit.value.toLowerCase()==='nos'?'1':'any'};
+    d.querySelector('#miAuditCancel').onclick=()=>d.close();d.querySelector('#miIngredientCreate').onclick=async()=>{
+      const button=d.querySelector('#miIngredientCreate');if(button.disabled)return;button.disabled=true;
+      try{
+        const created=await call('create_ingredient',{item_name:d.querySelector('#miIngredientName').value,uom:unit.value,minimum_qty:minimum.value});
+        if(fromRecipe==='prepared'){
+          current=await call('create_prepared_recipe',{item_code:created.item});selected=created.item;dirty=false;data=await call('dashboard');mode='recipes';render();
+        }else if(fromRecipe){
+          const refreshed=await call('recipe',{item_code:selected});current.catalog=refreshed.catalog;
+          const ingredient=current.catalog.find(x=>x.item===created.item);current.ingredients.push({item:created.item,name:created.name,qty:0,uom:ingredient.uom});
+          dirty=true;data=await call('dashboard');editor();setDirty();menuRows();
+        }else{onlyLow=false;stockSearch='';await load()}
+        d.close();
+      }catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{button.disabled=false}
+    };d.showModal();d.querySelector('#miIngredientName').focus();
+  }
+  function menuRows(){
+    const q=root.querySelector('#miMenuSearch').value.toLowerCase();root.querySelector('#miMenu').innerHTML=data.menu.filter(m=>m.item_name.toLowerCase().includes(q)).map(m=>'<button class="'+(selected===m.name?'active':'')+'" data-item="'+escape(m.name)+'"><strong>'+escape(m.item_name)+'</strong><small>'+(data.preparation_recipes?(m.kind==='prepared'?'Prepared item':'Menu item')+' · ':'')+escape(m.recipe_status)+'</small></button>').join('');
+    root.querySelectorAll('[data-item]').forEach(b=>b.onclick=()=>openRecipe(b.dataset.item));
+  }
+  function openNewPrepared(){
+    if(dirty&&!confirm('Discard the unsaved recipe changes?'))return;
+    const d=document.getElementById('miAudit');d.className='mi mi-dialog';
+    const available=data.stock.filter(s=>!data.menu.some(m=>m.name===s.item));
+    d.innerHTML='<h2>Prepared item recipe</h2><p>Choose the finished item you make in this branch. Its stock can be used in other recipes.</p><label for="miPreparedItem">Finished stock item</label><select id="miPreparedItem" style="width:100%"><option value="">Choose stock item</option>'+available.map(s=>'<option value="'+escape(s.item)+'">'+escape(s.name)+' · '+escape(s.stock_uom)+'</option>').join('')+'</select><p class="mi-prep-help">Prepared salad already has a place in your recipe list.</p><div id="miAuditError"></div><div class="mi-actions"><button class="mi-btn" id="miAuditCancel">Cancel</button><button class="mi-btn" id="miNewFinished">+ New finished item</button><button class="mi-btn mi-primary" id="miCreatePrepared">Add recipe</button></div>';
+    d.querySelector('#miAuditCancel').onclick=()=>d.close();
+    d.querySelector('#miNewFinished').onclick=()=>{d.close();openNewIngredient('prepared')};
+    d.querySelector('#miCreatePrepared').onclick=async()=>{
+      const button=d.querySelector('#miCreatePrepared');if(button.disabled)return;button.disabled=true;
+      try{current=await call('create_prepared_recipe',{item_code:d.querySelector('#miPreparedItem').value});selected=current.item;dirty=false;data=await call('dashboard');d.close();render()}catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{button.disabled=false}
+    };d.showModal();
+  }
+  function batchHistory(){
+    root.querySelector('#miBatches').innerHTML='<h2>Completed batches</h2>'+((current.batches||[]).map(b=>{
+      const d=b.details;return '<article><div class="mi-fields" style="justify-content:space-between"><strong>'+escape(b.name)+'</strong><span class="mi-pill green">+'+num(d.received_qty)+' '+escape(d.stock_uom)+'</span></div><p>'+num(d.planned_qty)+' '+escape(d.output_uom)+' recipe → '+num(d.actual_qty)+' '+escape(d.output_uom)+' finished</p>'+(d.comment?'<p>'+escape(d.comment)+'</p>':'')+'<small>'+escape(d.owner)+' · '+escape(new Date(b.creation).toLocaleString())+'</small><details><summary>Saved recipe & stock usage</summary><p>'+escape(d.recipe)+'</p>'+d.ingredients.map(i=>'<p>'+escape(i.name)+' · '+num(i.qty)+' '+escape(i.uom)+' used</p>').join('')+'<p>Finished stock: '+num(d.before)+' → '+num(d.after)+' '+escape(d.stock_uom)+'</p></details></article>';
+    }).join('')||'<p>No batches completed yet.</p>');
+  }
+  function openBatch(){
+    if(dirty||current.status!=='Active')return;
+    const r=current,d=document.getElementById('miAudit'),requestId=crypto.randomUUID();d.className='mi mi-dialog';
+    d.innerHTML='<h2>Complete batch · '+escape(r.name)+'</h2><p>Record this after the preparation is finished.</p><label for="miBatchPlanned">Amount prepared using this recipe ('+escape(r.output_uom)+')</label><input id="miBatchPlanned" type="number" min="0.001" step="'+(r.output_uom==='nos'?'1':'any')+'" value="'+Number(r.output_qty)+'"><div class="mi-prep-usage" id="miBatchUsage"></div><label for="miBatchActual">Finished quantity to add to stock ('+escape(r.output_uom)+')</label><input id="miBatchActual" type="number" min="0.001" step="'+(r.output_uom==='nos'?'1':'any')+'" value="'+Number(r.output_qty)+'"><p class="mi-prep-help">If the finished yield differs, enter the measured quantity. Ingredients follow the recipe amount above.</p><label for="miBatchComment">Batch note · required if the yield differs</label><textarea id="miBatchComment" rows="2" maxlength="1000" placeholder="e.g. Less salad after trimming"></textarea><div id="miAuditError"></div><div class="mi-actions"><button class="mi-btn" id="miAuditCancel">Cancel</button><button class="mi-btn mi-primary" id="miBatchComplete">Complete batch</button></div>';
+    let actualEdited=false;
+    const planned=d.querySelector('#miBatchPlanned'),actual=d.querySelector('#miBatchActual');
+    const preview=()=>{const scale=Number(planned.value)/Number(r.output_qty);d.querySelector('#miBatchUsage').innerHTML='<p><b>Ingredients to use</b></p>'+r.ingredients.map(i=>'<p><span>'+escape(i.name)+'</span><strong>'+num(Number(i.qty)*scale)+' '+escape(i.uom)+'</strong></p>').join('')};
+    planned.oninput=()=>{if(!actualEdited)actual.value=planned.value;preview()};actual.oninput=()=>{actualEdited=true};preview();
+    d.querySelector('#miAuditCancel').onclick=()=>d.close();
+    d.querySelector('#miBatchComplete').onclick=async()=>{
+      const button=d.querySelector('#miBatchComplete');if(button.disabled)return;button.disabled=true;
+      try{
+        const result=await call('complete_batch',{item_code:r.item,version:r.version,request_id:requestId,planned_qty:planned.value,actual_qty:actual.value,comment:d.querySelector('#miBatchComment').value});
+        current=await call('recipe',{item_code:r.item});data=await call('dashboard');d.close();editor();menuRows();
+        const notice=document.createElement('div');notice.className='mi-success';notice.setAttribute('role','status');notice.textContent='Batch completed. '+result.item_name+' +'+num(result.received_qty)+' '+result.stock_uom;root.querySelector('#miEditor').prepend(notice);
+      }catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{button.disabled=false}
+    };d.showModal();planned.focus();
+  }
+  async function openRecipe(item,version){
+    if(dirty&&!confirm('Discard the unsaved recipe changes?'))return;
+    if(busy)return;busy=true;
+    try{current=await call('recipe',{item_code:item,version:version||''});selected=item;dirty=false;error='';menuRows();editor()}catch(e){error=e.message;showError()}finally{busy=false}
+  }
+  function editor(){
+    const r=current,old=r.version!==r.latest,prepared=r.kind==='prepared';
+    root.querySelector('#miEditor').innerHTML='<div class="mi-head"><div><span class="mi-pill '+(r.status==='Active'?'green':'')+'">'+escape(old?'Historical version':r.status)+'</span><h2 style="margin-top:12px">'+escape(r.name)+'</h2><p>'+(prepared?'Make this item, then use it as an ingredient in other recipes.':'Ingredients for <strong>1 portion</strong>')+'</p></div></div>'+(prepared?'<div class="mi-fields" style="margin-bottom:16px"><label for="miOutputQty">This recipe makes</label><input id="miOutputQty" aria-label="Recipe output quantity" type="number" min="0.001" step="'+(r.output_uom==='nos'?'1':'any')+'" style="width:120px" value="'+Number(r.output_qty)+'" '+(old?'disabled':'')+'><strong>'+escape(r.output_uom)+'</strong></div>':'')+'<div class="mi-fields"><label for="miVersion">Version</label><select id="miVersion">'+(!r.version?'<option value="">New recipe</option>':'')+r.versions.map(v=>'<option value="'+escape(v.name)+'" '+(v.name===r.version?'selected':'')+'>'+escape(v.name)+' · '+(v.docstatus===1?'Published':'Draft')+'</option>').join('')+'</select></div><div class="mi-note">'+(old?'This version is read only. Select the latest version to make a new draft.':prepared?'Saving creates a new draft. Completing a batch consumes ingredients and adds finished stock. Past batches keep their saved recipe.':'Saving creates a new draft version. Activation applies to new orders; past orders and stock usage keep their original recipe.')+'</div><div id="miIngredients"></div><button class="mi-btn" id="miAdd" '+(old?'disabled':'')+'>+ Add ingredient</button> <button class="mi-btn" id="miNewRecipeIngredient" '+(old?'disabled':'')+'>+ New ingredient</button><div class="mi-actions"><span id="miDirty" style="margin-right:auto;align-self:center;color:var(--muted)"></span><button class="mi-btn" id="miSave" '+(old?'disabled':'')+'>Save new draft</button><button class="mi-btn mi-primary" id="miActivate" '+(old||r.status!=='Draft'||!r.version?'disabled':'')+'>Activate recipe</button></div><div id="miRecipeError"></div>'+(prepared?'<section style="border-top:1px solid var(--line);margin-top:24px;padding-top:20px"><div class="mi-head"><div><h2>Make a batch</h2><p>Finished stock: '+num(r.balance)+' '+escape(r.stock_uom)+'</p></div><button class="mi-btn mi-primary" id="miPrepare" '+(old||r.status!=='Active'||dirty?'disabled':'')+'>Complete batch</button></div><p>Record the batch after preparation is finished. Use '+escape(r.output_uom)+' when adding this item to another recipe.</p><div id="miBatches" class="mi-history" style="margin-top:20px"></div></section>':'');
+    root.querySelector('#miVersion').onchange=e=>openRecipe(selected,e.target.value);
+    root.querySelector('#miAdd').onclick=()=>{r.ingredients.push({item:'',qty:0,uom:''});setDirty();ingredientRows()};
+    root.querySelector('#miNewRecipeIngredient').onclick=()=>openNewIngredient(true);root.querySelector('#miSave').onclick=saveRecipe;root.querySelector('#miActivate').onclick=activateRecipe;ingredientRows();
+    if(prepared){
+      root.querySelector('#miIngredients').insertAdjacentHTML('beforebegin','<label for="miRecipeNote" style="display:block;margin-top:12px">Recipe note</label><textarea id="miRecipeNote" rows="2" maxlength="1000" style="width:100%;margin-top:6px" '+(old?'disabled':'')+'>'+escape(r.recipe_note)+'</textarea>');
+      root.querySelector('#miRecipeNote').oninput=e=>{r.recipe_note=e.target.value;setDirty()};
+      root.querySelector('#miOutputQty').oninput=e=>{r.output_qty=e.target.value;setDirty()};root.querySelector('#miPrepare').onclick=openBatch;batchHistory()
+    }
+    if(dirty)setDirty();
+  }
+  function setDirty(){dirty=true;root.querySelector('#miDirty').textContent='Unsaved changes';root.querySelector('#miActivate').disabled=true;const prepare=root.querySelector('#miPrepare');if(prepare)prepare.disabled=true}
+  function ingredientRows(){
+    const old=current.version!==current.latest;
+    root.querySelector('#miIngredients').innerHTML=current.ingredients.map((r,i)=>'<div class="mi-recipe-row"><select data-row="'+i+'" aria-label="Ingredient '+(i+1)+'" '+(old?'disabled':'')+'><option value="">Choose ingredient</option>'+current.catalog.filter(c=>c.item!==current.item).map(c=>'<option value="'+escape(c.item)+'" '+(r.item===c.item?'selected':'')+'>'+escape(c.name)+(c.prepared?' · prepared':'')+'</option>').join('')+'</select><input data-qty="'+i+'" type="number" step="any" min="0.001" value="'+r.qty+'" aria-label="Quantity '+(i+1)+'" '+(old?'disabled':'')+'><span>'+escape(r.uom)+'</span><button data-remove="'+i+'" aria-label="Remove ingredient '+(i+1)+'" '+(old?'disabled':'')+'>×</button></div>').join('');
+    root.querySelectorAll('[data-row]').forEach(e=>e.onchange=()=>{const r=current.ingredients[Number(e.dataset.row)],c=current.catalog.find(x=>x.item===e.value);r.item=e.value;r.name=c?.name;r.uom=c?.uom||'';setDirty();ingredientRows()});
+    root.querySelectorAll('[data-qty]').forEach(e=>e.oninput=()=>{current.ingredients[Number(e.dataset.qty)].qty=e.value;setDirty()});
+    root.querySelectorAll('[data-remove]').forEach(e=>e.onclick=()=>{current.ingredients.splice(Number(e.dataset.remove),1);setDirty();ingredientRows()});
+  }
+  function recipeError(message){root.querySelector('#miRecipeError').innerHTML=message?'<div class="mi-error">'+escape(message)+'</div>':''}
+  async function saveRecipe(){
+    if(busy)return;busy=true;root.querySelector('#miSave').disabled=true;
+    try{current=await call('save_recipe',{item_code:selected,ingredients:JSON.stringify(current.ingredients),expected_version:current.latest,...(current.kind==='prepared'?{output_qty:current.output_qty??1,recipe_note:current.recipe_note||''}:{})});dirty=false;data=await call('dashboard');editor();menuRows()}catch(e){recipeError(e.message)}finally{busy=false;root.querySelector('#miSave').disabled=false}
+  }
+  async function activateRecipe(){
+    if(busy||dirty||!confirm(current.kind==='prepared'?'Activate this preparation recipe? Completed batches keep their original recipe.':'Activate this recipe for new orders? Existing orders keep their original recipe.'))return;
+    busy=true;root.querySelector('#miActivate').disabled=true;
+    try{current=await call('activate_recipe',{item_code:selected,version:current.version});data=await call('dashboard');editor();menuRows()}catch(e){recipeError(e.message)}finally{busy=false;root.querySelector('#miActivate').disabled=current.status!=='Draft'||dirty}
+  }
+  function openAudit(item){
+    const r=data.stock.find(x=>x.item===item),d=document.getElementById('miAudit');
+    d.className='mi mi-dialog mi-audit-short';
+    d.innerHTML='<h2>Count stock</h2><p>'+escape(r.name)+'</p><div class="mi-audit-current"><span>In the system</span><strong>'+num(r.balance)+' '+escape(r.stock_uom)+'</strong></div><label for="miCount">How much did you count?</label><div class="mi-count-input"><input id="miCount" type="number" min="0" step="'+(r.stock_uom.toLowerCase()==='nos'?'1':'any')+'" inputmode="decimal" placeholder="'+num(r.balance)+'"><span>'+escape(r.stock_uom)+'</span></div><div class="mi-count-difference" id="miDiffSummary">The difference will appear here.</div><div id="miCostArea" hidden><label for="miCost">Unit cost · LKR per '+escape(r.stock_uom)+'</label><input id="miCost" type="number" min="0" step="any" inputmode="decimal"><p style="font-size:11px">Needed only when recording the first valued stock.</p></div><label for="miComment">Quick note</label><textarea id="miComment" rows="2" maxlength="1000" placeholder="Why is the count different?"></textarea><div class="mi-quick-notes"><button data-note="Physical stock count">Stock count</button><button data-note="Damaged or wasted stock removed">Wastage</button><button data-note="Difference found when receiving stock">Receiving difference</button></div><div id="miAuditError"></div><div class="mi-actions"><button class="mi-btn" id="miAuditCancel">Cancel</button><button class="mi-btn mi-primary" id="miAuditPost">Save count</button></div>';
+    const input=d.querySelector('#miCount');input.oninput=()=>{const delta=Number(input.value)-r.balance;d.querySelector('#miDiffSummary').textContent=input.value===''?'The difference will appear here.':delta===0?'Matches the system — no correction needed.':(delta>0?'+':'')+num(delta)+' '+r.stock_uom+' will be recorded as a correction.';d.querySelector('#miCostArea').hidden=!(Number(input.value)>0&&!(Number(r.rate)>0))};
+    d.querySelectorAll('[data-note]').forEach(b=>b.onclick=()=>{d.querySelector('#miComment').value=b.dataset.note;d.querySelector('#miComment').focus()});
+    d.querySelector('#miAuditCancel').onclick=()=>d.close();
+    d.querySelector('#miAuditPost').onclick=async()=>{
+      const button=d.querySelector('#miAuditPost');if(button.disabled)return;
+      if(input.value===''||!Number.isFinite(Number(input.value))||Number(input.value)<0){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">Enter a valid physical count.</div>';return}
+      if(d.querySelector('#miComment').value.trim().length<3){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">Add a quick note or choose a reason.</div>';d.querySelector('#miComment').focus();return}
+      button.disabled=true;
+      try{await call('correct_stock',{item_code:item,counted_qty:input.value,expected_qty:r.balance,comment:d.querySelector('#miComment').value,valuation_rate:d.querySelector('#miCost').value});d.close();await load();const notice=document.createElement('div');notice.className='mi-success';notice.textContent='Saved. '+r.name+': '+num(r.balance)+' → '+num(input.value)+' '+r.stock_uom;root.querySelector('#miContent').prepend(notice);setTimeout(()=>notice.remove(),6000)}catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{button.disabled=false}
+    };
+    d.showModal();input.focus();
+  }
+  function ruleOptions(mode,inherit=false){return (inherit?'<option value="inherit" '+(mode==='inherit'?'selected':'')+'>Use branch default</option>':'')+[['block','Block if stock is short'],['percent','Percentage tolerance'],['negative','Allow negative · no limit']].map(([value,label])=>'<option value="'+value+'" '+(mode===value?'selected':'')+'>'+label+'</option>').join('')}
+  function rules(){
+    const content=root.querySelector('#miContent');
+    if(!data.stock_policy){content.innerHTML='<div class="mi-note">Stock rules are not available on this server yet.</div>';return}
+    if(!policyDraft||policyBranch!==data.restaurant){policyDraft=JSON.parse(JSON.stringify(data.stock_policy));policyBranch=data.restaurant;policyDirty=false}
+    content.innerHTML='<div class="mi-card"><h2>POS stock rules · '+escape(policyBranch)+'</h2><p>Choose how each ingredient behaves when a sale would take its recorded stock below zero.</p><div class="mi-note">Percentage tolerance uses this order’s saved recipe quantities, including portions and ingredient changes. The <strong>resulting negative balance</strong> must stay within that percentage. Existing negative stock counts toward the limit.<br>Example: 150 g chicken × 10% = a maximum balance of −15 g. Ten portions use 1,500 g, so the same 10% allows −150 g.</div><label for="miPolicyDefault">Branch default</label><div class="mi-fields" style="margin:8px 0 14px"><select id="miPolicyDefault" aria-label="Branch default stock rule">'+ruleOptions(policyDraft.default.mode)+'</select><input id="miPolicyPercent" type="number" min="0" max="100" step="any" aria-label="Branch default tolerance percent" style="width:90px" value="'+escape(policyDraft.default.percent)+'" '+(policyDraft.default.mode==='percent'?'':'disabled')+'><span>%</span></div><p>Ingredient rules below override this default. Unlisted and new ingredients use the branch default. These rules apply when sending POS orders; preparation batches still require their raw ingredients.</p><input id="miRuleSearch" class="mi-search" style="margin-top:18px" placeholder="Find an ingredient…" aria-label="Find stock rule" value="'+escape(ruleSearch)+'"><div id="miRuleRows"></div><div class="mi-actions"><button class="mi-btn" id="miReloadRules">Reload saved rules</button><button class="mi-btn mi-primary" id="miSaveRules">Save branch rules</button></div><p id="miRulesResult" role="status"></p></div><div class="mi-card" style="margin-top:20px"><h2>Recent sales with stock warnings</h2><p>Each sale keeps the rules and quantities used when it was sent.</p><div class="mi-history" style="margin-top:15px">'+(data.shortage_sales?.length?data.shortage_sales.map(s=>'<article><strong>'+escape(s.order)+'</strong><small>'+escape(s.creation)+' · Rules version '+escape(s.policy?.revision??'')+'</small>'+s.warnings.map(w=>'<p><strong style="display:inline;color:#ad392e">'+escape(w.name)+': '+num(w.after)+' '+escape(w.uom)+'</strong> · '+(w.mode==='negative'?'Negative stock allowed':num(w.percent)+'% tolerance · minus limit '+num(w.limit)+' '+escape(w.uom))+'</p>').join('')+'</article>').join(''):'<div class="mi-empty">No sales with stock warnings recorded.</div>')+'</div></div>';
+    content.querySelector('#miPolicyDefault').onchange=e=>{policyDraft.default.mode=e.target.value;policyDirty=true;const input=content.querySelector('#miPolicyPercent');input.disabled=e.target.value!=='percent'};
+    content.querySelector('#miPolicyPercent').oninput=e=>{policyDraft.default.percent=e.target.value;policyDirty=true};
+    content.querySelector('#miRuleSearch').oninput=e=>{ruleSearch=e.target.value;ruleRows()};
+    content.querySelector('#miReloadRules').onclick=async()=>{policyDraft=null;policyDirty=false;await load()};
+    content.querySelector('#miSaveRules').onclick=async e=>{
+      const button=e.target;button.disabled=true;
+      try{const saved=await call('save_stock_policy',{restaurant:policyBranch,policy:JSON.stringify(policyDraft)});policyDraft=saved;policyDirty=false;await load(true);rules();root.querySelector('#miRulesResult').textContent='Saved for '+policyBranch+'. Earlier sales and stock balances are unchanged.'}
+      catch(err){root.querySelector('#miRulesResult').textContent=err.message}
+      finally{button.disabled=false}
+    };
+    ruleRows();
+  }
+  function ruleRows(){
+    const target=root.querySelector('#miRuleRows'),q=ruleSearch.toLowerCase();
+    const items=data.stock.filter(r=>(r.name+' '+r.item).toLowerCase().includes(q));
+    target.innerHTML=items.map(r=>{const rule=policyDraft.items[r.item],mode=rule?.mode||'inherit';return '<div class="mi-rule-row" data-rule-item="'+escape(r.item)+'"><div><strong>'+escape(r.name)+'</strong><small style="display:block;color:var(--muted);margin-top:4px">'+num(r.balance)+' '+escape(r.stock_uom)+' remaining</small></div><select data-rule-mode="'+escape(r.item)+'" aria-label="Stock rule for '+escape(r.name)+'">'+ruleOptions(mode,true)+'</select><div class="mi-fields" style="flex-wrap:nowrap"><input data-rule-percent="'+escape(r.item)+'" aria-label="Tolerance percent for '+escape(r.name)+'" type="number" min="0" max="100" step="any" style="width:80px" value="'+escape(rule?.percent||0)+'" '+(mode==='percent'?'':'disabled')+'><span>%</span></div></div>'}).join('')||'<p>No matching ingredients.</p>';
+    target.querySelectorAll('[data-rule-mode]').forEach(input=>input.onchange=()=>{const item=input.dataset.ruleMode;if(input.value==='inherit')delete policyDraft.items[item];else policyDraft.items[item]={mode:input.value,percent:policyDraft.items[item]?.percent||0};policyDirty=true;ruleRows()});
+    target.querySelectorAll('[data-rule-percent]').forEach(input=>input.oninput=()=>{policyDraft.items[input.dataset.rulePercent].percent=input.value;policyDirty=true});
+  }
+  return {load};
+})();
+</script>
+<style>.mi-rule-row{display:grid;grid-template-columns:minmax(160px,1fr) minmax(175px,1fr) 110px;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}.mi-tabs{flex-wrap:wrap}.mi-rule-row select{width:100%}@media(max-width:650px){.mi-rule-row{grid-template-columns:minmax(0,1fr) 100px;gap:9px}.mi-rule-row>div:first-child{grid-column:1/-1}}</style>
