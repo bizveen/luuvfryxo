@@ -82,13 +82,6 @@ KEYS = [
     # ── the deployment's, set in site_config.json ────────────────────────────
     Key("public_url", OPERATOR, "https://luuvgrand.com",
         "Root of the links that go out in WhatsApp. No trailing slash."),
-    Key("textlk_api_token", OPERATOR, "", secret=True,
-        about="Bearer token for Text.lk customer verification SMS. Keep it "
-              "in site_config.json; never put it in the database or git."),
-    Key("textlk_sender_id", OPERATOR, "",
-        "Approved Text.lk Sender ID used for customer verification SMS."),
-    Key("textlk_allow_demo", OPERATOR, False,
-        "1 only on a local/test site to permit TextLKDemo. Never enable it on production."),
     # ── the switch that makes a shared bench safe ────────────────────────────
     # This app can be installed on a site that is not a restaurant — on the
     # live bench it is, because that site's own DocTypes live in a module this

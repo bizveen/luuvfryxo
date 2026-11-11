@@ -1,4 +1,4 @@
-"""Customer accounts: registering, the PIN, the token, the profile, and SMS OTP.
+"""Customer accounts: registering, the PIN, the token, the profile, the WhatsApp OTP.
 
 Split out of the single 7,338-line api.py; every name here is re-exported
 from `luuvcrm.api`, so the whitelisted method paths are unchanged.
@@ -13,7 +13,7 @@ from frappe.utils import now_datetime
 from luuvcrm import settings
 from luuvcrm.api.orders import lines_by_order
 from luuvcrm.api.wa import _wa_number
-from luuvcrm.api import sms, wa
+from luuvcrm.api import wa
 
 
 # ─── Customer Account Setup ──────────────────────────────
@@ -113,11 +113,12 @@ def customer_set_pin():
     if existing:
         return {"success": False, "error": "Account already exists"}
 
-    # A new account is created only after this phone has completed the SMS OTP.
-    # Existing accounts never return to this path; they sign in with their PIN.
+    # WhatsApp confirmation: if a code was sent for this number and not yet verified,
+    # the registration can't skip it (soft gate — no OTP sent means WA is down/absent).
     cache = frappe.cache()
-    if not cache.get_value(f"sms_verified:{mobile}", expires=True):
-        return {"success": False, "error": "Confirm the verification code first"}
+    if (cache.get_value(f"wa_otp:{mobile}", expires=True)
+            and not cache.get_value(f"wa_verified:{mobile}", expires=True)):
+        return {"success": False, "error": "Confirm the WhatsApp code first"}
 
     account = frappe.get_doc({
         "doctype": "Customer Account",
@@ -129,9 +130,6 @@ def customer_set_pin():
     account.flags.ignore_permissions = True
     account.insert(ignore_permissions=True)
     frappe.db.commit()
-
-    # The confirmation is a one-time registration gate, not a reusable grant.
-    cache.delete_value(f"sms_verified:{mobile}")
 
     token = _get_or_create_customer_token(mobile)
     return {"success": True, "token": token, "name": name}
@@ -368,54 +366,34 @@ def customer_update_profile():
         frappe.db.set_value("Customer Account", acc_name, updates)
         frappe.db.commit()
     return {"success": True}
-# ─── Phone number confirmation (OTP) for /cus registration ─────
-
-
-def _send_customer_otp(mobile, code):
-    """Send the customer verification code through Text.lk SMS only."""
-    brand = settings.get("brand_name")
-    if not sms.textlk_configured():
-        return False, "sms"
-    ok = sms.send_textlk_sms(
-        _wa_number(mobile),
-        f"{code} is your {brand} verification code. Valid for 5 minutes. "
-        "Do not share this code.",
-    )
-    return ok, "sms"
+# ─── WhatsApp number confirmation (OTP) for /app registration ─────
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def sms_send_otp():
-    """Send a 4-digit code so the customer confirms the phone is really theirs.
-
-    Older installed PWAs can still use the legacy alias declared below, but
-    delivery is SMS-only.
-    """
+def wa_send_otp():
+    """WhatsApp a 4-digit code so the customer confirms the number is really theirs
+    (guards the free-meal promo against made-up numbers). 30s cooldown, 5 min TTL."""
     mobile = (frappe.local.form_dict.get("mobile") or "").strip()
     if not mobile or len(mobile) < 10:
         return {"sent": False, "error": "Valid mobile required"}
-    # Numbers that claimed a promo via WhatsApp are already proven — skip the OTP.
+    # Numbers that claimed a promo VIA WhatsApp are already proven — skip the OTP.
     if frappe.db.exists("DocType", "QR Promo Code") and frappe.db.exists(
             "QR Promo Code", {"mobile": mobile, "status": ["in", ["Registered", "Redeemed"]]}):
-        frappe.cache().set_value(f"sms_verified:{mobile}", 1, expires_in_sec=900)
         return {"sent": False, "verified": True}
     cache = frappe.cache()
-    if cache.get_value(f"sms_otp_cool:{mobile}", expires=True):
-        channel = cache.get_value(f"sms_otp_channel:{mobile}", expires=True)
-        channel = channel.decode() if isinstance(channel, bytes) else str(channel or "sms")
-        return {"sent": True, "cooldown": True, "channel": channel}
+    if cache.get_value(f"wa_otp_cool:{mobile}", expires=True):
+        return {"sent": True, "cooldown": True}  # one was sent moments ago — reuse it
     code = "".join(secrets.choice("0123456789") for _ in range(4))
-    ok, channel = _send_customer_otp(mobile, code)
+    ok = wa._send_wa_reply(_wa_number(mobile),
+        f"*{code}* is your {settings.get('brand_name')} verification code.\n\n"
+        f"Enter it in the app to confirm this WhatsApp number. Valid for 5 minutes.")
     if not ok:
-        error = ("SMS service is not configured" if not sms.textlk_configured()
-                 else "Could not send SMS — try again")
-        return {"sent": False, "channel": channel, "error": error}
-    cache.set_value(f"sms_otp:{mobile}", code, expires_in_sec=300)
-    cache.set_value(f"sms_otp_channel:{mobile}", channel, expires_in_sec=300)
-    cache.set_value(f"sms_otp_cool:{mobile}", 1, expires_in_sec=30)
-    return {"sent": True, "channel": channel}
+        return {"sent": False}
+    cache.set_value(f"wa_otp:{mobile}", code, expires_in_sec=300)
+    cache.set_value(f"wa_otp_cool:{mobile}", 1, expires_in_sec=30)
+    return {"sent": True}
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def sms_verify_otp():
-    """Check the SMS code; marks the mobile verified for 15 minutes.
+def wa_verify_otp():
+    """Check the WhatsApp code; marks the mobile verified for 15 minutes.
 
     Every cache read in the OTP flow passes expires=True. Without it a miss is
     remembered in frappe.local.cache while set_value(expires_in_sec=...)
@@ -428,24 +406,18 @@ def sms_verify_otp():
     if not mobile or not code:
         return {"ok": False, "error": "Code required"}
     cache = frappe.cache()
-    tries_key = f"sms_otp_tries:{mobile}"
+    tries_key = f"wa_otp_tries:{mobile}"
     tries = int(cache.get_value(tries_key, expires=True) or 0)
     if tries >= 5:
         return {"ok": False, "error": "Too many attempts — request a new code"}
-    real = cache.get_value(f"sms_otp:{mobile}", expires=True)
+    real = cache.get_value(f"wa_otp:{mobile}", expires=True)
     if real is None:
         return {"ok": False, "error": "Code expired — tap Resend"}
     real = real.decode() if isinstance(real, bytes) else str(real)
     if code != real:
         cache.set_value(tries_key, tries + 1, expires_in_sec=300)
-        return {"ok": False, "error": "Wrong code — check your messages"}
-    cache.delete_value(f"sms_otp:{mobile}")
-    cache.delete_value(f"sms_otp_channel:{mobile}")
+        return {"ok": False, "error": "Wrong code — check WhatsApp"}
+    cache.delete_value(f"wa_otp:{mobile}")
     cache.delete_value(tries_key)
-    cache.set_value(f"sms_verified:{mobile}", 1, expires_in_sec=900)
+    cache.set_value(f"wa_verified:{mobile}", 1, expires_in_sec=900)
     return {"ok": True}
-
-
-# Backward-compatible paths for older installed PWAs. Delivery is still SMS-only.
-wa_send_otp = sms_send_otp
-wa_verify_otp = sms_verify_otp
