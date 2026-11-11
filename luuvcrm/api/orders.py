@@ -14,6 +14,7 @@ import json
 from frappe.utils import now_datetime
 from luuvcrm import activity, branch, roles
 from luuvcrm.api import tables
+from luuvcrm.api.pos_inventory import FIELD as INVENTORY_MODE, creation_mode, list_filter
 
 from luuvcrm.api.pricing import (
     _apply_takeaway_service_charge,
@@ -163,6 +164,7 @@ def send_to_kitchen():
     waiter_name = frappe.get_value("User", frappe.session.user, "full_name") or frappe.session.user
     # Draft = auto-created as the cashier builds the ticket; not yet fired to the kitchen.
     is_draft = int(data.get("draft") or 0)
+    inventory_mode = creation_mode(amended_from)
 
     # Dedupe guard: a lost response / retry / second tab can re-send the same autosave
     # create and orphan a duplicate draft on the table. Only an IDENTICAL payload
@@ -174,6 +176,7 @@ def send_to_kitchen():
                            max(int(it.get("qty", 1)), 1)) for it in items)
         for dup_name in frappe.get_list("POS Order", filters={
                 "docstatus": 0, "kitchen_status": "Draft", "restaurant_table": table,
+                INVENTORY_MODE: inventory_mode,
                 "owner": frappe.session.user, "pos_invoice": ["in", ["", None]],
                 "creation": [">", add_to_date(now_datetime(), seconds=-20)]},
                 order_by="creation desc", pluck="name"):
@@ -232,6 +235,7 @@ def send_to_kitchen():
         "restaurant_table": table,
         "order_source": order_source,
         "kitchen_status": "Draft" if is_draft else "Pending",
+        INVENTORY_MODE: inventory_mode,
         "grand_total": 0,
         "service_charge_rate": 0,
         "service_charge_amount": 0,
@@ -350,7 +354,7 @@ def send_to_kitchen():
 def get_ongoing_orders():
     orders = frappe.get_list("POS Order",
         filters={"docstatus": 0, "order_source": ["in", ["Walk-in", "Waiter", "Online"]],
-                 "restaurant": branch.viewing()},
+                 "restaurant": branch.viewing(), **list_filter()},
         fields=["name", "customer_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "pos_invoice", "order_type",
                 "discount_amount", "discount_note", "waiter_name", "kitchen_status"]
@@ -393,7 +397,7 @@ def get_completed_orders():
     opening_name = _active_open_shift_name()
 
     filters = {"docstatus": 1, "order_source": ["in", ["Walk-in", "Waiter", "Online"]],
-               "restaurant": branch.viewing()}
+               "restaurant": branch.viewing(), **list_filter()}
     if opening_name:
         filters["pos_opening_entry"] = opening_name
 
@@ -721,7 +725,7 @@ def get_table_orders():
     branch.require_access("Restaurant Table", table)
     orders = frappe.get_list("POS Order",
         filters={"docstatus": 0, "restaurant_table": table,
-                 branch.FIELD: branch.viewing()},
+                 branch.FIELD: branch.viewing(), **list_filter()},
         fields=["name", "customer_name", "waiter_name", "mobile", "restaurant_table",
                 "grand_total", "creation", "order_source", "notes", "kitchen_status",
                 "pos_invoice", "discount_amount", "discount_note"],

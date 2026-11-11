@@ -46,6 +46,7 @@ before_request = ["luuvcrm.api.route_app_requests"]
 website_route_rules = [
     {"from_route": "/manager2.0", "to_route": "manager_v2"},
     {"from_route": "/purchase2.0", "to_route": "purchase_v2"},
+    {"from_route": "/pos-inventory", "to_route": "pos_inventory"},
 ]
 
 # ─── The public front door ───────────────────────────────────────────────────
@@ -114,6 +115,9 @@ for _branched in (
 ):
     doc_events.setdefault(_branched, {})["before_insert"] = "luuvcrm.branch.stamp"
 del _branched
+
+# An order keeps its original inventory behavior across all staff screens.
+doc_events.setdefault("POS Order", {})["validate"] = "luuvcrm.api.pos_inventory.protect_mode"
 
 # Some upgraded sites still hold Purchase Bill as the original Custom DocType,
 # where Frappe does not load the repo controller. Keep its report date invariant

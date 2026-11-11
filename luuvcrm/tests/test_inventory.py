@@ -8,6 +8,7 @@ from frappe.tests.utils import FrappeTestCase
 from erpnext.stock.utils import get_stock_balance
 
 from luuvcrm import api, branch
+from luuvcrm.api import pos_inventory
 from luuvcrm.tests import fixtures as fx
 
 
@@ -179,7 +180,7 @@ class TestMenuBOM(InventoryTestCase):
         self.recipe(0.25)
         before = self.balance()
         result = self.call(
-            api.send_to_kitchen,
+            pos_inventory.send_to_kitchen,
             items=json.dumps([{"item": self.menu_item, "qty": 2}]),
             order_type="Dine In",
         )
@@ -190,6 +191,15 @@ class TestMenuBOM(InventoryTestCase):
         again = api.consume_order_stock(result["name"])
         self.assertIsNone(again["entry"])
         self.assertAlmostEqual(self.balance(), after, places=6)
+
+    def test_ordinary_pos_does_not_consume_a_configured_recipe(self):
+        self.recipe(0.25)
+        result = self.call(api.send_to_kitchen,
+                           items=json.dumps([{"item": self.menu_item, "qty": 2}]),
+                           order_type="Take Away")
+        self.orders.append(result["name"])
+        self.assertEqual(api.consume_order_stock(result["name"])["skipped"], "ordinary_pos")
+        self.assertFalse(frappe.db.exists("Stock Entry", {"luuv_pos_order": result["name"]}))
 
     def test_non_stock_item_without_a_bom_keeps_working(self):
         result = self.call(
@@ -262,7 +272,7 @@ class TestMenuBOM(InventoryTestCase):
         )
         self.boms.append(meal_recipe["bom"])
         result = self.call(
-            api.send_to_kitchen,
+            pos_inventory.send_to_kitchen,
             items=json.dumps([{"item": self.menu_item, "qty": 2}]),
             order_type="Dine In",
         )

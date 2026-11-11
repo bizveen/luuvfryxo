@@ -200,7 +200,8 @@ def get_context(context):
     # for the life of the site, on the page the counter opens every shift.
     context.ongoing_count = frappe.db.count("POS Order", {
         "docstatus": 0, "order_source": "Walk-in", "pos_invoice": "",
-        branch.FIELD: restaurant_name})
+        branch.FIELD: restaurant_name,
+        "luuv_inventory_pos": int(bool(context.get("inventory_pos")))})
 
     context.pos_profiles = frappe.get_all(
         "POS Profile", filters={"name": ["in", profile_names]},

@@ -8,14 +8,14 @@ prepared item.  The final menu item itself is deliberately not manufactured:
 restaurant food is made and served immediately, so its useful ledger movement
 is a Material Issue of the ingredients actually taken from storage.
 
-The integration is opt-in by data, not by a site-wide switch:
+Inventory sales are opt-in through /pos-inventory. Ordinary POS orders never
+check or deduct stock; the mode is permanently saved on each order.
+
+For inventory orders:
 
 * purchase lines move only Items with ``is_stock_item`` enabled;
-* menu lines move only when they have an active submitted default BOM (or are
-  themselves a stock item, such as a bottled drink).
-
-That makes the rollout safe for an existing restaurant while recipes and
-opening balances are entered a few items at a time.
+* every menu line needs an active recipe (or must itself be a stock item);
+* branch/item shortage rules apply at kitchen release and payment.
 """
 
 from collections import defaultdict
@@ -162,11 +162,14 @@ def consume_order_stock(order_name):
     units, not ingredient units.  The order row is locked while the delta is
     read and written, so a retried/double KOT request cannot issue twice.
     """
-    if not _has_field("POS Order Item", CONSUMED_FIELD):
-        return {"entry": None, "consumed": 0, "missing_bom": [], "configured": False}
-
+    from luuvcrm.api.pos_inventory import FIELD
     frappe.db.sql("select name from `tabPOS Order` where name=%s for update", (order_name,))
     order = frappe.get_doc("POS Order", order_name)
+    if not order.get(FIELD):
+        return {"entry": None, "consumed": 0, "missing_bom": [], "configured": False,
+                "skipped": "ordinary_pos"}
+    if not _has_field("POS Order Item", CONSUMED_FIELD):
+        frappe.throw(_("Install inventory tracking before using the inventory POS."))
     pending = []
     for line in order.get("items") or []:
         delta = flt(line.qty) - flt(line.get(CONSUMED_FIELD))
@@ -204,13 +207,10 @@ def consume_order_stock(order_name):
             component_uom[row["item_code"]] = row["uom"]
         configured.append((line, delta))
 
-    if not configured:
-        return {
-            "entry": None,
-            "consumed": 0,
-            "missing_bom": sorted(set(missing)),
-            "configured": True,
-        }
+    if missing:
+        frappe.throw(_("Inventory recipe is not configured for: {0}. Activate a recipe in Manager 2.0 before sending or billing this order.").format(", ".join(sorted(set(missing)))))
+    if not configured or not components:
+        frappe.throw(_("This inventory order has no stock ingredients."))
 
     restaurant, warehouse, company = _stock_context(order)
     from luuvcrm.api.branch_stock_policy import check_sale

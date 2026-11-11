@@ -90,7 +90,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ brand_name }} POS</title>
+<title>{{ brand_name }} {% if inventory_pos %}Inventory {% endif %}POS</title>
 <!-- what the counter prints when the Print Format cannot be read: the name, the town under it, the number to call -->
 <script>const BRAND={{ brand_name | tojson }}, OUTLET={{ brand().outlet_line | tojson }}, PHONE={{ brand().contact_phone | tojson }};</script>
 <meta name="csrf-token" content="{{ csrf_token }}">
@@ -228,7 +228,7 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
       <div class="tb-brand" style="display:flex;align-items:center;gap:13px;flex:none;">
         <div class="tb-logo" style="width:46px;height:46px;border-radius:var(--radius-md);background:var(--color-primary);color:#fff;font-family:var(--font-display);font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-brand);">LF</div>
         <div>
-          <div class="tb-title" style="font-family:var(--font-display);font-weight:800;font-size:var(--tb-title,22px);letter-spacing:-.01em;color:var(--text-strong);line-height:1.12;">New order</div>
+          <div class="tb-title" style="font-family:var(--font-display);font-weight:800;font-size:var(--tb-title,22px);letter-spacing:-.01em;color:var(--text-strong);line-height:1.12;">{% if inventory_pos %}Inventory POS{% else %}New order{% endif %}</div>
           <div class="tb-restaurant" data-active-restaurant style="max-width:220px;font-size:11.5px;font-weight:700;line-height:1.3;color:var(--orange-700);">{{ (restaurant.get("restaurant_name") or restaurant.name) if restaurant else "No restaurant selected" }}{% if restaurant and restaurant.get("city") %} — {{ restaurant.city }}{% endif %}</div>
         </div>
       </div>
@@ -665,9 +665,19 @@ function lfPoll(fn, ms){
   // category pill emojis
   document.querySelectorAll('.catp[data-cat]').forEach(p=>{ if(p.dataset.cat!=='__all__'){ const e=p.querySelector('.cemoji'); if(e) e.textContent=emojiFor(p.dataset.cat); } });
 
+  const INVENTORY_POS = {{ (inventory_pos or false) | tojson }};
+  const POS_ROUTE = INVENTORY_POS ? "/pos-inventory" : "/pos";
   async function _api(url,opts){ opts=opts||{}; opts.headers=opts.headers||{}; opts.headers['X-Frappe-CSRF-Token']=CSRF; opts.credentials='include';
-    try{ const r=await fetch(url,opts); if(r.status===401){ location.href='/login?redirect-to=/pos'; return null;} return r;}catch(e){ return null; } }
-  async function _post(url,data){ const fd=new URLSearchParams(); fd.set('csrf_token',CSRF); for(const[k,v] of Object.entries(data)) fd.set(k,v); return _api(url,{method:'POST',body:fd}); }
+    try{ const r=await fetch(url,opts); if(r.status===401){ location.href='/pos-login?redirect='+encodeURIComponent(POS_ROUTE); return null;} return r;}catch(e){ return null; } }
+  async function _post(url,data){
+    if(INVENTORY_POS && ['/api/method/luuvcrm.api.send_to_kitchen','/api/method/luuvcrm.api.place_order'].includes(url)){
+      url=url.replace('luuvcrm.api.','luuvcrm.api.pos_inventory.');
+    }
+    const fd=new URLSearchParams(); fd.set('csrf_token',CSRF);
+    for(const[k,v] of Object.entries(data)) fd.set(k,v);
+    fd.set('pos_channel',INVENTORY_POS?'inventory':'legacy');
+    return _api(url,{method:'POST',body:fd});
+  }
 
   // ── nav: switch SPA screens ──
   function setNav(n){ document.querySelectorAll('.navp').forEach(b=>b.classList.toggle('active',b.dataset.nav===n));
@@ -1140,7 +1150,9 @@ function lfPoll(fn, ms){
       else { const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'' };
         res=await _post('/api/method/luuvcrm.api.send_to_kitchen',body); }
       if(!res) return; const data=await res.json();
-      if(res.ok && data.message && data.message.name){ const nm=data.message.name; currentOrder=nm; toast('Sent to kitchen #'+nm); printKOT(nm);
+      if(res.ok && data.message && data.message.name){ const nm=data.message.name; currentOrder=nm;
+        if(INVENTORY_POS){ if(!(await printKOT(nm))) return; toast('Sent to kitchen #'+nm); }
+        else { toast('Sent to kitchen #'+nm); printKOT(nm); }
         // KOT fired → these items are now in the kitchen; keep the order open so more can be added.
         firedBaseline={...cart}; editBaseline={...cart};
         firedTABaseline={}; Object.keys(cart).forEach(c=>{ const n=(orderType==='Take Away')?cart[c]:Math.min(cartTA[c]||0,cart[c]); if(n>0) firedTABaseline[c]=n; });
@@ -1840,7 +1852,7 @@ function lfPoll(fn, ms){
         credentials:'include',cache:'no-store',redirect:'follow'
       });
       if(!res.ok) throw new Error('logout failed');
-      window.location.replace('/pos-login');
+      window.location.replace('/pos-login?redirect='+encodeURIComponent(POS_ROUTE));
     }catch(e){ toast('Could not log out — check your connection and try again'); }
   }
 
@@ -2545,6 +2557,13 @@ function lfPoll(fn, ms){
     printKOT = async function(name,opts){
       opts=opts||{};
       var reprint=!!opts.reprint;
+      if(INVENTORY_POS && !reprint){
+        var stockResponse=await _post('/api/method/luuvcrm.api.pos_inventory.prepare_kot',{order_name:name});
+        var stockData=stockResponse?await stockResponse.json():{};
+        if(!stockResponse || !stockResponse.ok || !stockData.message || !stockData.message.ok){
+          toast(_smsg(stockData,'Stock check failed. Retry before sending to kitchen.')); return false;
+        }
+      }
       // Legacy = no bridge AND no Google-Docs template, i.e. a plain browser.
       // Only a NORMAL fire may take that shortcut: _printKOT() is the original
       // function, it posts {order_name} with no include_sent, so a reprint sent

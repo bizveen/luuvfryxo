@@ -83,6 +83,8 @@ def get_tour_company_options():
 def place_order():
     roles.require_pos()
     data = frappe.local.form_dict
+    from luuvcrm.api.pos_inventory import FIELD as INVENTORY_MODE, creation_mode
+    inventory_mode = creation_mode()
 
     items_raw = data.get("items")
     items = frappe.parse_json(items_raw) if isinstance(items_raw, str) else items_raw
@@ -187,6 +189,7 @@ def place_order():
         "restaurant_table": table,
         "order_source": order_source,
         "kitchen_status": "Pending",
+        INVENTORY_MODE: inventory_mode,
         "grand_total": grand_total,
         "service_charge_rate": sc_rate,
         "service_charge_amount": sc_amount,
