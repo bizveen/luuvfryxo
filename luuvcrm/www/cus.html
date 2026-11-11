@@ -1,4 +1,35 @@
 <!DOCTYPE html>
+{% set cus_menu_images = {
+  "/assets/luuvcrm/app/hero-loaded-fries-cutout.png": "/assets/luuvcrm/app/cus-menu/hero-loaded-fries-cutout-c13b5de6a9a2.webp",
+  "/files/kg-chips-fish-v3.png": "/assets/luuvcrm/app/cus-menu/kg-chips-fish-v3-124849820faa.webp",
+  "/files/kg-chips-spicy-v3.png": "/assets/luuvcrm/app/cus-menu/kg-chips-spicy-v3-edfb4d137683.webp",
+  "/files/kg-chips-wienilet-v3.png": "/assets/luuvcrm/app/cus-menu/kg-chips-wienilet-v3-030b00e3beb1.webp",
+  "/files/kg-extra-brown-v3.png": "/assets/luuvcrm/app/cus-menu/kg-extra-brown-v3-d793449643d0.webp",
+  "/files/kg-extra-cheese-v3.png": "/assets/luuvcrm/app/cus-menu/kg-extra-cheese-v3-529c7db4ca9a.webp",
+  "/files/kg-extra-golden-v3.png": "/assets/luuvcrm/app/cus-menu/kg-extra-golden-v3-741efb5132f7.webp",
+  "/files/kg-extra-hot-v3.png": "/assets/luuvcrm/app/cus-menu/kg-extra-hot-v3-1b0953a9158a.webp",
+  "/files/kg-extra-salsa-v3.png": "/assets/luuvcrm/app/cus-menu/kg-extra-salsa-v3-cf44f20e9cde.webp",
+  "/files/kg-extra-white-v3.png": "/assets/luuvcrm/app/cus-menu/kg-extra-white-v3-9f7ff6d7a5f4.webp",
+  "/files/kg-fries-beef-v3.png": "/assets/luuvcrm/app/cus-menu/kg-fries-beef-v3-42f7c33e79c0.webp",
+  "/files/kg-fries-chicken-v3.png": "/assets/luuvcrm/app/cus-menu/kg-fries-chicken-v3-743b0d443f11.webp",
+  "/files/kg-fries-fish-v3.png": "/assets/luuvcrm/app/cus-menu/kg-fries-fish-v3-4d1854315472.webp",
+  "/files/kg-fries-mix-v3.png": "/assets/luuvcrm/app/cus-menu/kg-fries-mix-v3-0128a8671615.webp",
+  "/files/kg-fries-prawn-v3.png": "/assets/luuvcrm/app/cus-menu/kg-fries-prawn-v3-5dbab55ea7fd.webp",
+  "/files/kg-fries-sausage-v3.png": "/assets/luuvcrm/app/cus-menu/kg-fries-sausage-v3-752f4ab8b253.webp",
+  "/files/kg-iced-chocolate-v3.png": "/assets/luuvcrm/app/cus-menu/kg-iced-chocolate-v3-b130d464e5c4.webp",
+  "/files/kg-iced-coffee-v3.png": "/assets/luuvcrm/app/cus-menu/kg-iced-coffee-v3-a3f057cc1a18.webp",
+  "/files/kg-lemon-mint-v3.png": "/assets/luuvcrm/app/cus-menu/kg-lemon-mint-v3-04c05825d650.webp",
+  "/files/kg-lemonade-blueberry-v3.png": "/assets/luuvcrm/app/cus-menu/kg-lemonade-blueberry-v3-8cb55ebfc532.webp",
+  "/files/kg-lemonade-passion-v3.png": "/assets/luuvcrm/app/cus-menu/kg-lemonade-passion-v3-888dbf4d8f8c.webp",
+  "/files/kg-lemonade-strawberry-v3.png": "/assets/luuvcrm/app/cus-menu/kg-lemonade-strawberry-v3-004203f1f6a6.webp",
+  "/files/kg-smoothie-blueberry-v3.png": "/assets/luuvcrm/app/cus-menu/kg-smoothie-blueberry-v3-81fd36018ff0.webp",
+  "/files/kg-smoothie-mango-v3.png": "/assets/luuvcrm/app/cus-menu/kg-smoothie-mango-v3-b35d43fbe02a.webp",
+  "/files/kg-smoothie-passion-v3.png": "/assets/luuvcrm/app/cus-menu/kg-smoothie-passion-v3-7d2455001e46.webp",
+  "/files/kg-smoothie-strawberry-v3.png": "/assets/luuvcrm/app/cus-menu/kg-smoothie-strawberry-v3-4c844c54f465.webp",
+  "/files/kg-thai-blueberry-v3.png": "/assets/luuvcrm/app/cus-menu/kg-thai-blueberry-v3-0eab2692181c.webp",
+  "/files/kg-thai-mango-v3.png": "/assets/luuvcrm/app/cus-menu/kg-thai-mango-v3-08c5f8a74477.webp",
+  "/files/kg-thai-strawberry-v3.png": "/assets/luuvcrm/app/cus-menu/kg-thai-strawberry-v3-fea511cc0868.webp"
+} if restaurant_name == 'Kurunegala' else {} %}
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -565,7 +596,7 @@ html[data-theme="dark"] .navb.active{color:var(--orange-400);}
             </div>
           </div>
         </section>
-        <div class="hero-food"><img src="/assets/luuvcrm/app/hero-loaded-fries-cutout.png" alt="{{ hero_item.name if hero_item else brand_name }}" decoding="async"></div>
+        <div class="hero-food"><img src="{{ cus_menu_images.get('/assets/luuvcrm/app/hero-loaded-fries-cutout.png', '/assets/luuvcrm/app/hero-loaded-fries-cutout.png') }}" alt="{{ hero_item.name if hero_item else brand_name }}" decoding="async"></div>
       </div>
 
       <div class="section-heading"><div><h2>What would you like?</h2><p>Everything you need, one tap away</p></div></div>
@@ -594,7 +625,7 @@ html[data-theme="dark"] .navb.active{color:var(--orange-400);}
         <div class="popular-row">
           {% for item in popular_items %}
           <article class="popular-card" onclick="setTab('order');setTimeout(function(){openItemDetail('{{ item.code }}')},0)">
-            <div class="pimg{% if item.image %} image-loading{% endif %}"><span class="popular-rank">{{ item.group }}</span>{% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy" decoding="async" onload="this.parentElement.classList.remove('image-loading');this.parentElement.classList.add('image-loaded')" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg'">{% else %}<img src="/assets/luuvcrm/app/menu-placeholder.svg" alt="{{ item.name }}" loading="lazy">{% endif %}<span class="pprice"><small>Rs</small>{{ '%.0f' % item.rate }}</span><button class="padd" onclick="event.stopPropagation();addItem('{{ item.code }}');setTab('order');toast('Added to your order')" aria-label="Add {{ item.name }}"></button></div>
+            <div class="pimg{% if item.image %} image-loading{% endif %}"><span class="popular-rank">{{ item.group }}</span>{% if item.image %}<img src="{{ cus_menu_images.get(item.image, item.image) }}" alt="{{ item.name }}" loading="lazy" decoding="async" onload="this.parentElement.classList.remove('image-loading');this.parentElement.classList.add('image-loaded')" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg'">{% else %}<img src="/assets/luuvcrm/app/menu-placeholder.svg" alt="{{ item.name }}" loading="lazy">{% endif %}<span class="pprice"><small>Rs</small>{{ '%.0f' % item.rate }}</span><button class="padd" onclick="event.stopPropagation();addItem('{{ item.code }}');setTab('order');toast('Added to your order')" aria-label="Add {{ item.name }}"></button></div>
             <div class="pbody">
               <div class="pname">{{ item.name }}</div>
             </div>
@@ -655,7 +686,7 @@ html[data-theme="dark"] .navb.active{color:var(--orange-400);}
               <div class="img{% if item.image %} image-loading{% endif %}">
                 <span class="group-label">{{ emoji.get(item.group,'🍽️') }} {{ item.group }}</span>
                 <span class="menu-card-price"><small>Rs</small> {{ '%.0f' % item.rate }}</span>
-                {% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy" decoding="async" onload="this.parentElement.classList.remove('image-loading');this.parentElement.classList.add('image-loaded')" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg';this.classList.add('placeholder')">{% else %}<img class="placeholder" src="/assets/luuvcrm/app/menu-placeholder.svg" alt="{{ item.name }} placeholder" loading="lazy">{% endif %}
+                {% if item.image %}<img src="{{ cus_menu_images.get(item.image, item.image) }}" alt="{{ item.name }}" loading="lazy" decoding="async" onload="this.parentElement.classList.remove('image-loading');this.parentElement.classList.add('image-loaded')" onerror="this.onerror=null;this.src='/assets/luuvcrm/app/menu-placeholder.svg';this.classList.add('placeholder')">{% else %}<img class="placeholder" src="/assets/luuvcrm/app/menu-placeholder.svg" alt="{{ item.name }} placeholder" loading="lazy">{% endif %}
               </div>
               <div class="body">
                 <div class="nm">{{ item.name }}</div>
@@ -1187,11 +1218,11 @@ function referralDiscount(){ return _refInfo ? cartTotal()*(parseFloat(_refInfo.
 
 let _detailCode='', _detailDescription='', _detailSupportsAddons=false;
 const DETAIL_SAUCES=[
-  {key:'hot sauce',label:'Chef Hot Sauce',image:'/files/kg-extra-hot-v3.png'},
-  {key:'smoky brown sauce',label:'Smoky Brown',image:'/files/kg-extra-brown-v3.png'},
-  {key:'white sauce',label:'White Sauce',image:'/files/kg-extra-white-v3.png'},
-  {key:'golden sauce',label:'Golden Sauce',image:'/files/kg-extra-golden-v3.png'},
-  {key:'tomato salsa',label:'Tomato Salsa',image:'/files/kg-extra-salsa-v3.png'}
+  {key:'hot sauce',label:'Chef Hot Sauce',image:'{{ cus_menu_images.get('/files/kg-extra-hot-v3.png', '/files/kg-extra-hot-v3.png') }}'},
+  {key:'smoky brown sauce',label:'Smoky Brown',image:'{{ cus_menu_images.get('/files/kg-extra-brown-v3.png', '/files/kg-extra-brown-v3.png') }}'},
+  {key:'white sauce',label:'White Sauce',image:'{{ cus_menu_images.get('/files/kg-extra-white-v3.png', '/files/kg-extra-white-v3.png') }}'},
+  {key:'golden sauce',label:'Golden Sauce',image:'{{ cus_menu_images.get('/files/kg-extra-golden-v3.png', '/files/kg-extra-golden-v3.png') }}'},
+  {key:'tomato salsa',label:'Tomato Salsa',image:'{{ cus_menu_images.get('/files/kg-extra-salsa-v3.png', '/files/kg-extra-salsa-v3.png') }}'}
 ];
 function includedSauces(description){
   const lower=(description||'').toLowerCase();
