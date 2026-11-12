@@ -390,7 +390,7 @@ def _bill_approval(doc):
     """The approval that decided a bill, including a bill reclassified later."""
     if not frappe.db.exists("DocType", "POS Approval"):
         return None
-    fields = ["name", "action_payload", "resolved_by", "resolved_at"]
+    fields = ["name", "action_payload", "resolved_by", "resolved_at", "details_json"]
     if frappe.db.has_column("POS Approval", "manager_comment"):
         fields.append("manager_comment")
     for approval in frappe.get_all(
@@ -452,6 +452,8 @@ def get_purchase_vendors():
 
 
 def _bill_dict(name):
+    from luuvcrm.api.purchase_category_history import summary as category_summary
+
     doc = frappe.get_doc("Purchase Bill", name)
     approval = _bill_approval(doc)
     lines = [{"row_name": i.name, "item": i.item, "name": i.item_name or i.item,
@@ -504,6 +506,7 @@ def _bill_dict(name):
                           if resolved_at else ""),
         "manager_comment": approval.get("manager_comment") if approval else "",
         "lines": lines, "categories": categories, "category_label": category_label,
+        **category_summary(doc, approval),
         "subtotal": subtotal, "discount": discount, "total": total,
         "payment_status": pay_status,
         "due": (doc.status == "approved" and pay_status != "paid"),
@@ -867,6 +870,11 @@ def _apply_purchase_line_categories(doc, line_categories):
         doc.reload()
         doc.db_set("total", sum(float(row.qty or 0) * float(row.price or 0)
                                 for row in (doc.get("items") or [])))
+        frappe.get_doc({
+            "doctype": "Version", "ref_doctype": "Purchase Bill", "docname": doc.name,
+            "data": frappe.as_json({"purchase_category_change": {"changes": changed},
+                                    "changed": [["Categories", "", "Item categories corrected"]]}),
+        }).insert(ignore_permissions=True)
     return changed
 
 

@@ -25,7 +25,10 @@ class ApprovedCategoriesTest(unittest.TestCase):
                     line_categories=json.dumps([dict(row_name=data['bill']['lines'][0]['row_name'],category=category)]))
     def test_reverse_restore_and_retry_preserve_bill_and_original_receipt(self):
         original=self.review();before=self.balance();request=self.request(original,'Staff Meals')
+        self.assertFalse(original['bill']['category_changed'])
         result=self.call('purchase_categories.correct',**request)
+        self.assertTrue(result['bill']['category_changed'])
+        self.assertEqual(result['bill']['category_change']['changes'][0]['after'],'Staff Meals')
         self.assertEqual(self.balance(),before-2)
         self.assertEqual(result['bill']['total'],original['bill']['total'])
         self.assertEqual(result['bill']['stock_entry'],original['bill']['stock_entry'])
@@ -36,6 +39,8 @@ class ApprovedCategoriesTest(unittest.TestCase):
         restored=self.call('purchase_categories.correct',**self.request(result,'Food / Ingredients'))
         self.assertEqual(self.balance(),before)
         self.assertEqual(len(restored['history']),2)
+        self.assertTrue(restored['bill']['category_changed'])
+        self.assertEqual(restored['bill']['category_change']['changes'][0]['after'],'Food / Ingredients')
         with self.store.connect() as db:
             with self.assertRaisesRegex(sqlite3.IntegrityError,'immutable'):
                 db.execute('DELETE FROM purchase_category_corrections')

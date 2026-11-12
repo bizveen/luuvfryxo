@@ -35,6 +35,7 @@ class ExistingPurchasesTest(unittest.TestCase):
         self.assertAlmostEqual(after['rate'],(before['balance']*before['rate']+3000)/(before['balance']+2))
         self.assertEqual(after['pending_qty'],0)
         self.assertTrue(self.resolve(name)['already_processed'])
+        self.assertFalse(self.call('get_purchase_bills')['bills'][0]['category_changed'])
         self.assertEqual(self.stock()[self.item],after)
         with self.store.connect() as db:
             self.assertEqual(db.execute("SELECT count(*) FROM movements WHERE kind='purchase_bill'").fetchone()[0],1)
@@ -62,6 +63,8 @@ class ExistingPurchasesTest(unittest.TestCase):
         bill = next(b for b in self.call('get_purchase_bills')['bills'] if b['name']==name)
         self.assertEqual([r['category'] for r in bill['lines']], ['Packaging', 'Food / Ingredients'])
         self.assertEqual(bill['total'], 800)
+        self.assertTrue(bill['category_changed'])
+        self.assertEqual(bill['category_change']['changes'][0]['after'],'Packaging')
         with self.store.connect() as db:
             original = json.loads(db.execute('SELECT payload FROM purchase_bills WHERE name=?', (name,)).fetchone()[0])
             self.assertEqual(original['lines'][0]['category'], 'Food / Ingredients')

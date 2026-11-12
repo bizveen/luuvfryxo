@@ -9,6 +9,7 @@ import json
 from datetime import date, datetime, timedelta, timezone
 
 CATEGORIES = [dict(name='Food / Ingredients', in_stock=1, has_item_list=1),
+              dict(name='Not sure', in_stock=0, has_item_list=0),
               dict(name='Packaging', in_stock=0, has_item_list=0),
               dict(name='Staff Meals', in_stock=0, has_item_list=1)]
 
@@ -48,6 +49,7 @@ def pending_quantities(db):
 
 def bill_dict(bill, db=None):
     payload = json.loads(bill['resolved_payload'] or bill['payload'])
+    past = []
     if db is not None:
         import approved_purchases
         past = approved_purchases.history(db, bill['name'])
@@ -58,12 +60,20 @@ def bill_dict(bill, db=None):
         category = next((c for c in CATEGORIES if c['name']==line['category']), {})
         line['is_stock'] = category.get('in_stock', 0)
         line['has_item_list'] = category.get('has_item_list', 0)
+    original = json.loads(bill['payload'])['lines']
+    approval_changes = [dict(name=new['name'], before=old['category'], after=new['category'])
+                        for old, new in zip(original, json.loads(bill['resolved_payload'] or bill['payload'])['lines'])
+                        if old['category'] != new['category']]
+    change = (dict(by=past[0]['by'], when=past[0]['when'], changes=past[0]['changes']) if past else
+              dict(by=bill['resolved_by'] or '', when=bill['resolved_at'] or '', changes=approval_changes)
+              if approval_changes else None)
     total = sum(line['qty'] * line['price'] for line in payload['lines'])
     return dict(payload, name=bill['name'], status=bill['status'], by=bill['requested_by'],
                 time=bill['creation'], date=payload['purchase_date'], total=total, subtotal=total,
                 discount=0, categories=sorted({line['category'] for line in payload['lines']}),
                 resolved_by=bill['resolved_by'] or '', resolved_when=bill['resolved_at'] or '',
                 manager_comment=bill['comment'] or '', stock_entry=bill['stock_entry'],
+                category_changed=bool(change), category_change=change,
                 payment_status='unpaid', due=bill['status']=='approved')
 
 
@@ -96,7 +106,7 @@ def handle(db, method, p, catalog, actor='Local purchaser'):
         return dict(items=[dict(item=r['item'],name=r['name'],unit=r['stock_uom'],
                                price=r['rate'],group='Ingredients') for r in catalog])
     if method == 'get_expense_categories':
-        return dict(categories=[r['name'] for r in CATEGORIES], expense_categories=['Packaging'], category_details=CATEGORIES)
+        return dict(categories=[r['name'] for r in CATEGORIES], expense_categories=[r['name'] for r in CATEGORIES if not r['in_stock']], category_details=CATEGORIES)
     if method == 'get_expenses':
         return dict(expenses=[])
     if method == 'get_purchase_vendors':
