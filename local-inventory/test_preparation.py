@@ -118,7 +118,7 @@ class PreparationFlowTest(unittest.TestCase):
             ''')
         db.close()
         migrated=Store(path)
-        self.assertEqual(migrated.dispatch('dashboard',{})['stock'][0]['balance'],.9)
+        self.assertEqual(next(r for r in migrated.dispatch('dashboard',{})['stock'] if r['item']=='KG-STOCK-SALAD')['balance'],.9)
         self.assertEqual(migrated.dispatch('orders',{})[0]['name'],'OLD-ORDER')
         self.assertEqual(migrated.dispatch('recipe',{})['version'],'LOCAL-RECIPE-0001')
         self.assertEqual(migrated.dispatch('recipe',dict(item_code='KG-STOCK-SALAD'))['ingredients'],[])

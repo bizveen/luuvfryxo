@@ -34,3 +34,4 @@ luuvcrm.patches.v1_0.inventory_sections
 luuvcrm.patches.v1_0.purchase_item_defaults
 luuvcrm.patches.v1_0.waiter_delivery
 luuvcrm.patches.v1_0.recipe_sheet_drafts
+luuvcrm.patches.v1_0.manager_preparation

@@ -9,21 +9,31 @@ class RecipeSheetTest(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.path=Path(self.temp.name)/'recipes.sqlite3';self.store=Store(self.path)
-    def test_all_seven_visible_without_stock_creation(self):
+    def test_menu_and_coleslaw_drafts_without_opening_stock(self):
         data=self.store.dispatch('dashboard',{})
-        self.assertEqual(len([r for r in data['menu'] if r['has_sheet_draft']]),7)
-        self.assertEqual(len(data['stock']),9)
+        self.assertEqual(len([r for r in data['menu'] if r['has_sheet_draft']]),8)
+        self.assertEqual(len(data['stock']),10)
         total=0
         for item in references('Kurunegala'):
             draft=self.store.dispatch('recipe',dict(item_code=item))['sheet_draft']
             total+=len(draft['current']['ingredients'])
             self.assertEqual(draft['current']['revision'],0)
-        self.assertEqual(total,49)
+        self.assertEqual(total,52)
         fish=self.store.dispatch('recipe',dict(item_code='KG-CHIPS-FISH'))['sheet_draft']
         self.assertEqual(fish['current']['ingredients'][-1]['unit'],'portion')
         spicy=self.store.dispatch('recipe',dict(item_code='KG-CHIPS-SPICY'))['sheet_draft']
         self.assertEqual(spicy['current']['ingredients'][-1]['qty'],50)
         self.assertTrue(any('split' in n for n in spicy['pending_notes']))
+    def test_coleslaw_is_prepared_and_linked_without_activating(self):
+        salad=self.store.dispatch('recipe',dict(item_code='KG-STOCK-COLESLAW'))
+        self.assertEqual(salad['kind'],'prepared')
+        self.assertEqual(salad['balance'],0)
+        self.assertEqual(salad['version'],'')
+        self.assertTrue(salad['sheet_draft']['reference']['sample'])
+        for item in ('KG-FRIES-CHICKEN','KG-FRIES-FISH','KG-FRIES-PRAWN'):
+            links=self.store.dispatch('recipe',dict(item_code=item))['sheet_draft']['preparations']
+            self.assertEqual(links,[dict(item='KG-STOCK-COLESLAW',name='Coleslaw salad',qty=50,unit='g')])
+
     def test_edit_retry_reopen_and_previous_history(self):
         item='KG-FRIES-CHICKEN';original=self.store.dispatch('recipe',dict(item_code=item))
         with self.store.connect() as db:

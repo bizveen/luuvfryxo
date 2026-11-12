@@ -37,9 +37,8 @@ def prepared_codes(restaurant):
     """Explicit branch recipes only; do not infer branch prep from central BOMs."""
     if not frappe.db.has_column('BOM', 'luuv_recipe_restaurant'):
         return set()
-    from luuvcrm.api.manager_inventory import _menu
-    return set(frappe.get_all('BOM', filters={'luuv_recipe_restaurant': restaurant,
-        'docstatus': ['<', 2]}, pluck='item', limit_page_length=0)) - set(_menu(restaurant))
+    from luuvcrm.api.manager_preparation import codes
+    return codes(restaurant,branch.warehouse(restaurant))
 
 
 @frappe.whitelist()

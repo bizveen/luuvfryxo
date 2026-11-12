@@ -104,7 +104,7 @@ class Store:
                 CREATE TRIGGER IF NOT EXISTS immutable_recipe_sheet BEFORE UPDATE ON recipe_sheet_versions BEGIN SELECT RAISE(ABORT,'Recipe draft history is immutable'); END;
             ''')
             for code,reference in recipe_sheets.references('Kurunegala').items():
-                db.execute('INSERT OR IGNORE INTO recipe_items VALUES(?,?)',(code,'menu'))
+                db.execute('INSERT OR IGNORE INTO recipe_items VALUES(?,?)',(code,reference.get('kind','menu')))
                 db.execute('INSERT OR IGNORE INTO recipe_sheet_versions VALUES(?,0,?)',(code,json.dumps(recipe_sheets.initial(reference))))
             if not db.execute('SELECT count(*) FROM stock').fetchone()[0]:
                 db.executemany('INSERT INTO stock(item,name,stock_uom,uom,balance,rate) VALUES(?,?,?,?,0,0)', [(a,b,c,d) for a,b,c,d,e in INGREDIENTS])
@@ -114,6 +114,8 @@ class Store:
             # invent a preparation recipe when the actual vegetables are unknown.
             if db.execute("SELECT 1 FROM stock WHERE item='KG-STOCK-SALAD'").fetchone():
                 db.execute("INSERT OR IGNORE INTO recipe_items VALUES('KG-STOCK-SALAD','prepared')")
+
+            db.execute("INSERT OR IGNORE INTO stock(item,name,stock_uom,uom,balance,rate) VALUES('KG-STOCK-COLESLAW','Coleslaw salad','Kg','g',0,0)")
 
     @contextmanager
     def connect(self):

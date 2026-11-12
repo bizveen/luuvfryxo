@@ -1,0 +1,18 @@
+{
+  "menu_item": "KG-STOCK-COLESLAW",
+  "name": "Coleslaw salad",
+  "kind": "prepared",
+  "sample": true,
+  "output_qty": 1000,
+  "output_unit": "g",
+  "source_note": "SAMPLE ONLY: replace these quantities with the actual Kurunegala coleslaw recipe, including the dressing and measured finished yield, before activating stock preparation.",
+  "ingredients": [
+    {"name": "Cabbage", "qty": 600, "unit": "g"},
+    {"name": "Carrot", "qty": 250, "unit": "g"},
+    {"name": "Mayonnaise", "qty": 150, "unit": "g"}
+  ],
+  "packaging": {},
+  "total_portion_cost": null,
+  "ingredient_cost": null,
+  "staff_and_overhead_cost": null
+}

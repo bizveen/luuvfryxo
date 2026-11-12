@@ -9,11 +9,15 @@ UNITS = ('g','Kg','ml','L','Nos','pieces','portion','set')
 
 def references(restaurant):
     data=json.loads((Path(__file__).parent/'data/kurunegala-recipes.json').read_text(encoding='utf-8'))
-    return {r['menu_item']:r for r in data['recipes']} if restaurant==data['restaurant'] else {}
+    if restaurant!=data['restaurant']:return {}
+    result={r['menu_item']:r for r in data['recipes']}
+    prepared=json.loads((Path(__file__).parent/'data/coleslaw-sample.json').read_text(encoding='utf-8'))
+    result[prepared['menu_item']]=prepared
+    return result
 
 
 def initial(reference):
-    return dict(revision=0,by='Supplied recipe sheet',when='2026-11-12',note='Original recipe supplied by the owner.',
+    return dict(revision=0,by='Sample preparation draft' if reference.get('sample') else 'Supplied recipe sheet',when='2026-11-12',note=reference['source_note'] if reference.get('sample') else 'Original recipe supplied by the owner.',
         ingredients=[dict(name=r['name'],qty=r['qty'],unit=r['unit']) for r in reference['ingredients']])
 
 
@@ -22,6 +26,9 @@ def view(reference,history=None):
     notes=['Confirm sauce stock units before linking this draft to stock.',
            'Confirm the prepared salad and any oil/flour used during preparation.',
            'Packaging is listed as one set; its stock components need linking.']
+    if reference.get('kind')=='prepared':
+        notes=['Confirm the actual ingredients and finished batch yield, then link each raw ingredient to its stock item.',
+               'Complete a batch only after preparation. This consumes raw ingredients and adds finished coleslaw stock.']
     current=history[-1]['ingredients']
     portions=[r['name'] for r in current if r['unit']=='portion']
     if portions:
@@ -30,7 +37,9 @@ def view(reference,history=None):
     for row in blends:
         notes.append('The '+str(row['qty'])+' '+row['unit']+' '+row['name']+' amount is combined. Confirm the split or prepared blend.')
     if reference.get('source_note'):notes.append(reference['source_note'])
-    return dict(reference=deepcopy(reference),current=history[-1],history=history,pending_notes=notes,units=list(UNITS))
+    preparations=[dict(item='KG-STOCK-COLESLAW',name='Coleslaw salad',qty=row['qty'],unit=row['unit'])
+        for row in current if row['name'].strip().casefold() in ('creamy coleslaw','coleslaw','coleslaw salad')]
+    return dict(reference=deepcopy(reference),current=history[-1],history=history,pending_notes=notes,units=list(UNITS),preparations=preparations)
 
 
 def changed(history,ingredients,note,expected_revision,by,when):

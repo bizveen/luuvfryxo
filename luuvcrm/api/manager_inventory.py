@@ -28,7 +28,8 @@ def _menu(restaurant):
 
 
 def _check_item(item, restaurant):
-    if item not in _menu(restaurant):
+    from luuvcrm.api.manager_preparation import codes
+    if item not in set(_menu(restaurant)) | codes(restaurant,branch.warehouse(restaurant)):
         frappe.throw(_("Choose an item on this branch's menu"), frappe.PermissionError)
 
 
@@ -90,14 +91,16 @@ def _catalog(warehouse, include_equipment=False):
 @frappe.whitelist()
 def dashboard(restaurant=None):
     restaurant, warehouse = _context(restaurant)
-    codes = _menu(restaurant)
+    from luuvcrm.api.manager_preparation import codes as prepared_items
+    prepared = prepared_items(restaurant,warehouse)
+    codes = list(set(_menu(restaurant)) | prepared)
     items = frappe.get_all("Item", filters={"name": ["in", codes], "disabled": 0},
                            fields=["name", "item_name"], order_by="item_name asc", limit_page_length=0) if codes else []
     managed = frappe.get_all("BOM", filters={"luuv_recipe_restaurant": restaurant, "docstatus": ["<", 2]},
                              fields=["name", "item", "docstatus"], order_by="creation desc", limit_page_length=0)
-    recipe_items = set()
+    recipe_items = set(prepared)
     if managed:
-        recipe_items = set(frappe.get_all("BOM Item", filters={"parent": ["in", [r.name for r in managed]]},
+        recipe_items |= set(frappe.get_all("BOM Item", filters={"parent": ["in", [r.name for r in managed]]},
                                           pluck="item_code", limit_page_length=0))
     bins = set(frappe.get_all("Bin", filters={"warehouse": warehouse}, pluck="item_code", limit_page_length=0))
     registered = set(frappe.parse_json(frappe.db.get_value("Warehouse", warehouse, "luuv_stock_minimums") or "{}")) if frappe.db.has_column("Warehouse", "luuv_stock_minimums") else set()
@@ -112,6 +115,7 @@ def dashboard(restaurant=None):
         row['pending_qty'] = pending.get(row['item'], 0)
         row['prepared'] = row['item'] in prepared
     for item in items:
+        item['kind'] = 'prepared' if item.name in prepared else 'menu'
         versions = [v for v in managed if v.item == item.name]
         item["recipe_status"] = ("Active" if versions[0].docstatus == 1 else "Draft") if versions else (
             "Active" if inventory._default_bom(item.name) else "No recipe")
@@ -137,7 +141,7 @@ def dashboard(restaurant=None):
             "restaurant": restaurant, "warehouse": warehouse, "as_of": now_datetime(), "menu": items,
             "stock_policy": stock_rules(restaurant), "shortage_sales": shortages,
             "stock": [r for r in catalog if r["item"] in recipe_items | bins | registered], "audits": audits,
-            "purchasing": True, "purchasing_flow": "bill_approval",
+            "purchasing": True, "purchasing_flow": "bill_approval", "preparation_recipes": True,
             "uoms": frappe.get_all("UOM", filters={"enabled": 1}, order_by="name asc", pluck="name", limit_page_length=0)}
 
 
@@ -145,21 +149,33 @@ def dashboard(restaurant=None):
 def recipe(item_code, restaurant=None, version=None):
     restaurant, warehouse = _context(restaurant)
     _check_item(item_code, restaurant)
+    from luuvcrm.api.manager_preparation import codes,batches
+    prepared=item_code in codes(restaurant,warehouse)
+    output=frappe.db.get_value('Item',item_code,['stock_uom'],as_dict=True)
+    output_uom,output_factor=_display(output.stock_uom)
     versions = _versions(item_code, restaurant)
-    latest = versions[0].name if versions else inventory._default_bom(item_code) or ""
+    latest = versions[0].name if versions else ('' if prepared else inventory._default_bom(item_code) or '')
     selected = version or latest
     if version and version not in [v.name for v in versions] and version != latest:
         frappe.throw(_("Recipe version not found"), frappe.PermissionError)
     rows, status = [], "No recipe"
+    output_qty=output_factor if prepared else 1
+    recipe_note=""
     if selected:
         doc = frappe.get_doc("BOM", selected)
         status = "Active" if doc.docstatus == 1 else "Draft"
+        output_qty=flt(doc.quantity)*output_factor if prepared else 1
+        recipe_note=doc.get("luuv_preparation_note") or ""
         for line in doc.items:
             uom, factor = _display(line.stock_uom)
             rows.append({"item": line.item_code, "name": line.item_name,
-                         "qty": flt(line.stock_qty) / flt(doc.quantity or 1) * factor, "uom": uom})
+                         "qty": flt(line.stock_qty) / (1 if prepared else flt(doc.quantity or 1)) * factor, "uom": uom})
     from luuvcrm.api.recipe_sheets import get as sheet_draft
     return {"item": item_code, "name": frappe.db.get_value("Item", item_code, "item_name"),
+            "kind": "prepared" if prepared else "menu", "output_qty": output_qty,
+            "output_uom": output_uom if prepared else "portion", "stock_uom": output.stock_uom,
+            "balance": flt(frappe.db.get_value("Bin",{"warehouse":warehouse,"item_code":item_code},"actual_qty")),
+            "recipe_note": recipe_note, "batches": batches(item_code,warehouse) if prepared else [],
             "sheet_draft": sheet_draft(item_code, restaurant, warehouse),
             "latest": latest, "version": selected, "status": status, "ingredients": rows,
             "versions": versions, "catalog": _catalog(warehouse), "restaurant": restaurant}
@@ -334,9 +350,11 @@ def create_ingredient(item_name, uom, minimum_qty=0, restaurant=None, item_code=
 
 
 @frappe.whitelist(methods=["POST"])
-def save_recipe(item_code, ingredients, expected_version="", restaurant=None):
+def save_recipe(item_code, ingredients, expected_version="", restaurant=None, output_qty=None, recipe_note=""):
     restaurant, warehouse = _context(restaurant)
     _check_item(item_code, restaurant)
+    from luuvcrm.api.manager_preparation import registered,cycle_check,whole
+    registered(warehouse,lock=True)
     frappe.db.sql("select name from tabItem where name=%s for update", item_code)
     current = recipe(item_code, restaurant)
     if (expected_version or "") != current["latest"]:
@@ -351,9 +369,19 @@ def save_recipe(item_code, ingredients, expected_version="", restaurant=None):
             frappe.throw(_("Choose a valid stock ingredient"))
         item = row["item"]
         qty = _number(row.get("qty"), "Ingredient quantity") / catalog[item]["factor"]
+        whole(item,qty)
         merged[item] = merged.get(item, 0) + qty
+    cycle_check(item_code,merged,restaurant,warehouse)
+    output=1
+    if current['kind']=='prepared':
+        _,factor=_display(current['stock_uom'])
+        output=_number(output_qty if output_qty is not None else current['output_qty'],'Recipe output quantity')/factor
+        whole(item_code,output)
+    recipe_note=(recipe_note or '').strip()
+    if len(recipe_note)>1000:frappe.throw(_('Keep the recipe note under 1000 characters.'))
     doc = frappe.get_doc({"doctype": "BOM", "item": item_code,
-        "company": frappe.db.get_value("Warehouse", warehouse, "company"), "quantity": 1,
+        "company": frappe.db.get_value("Warehouse", warehouse, "company"), "quantity": output,
+        "luuv_preparation_note": recipe_note,
         "is_active": 1, "is_default": 0, "rm_cost_as_per": "Valuation Rate",
         "luuv_recipe_restaurant": restaurant,
         "items": [{"item_code": code, "qty": qty, "uom": catalog[code]["stock_uom"],
@@ -381,7 +409,7 @@ def activate_recipe(item_code, version, restaurant=None):
     checked=assess(stock_rules(restaurant),[dict(item=r.item_code,name=r.item_name,uom=r.stock_uom,
         before=balances.get(r.item_code,0),qty=flt(r.stock_qty)) for r in doc.items])
     missing = [r['name'] for r in checked['blocked']]
-    if missing:
+    if missing and current["kind"]!="prepared":
         frappe.throw(_("Record opening stock or a receipt before activating: {0}").format(", ".join(missing)))
     # Keep the global/default recipe untouched: this version belongs to a branch.
     old_default = frappe.db.get_value("Item", item_code, "default_bom")
@@ -397,6 +425,18 @@ def activate_recipe(item_code, version, restaurant=None):
         ref_doctype="BOM", ref_name=doc.name, item=item_code,
         detail={"restaurant": restaurant, "effective_from": str(doc.luuv_recipe_effective_from)})
     return recipe(item_code, restaurant)
+
+
+@frappe.whitelist(methods=['POST'])
+def create_prepared_recipe(item_code,restaurant=None):
+    from luuvcrm.api.manager_preparation import create
+    return create(item_code,restaurant)
+
+
+@frappe.whitelist(methods=['POST'])
+def complete_batch(item_code,version,request_id,planned_qty,actual_qty,comment='',restaurant=None):
+    from luuvcrm.api.manager_preparation import complete
+    return complete(item_code,version,request_id,planned_qty,actual_qty,comment,restaurant)
 
 
 @frappe.whitelist(methods=["POST"])

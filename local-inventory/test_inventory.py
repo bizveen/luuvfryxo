@@ -101,8 +101,10 @@ class InventoryFlowTest(unittest.TestCase):
         row=next(r for r in self.call('dashboard')['stock'] if r['item']==code)
         self.assertEqual(row['stock_uom'],'nos')
         self.assertEqual(row['minimum_qty'],5)
-        with self.assertRaisesRegex(ValueError,'already exists'):
-            self.call('create_ingredient',item_name='test boxes',uom='nos',minimum_qty=5)
+        reused=self.call('create_ingredient',item_name='test boxes',uom='nos',minimum_qty=5)
+        self.assertEqual(reused['item'],code)
+        self.assertTrue(reused['existed'])
+        self.assertEqual(self.balances()[code],17)
 
     def test_live_notifications_follow_commits_not_failed_or_duplicate_sends(self):
         initial=self.store.revision
