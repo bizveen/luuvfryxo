@@ -430,6 +430,36 @@ class TestSpendingTheBalance(LoyaltyTestCase):
         row = next(c for c in result["customers"] if c.mobile == self.MOBILE)
         self.assertEqual(float(row.cashback_balance), 1000)
 
+    def test_manager_mobile_lookup_returns_only_that_customers_history(self):
+        lc_name = frappe.db.get_value("Loyalty Customer", {"mobile": self.MOBILE}, "name")
+        txn = frappe.get_doc({"doctype": "Cashback Transaction",
+                              "loyalty_customer": lc_name, "type": "Earn",
+                              "amount": 42, "reference_order": "TEST-REWARD-ORDER"})
+        txn.insert(ignore_permissions=True)
+        self.addCleanup(lambda: frappe.db.exists("Cashback Transaction", txn.name) and
+                        frappe.delete_doc("Cashback Transaction", txn.name,
+                                          force=True, ignore_permissions=True))
+        previous_user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            result = self.call(api.manager_customer_reward_history,
+                               mobile="94770000107")
+        finally:
+            frappe.set_user(previous_user)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["customer"].mobile, self.MOBILE)
+        self.assertEqual(float(result["customer"].cashback_balance), 1000)
+        self.assertIn(txn.name, [row.name for row in result["history"]])
+
+    def test_customer_cannot_use_manager_mobile_lookup(self):
+        previous_user = frappe.session.user
+        frappe.set_user("Guest")
+        try:
+            with self.assertRaises(frappe.PermissionError):
+                self.call(api.manager_customer_reward_history, mobile=self.MOBILE)
+        finally:
+            frappe.set_user(previous_user)
+
     def test_spending_more_than_the_balance_is_refused(self):
         result = self.call(api.loyalty_redeem, token=self.token, amount=5000)
         self.assertFalse(result["success"])

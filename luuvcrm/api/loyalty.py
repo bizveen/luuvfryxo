@@ -597,6 +597,31 @@ def manager_get_rewards():
     }
 
 
+@frappe.whitelist()
+def manager_customer_reward_history():
+    """Look up one customer's balance and cashback ledger for counter staff."""
+    roles.require_manager()
+    digits = "".join(ch for ch in str(frappe.local.form_dict.get("mobile") or "") if ch.isdigit())
+    if digits.startswith("94") and len(digits) == 11:
+        digits = "0" + digits[2:]
+    if len(digits) != 10 or not digits.startswith("0"):
+        return {"success": False, "error": "Enter a valid 10-digit mobile number"}
+    international = "94" + digits[1:]
+    customer = frappe.db.get_value(
+        "Loyalty Customer", {"mobile": ["in", [digits, international, "+" + international]]},
+        ["name", "customer_name", "mobile", "cashback_balance", "total_earned", "total_redeemed"],
+        as_dict=True,
+    )
+    if not customer:
+        return {"success": False, "error": "No rewards account found for this mobile number"}
+    history = frappe.get_all(
+        "Cashback Transaction", filters={"loyalty_customer": customer.name},
+        fields=["name", "type", "amount", "level", "reference_order", "notes", "creation"],
+        order_by="creation desc", limit_page_length=100,
+    )
+    return {"success": True, "customer": customer, "history": history}
+
+
 @frappe.whitelist(methods=["POST"])
 def manager_redeem_reward():
     roles.require_manager()
