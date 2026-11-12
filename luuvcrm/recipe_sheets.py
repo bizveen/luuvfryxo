@@ -19,6 +19,16 @@ def references(restaurant):
             result[code]=dict(menu_item=code,name=name,packaging_only=True,
                 source_label='Owner packaging instructions',source_note=juices['note'],
                 ingredients=deepcopy(juices['ingredients']),packaging={})
+    lemonades=json.loads((Path(__file__).parent/'data/lemonade-recipes.json').read_text(encoding='utf-8'))
+    if restaurant==lemonades['restaurant']:
+        for recipe in lemonades['recipes']:
+            code=recipe['menu_item']
+            # Preserve the original packaging reference; a new saved draft carries
+            # the owner's measured beverage quantities without rewriting history.
+            result[code].update(beverage=True,beverage_recipe=dict(
+                ingredients=deepcopy([recipe['fruit']]+lemonades['shared_ingredients']+lemonades['packaging']),
+                source_label=lemonades['source_label'],source_note=lemonades['source_note'],
+                pending_notes=lemonades['pending_notes']+recipe.get('pending_notes',[])))
     return result
 
 
@@ -35,6 +45,10 @@ def view(reference,history=None):
     if reference.get('kind')=='prepared':
         notes=['Confirm the actual ingredients and finished batch yield, then link each raw ingredient to its stock item.',
                'Complete a batch only after preparation. This consumes raw ingredients and adds finished coleslaw stock.']
+    elif reference.get('beverage'):
+        notes=['Link the measured beverage ingredients and packaging to their stock items before activating a stock recipe.',
+               'Use a 300 ml cup with a matching lid; cup, lid, straw and juice bag are counted individually in Nos.']
+        notes.extend(reference['beverage_recipe']['pending_notes'])
     elif reference.get('packaging_only'):
         notes=['Add the beverage ingredients and their measured quantities before activating a stock recipe.',
                'Confirm the cup and lid size used by this drink, then link the three packaging stock items.']
@@ -48,7 +62,8 @@ def view(reference,history=None):
     blends=[r for r in current if '&' in r['name'] and 'sauce' in r['name'].lower()]
     for row in blends:
         notes.append('The '+str(row['qty'])+' '+row['unit']+' '+row['name']+' amount is combined. Confirm the split or prepared blend.')
-    if reference.get('source_note'):notes.append(reference['source_note'])
+    source_note=reference.get('beverage_recipe',{}).get('source_note') or reference.get('source_note')
+    if source_note:notes.append(source_note)
     preparations=[dict(item='KG-STOCK-COLESLAW',name='Coleslaw salad',qty=row['qty'],unit=row['unit'])
         for row in current if row['name'].strip().casefold() in ('creamy coleslaw','coleslaw','coleslaw salad')]
     return dict(reference=deepcopy(reference),current=history[-1],history=history,pending_notes=notes,units=list(UNITS),preparations=preparations)
@@ -62,7 +77,7 @@ def changed(history,ingredients,note,expected_revision,by,when):
         if not isinstance(row,dict):raise ValueError('Enter a valid ingredient row.')
         name=row.get('name');unit=row.get('unit');qty=row.get('qty')
         if not isinstance(name,str) or not 1<=len(name.strip())<=140 or any(ord(c)<32 or c in '<>' for c in name):
-            raise ValueError('Use a plain-text ingredient name of 1–140 characters.')
+            raise ValueError('Use a plain-text ingredient name of 1â€“140 characters.')
         if unit not in UNITS:raise ValueError('Choose a listed recipe unit.')
         try:value=float(qty) if not isinstance(qty,bool) else float('nan')
         except (ValueError,TypeError):value=float('nan')

@@ -1,0 +1,79 @@
+{
+  "restaurant": "Kurunegala",
+  "source_label": "Owner handwritten lemonade recipe",
+  "source_note": "Shared base for Strawberry, Passion and Blueberry lemonade, as instructed by the owner. Use a 300 ml cup. Keep the previously requested juice bag and add one straw. Sprite is provisionally read as 280 ml; Blueberry is provisionally read as 20 g. Confirm these handwritten quantities before stock activation.",
+  "shared_ingredients": [
+    {
+      "name": "Ice",
+      "qty": 50,
+      "unit": "g"
+    },
+    {
+      "name": "Sprite",
+      "qty": 280,
+      "unit": "ml"
+    },
+    {
+      "name": "Lime",
+      "qty": 20,
+      "unit": "g"
+    }
+  ],
+  "packaging": [
+    {
+      "name": "Clear cups",
+      "qty": 1,
+      "unit": "Nos"
+    },
+    {
+      "name": "Juice lid",
+      "qty": 1,
+      "unit": "Nos"
+    },
+    {
+      "name": "Straw",
+      "qty": 1,
+      "unit": "Nos"
+    },
+    {
+      "name": "Juice bag",
+      "qty": 1,
+      "unit": "Nos"
+    }
+  ],
+  "pending_notes": [
+    "Confirm Sprite quantity: the handwritten amount is provisionally read as 280 ml."
+  ],
+  "recipes": [
+    {
+      "menu_item": "KG-LEMONADE-STRAWBERRY",
+      "name": "Strawberry Lemonade (300ml)",
+      "fruit": {
+        "name": "Strawberry pulp",
+        "qty": 60,
+        "unit": "ml"
+      }
+    },
+    {
+      "menu_item": "KG-LEMONADE-PASSION",
+      "name": "Passion Lemonade (300ml)",
+      "fruit": {
+        "name": "Passion pulp",
+        "qty": 60,
+        "unit": "ml"
+      }
+    },
+    {
+      "menu_item": "KG-LEMONADE-BLUEBERRY",
+      "name": "Blueberry Lemonade (300ml)",
+      "fruit": {
+        "name": "Blueberry",
+        "qty": 20,
+        "unit": "g"
+      },
+      "pending_notes": [
+        "Confirm Blueberry quantity: the handwritten amount is provisionally read as 20 g."
+      ]
+    }
+  ]
+}
