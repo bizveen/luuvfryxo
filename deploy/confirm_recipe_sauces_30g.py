@@ -1,7 +1,7 @@
 """Append the owner's 30 g sauce correction; retain all existing draft history."""
 from copy import deepcopy
 
-COMBINED='pending'  # pending, each_30, or total_30; needs the owner's answer.
+COMBINED='each_30'  # Owner confirmed 30 g for every sauce, including the Spicy Chips pair.
 SAUCES={'hot sauce','bbq sauce','garlic mayo','mustard mayo'}
 ITEMS=('KG-FRIES-CHICKEN','KG-FRIES-FISH','KG-FRIES-PRAWN','KG-FRIES-BEEF',
        'KG-FRIES-SAUSAGE','KG-CHIPS-FISH','KG-CHIPS-SPICY')
@@ -59,12 +59,21 @@ def run_native():
                 if item not in {r['item'] for r in changed}:assert after[item]==before[item]
             frappe.db.commit()
             # Reload through the same endpoint used by Manager 2.0.
+            verified_sauces=0
             for item in ITEMS:
                 live=manager.recipe(item,'Kurunegala')['sheet_draft']
                 assert live['current']['ingredients']==corrected(item,before[item][-1]['ingredients'])
                 if item!='KG-CHIPS-SPICY':
                     assert not any('measured quantity' in note for note in live['pending_notes'])
-            print(frappe.as_json(dict(updated=changed,combined_sauce=COMBINED,history_preserved=True)))
+                sauces=[r for r in live['current']['ingredients'] if r['name'].lower() in SAUCES]
+                assert all(r['qty']==30 and r['unit']=='g' for r in sauces)
+                verified_sauces+=len(sauces)
+                if item=='KG-CHIPS-SPICY' and COMBINED=='each_30':
+                    assert len(sauces)==2 and sum(r['qty'] for r in sauces)==60
+                    assert not any('Confirm the split' in note for note in live['pending_notes'])
+            if COMBINED=='each_30':assert verified_sauces==24
+            print(frappe.as_json(dict(updated=changed,combined_sauce=COMBINED,
+                sauce_rows_verified=verified_sauces,history_preserved=True)))
     finally:frappe.db.rollback();frappe.destroy()
 
 
