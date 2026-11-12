@@ -52,4 +52,16 @@ class RecipeSheetTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'branch'):
             self.store.dispatch('save_sheet_draft',dict(restaurant='Other'))
 
+    def test_confirmed_portions_remove_only_resolved_review_note(self):
+        item='KG-CHIPS-FISH'
+        original=self.store.dispatch('recipe',dict(item_code=item))['sheet_draft']
+        self.assertTrue(any('measured quantity' in n for n in original['pending_notes']))
+        rows=deepcopy(original['current']['ingredients'])
+        for row in rows:
+            if row['unit']=='portion':row.update(qty=30,unit='g')
+        saved=self.store.dispatch('save_sheet_draft',dict(item_code=item,ingredients=rows,expected_revision=0,note='Sauces confirmed at 30 g'))
+        self.assertFalse(any('measured quantity' in n for n in saved['pending_notes']))
+        self.assertEqual(saved['history'][0]['ingredients'][-1]['unit'],'portion')
+        self.assertEqual(saved['reference']['ingredients'][-1]['qty'],1)
+
 if __name__=='__main__':unittest.main()

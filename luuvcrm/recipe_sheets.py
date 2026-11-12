@@ -22,10 +22,13 @@ def view(reference,history=None):
     notes=['Confirm sauce stock units before linking this draft to stock.',
            'Confirm the prepared salad and any oil/flour used during preparation.',
            'Packaging is listed as one set; its stock components need linking.']
-    if any(r.get('physical_quantity_pending') for r in reference['ingredients']):
-        notes.append('Hot sauce and BBQ sauce are each listed as 1 portion. Enter the measured amount when known.')
-    if any(r.get('sauce_split_pending') for r in reference['ingredients']):
-        notes.append('The 50 g sauce amount combines BBQ and hot sauce. Confirm the split or prepared blend.')
+    current=history[-1]['ingredients']
+    portions=[r['name'] for r in current if r['unit']=='portion']
+    if portions:
+        notes.append('Enter a measured quantity for: '+', '.join(portions)+'.')
+    blends=[r for r in current if '&' in r['name'] and 'sauce' in r['name'].lower()]
+    for row in blends:
+        notes.append('The '+str(row['qty'])+' '+row['unit']+' '+row['name']+' amount is combined. Confirm the split or prepared blend.')
     if reference.get('source_note'):notes.append(reference['source_note'])
     return dict(reference=deepcopy(reference),current=history[-1],history=history,pending_notes=notes,units=list(UNITS))
 
