@@ -217,26 +217,50 @@ window.LFInventory=(()=>{
       try{await call('set_minimum',{item_code:item,minimum_qty:d.querySelector('#miMinimum').value});d.close();await load()}catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{b.disabled=false}
     };d.showModal();d.querySelector('#miMinimum').focus();
   }
-  function openNewIngredient(fromRecipe){
+  async function openNewIngredient(fromRecipe){
     const d=document.getElementById('miAudit');d.className='mi mi-dialog mi-audit-short';
     const favorites=['Kg','L','Litre','nos','Nos','g','Gram','ml','Millilitre'];
     const units=[...(data.uoms||[])].sort((a,b)=>{const x=favorites.indexOf(a),y=favorites.indexOf(b);return (x<0?100:x)-(y<0?100:y)||a.localeCompare(b)});
-    d.innerHTML='<h2>New ingredient</h2><p>Add it once, then use it in your recipes.</p><label for="miIngredientName">Ingredient name</label><input id="miIngredientName" maxlength="80" placeholder="e.g. Garlic mayo"><label for="miIngredientUnit">Stock unit</label><select id="miIngredientUnit" style="width:100%">'+units.map(u=>'<option value="'+escape(u)+'">'+escape(u)+'</option>').join('')+'</select><label for="miIngredientMinimum" style="color:#b73e34">MOQ · minimum stock level</label><input id="miIngredientMinimum" type="number" min="0" step="any" value="0"><p style="font-size:12px">Starts with 0 stock. Use Audit to enter the first count.</p><div id="miAuditError"></div><div class="mi-actions"><button class="mi-btn" id="miAuditCancel">Cancel</button><button class="mi-btn mi-primary" id="miIngredientCreate">Create ingredient</button></div>';
-    const unit=d.querySelector('#miIngredientUnit'),minimum=d.querySelector('#miIngredientMinimum');unit.onchange=()=>{minimum.step=unit.value.toLowerCase()==='nos'?'1':'any'};
+    d.innerHTML='<h2>Add ingredient</h2><p>Find an existing item or enter a new ingredient name.</p><label for="miIngredientName">Ingredient name or item code</label><input id="miIngredientName" maxlength="140" placeholder="e.g. Garlic mayo"><label for="miExistingIngredient">Existing items</label><select id="miExistingIngredient" style="width:100%" disabled><option>Loading items…</option></select><label for="miIngredientUnit">Stock unit</label><select id="miIngredientUnit" style="width:100%">'+units.map(u=>'<option value="'+escape(u)+'">'+escape(u)+'</option>').join('')+'</select><label for="miIngredientMinimum" style="color:#b73e34">MOQ · minimum stock level</label><input id="miIngredientMinimum" type="number" min="0" step="any" value="0"><p id="miIngredientHelp" style="font-size:12px">New ingredients start with 0 stock. Use Audit to enter the first count.</p><div id="miAuditError"></div><div class="mi-actions"><button class="mi-btn" id="miAuditCancel">Cancel</button><button class="mi-btn mi-primary" id="miIngredientCreate" disabled>Add ingredient</button></div>';
+    const name=d.querySelector('#miIngredientName'),pick=d.querySelector('#miExistingIngredient'),unit=d.querySelector('#miIngredientUnit'),minimum=d.querySelector('#miIngredientMinimum'),button=d.querySelector('#miIngredientCreate'),help=d.querySelector('#miIngredientHelp');
+    let options=[],existing=null;
+    unit.onchange=()=>{minimum.step=unit.value.toLowerCase()==='nos'?'1':'any'};
+    const choose=row=>{
+      const wasExisting=!!existing;existing=row||null;unit.disabled=minimum.disabled=!!existing;
+      if(existing){
+        if(![...unit.options].some(o=>o.value===existing.stock_uom))unit.add(new Option(existing.stock_uom,existing.stock_uom));
+        unit.value=existing.stock_uom;minimum.value=Number(existing.minimum_qty||0);
+        help.textContent='Uses the existing item. Stock balance, unit and minimum stay unchanged. You can edit the minimum from its stock card.';
+        button.textContent='Use existing item';
+      }else{
+        if(wasExisting){unit.value=units[0]||'';minimum.value=0}
+        help.textContent='New ingredients start with 0 stock. Use Audit to enter the first count.';button.textContent='Create ingredient';
+      }
+      unit.onchange();
+    };
+    const search=()=>{
+      const q=name.value.trim().toLowerCase(),matches=options.filter(r=>!q||r.name.toLowerCase().includes(q)||r.item.toLowerCase().includes(q));
+      const exact=matches.filter(r=>r.name.toLowerCase()===q||r.item.toLowerCase()===q);
+      pick.innerHTML='<option value="">'+(exact.length>1?'Choose the matching item code':'Create a new ingredient')+'</option>'+matches.map(r=>'<option value="'+escape(r.item)+'">'+escape(r.name)+' · '+escape(r.stock_uom)+' · '+escape(r.item)+'</option>').join('');
+      pick.value=exact.length===1?exact[0].item:'';choose(exact.length===1?exact[0]:null);
+    };
+    name.oninput=search;pick.onchange=()=>{const row=options.find(r=>r.item===pick.value);if(row)name.value=row.name;choose(row)};
     d.querySelector('#miAuditCancel').onclick=()=>d.close();d.querySelector('#miIngredientCreate').onclick=async()=>{
       const button=d.querySelector('#miIngredientCreate');if(button.disabled)return;button.disabled=true;
       try{
-        const created=await call('create_ingredient',{item_name:d.querySelector('#miIngredientName').value,uom:unit.value,minimum_qty:minimum.value});
+        const created=await call('create_ingredient',{item_name:name.value,uom:unit.value,minimum_qty:minimum.value,...(existing?{item_code:existing.item}:{})});
         if(fromRecipe==='prepared'){
           current=await call('create_prepared_recipe',{item_code:created.item});selected=created.item;dirty=false;data=await call('dashboard');mode='recipes';render();
         }else if(fromRecipe){
           const refreshed=await call('recipe',{item_code:selected});current.catalog=refreshed.catalog;
-          const ingredient=current.catalog.find(x=>x.item===created.item);current.ingredients.push({item:created.item,name:created.name,qty:0,uom:ingredient.uom});
+          const ingredient=current.catalog.find(x=>x.item===created.item);if(!current.ingredients.some(x=>x.item===created.item))current.ingredients.push({item:created.item,name:created.name,qty:0,uom:ingredient.uom});
           dirty=true;data=await call('dashboard');editor();setDirty();menuRows();
         }else{onlyLow=false;stockSearch='';await load()}
         d.close();
       }catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{button.disabled=false}
-    };d.showModal();d.querySelector('#miIngredientName').focus();
+    };d.showModal();name.focus();
+    try{const result=await call('ingredient_options');if(!d.open||!pick.isConnected)return;options=result.items;pick.disabled=false;button.disabled=false;search()}
+    catch(e){if(d.open&&pick.isConnected)d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}
   }
   function menuRows(){
     const q=root.querySelector('#miMenuSearch').value.toLowerCase();root.querySelector('#miMenu').innerHTML=data.menu.filter(m=>m.item_name.toLowerCase().includes(q)).map(m=>'<button class="'+(selected===m.name?'active':'')+'" data-item="'+escape(m.name)+'"><strong>'+escape(m.item_name)+'</strong><small>'+(data.preparation_recipes?(m.kind==='prepared'?'Prepared item':'Menu item')+' · ':'')+escape(m.recipe_status)+'</small></button>').join('');

@@ -253,15 +253,55 @@ def set_minimum(item_code, minimum_qty, restaurant=None):
 
 
 @frappe.whitelist(methods=["POST"])
-def create_ingredient(item_name, uom, minimum_qty=0, restaurant=None):
+def ingredient_options(restaurant=None):
+    """Existing stock can be registered in a branch before it has a Bin."""
+    restaurant, warehouse = _context(restaurant)
+    return {"items": _catalog(warehouse)}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_ingredient(item_name, uom, minimum_qty=0, restaurant=None, item_code=None):
     restaurant, warehouse = _context(restaurant)
     name = (item_name or "").strip()
+    if not name:
+        frappe.throw(_("Enter an ingredient name or choose an existing item."))
+    # Lock the branch registration and use a current read for name matching.
+    # Retrying an add must never reset the existing minimum or stock balance.
+    frappe.db.sql("select name from tabWarehouse where name=%s for update", warehouse)
+    if item_code:
+        matches = frappe.db.sql("select name from tabItem where name=%s for update", (item_code,), as_dict=True)
+        if not matches:
+            frappe.throw(_("This item is no longer available. Reopen Add ingredient."))
+    else:
+        matches = frappe.db.sql("select name from tabItem where item_name=%s or name=%s order by name for update",
+                                (name, name), as_dict=True)
+    if len(matches) > 1:
+        frappe.throw(_("More than one item has this name. Choose the item code from Existing items."))
+    if matches:
+        doc = frappe.get_doc("Item", matches[0].name)
+        if doc.disabled:
+            frappe.throw(_("This item is disabled. Enable the existing item before adding it."))
+        from luuvcrm.api.inventory_sections import main_items
+        if doc.is_fixed_asset or doc.name in main_items(warehouse):
+            frappe.throw(_("This item belongs to Main inventory. Manage it there or move it to Running stock first."))
+        if not doc.is_stock_item:
+            frappe.throw(_("This item is set up without stock tracking. Review its item setup before using it as an ingredient."))
+        values = frappe.parse_json(frappe.db.get_value("Warehouse", warehouse, "luuv_stock_minimums") or "{}")
+        registered = doc.name in values
+        if not registered:
+            # Existing units and thresholds are never reinterpreted from a
+            # possibly stale new-item form. MOQ can be edited on the stock card.
+            set_minimum(doc.name, 0, restaurant)
+            activity.log_activity("item.register", label="Existing ingredient added: " + doc.item_name,
+                ref_doctype="Item", ref_name=doc.name, item=doc.name, item_name=doc.item_name,
+                detail={"restaurant": restaurant, "warehouse": warehouse, "unit": doc.stock_uom})
+        return {"item": doc.name, "name": doc.item_name, "stock_uom": doc.stock_uom,
+                "minimum_qty": flt(values.get(doc.name, 0)), "existed": True,
+                "already_registered": registered}
     if not 2 <= len(name) <= 80:
         frappe.throw(_("Enter an ingredient name (2–80 characters)"))
     from luuvcrm.api.inventory_units import validate_unit
     validate_unit(uom)
-    if frappe.db.exists("Item", {"item_name": name}):
-        frappe.throw(_("That ingredient already exists. Choose it from the ingredient list."))
     minimum = _number(minimum_qty, "Minimum stock level", True)
     if frappe.db.get_value("UOM", uom, "must_be_whole_number") and minimum != int(minimum):
         frappe.throw(_("Enter a whole number of {0}").format(uom))
@@ -276,7 +316,7 @@ def create_ingredient(item_name, uom, minimum_qty=0, restaurant=None):
     activity.log_activity("item.create", label="Ingredient created: " + name, ref_doctype="Item",
         ref_name=doc.name, item=doc.name, item_name=name,
         detail={"restaurant": restaurant, "unit": uom, "minimum_qty": minimum})
-    return {"item": doc.name, "name": name, "stock_uom": uom, "minimum_qty": minimum}
+    return {"item": doc.name, "name": name, "stock_uom": uom, "minimum_qty": minimum, "existed": False}
 
 
 @frappe.whitelist(methods=["POST"])

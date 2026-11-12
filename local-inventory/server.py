@@ -246,6 +246,9 @@ class Store:
             if p.get('restaurant') not in (None,'','Kurunegala'):
                 raise ValueError('Switch to that branch before managing its stock.')
             item_code=p.get('item_code') or ITEM
+            if method=='ingredient_options':
+                if p.get('_actor') not in (None,'Local manager'):raise ValueError('Only a manager can add ingredients.')
+                return dict(items=self.catalog(db))
             if method=='inventory_item_units':
                 if p.get('_actor') not in (None,'Local manager'):raise ValueError('Only a manager can edit item units.')
                 return item_units.describe(db,item_code)
@@ -290,18 +293,28 @@ class Store:
                 return self.recipe(db,item=item_code)
             if method=='complete_batch':return self.complete_batch(db,p)
             if method=='create_ingredient':
+                if p.get('_actor') not in (None,'Local manager'):raise ValueError('Only a manager can add ingredients.')
                 name=(p.get('item_name') or '').strip()
+                if not name:raise ValueError('Enter an ingredient name or choose an existing item.')
+                if p.get('item_code'):
+                    matches=db.execute('SELECT * FROM stock WHERE item=?',(p['item_code'],)).fetchall()
+                    if not matches:raise ValueError('This item is no longer available. Reopen Add ingredient.')
+                else:
+                    matches=db.execute('SELECT * FROM stock WHERE lower(name)=lower(?) OR lower(item)=lower(?)',(name,name)).fetchall()
+                if len(matches)>1:raise ValueError('More than one item has this name. Choose the item code from Existing items.')
+                if matches:
+                    row=dict(matches[0])
+                    if row['item'] in equipment.settings(db)['items']:raise ValueError('This item belongs to Main inventory. Manage it there or move it to Running stock first.')
+                    return dict(item=row['item'],name=row['name'],stock_uom=row['stock_uom'],minimum_qty=row['minimum_qty'],existed=True,already_registered=True)
                 if not 2<=len(name)<=80:raise ValueError('Enter an ingredient name (2–80 characters).')
                 unit=p.get('uom')
                 if unit not in item_units.UNITS+['nos']:raise ValueError('Choose a defined unit.')
-                if db.execute('SELECT 1 FROM stock WHERE lower(name)=lower(?)',(name,)).fetchone():
-                    raise ValueError('That ingredient already exists. Choose it from the stock list.')
                 minimum=number(p.get('minimum_qty',0),'Minimum stock level',True)
                 if unit.lower()=='nos' and minimum!=int(minimum):raise ValueError('Enter a whole number of nos.')
                 key='LOCAL-ING-'+str(db.execute('SELECT count(*) FROM stock').fetchone()[0]+1).zfill(4)
                 db.execute('INSERT INTO stock(item,name,stock_uom,uom,balance,rate,minimum_qty) VALUES(?,?,?,?,0,0,?)',
                     (key,name,unit,{'Kg':'g','L':'ml'}.get(unit,unit),minimum))
-                return dict(item=key,name=name,stock_uom=unit,minimum_qty=minimum)
+                return dict(item=key,name=name,stock_uom=unit,minimum_qty=minimum,existed=False)
             if method=='recipe':
                 return self.recipe(db,p.get('version'),item_code)
             if method=='save_recipe':
