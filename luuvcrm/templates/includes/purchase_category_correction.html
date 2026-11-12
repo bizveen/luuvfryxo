@@ -1,0 +1,93 @@
+<style>
+.pcc-row{padding:12px 0;border-bottom:1px solid var(--border-subtle)}
+.pcc-select,.pcc-note{width:100%;box-sizing:border-box;margin-top:7px;padding:11px;border:1.5px solid var(--border-default);border-radius:12px;background:var(--surface-card);color:var(--text-strong);font:inherit;font-size:14px}
+.pcc-small{font-size:12px;color:var(--text-muted);line-height:1.5}
+.pcc-history{padding:10px 0;border-top:1px solid var(--border-subtle)}
+</style>
+<div id="pccOverlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:1200;background:rgba(20,18,16,.5);align-items:flex-end;justify-content:center;" onclick="closePurchaseCategories()">
+  <section role="dialog" aria-modal="true" aria-labelledby="pccTitle" onclick="event.stopPropagation()" style="width:520px;max-width:100%;max-height:94vh;overflow:auto;box-sizing:border-box;background:var(--surface-card);border-radius:24px 24px 0 0;padding:22px;">
+    <h2 id="pccTitle" style="font-size:20px;margin:0 0 6px;">Correct item categories</h2>
+    <div id="pccBill" class="pcc-small"></div>
+    <p class="pcc-small">Stock is corrected when an item moves into or out of a stock category. Bill quantities, prices and the total stay fixed.</p>
+    <div id="pccLines"></div>
+    <div id="pccStock" class="pcc-small" style="margin-top:12px;padding:10px;background:var(--surface-sunken);border-radius:12px;"></div>
+    <label class="pcc-small" style="display:block;margin-top:12px;">Correction note (optional)<input id="pccNote" class="pcc-note" maxlength="500" placeholder="Why was the category changed?"></label>
+    <div id="pccError" role="alert" style="color:var(--color-danger);font-size:13px;margin:12px 0;"></div>
+    <div style="display:flex;gap:10px;margin-top:15px;">
+      <button onclick="closePurchaseCategories()" style="padding:12px 18px;border:1px solid var(--border-default);background:var(--surface-card);border-radius:24px;color:var(--text-body);">Cancel</button>
+      <button id="pccSave" onclick="savePurchaseCategories()" disabled style="flex:1;padding:12px;border:0;background:var(--color-primary);color:white;border-radius:24px;font-weight:700;">Save categories &amp; stock</button>
+    </div>
+    <details style="margin-top:20px;"><summary style="font-size:13px;font-weight:700;cursor:pointer;">Correction history</summary><div id="pccHistory" class="pcc-small"></div></details>
+  </section>
+</div>
+<script>
+(function(){
+  const S={data:null,selected:{},busy:false,request:null,callback:null,load:0};
+  const el=id=>document.getElementById(id);
+  const base='/api/method/luuvcrm.api.purchase_categories.';
+  const number=n=>(Math.round(Number(n||0)*1000000)/1000000).toLocaleString(undefined,{maximumFractionDigits:6});
+  function message(d){try{return JSON.parse(JSON.parse(d._server_messages)[0]).message.replace(/<[^>]*>/g,' ');}catch(e){return d.error||'Could not save. Reopen the bill and try again.';}}
+  function changed(){return S.data?S.data.bill.lines.filter(l=>S.selected[l.row_name]!==l.category):[];}
+  function stockPreview(){
+    const movements={};
+    for(const l of changed()){
+      const choice=S.data.categories.find(c=>c.value===S.selected[l.row_name]);
+      const before=Number(l.received_qty||0);
+      const after=choice&&choice.in_stock?(before||(l.is_stock?0:Number(l.stock_qty||0))):0;
+      if(l.item){const row=movements[l.item]||(movements[l.item]={name:l.name,unit:l.stock_unit,delta:0});row.delta+=after-before;}
+    }
+    const rows=Object.entries(movements).filter(([_,m])=>Math.abs(m.delta)>0.0000001);
+    el('pccStock').innerHTML=rows.length?rows.map(([item,m])=>{
+      const after=Number(S.data.balances[item]||0)+m.delta;
+      return `<div><b>${esc(m.name)}</b>: ${m.delta>0?'+':''}${number(m.delta)} ${esc(m.unit)} · balance ${number(after)}${after<0?' — check stock before saving':''}</div>`;
+    }).join(''):'No net stock quantity change for the selected categories.';
+    el('pccSave').disabled=S.busy||!changed().length;
+  }
+  function render(){
+    const data=S.data;
+    el('pccBill').textContent=data.bill.vendor+' · Rs '+number(data.bill.total)+' · '+data.warehouse;
+    el('pccLines').innerHTML=data.bill.lines.map((l,i)=>{
+      const options=data.categories.slice();
+      if(!options.some(c=>c.value===l.category)) options.unshift({value:l.category,label:l.category});
+      return `<div class="pcc-row"><strong style="font-size:14px;">${esc(l.name)}</strong><div class="pcc-small">${number(l.qty)} ${esc(l.unit)} × Rs ${number(l.price)} · Rs ${number(l.qty*l.price)}</div>
+        <select class="pcc-select" aria-label="Category for ${esc(l.name)}" onchange="purchaseCategoryChoice(${i},this.value)" ${!l.can_change?'disabled':''}>
+          ${options.map(c=>`<option value="${esc(c.value)}" ${c.value===l.category?'selected':''} ${c.in_stock&&!l.can_receive?'disabled':''}>${esc(c.label)}${c.in_stock&&!l.can_receive?' — stock item required':''}</option>`).join('')}
+        </select>${!l.can_change?'<div class="pcc-small">Use the asset or tracked-stock workflow for this item.</div>':''}</div>`;
+    }).join('');
+    el('pccHistory').innerHTML=data.history.length?data.history.map(h=>`<div class="pcc-history"><b>${esc(h.by)}</b> · ${esc(h.when)}
+      ${h.changes.map(c=>`<div>${esc(c.name)}: ${esc(c.before)} → ${esc(c.after)}${c.stock_delta?' · '+number(c.stock_delta)+' '+esc(c.unit):''}</div>`).join('')}
+      ${h.comment?'<div>'+esc(h.comment)+'</div>':''}
+      ${(h.new_stock_entries||[]).map(name=>`<a href="/app/stock-entry/${encodeURIComponent(name)}" target="_blank" rel="noopener">${esc(name)}</a>`).join(' · ')}</div>`).join(''):'No category corrections yet.';
+    stockPreview();
+  }
+  window.openPurchaseCategories=async function(bill,onSaved){
+    const load=++S.load;S.data=null;S.selected={};S.busy=false;S.callback=onSaved;
+    S.request=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
+    el('pccOverlay').style.display='flex';el('pccBill').textContent=bill.vendor||'';
+    el('pccLines').textContent='Loading bill…';el('pccStock').textContent='';el('pccHistory').textContent='';
+    el('pccError').textContent='';el('pccNote').value='';el('pccSave').disabled=true;
+    try{
+      const r=await _post(base+'review',{name:bill.name});const d=r?await r.json():{};
+      if(load!==S.load)return;
+      if(!r||!r.ok||!d.message){el('pccError').textContent=message(d);return;}
+      S.data=d.message;for(const l of S.data.bill.lines)S.selected[l.row_name]=l.category;render();
+    }catch(e){el('pccError').textContent='Could not load the bill. Check the connection.';}
+  };
+  window.purchaseCategoryChoice=function(i,value){if(S.busy||!S.data)return;S.selected[S.data.bill.lines[i].row_name]=value;el('pccError').textContent='';stockPreview();};
+  window.closePurchaseCategories=function(){if(S.busy)return;S.load++;el('pccOverlay').style.display='none';};
+  window.savePurchaseCategories=async function(){
+    if(S.busy||!S.data||!changed().length)return;
+    S.busy=true;el('pccSave').disabled=true;el('pccSave').textContent='Saving…';el('pccError').textContent='';
+    document.querySelectorAll('#pccLines select').forEach(s=>s.disabled=true);el('pccNote').disabled=true;
+    try{
+      const r=await _post(base+'correct',{name:S.data.bill.name,expected_revision:S.data.revision,request_id:S.request,
+        line_categories:JSON.stringify(changed().map(l=>({row_name:l.row_name,category:S.selected[l.row_name]}))),comment:el('pccNote').value.trim()});
+      const d=r?await r.json():{};
+      if(r&&r.ok&&d.message&&d.message.ok){S.busy=false;closePurchaseCategories();toast('Categories and stock corrected');if(S.callback)S.callback(d.message.bill);}
+      else el('pccError').textContent=message(d);
+    }catch(e){el('pccError').textContent='Connection error. Retry to check the same correction.';}
+    S.busy=false;el('pccSave').textContent='Save categories & stock';if(S.data)stockPreview();
+    document.querySelectorAll('#pccLines select').forEach((s,i)=>s.disabled=!S.data.bill.lines[i].can_change);el('pccNote').disabled=false;
+  };
+})();
+</script>

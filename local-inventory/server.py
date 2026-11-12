@@ -228,7 +228,7 @@ class Store:
         # _dispatch exits its transaction before notifying browser streams.
         # Failed transactions and duplicate kitchen sends publish nothing.
         result = self._dispatch(method,p)
-        if method in ('fire_order','correct_stock','set_minimum','create_ingredient','demo_stock','save_recipe','activate_recipe','create_prepared_recipe','complete_batch','save_purchase','receive_purchase','cancel_purchase','native:create_purchase_bill','native:resolve_approval','save_stock_policy') and not result.get('already_processed'):
+        if method in ('fire_order','correct_stock','set_minimum','create_ingredient','demo_stock','save_recipe','activate_recipe','create_prepared_recipe','complete_batch','save_purchase','receive_purchase','cancel_purchase','native:create_purchase_bill','native:resolve_approval','native:purchase_categories.correct','save_stock_policy') and not result.get('already_processed'):
             with self.changed:
                 self.revision += 1
                 self.last_change = dict(revision=self.revision,kind=method)

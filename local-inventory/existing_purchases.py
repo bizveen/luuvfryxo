@@ -14,6 +14,8 @@ CATEGORIES = [dict(name='Food / Ingredients', in_stock=1, has_item_list=1),
 
 
 def initialize(db):
+    import approved_purchases
+    approved_purchases.initialize(db)
     db.executescript('''
         CREATE TABLE IF NOT EXISTS purchase_bills(
             name TEXT PRIMARY KEY, creation TEXT NOT NULL, requested_by TEXT NOT NULL,
@@ -44,11 +46,18 @@ def pending_quantities(db):
     return totals
 
 
-def bill_dict(bill):
+def bill_dict(bill, db=None):
     payload = json.loads(bill['resolved_payload'] or bill['payload'])
+    if db is not None:
+        import approved_purchases
+        past = approved_purchases.history(db, bill['name'])
+        if past: payload = past[0]['bill']
     for index, line in enumerate(payload['lines']):
         line['row_name'] = f"{bill['name']}-LINE-{index+1}"
         line['has_item'] = int(bool(line.get('item')))
+        category = next((c for c in CATEGORIES if c['name']==line['category']), {})
+        line['is_stock'] = category.get('in_stock', 0)
+        line['has_item_list'] = category.get('has_item_list', 0)
     total = sum(line['qty'] * line['price'] for line in payload['lines'])
     return dict(payload, name=bill['name'], status=bill['status'], by=bill['requested_by'],
                 time=bill['creation'], date=payload['purchase_date'], total=total, subtotal=total,
@@ -61,7 +70,7 @@ def bill_dict(bill):
 def approvals(db, actor):
     result = []
     for bill in db.execute('SELECT * FROM purchase_bills ORDER BY creation DESC'):
-        data = bill_dict(bill)
+        data = bill_dict(bill, db)
         lines = [dict(line, name=html.escape(line['name']),
                       category=html.escape(line['category']),
                       qtyStr=f"{line['qty']:g} {line['unit']}",
@@ -78,6 +87,11 @@ def approvals(db, actor):
 
 def handle(db, method, p, catalog, actor='Local purchaser'):
     from server import number, now
+    if method.startswith('purchase_categories.'):
+        import approved_purchases
+        if method=='purchase_categories.review': return approved_purchases.review(db,p.get('name'),actor)
+        if method=='purchase_categories.correct': return approved_purchases.correct(db,p,actor)
+        raise ValueError('Unknown category correction action.')
     if method == 'get_purchase_catalog':
         return dict(items=[dict(item=r['item'],name=r['name'],unit=r['stock_uom'],
                                price=r['rate'],group='Ingredients') for r in catalog])
@@ -89,7 +103,7 @@ def handle(db, method, p, catalog, actor='Local purchaser'):
         names = sorted({json.loads(r[0])['vendor'] for r in db.execute('SELECT payload FROM purchase_bills')})
         return dict(vendors=[dict(name=name,count=1) for name in names])
     if method in ('get_purchase_bills', 'get_due_bills'):
-        bills = [bill_dict(r) for r in db.execute('SELECT * FROM purchase_bills ORDER BY creation DESC')]
+        bills = [bill_dict(r, db) for r in db.execute('SELECT * FROM purchase_bills ORDER BY creation DESC')]
         return dict(bills=[r for r in bills if method!='get_due_bills' or r['due']],
                     pending_amt=sum(r['total'] for r in bills if r['status']=='pending'),
                     approved_today=sum(r['total'] for r in bills if r['status']=='approved' and r['purchase_date']==date.today().isoformat()),
@@ -136,7 +150,7 @@ def handle(db, method, p, catalog, actor='Local purchaser'):
         if p.get('discount') or p.get('category'):
             raise ValueError('Discounts and reclassification are outside this inventory preview.')
         receipt=None; movements=[]
-        payload = bill_dict(bill)
+        payload = bill_dict(bill, db)
         if decision=='approved':
             changes = p.get('line_categories') or []
             if isinstance(changes, str): changes = json.loads(changes)

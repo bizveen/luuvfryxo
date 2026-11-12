@@ -2039,7 +2039,7 @@ function lfPoll(fn, ms){
       ${linesHtml}
       ${b.discount?`<div style="display:flex;justify-content:space-between;padding:10px 0 2px;font-size:13px;color:var(--text-muted);"><span>Subtotal</span><span class="mono">Rs ${nfmt(b.subtotal)}</span></div><div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--color-success);"><span>Discount</span><span class="mono">− Rs ${nfmt(b.discount)}</span></div>`:''}
       <div style="display:flex;justify-content:space-between;padding:13px 0 4px;font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--text-strong);"><span>Total</span><span class="mono">Rs ${nfmt(b.total)}</span></div>
-      ${b.name?`<button onclick="editShownBill()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit vendor, date, photo or note</button>`:''}`;
+      ${b.name?`<button onclick="editShownBill()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);padding:12px;cursor:pointer;font-family:var(--font-display);font-size:14.5px;font-weight:700;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> ${b.status==='approved'?'Correct item categories':'Edit vendor, date, photo or note'}</button>`:''}`;
     document.getElementById('billBody').scrollTop=0;
     document.getElementById('billOverlay').style.display='flex'; icons();
   }
@@ -2047,6 +2047,9 @@ function lfPoll(fn, ms){
   // The same bill object sits in whichever list it was opened from, so it is
   // updated in place and those lists are simply reloaded behind the sheet.
   function editShownBill(){ const b=billShown; if(!b) return;
+    if(b.status==='approved'){
+      openPurchaseCategories(b,fresh=>{ Object.assign(b,fresh); showBill(b); loadPurchases(true); loadReports(true); loadPurchaseBills(); loadPurchaseDay(); refreshCategories(); }); return;
+    }
     openBillEdit('bill',b,fresh=>{ Object.assign(b,fresh); showBill(b); loadPurchaseBills(); loadPurchaseDay(); refreshCategories(); }); }
 
   // ── By category: one row per category, a sheet of its bills, then the bill ──
@@ -2574,6 +2577,7 @@ function lfPoll(fn, ms){
 {% include "templates/includes/manager_inventory.html" %}
 <script>if(new URLSearchParams(location.search).get('tab')==='inventory')setTab('inventory');</script>
 {% include "templates/includes/bill_edit.html" %}
+{% include "templates/includes/purchase_category_correction.html" %}
 {% include "templates/includes/branch_switcher.html" %}
 {% include "templates/includes/app_switch.html" %}
 </body>
