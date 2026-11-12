@@ -388,6 +388,8 @@ def _company_for_recipe(restaurant=None):
 def _recipe(item_code=None, restaurant=None):
     """Current default BOM plus stock ingredients offered by recipe editors."""
     restaurant = _active_restaurant(restaurant)
+    from luuvcrm.api.inventory_sections import main_items
+    equipment = main_items(branch.warehouse(restaurant))
     item_code = (item_code or "").strip()
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Item not found"))
@@ -418,7 +420,7 @@ def _recipe(item_code=None, restaurant=None):
             order_by="item_group asc, item_name asc",
             limit_page_length=500,
         )
-        if row.name != item_code
+        if row.name != item_code and row.name not in equipment
     ]
     return {"item": item_code, "bom": bom_name or "", "ingredients": ingredients, "catalog": catalog}
 
@@ -469,6 +471,10 @@ def _save_recipe(item_code=None, ingredients=None, restaurant=None):
     item_code = (item_code or "").strip()
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Item not found"))
+    from luuvcrm.api.inventory_sections import main_items
+    equipment = main_items(branch.warehouse(restaurant or branch.viewing()))
+    if item_code in equipment:
+        frappe.throw(_("Main inventory equipment cannot be a prepared-food recipe."))
     rows = frappe.parse_json(ingredients) if isinstance(ingredients, str) else ingredients
     if not rows:
         frappe.throw(_("Add at least one recipe ingredient"))
@@ -479,6 +485,8 @@ def _save_recipe(item_code=None, ingredients=None, restaurant=None):
         qty = flt(row.get("qty"))
         if not code or not frappe.db.exists("Item", code):
             frappe.throw(_("Pick a valid recipe ingredient"))
+        if code in equipment:
+            frappe.throw(_("Main inventory equipment cannot be used as a recipe ingredient."))
         if code == item_code:
             frappe.throw(_("A menu item cannot contain itself"))
         if not frappe.db.get_value("Item", code, "is_stock_item"):
@@ -549,6 +557,8 @@ def get_purchase_recipe_items(search=None, restaurant=None):
     """All active items a purchaser may add or update a BOM for."""
     roles.require_purchases()
     restaurant = _active_restaurant(restaurant)
+    from luuvcrm.api.inventory_sections import main_items
+    equipment = main_items(branch.warehouse(restaurant))
     filters = {"disabled": 0}
     or_filters = None
     if search:
@@ -562,6 +572,7 @@ def get_purchase_recipe_items(search=None, restaurant=None):
         order_by="item_name asc",
         limit_page_length=500,
     )
+    rows = [row for row in rows if row.name not in equipment]
     codes = [row.name for row in rows]
     bom_by_item = {}
     if codes:

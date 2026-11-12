@@ -359,6 +359,8 @@ def execute():
     _step("kitchen groups", seed_kitchen_groups)
     _step("expense categories", seed_expense_categories)
     _step("fixed asset purchase categories", ensure_asset_purchase_categories)
+    from luuvcrm.patches.v1_0.inventory_sections import execute as inventory_sections
+    _step("inventory sections", inventory_sections)
     _step("Walk In customer", ensure_walk_in_customer)
     frappe.clear_cache()
     frappe.db.commit()

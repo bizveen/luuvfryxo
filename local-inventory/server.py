@@ -11,6 +11,7 @@ import sqlite3
 import threading
 import purchasing
 import existing_purchases
+import equipment
 import native_pages
 import sys
 from http.cookies import SimpleCookie
@@ -79,6 +80,7 @@ class Store:
             order_columns=[r[1] for r in db.execute('PRAGMA table_info(orders)')]
             if 'customizations' not in order_columns:db.execute("ALTER TABLE orders ADD COLUMN customizations TEXT NOT NULL DEFAULT '[]'")
             if 'kitchen_note' not in order_columns:db.execute("ALTER TABLE orders ADD COLUMN kitchen_note TEXT NOT NULL DEFAULT ''")
+            equipment.initialize(db)
             purchasing.initialize(db)
             existing_purchases.initialize(db)
             db.executescript('''
@@ -113,11 +115,12 @@ class Store:
         finally:
             db.close()
 
-    def catalog(self,db):
+    def catalog(self,db,include_equipment=False):
+        main=equipment.settings(db)["items"]
         prepared={r[0] for r in db.execute("SELECT item FROM recipe_items WHERE kind='prepared'")}
         pending=purchasing.pending_quantities(db)
         approvals=existing_purchases.pending_quantities(db)
-        return [dict(r, factor=1000 if r['stock_uom'] in ('Kg','L') else 1,prepared=r['item'] in prepared,on_order=pending.get(r['item'],0),pending_qty=approvals.get(r['item'],0)) for r in db.execute('SELECT * FROM stock ORDER BY name')]
+        return [dict(r, factor=1000 if r['stock_uom'] in ('Kg','L') else 1,prepared=r['item'] in prepared,on_order=pending.get(r['item'],0),pending_qty=approvals.get(r['item'],0)) for r in db.execute('SELECT * FROM stock ORDER BY name') if include_equipment or r['item'] not in main]
 
     def stock_policy(self,db,restaurant='Kurunegala'):
         row=db.execute('SELECT policy FROM branch_stock_policies WHERE restaurant=?',(restaurant,)).fetchone()
@@ -228,7 +231,7 @@ class Store:
         # _dispatch exits its transaction before notifying browser streams.
         # Failed transactions and duplicate kitchen sends publish nothing.
         result = self._dispatch(method,p)
-        if method in ('fire_order','correct_stock','set_minimum','create_ingredient','demo_stock','save_recipe','activate_recipe','create_prepared_recipe','complete_batch','save_purchase','receive_purchase','cancel_purchase','native:create_purchase_bill','native:resolve_approval','native:purchase_categories.correct','save_stock_policy') and not result.get('already_processed'):
+        if method in ('move_inventory_item','fire_order','correct_stock','set_minimum','create_ingredient','demo_stock','save_recipe','activate_recipe','create_prepared_recipe','complete_batch','save_purchase','receive_purchase','cancel_purchase','native:create_purchase_bill','native:resolve_approval','native:purchase_categories.correct','save_stock_policy') and not result.get('already_processed'):
             with self.changed:
                 self.revision += 1
                 self.last_change = dict(revision=self.revision,kind=method)
@@ -241,6 +244,7 @@ class Store:
             if p.get('restaurant') not in (None,'','Kurunegala'):
                 raise ValueError('Switch to that branch before managing its stock.')
             item_code=p.get('item_code') or ITEM
+            if method=='move_inventory_item':return equipment.move(db,p)
             if method=='save_stock_policy':
                 if p.get('_actor') not in (None,'Local manager'):raise ValueError('Only Manager can change branch stock rules.')
                 before=self.stock_policy(db)
@@ -253,7 +257,7 @@ class Store:
                 db.execute('INSERT INTO movements VALUES(?,?,?,?,?)',(key,now(),'Local manager','stock_policy',json.dumps(dict(restaurant='Kurunegala',before=before,after=after))))
                 return after
             if method.startswith('native:'):
-                return existing_purchases.handle(db,method[7:],p,self.catalog(db),p.get('_actor','Local purchaser'))
+                return existing_purchases.handle(db,method[7:],p,self.catalog(db,include_equipment=True),p.get('_actor','Local purchaser'))
             if method=='restock':
                 return dict(restaurant='Kurunegala',warehouse='Local review stock',
                     stock_categories=['Food / Ingredients'],
@@ -272,7 +276,7 @@ class Store:
                 for record in db.execute("SELECT creation,details FROM movements WHERE kind='sale' ORDER BY creation DESC,rowid DESC LIMIT 25"):
                     details=json.loads(record['details'])
                     if details.get('warnings'):shortage_sales.append(dict(details,creation=record['creation']))
-                return dict(restaurant='Kurunegala',warehouse='Local review stock',as_of=now(),menu=menu,stock=self.catalog(db),audits=audits,uoms=['Kg','L','nos','g','ml'],preparation_recipes=True,purchasing=True,purchasing_flow='bill_approval',stock_policy=self.stock_policy(db),shortage_sales=shortage_sales,realtime=dict(transport='sse',url='/events/stock'))
+                return dict(**equipment.view(db,self.catalog(db,include_equipment=True)),restaurant='Kurunegala',warehouse='Local review stock',as_of=now(),menu=menu,stock=self.catalog(db),audits=audits,uoms=['Kg','L','nos','g','ml'],preparation_recipes=True,purchasing=True,purchasing_flow='bill_approval',stock_policy=self.stock_policy(db),shortage_sales=shortage_sales,realtime=dict(transport='sse',url='/events/stock'))
             if method=='create_prepared_recipe':
                 if not db.execute('SELECT 1 FROM stock WHERE item=?',(item_code,)).fetchone():raise ValueError('Choose the finished stock item first.')
                 if db.execute('SELECT 1 FROM recipe_items WHERE item=?',(item_code,)).fetchone():raise ValueError('That item already has a recipe in the list.')

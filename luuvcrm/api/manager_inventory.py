@@ -68,13 +68,17 @@ def _display(uom):
     return uom, 1.0
 
 
-def _catalog(warehouse):
+def _catalog(warehouse, include_equipment=False):
+    from luuvcrm.api.inventory_sections import main_items
+    equipment = main_items(warehouse)
     minimums = frappe.parse_json(frappe.db.get_value("Warehouse", warehouse, "luuv_stock_minimums") or "{}") if frappe.db.has_column("Warehouse", "luuv_stock_minimums") else {}
     balances = {r.item_code: r for r in frappe.get_all(
         "Bin", filters={"warehouse": warehouse}, fields=["item_code", "actual_qty", "valuation_rate"], limit_page_length=0)}
     result = []
     for r in frappe.get_all("Item", filters={"disabled": 0, "is_stock_item": 1},
                             fields=["name", "item_name", "stock_uom"], order_by="item_name asc", limit_page_length=0):
+        if not include_equipment and r.name in equipment:
+            continue
         uom, factor = _display(r.stock_uom)
         result.append({"item": r.name, "name": r.item_name, "stock_uom": r.stock_uom,
                        "uom": uom, "factor": factor, "balance": flt(balances.get(r.name, {}).get("actual_qty", 0)),
@@ -97,7 +101,10 @@ def dashboard(restaurant=None):
                                           pluck="item_code", limit_page_length=0))
     bins = set(frappe.get_all("Bin", filters={"warehouse": warehouse}, pluck="item_code", limit_page_length=0))
     registered = set(frappe.parse_json(frappe.db.get_value("Warehouse", warehouse, "luuv_stock_minimums") or "{}")) if frappe.db.has_column("Warehouse", "luuv_stock_minimums") else set()
-    catalog = _catalog(warehouse)
+    from luuvcrm.api.inventory_sections import main_items, view
+    all_stock = _catalog(warehouse, include_equipment=True)
+    equipment = main_items(warehouse)
+    catalog = [r for r in all_stock if r['item'] not in equipment]
     from luuvcrm.api.inventory_purchasing import pending_quantities, prepared_codes
     pending = pending_quantities(restaurant, catalog)
     prepared = prepared_codes(restaurant)
@@ -120,7 +127,8 @@ def dashboard(restaurant=None):
             fields=['name','creation','luuv_pos_order','luuv_stock_policy_snapshot'],order_by='creation desc',limit_page_length=25):
             snapshot=frappe.parse_json(entry.luuv_stock_policy_snapshot or '{}')
             if snapshot.get('warnings'):shortages.append(dict(order=entry.luuv_pos_order,creation=entry.creation,**snapshot))
-    return {"restaurant": restaurant, "warehouse": warehouse, "as_of": now_datetime(), "menu": items,
+    return {**view(restaurant, warehouse, all_stock),
+            "restaurant": restaurant, "warehouse": warehouse, "as_of": now_datetime(), "menu": items,
             "stock_policy": stock_rules(restaurant), "shortage_sales": shortages,
             "stock": [r for r in catalog if r["item"] in recipe_items | bins | registered], "audits": audits,
             "purchasing": True, "purchasing_flow": "bill_approval",
@@ -147,6 +155,12 @@ def recipe(item_code, restaurant=None, version=None):
     return {"item": item_code, "name": frappe.db.get_value("Item", item_code, "item_name"),
             "latest": latest, "version": selected, "status": status, "ingredients": rows,
             "versions": versions, "catalog": _catalog(warehouse), "restaurant": restaurant}
+
+
+@frappe.whitelist(methods=['POST'])
+def move_inventory_item(item_code, section, expected_revision, category='', comment='', restaurant=None):
+    from luuvcrm.api.inventory_sections import move
+    return move(item_code, section, expected_revision, category, comment, restaurant)
 
 
 def _number(value, label, allow_zero=False):
