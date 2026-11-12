@@ -394,6 +394,26 @@ class TestTheToken(CustomerAuthTestCase):
         fresh = fx.customer_token(self, self.MOBILE, age_days=api.CUSTOMER_TOKEN_DAYS - 1)
         self.assertEqual(api._mobile_from_token(fresh), self.MOBILE)
 
+    @patch("luuvcrm.api.customers._mobile_from_token")
+    @patch("luuvcrm.api.customers.frappe.db.sql")
+    def test_account_summary_is_exact_and_scoped_by_the_token(self, sql, mobile):
+        token = "customer-session-token"
+        mobile.return_value = self.MOBILE
+        sql.return_value = [frappe._dict(total_orders=12, active_orders=2)]
+
+        result = self.call(api.customer_account_summary, token=token)
+
+        self.assertEqual(result, {
+            "success": True, "total_orders": 12, "active_orders": 2})
+        mobile.assert_called_once_with(token)
+        self.assertEqual(sql.call_args.args[1], (self.MOBILE,))
+
+    @patch("luuvcrm.api.customers.frappe.db.sql")
+    def test_account_summary_refuses_a_request_without_a_session(self, sql):
+        result = self.call(api.customer_account_summary, mobile=self.MOBILE)
+        self.assertFalse(result["success"])
+        sql.assert_not_called()
+
 
 class TestTheProfile(CustomerAuthTestCase):
     """`customer_get_profile` / `customer_update_profile` drive the
@@ -492,7 +512,7 @@ class TestSendingTheCode(CustomerAuthTestCase):
         code = re.search(r"\b(\d{4})\b", body).group(1)
         self.assertEqual(code, frappe.cache().get_value(f"sms_otp:{self.MOBILE}"))
 
-    def test_textlk_sends_plain_sms_with_bearer_auth_when_configured(self):
+    def test_textlk_sends_plain_sms_with_bearer_json_api_when_configured(self):
         self.configure_textlk()
         response = Mock(ok=True, content=b"{}")
         response.json.return_value = {"status": "success"}
@@ -502,10 +522,12 @@ class TestSendingTheCode(CustomerAuthTestCase):
         self.assertTrue(result["sent"])
         self.assertEqual(result["channel"], "sms")
         request = post.call_args.kwargs
+        self.assertEqual(post.call_args.args[0], "https://app.text.lk/api/v3/sms/send")
         self.assertEqual(request["json"]["recipient"], "94" + self.MOBILE[1:])
         self.assertEqual(request["json"]["sender_id"], "TextLKTest")
         self.assertEqual(request["json"]["type"], "plain")
-        self.assertTrue(request["headers"]["Authorization"].startswith("Bearer "))
+        self.assertNotIn("api_token", request["json"])
+        self.assertEqual(request["headers"]["Authorization"], "Bearer test-token")
         self.assertEqual(request["timeout"], 10)
         import re
         code = re.search(r"\b(\d{4})\b", request["json"]["message"]).group(1)

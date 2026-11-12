@@ -1,4 +1,5 @@
 import java.util.Properties
+import groovy.json.JsonSlurper
 
 plugins {
     id("com.android.application")
@@ -6,15 +7,29 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Keep local/debug builds working before the Firebase project credentials are
-// copied in. The debug app has a separate package id so it can coexist with
-// the release app; Firebase is enabled for release builds when configured.
+// Debug can coexist with release, but its Firebase client is optional locally.
+// Keep release validation in the Google Services plugin; only skip that plugin
+// for a debug-only build when the local config has no matching debug client.
 val buildingDebugOnly = gradle.startParameter.taskNames.any {
     it.contains("debug", ignoreCase = true)
 } && gradle.startParameter.taskNames.none {
     it.contains("release", ignoreCase = true)
 }
-if (file("google-services.json").exists() && !buildingDebugOnly) {
+val firebaseConfigFile = file("google-services.json")
+val debugFirebaseReady = if (buildingDebugOnly && firebaseConfigFile.exists()) {
+    runCatching {
+        val config = JsonSlurper().parse(firebaseConfigFile) as? Map<*, *>
+        val clients = config?.get("client") as? List<*>
+        clients?.any { client ->
+            val info = (client as? Map<*, *>)?.get("client_info") as? Map<*, *>
+            val androidInfo = info?.get("android_client_info") as? Map<*, *>
+            androidInfo?.get("package_name") == "com.luuvgrand.luuv_customer.debug"
+        } == true
+    }.getOrDefault(false)
+} else {
+    false
+}
+if (firebaseConfigFile.exists() && (!buildingDebugOnly || debugFirebaseReady)) {
     apply(plugin = "com.google.gms.google-services")
 }
 

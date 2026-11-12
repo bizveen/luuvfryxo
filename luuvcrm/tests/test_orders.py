@@ -124,6 +124,61 @@ class TestOrderValidation(OrderTestCase):
         self.assertEqual(int(order.items[0].get("paid_qty") or 0), 0)
 
 
+class TestCustomerRegistrationFlags(OrderTestCase):
+    def test_the_pos_distinguishes_a_registered_number_from_a_guest(self):
+        from luuvcrm.api.orders import _tag_registered_customers
+
+        fx.customer_account(self, "0770000861")
+        rows = [
+            frappe._dict(mobile="+94770000861"),
+            frappe._dict(mobile="0770000862"),
+        ]
+        _tag_registered_customers(rows)
+        self.assertTrue(rows[0].customer_registered)
+        self.assertFalse(rows[1].customer_registered)
+
+
+class TestCustomerAppCheckoutIdentity(OrderTestCase):
+    MOBILE = "0770000863"
+
+    def setUp(self):
+        super().setUp()
+        fx.customer_account(self, self.MOBILE, name="Verified Customer")
+        self.token = fx.customer_token(self, self.MOBILE)
+
+    def checkout(self, **kwargs):
+        result = self.call(
+            api.kiosk_place_order,
+            items=json.dumps([{"item": self.burger, "qty": 1}]),
+            order_channel="CUS",
+            order_type="Take Away",
+            **kwargs,
+        )
+        if result.get("name"):
+            self._orders = getattr(self, "_orders", []) + [result["name"]]
+        return result
+
+    def test_a_signed_in_checkout_uses_the_tokens_verified_mobile(self):
+        result = self.checkout(
+            mobile="0779999999",
+            customer_token=self.token,
+        )
+
+        self.assertEqual(
+            frappe.db.get_value("POS Order", result["name"], "mobile"),
+            self.MOBILE,
+        )
+
+    def test_an_expired_session_cannot_be_used_as_a_checkout_identity(self):
+        result = self.checkout(
+            mobile=self.MOBILE,
+            customer_token="not-a-real-session",
+        )
+
+        self.assertEqual(result["error"], "Your session expired — sign in again")
+        self.assertNotIn("name", result)
+
+
 class TestUpdateOrder(OrderTestCase):
     def test_it_rebuilds_the_lines_and_the_total(self):
         order = self.order([{"item": self.burger, "qty": 1}])

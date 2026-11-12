@@ -24,7 +24,7 @@ def textlk_configured():
 
 
 def send_textlk_sms(recipient, message):
-    """Send one plain SMS through Text.lk without exposing its API token."""
+    """Send one plain SMS through Text.lk's Bearer-authenticated JSON API."""
     token = str(settings.get("textlk_api_token") or "").strip()
     sender_id = str(settings.get("textlk_sender_id") or "").strip()
     if not textlk_configured():
@@ -49,7 +49,17 @@ def send_textlk_sms(recipient, message):
         payload = response.json() if response.content else {}
         status = payload.get("status")
         accepted = status is True or str(status or "").lower() == "success"
-        return response.ok and accepted
+        if response.ok and accepted:
+            return True
+        # Provider errors are useful operationally, but never log the request,
+        # headers or API token. Their response message contains only the public
+        # validation/account reason (sender not approved, no credit, etc.).
+        provider_message = str(payload.get("message") or "request rejected")[:240]
+        frappe.log_error(
+            f"Text.lk rejected SMS: HTTP {response.status_code}; {provider_message}",
+            "Text.lk SMS",
+        )
+        return False
     except Exception as exc:
         # Never include the request body or token in the error log.
         frappe.log_error(f"Text.lk SMS error: {exc}", "Text.lk SMS")

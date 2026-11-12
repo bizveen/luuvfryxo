@@ -271,11 +271,11 @@ def process_payment():
 
     branch.require_access("POS Order", order_name)
     pos_order = frappe.get_doc("POS Order", order_name)
+    if pos_order.pos_invoice:
+        frappe.throw(_("Payment already processed for this order"))
     if pos_order.docstatus != 0:
         frappe.throw(_("Order is not in draft state"))
     _require_cus_call_released(pos_order)
-    if pos_order.pos_invoice:
-        frappe.throw(_("Payment already processed for this order"))
     if any(int(i.get("paid_qty") or 0) > 0 for i in pos_order.items):
         frappe.throw(_("This order has split payments. Use Split Bill to pay the remaining items."))
 
@@ -331,7 +331,9 @@ def process_payment():
 
     if pos_order.service_charge_amount and pos_order.service_charge_amount > 0:
         _append_service_charge_tax(invoice, pos_order.service_charge_amount)
-    total_disc = float(pos_order.get("discount_amount") or 0) + redeem_amt
+    total_disc = (float(pos_order.get("discount_amount") or 0)
+                  + float(pos_order.get("reward_redeem_amount") or 0)
+                  + redeem_amt)
     if total_disc > 0:
         invoice.apply_discount_on = "Net Total"
         invoice.discount_amount = total_disc
@@ -345,7 +347,21 @@ def process_payment():
     pos_order.db_set("pos_invoice", invoice.name)
     _link_invoice_to_order(invoice.name, order_name)
 
+    # A full payment is the final customer-facing step in this installation:
+    # KOT starts Cooking, Ready finishes kitchen work, and payment completes the
+    # order.  Keeping it at Ready made paid app orders look active forever and
+    # prevented the customer's completion/review prompt from opening.
+    pos_order.db_set("kitchen_status", "Served")
+    pos_order.db_set("docstatus", 1)
+
     _finalize_guide_redeem(redeem_guide, redeem_amt, order_name, invoice.name)
+    from luuvcrm.api.loyalty import finalize_reward_redemption, _process_cashback
+    from luuvcrm.api.offers import finalize_offer_redemption
+
+    finalize_reward_redemption(order_name, invoice.name)
+    finalize_offer_redemption(order_name, invoice.name)
+    if pos_order.mobile and order_total > 0:
+        _process_cashback(pos_order.mobile, order_name, order_total)
     _credit_guide_cashback(data.get("guides"),
         order_total if GUIDE_CASHBACK_INCLUDES_SERVICE_CHARGE
         else order_total - float(pos_order.service_charge_amount or 0),
@@ -361,6 +377,7 @@ def process_payment():
         flag_reason=flag, flag_note=note,
         detail={"payment_mode": payment_mode, "cash": cash_amount, "card": card_amount,
                 "discount": float(pos_order.get("discount_amount") or 0),
+                "reward_redeem": float(pos_order.get("reward_redeem_amount") or 0),
                 "guide_redeem": redeem_amt, "items": len(pos_order.items),
                 "tour_company": tour.get("tour_company")})
 
@@ -371,6 +388,7 @@ def process_payment():
         "service_charge_rate": pos_order.service_charge_rate or 0,
         "service_charge_amount": pos_order.service_charge_amount or 0,
         "payment_mode": payment_mode,
+        "status": "Served",
     }
 # ─── Split Bill (pay a subset of an order's items as its own bill) ─
 
@@ -385,10 +403,18 @@ def pay_split():
     lines = frappe.parse_json(lines_raw) if isinstance(lines_raw, str) else (lines_raw or [])
 
     branch.require_access("POS Order", order_name)
-    pos_order = frappe.get_doc("POS Order", order_name)
+    # Serialize split payments with reward approval, which locks the same order.
+    pos_order = frappe.get_doc("POS Order", order_name, for_update=True)
     if pos_order.docstatus != 0:
         frappe.throw(_("Order is not open"))
     _require_cus_call_released(pos_order)
+    if (pos_order.get("reward_redemption_request")
+            or float(pos_order.get("reward_redeem_amount") or 0) > 0
+            or pos_order.get("customer_offer")
+            or float(pos_order.get("offer_discount_amount") or 0) > 0):
+        # Split invoices do not allocate these order-level benefits. Charging
+        # full price and finalizing a reward would consume it without giving it.
+        frappe.throw(_("Orders with a reward or customer offer must be paid in full"))
 
     payment_mode = data.get("payment_mode", "Cash")
     cash_amount = float(data.get("cash_amount", 0))
@@ -489,6 +515,14 @@ def pay_split():
         _link_invoice_to_order(invoice.name, order_name)
         pos_order.db_set("docstatus", 1)
         pos_order.db_set("kitchen_status", "Served")
+        from luuvcrm.api.loyalty import finalize_reward_redemption, _process_cashback
+        from luuvcrm.api.offers import finalize_offer_redemption
+
+        finalize_reward_redemption(order_name, invoice.name)
+        finalize_offer_redemption(order_name, invoice.name)
+        if pos_order.mobile and float(pos_order.grand_total or 0) > 0:
+            _process_cashback(pos_order.mobile, order_name,
+                              float(pos_order.grand_total or 0))
 
     _finalize_guide_redeem(redeem_guide, redeem_amt, order_name, invoice.name)
     _credit_guide_cashback(data.get("guides"),
