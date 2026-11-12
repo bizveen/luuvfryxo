@@ -638,7 +638,7 @@ function lfPoll(fn, ms){
   function hideVendorSug(){ document.getElementById('vendorSug').style.display='none'; }
   function pickVendor(i){ const v=vendorShown[i]; if(!v) return; const el=document.getElementById('fVendor'); el.value=v.name; hideVendorSug(); el.blur(); onVendorInput(); saveDraft(); }
 
-  async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_purchase_catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
+  async function loadCatalog(){ try{ const r=await _post('/api/method/luuvcrm.api.purchase_item_categories.catalog',{}); if(!r) return; const d=await r.json(); catalog=(d.message&&d.message.items)||[]; }catch(e){} }
   // Has Item List controls the picker; In Stock separately controls inventory.
   function isStockCategory(category){ return stockCats.includes(category)||(!stockCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
   function hasItemList(category){ return itemListCats.includes(category)||(!itemListCats.length&&category===DEFAULT_PURCHASE_CATEGORY); }
@@ -657,7 +657,7 @@ function lfPoll(fn, ms){
     renderCategoryOptions();
     document.getElementById('fCategory').value='';
     onCategoryChange();
-    if(!catalog.length) loadCatalog().then(renderCategoryCards); renderCategoryCards();
+    loadCatalog().then(renderCategoryCards); renderCategoryCards();
     document.getElementById('addOverlay').style.display='flex'; icons(); saveDraft(); window.LFPurchaseStock?.billOpened(); }
   function closeAdd(){ document.getElementById('addOverlay').style.display='none'; clearDraft(); window.LFPurchaseStock?.billClosed(); }
   function addCategoryCard(){ categoryCards.push(makeCategoryCard('')); renderCategoryCards(); saveDraft(); }
@@ -677,8 +677,14 @@ function lfPoll(fn, ms){
     renderCategoryCards(); saveDraft(); }
   function toggleCardPicker(id){ const card=categoryCard(id); if(!card) return; if(!card.category){ toast('Choose a category first'); return; } card.pickerOpen=!card.pickerOpen; renderCategoryCards(); }
   function setCardQuery(id,value){ const card=categoryCard(id); if(!card) return; card.query=value; renderCardPickerList(id); }
-  function addLine(item,cardId){ const c=catalog.find(x=>x.item===item), card=categoryCard(cardId); if(!c||!card) return;
-    formLines.push({item:c.item,name:c.name,unit:c.unit,cur:c.price,category:card.category,cardId:card.id,cataloged:true,qty:'1',price:String(c.price)}); renderCategoryCards(); saveDraft(); }
+  function addLine(item,cardId){ const c=catalog.find(x=>x.item===item); let card=categoryCard(cardId); if(!c||!card) return;
+    if(c.default_category&&c.default_category!==card.category){
+      card=categoryCards.find(x=>x.category===c.default_category)||makeCategoryCard(c.default_category);
+      if(!categoryCards.includes(card))categoryCards.push(card);
+      formLines=formLines.filter(l=>l.cardId!==card.id||(l.name||'').trim()||l.price);
+      toast(c.name+' → '+c.default_category);
+    }
+    formLines.push({item:c.saved_description?'':c.item,name:c.name,unit:c.unit,cur:c.price,category:card.category,cardId:card.id,cataloged:!c.saved_description,qty:'1',price:c.price?String(c.price):''}); renderCategoryCards(); saveDraft(); }
   function addExpenseLine(name,unit,cardId,rerender=true){ const card=categoryCard(cardId); if(!card) return;
     formLines.push({item:'',name:name,unit:unit,cur:0,category:card.category,cardId:card.id,cataloged:false,qty:'1',price:''});
     if(rerender){ renderCategoryCards(); saveDraft(); } }
@@ -736,7 +742,7 @@ function lfPoll(fn, ms){
     if(isAssetCategory(card.category)) avail=avail.filter(c=>c.is_fixed_asset&&c.asset_category===assetCategoryMap[card.category]);
     else avail=avail.filter(c=>!c.is_fixed_asset);
     if(q) avail=avail.filter(c=>(c.name||'').toLowerCase().includes(q));
-    list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine('${c.item}',${card.id})" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${esc(c.unit)}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
+    list.innerHTML=avail.length?avail.map(c=>`<button onclick="addLine(catalog[${catalog.indexOf(c)}].item,${card.id})" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;border:none;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);cursor:pointer;text-align:left;"><span style="font-size:19px;flex:none;">${emojiFor(c.name)}</span><div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-strong);">${esc(c.name)}</div><div style="font-size:11.5px;color:var(--text-muted);">Rs ${nfmt(c.price)} / ${esc(c.unit)}${c.default_category?` · ${esc(c.default_category)}`:''}</div></div><i data-lucide="plus" style="width:18px;height:18px;color:var(--color-primary);flex:none;"></i></button>`).join(''):`<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-faint);">${q?'No item matches — create it below.':'All items added.'}</div>`;
     nw.innerHTML=`<button onclick="openNewItem(${card.id})" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 13px;border:none;background:var(--orange-50);color:var(--color-primary);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:700;font-size:14px;"><i data-lucide="plus-circle" style="width:18px;height:18px;flex:none;"></i> Create a new item${q?` “${esc(card.query.trim())}”`:''}</button>`;
     icons(); }
   function openNewItem(id){ const card=categoryCard(id); if(!card) return; const nm=(card.query||'').trim(), target=document.getElementById('pickerNew-'+id); if(!target) return;
@@ -855,7 +861,7 @@ function lfPoll(fn, ms){
       if(formLines.some(l=>!l.category)){ em.textContent='Choose a category for every item.'; err.style.display='flex'; return; }
       const lines=formLines.map(l=>({item:l.item,name:l.name,category:l.category,qty:parseFloat(l.qty)||0,price:parseFloat(l.price)||0,unit:l.unit}));
       btn.disabled=true; err.style.display='none';
-      try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{vendor:paidTo,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+      try{ const r=await _post('/api/method/luuvcrm.api.create_purchase_bill',{use_item_categories:1,vendor:paidTo,purchase_date:pdate,note:document.getElementById('fNote').value.trim(),lines:JSON.stringify(lines),receipt_image:newReceipt}); if(!r){ btn.disabled=false; return; } const d=await r.json();
         if(r.ok && d.message && d.message.ok){ toast('Sent for approval 📱'); closeAdd(); loadBills(); loadVendors(); }
         else { em.textContent=(d.message&&d.message.message)||srvMsg(d,'Could not submit'); err.style.display='flex'; } }catch(e){ em.textContent='Connection error'; err.style.display='flex'; } btn.disabled=false;
       return;

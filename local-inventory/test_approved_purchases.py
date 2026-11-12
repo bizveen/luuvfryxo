@@ -62,5 +62,21 @@ class ApprovedCategoriesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'manager'):
             self.call('purchase_categories.review',name=self.name,_actor='Local purchaser')
 
+    def test_category_choice_is_saved_for_future_bills_without_rewriting_history(self):
+        original=self.review()
+        self.call('purchase_categories.correct',**self.request(original,'Not sure'))
+        catalog=self.call('purchase_item_categories.catalog')['items']
+        item=next(r for r in catalog if r['item']==self.item)
+        self.assertEqual(item['default_category'],'Not sure')
+        with self.assertRaisesRegex(ValueError,'saved category changed'):
+            self.call('create_purchase_bill',_actor='Local purchaser',vendor='New bill',use_item_categories=1,
+                lines=json.dumps([dict(item=self.item,name=item['name'],qty=1,price=100,unit='L',category='Food / Ingredients')]))
+        future=self.call('create_purchase_bill',_actor='Local purchaser',vendor='New bill',use_item_categories=1,
+            lines=json.dumps([dict(name=item['name'],qty=1,price=100,unit='Bill',category='Not sure')]))['name']
+        self.assertEqual(next(b for b in self.call('get_purchase_bills')['bills'] if b['name']==future)['lines'][0]['category'],'Not sure')
+        with self.store.connect() as db:
+            saved=json.loads(db.execute('SELECT payload FROM purchase_bills WHERE name=?',(self.name,)).fetchone()[0])
+            self.assertEqual(saved['lines'][0]['category'],'Food / Ingredients')
+
 
 if __name__=='__main__':unittest.main()

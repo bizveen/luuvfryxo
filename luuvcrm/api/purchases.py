@@ -533,9 +533,14 @@ def create_purchase_bill():
     })
     total = 0
     appr_lines = []
+    from luuvcrm.api import purchase_item_categories as defaults
+    saved_categories = defaults.read() if frappe.utils.cint(data.get('use_item_categories')) else None
     for ln in lines:
         posted_item = (ln.get("item") or "").strip()
-        category = _purchase_line_category(ln.get("category"))
+        chosen = defaults.category(saved_categories, posted_item, ln.get('name')) if saved_categories is not None else None
+        if chosen and ln.get('category') and chosen != ln['category']:
+            frappe.throw(_('{0} now uses {1}. Reopen the bill form and select the item again.').format(ln.get('name') or posted_item, chosen))
+        category = _purchase_line_category(chosen or ln.get("category"))
         has_item_list = category_has_item_list(category)
         is_asset = category_is_fixed_asset(category)
         typed_name = " ".join((ln.get("name") or "").split())
@@ -865,7 +870,8 @@ def _apply_purchase_line_categories(doc, line_categories):
                 "old_price": 0,
             })
         frappe.db.set_value("Purchase Bill Item", row.name, values, update_modified=False)
-        changed.append({"row_name": row.name, "from": old_category, "to": new_category})
+        changed.append({"row_name": row.name, "item": row.item, "name": row.item_name or row.item,
+                        "from": old_category, "to": new_category})
     if changed:
         doc.reload()
         doc.db_set("total", sum(float(row.qty or 0) * float(row.price or 0)
@@ -875,6 +881,8 @@ def _apply_purchase_line_categories(doc, line_categories):
             "data": frappe.as_json({"purchase_category_change": {"changes": changed},
                                     "changed": [["Categories", "", "Item categories corrected"]]}),
         }).insert(ignore_permissions=True)
+        from luuvcrm.api.purchase_item_categories import remember
+        remember(doc, changed)
     return changed
 
 

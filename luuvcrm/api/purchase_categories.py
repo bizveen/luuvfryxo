@@ -214,5 +214,7 @@ def correct(name, line_categories, expected_revision, request_id, comment=''):
         data=frappe.as_json({KEY: record, 'changed': [['Category correction', '', comment or 'Item categories corrected']]}))).insert(ignore_permissions=True)
     activity.log_activity('purchase_bill.category_correction', label='Approved bill categories corrected: '+doc.vendor,
         ref_doctype='Purchase Bill', ref_name=name, amount=doc.total, detail=record)
+    from luuvcrm.api.purchase_item_categories import remember
+    remember(doc, corrected)
     doc.reload()
     return dict(ok=True, changed=True, **_review(doc))

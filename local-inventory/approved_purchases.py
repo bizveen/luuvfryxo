@@ -86,4 +86,6 @@ def correct(db, p, actor):
     record=dict(payload_hash=digest,comment=p.get('comment',''),changes=changes_saved,allocations=allocations,
                 bill=data['bill'],new_stock_entries=[entry] if movements else [],movements=movements)
     db.execute('INSERT INTO purchase_category_corrections VALUES(?,?,?,?,?)',(token,p['name'],now(),actor,json.dumps(record)))
+    import purchase_defaults
+    purchase_defaults.remember(db,changes_saved,data['bill']['lines'])
     return dict(ok=True,changed=True,**review(db,p['name'],actor))

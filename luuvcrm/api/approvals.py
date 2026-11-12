@@ -303,7 +303,7 @@ def _pending_and_recent_approvals(action=None, include_recent=True):
     if not frappe.db.exists("DocType", "POS Approval"):
         return []
     fields = ["name", "approval_type", "pos_order", "title", "subhead", "details_json",
-              "flag_text", "status", "requested_by", "requested_at", "resolved_at",
+              "flag_text", "status", "requested_by", "requested_at", "resolved_by", "resolved_at",
               "action", "action_payload"]
     if frappe.db.has_column("POS Approval", "manager_comment"):
         fields.append("manager_comment")
@@ -332,9 +332,10 @@ def _format_approvals(rows):
     # with every pending approval in hand.
     names = {}
     for r in rows:
-        u = r.get("requested_by")
-        if u and u not in names:
-            names[u] = frappe.get_value("User", u, "full_name") or u
+        for field in ('requested_by', 'resolved_by'):
+            u = r.get(field)
+            if u and u not in names:
+                names[u] = frappe.get_value("User", u, "full_name") or u
     me = frappe.session.user
     # Whether *this* viewer may answer their own card depends only on their
     # roles, so ask once rather than per row — same reason as `names` above.
@@ -462,6 +463,11 @@ def _format_approvals(rows):
                                and len(bill_categories) > 1),
             "manager_comment": r.get("manager_comment") or "",
             "by": names.get(r.get("requested_by"), ""),
+            "created_when": (frappe.utils.format_datetime(r.get('requested_at'), 'd MMM yyyy, h:mm a')
+                             if r.get('requested_at') else ''),
+            "resolved_by": names.get(r.get('resolved_by'), ''),
+            "resolved_when": (frappe.utils.format_datetime(r.get('resolved_at'), 'd MMM yyyy, h:mm a')
+                              if r.get('resolved_at') else ''),
             # Whoever raised it cannot resolve it — the UI locks the card,
             # roles.block_self_approval() is what actually enforces it. Not a
             # flat rule any more: a manager answers their own *edit* (the

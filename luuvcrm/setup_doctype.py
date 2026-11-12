@@ -361,6 +361,8 @@ def execute():
     _step("fixed asset purchase categories", ensure_asset_purchase_categories)
     from luuvcrm.patches.v1_0.inventory_sections import execute as inventory_sections
     _step("inventory sections", inventory_sections)
+    from luuvcrm.patches.v1_0.purchase_item_defaults import execute as purchase_item_defaults
+    _step("purchase item defaults", purchase_item_defaults)
     _step("Walk In customer", ensure_walk_in_customer)
     frappe.clear_cache()
     frappe.db.commit()

@@ -205,11 +205,14 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <span class="mono" style="font-size:13px;color:var(--text-muted);"><span id="pendingCount">0</span> pending</span>
         </div>
         <div style="font-size:13.5px;color:var(--text-muted);margin-bottom:16px;">Price overrides, voids and bill changes from the counter.</div>
+        <button class="ah-button" onclick="openApprovalHistory('all')" style="margin-bottom:14px;">View approval history</button>
         <div id="approvalFeed"></div>
       </div>
 
       <!-- REPORTS -->
       <div id="tabReports" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
+        <button class="ah-button" onclick="openApprovalHistory('removals')" style="width:100%;margin-bottom:16px;">Item removal approvals →</button>
+        <button class="ah-button" onclick="openApprovalHistory('bill_changes')" style="width:100%;margin-bottom:16px;">Bill change approvals →</button>
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px;">
           <div>
             <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Sales report</div>
@@ -1073,7 +1076,7 @@ function lfPoll(fn, ms){
       <div style="flex:1;min-width:0;"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;"><div style="font-family:var(--font-display);font-weight:800;font-size:15.5px;color:var(--text-strong);min-width:0;">${a.title}</div><div class="apprReqDesktop"><div style="font-size:11.5px;font-weight:700;color:var(--text-muted);line-height:1.35;">${requester}</div>${a.time?`<div style="font-size:11px;color:var(--text-faint);line-height:1.35;margin-top:2px;">${esc(a.time)}</div>`:''}</div></div><div style="font-size:12.5px;color:var(--text-muted);line-height:1.4;margin-top:2px;">${a.subhead||''}</div>${a.order_context?`<div style="font-size:11.5px;color:var(--text-faint);line-height:1.4;margin-top:2px;">${esc(a.order_context)}</div>`:''}<div class="apprReqMobile" style="font-size:11.5px;color:var(--text-faint);line-height:1.4;margin-top:3px;">${requested}</div></div></div>
       ${orderBox}${missingOrder}
       ${(lines||footer)?`<div style="margin-top:11px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-sunken);padding:10px 12px;display:flex;flex-direction:column;gap:6px;">${lines}${footer}</div>`:''}
-      ${img}${flag}${actions}</div>`;
+      ${img}${flag}${actions}${approvalPeople(a)}</div>`;
   }
   // Per-approval review state survives the 8s polling re-render (ticks + typed comment).
   const apprState={};
@@ -2592,5 +2595,6 @@ function lfPoll(fn, ms){
 {% include "templates/includes/purchase_category_correction.html" %}
 {% include "templates/includes/branch_switcher.html" %}
 {% include "templates/includes/app_switch.html" %}
+{% include "templates/includes/removal_report.html" %}
 </body>
 </html>

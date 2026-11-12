@@ -1,0 +1,61 @@
+<style>
+#approvalHistoryOverlay{display:none;position:fixed;inset:0;z-index:250;background:rgba(20,18,16,.45);backdrop-filter:blur(5px);padding:20px;align-items:center;justify-content:center;}
+.ah-sheet{background:var(--surface-card);border-radius:22px;width:100%;max-width:850px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg);}
+.ah-head{padding:18px;border-bottom:1px solid var(--border-subtle);}
+.ah-filters{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:end;}
+.ah-filters label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--text-muted);flex:1;min-width:130px;}
+.ah-filters input,.ah-filters select{width:100%;box-sizing:border-box;padding:9px;border:1px solid var(--border-default);border-radius:8px;background:var(--surface-card);font:inherit;color:var(--text-strong);}
+.ah-button{border:1px solid var(--border-default);border-radius:10px;padding:10px 14px;background:var(--surface-card);font:inherit;font-weight:700;color:var(--text-strong);cursor:pointer;}
+.ah-row{border:1px solid var(--border-subtle);border-radius:14px;padding:14px;margin-bottom:12px;}
+.ah-audit{display:grid;grid-template-columns:1fr 1fr;gap:12px;background:var(--surface-sunken);padding:10px;border-radius:8px;margin-top:10px;font-size:12px;line-height:1.5;overflow-wrap:anywhere;}
+@media(max-width:540px){ #approvalHistoryOverlay{padding:8px;}.ah-sheet{max-height:96vh;}.ah-audit{grid-template-columns:1fr;}}
+</style>
+<div id="approvalHistoryOverlay" role="dialog" aria-modal="true" aria-labelledby="ahTitle">
+  <div class="ah-sheet">
+    <div class="ah-head">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;"><h2 id="ahTitle" style="margin:0;font-size:20px;">Item removal approvals</h2><button class="ah-button" onclick="closeApprovalHistory()" aria-label="Close approval history">✕</button></div>
+      <p style="margin:7px 0 0;font-size:12px;color:var(--text-muted);">Requests created in this date range · selected branch</p>
+      <div class="ah-filters">
+        <label>Report<select id="ahKind" onchange="changeApprovalHistoryKind(this.value)"><option value="all">All approvals</option><option value="removals">Item removals</option><option value="bill_changes">Bill changes</option></select></label>
+        <label>From<input type="date" id="ahStart"></label><label>To<input type="date" id="ahEnd"></label>
+        <label>Status<select id="ahStatus"><option value="all">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="superseded">Superseded</option></select></label>
+        <button class="ah-button" onclick="loadApprovalHistory(0)">Show report</button>
+      </div><div id="ahCounts" style="font-size:12px;color:var(--text-muted);margin-top:12px;"></div>
+    </div>
+    <div id="ahBody" style="padding:16px;overflow-y:auto;flex:1;min-height:0;"></div>
+    <div style="padding:12px 18px;border-top:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;gap:8px;"><button id="ahPrev" class="ah-button" onclick="loadApprovalHistory(ahPage-1)">Previous</button><span id="ahPageLabel" style="font-size:12px;"></span><button id="ahNext" class="ah-button" onclick="loadApprovalHistory(ahPage+1)">Next</button></div>
+  </div>
+</div>
+<script>
+let ahKind='removals',ahPage=0,ahRequest=0;
+function approvalPeople(a){
+  const action=a.status==='approved'?'Approved by':a.status==='rejected'?'Rejected by':a.status==='superseded'?'Closed by':'Decision';
+  return `<div class="ah-audit"><div><b>Created by</b><div>${esc(a.by||'Not recorded')}</div><div>${esc(a.created_when||a.time||'')}</div></div><div><b>${action}</b><div>${a.status==='pending'?'Waiting for approval':esc(a.resolved_by||'Not recorded')}</div><div>${esc(a.resolved_when||'')}</div></div></div>`;
+}
+function changeApprovalHistoryKind(kind){ahKind=kind;document.getElementById('ahTitle').textContent=kind==='removals'?'Item removal approvals':kind==='bill_changes'?'Bill change approvals':'Approval history';loadApprovalHistory(0);}
+function openApprovalHistory(kind='all'){
+  ahKind=kind;ahPage=0;document.getElementById('ahTitle').textContent=kind==='removals'?'Item removal approvals':kind==='bill_changes'?'Bill change approvals':'Approval history';
+  document.getElementById('ahKind').value=kind;
+  const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+  const end=new Date(),start=new Date();start.setDate(end.getDate()-29);
+  document.getElementById('ahStart').value=iso(start);document.getElementById('ahEnd').value=iso(end);document.getElementById('ahStatus').value='all';
+  document.getElementById('approvalHistoryOverlay').style.display='flex';loadApprovalHistory(0);
+}
+function closeApprovalHistory(){ahRequest++;document.getElementById('approvalHistoryOverlay').style.display='none';}
+async function loadApprovalHistory(page){
+  const seq=++ahRequest,body=document.getElementById('ahBody');body.innerHTML='<p>Loading history…</p>';
+  document.getElementById('ahPrev').disabled=true;document.getElementById('ahNext').disabled=true;
+  try{
+    const r=await _post('/api/method/luuvcrm.api.removal_report.history',{kind:ahKind,start:document.getElementById('ahStart').value,end:document.getElementById('ahEnd').value,status:document.getElementById('ahStatus').value,page:Math.max(0,page)});
+    if(!r)throw Error('Could not load history.');const d=await r.json();if(!r.ok||!d.message)throw Error(d.error||'Could not load history. Check the dates and try again.');if(seq!==ahRequest)return;
+    const m=d.message;ahPage=m.page;const c=m.counts||{};
+    document.getElementById('ahCounts').textContent=`${c.all||0} requests · ${c.approved||0} approved · ${c.pending||0} pending · ${c.rejected||0} rejected · ${c.superseded||0} superseded`;
+    body.innerHTML=(m.rows||[]).map(a=>{const status=a.status||'pending',tone=BILL_TONE[status]||['var(--text-muted)','var(--surface-sunken)','Superseded'];
+      const lines=(a.lines||[]).map(l=>`<div style="display:flex;gap:8px;justify-content:space-between;padding:5px 0;"><span>${esc(l.qtyStr||'')} ${esc(l.name||'')}</span><span>${esc(l.totalStr||'')}</span></div>`).join('');
+      return `<article class="ah-row"><div style="display:flex;justify-content:space-between;gap:10px;"><b>${esc(a.title||'Approval request')}</b><span style="font-size:12px;font-weight:700;color:${tone[0]};">${esc(tone[2])}</span></div><div style="margin-top:4px;color:var(--text-muted);font-size:12px;">${esc(a.pos_order||a.subhead||a.name)}</div>${approvalPeople(a)}<div style="font-size:13px;margin-top:10px;">${lines||((a.order_lines||[]).length?'':'Item details not recorded.')}${a.footer_label?`<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-subtle);padding-top:7px;margin-top:5px;"><b>${esc(a.footer_label)}</b><b>${esc(a.footer_value||'')}</b></div>`:''}${(a.order_lines||[]).length?`<details style="margin-top:9px;"><summary>Bill at request · ${esc(a.order_total||'')}</summary>${a.order_lines.map(l=>`<div style="padding-top:5px;">${esc(l.qtyStr||'')} ${esc(l.name||'')} · ${esc(l.totalStr||'')}</div>`).join('')}</details>`:''}</div>${a.flag_text?`<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">${esc(a.flag_text)}</div>`:''}${a.manager_comment?`<div style="font-size:12px;margin-top:8px;"><b>Comment:</b> ${esc(a.manager_comment)}</div>`:''}</article>`;
+    }).join('')||'<p style="color:var(--text-muted);">No requests match these dates and status.</p>';
+    document.getElementById('ahPageLabel').textContent=m.total?`${ahPage*m.page_size+1}–${Math.min((ahPage+1)*m.page_size,m.total)} of ${m.total}`:'0 requests';
+    document.getElementById('ahPrev').disabled=ahPage===0;document.getElementById('ahNext').disabled=(ahPage+1)*m.page_size>=m.total;
+  }catch(e){if(seq===ahRequest){body.innerHTML=`<p style="color:var(--color-danger);">${esc(e.message)}</p>`;document.getElementById('ahCounts').textContent='';document.getElementById('ahPageLabel').textContent='';}}
+}
+</script>

@@ -31,3 +31,4 @@ luuvcrm.patches.v1_0.disable_fixed_asset_item_lists
 luuvcrm.patches.v1_0.sync_logo_orange_brand
 luuvcrm.patches.v1_0.pos_inventory_mode
 luuvcrm.patches.v1_0.inventory_sections
+luuvcrm.patches.v1_0.purchase_item_defaults

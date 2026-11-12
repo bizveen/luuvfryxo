@@ -15,6 +15,8 @@ CATEGORIES = [dict(name='Food / Ingredients', in_stock=1, has_item_list=1),
 
 
 def initialize(db):
+    import purchase_defaults,approval_history
+    purchase_defaults.initialize(db);approval_history.initialize(db)
     import approved_purchases
     approved_purchases.initialize(db)
     db.executescript('''
@@ -88,7 +90,9 @@ def approvals(db, actor):
         result.append(dict(name=bill['name'], type='bill', status=bill['status'],
             title=data['vendor'], subhead='Purchase bill', by=bill['requested_by'],
             mine=bill['requested_by']==actor, self_ok=False, time=bill['creation'],
-            requested_at=bill['creation'], lines=lines, footer_label='Bill total',
+            requested_at=bill['creation'], created_when=bill['creation'],
+            resolved_by=bill['resolved_by'] or '',resolved_when=bill['resolved_at'] or '',
+            lines=lines, footer_label='Bill total',
             footer_value=f"Rs {data['total']:,.2f}", category_value='',
             line_category_options=[dict(value=c['name'], label=c['name'], **c) for c in CATEGORIES],
             comment=bill['comment'] or '', image=data.get('receipt_image','')))
@@ -97,6 +101,9 @@ def approvals(db, actor):
 
 def handle(db, method, p, catalog, actor='Local purchaser'):
     from server import number, now
+    import purchase_defaults,approval_history
+    if method=='purchase_item_categories.catalog':return purchase_defaults.catalog(db,catalog)
+    if method=='removal_report.history':return approval_history.history(db,p,actor)
     if method.startswith('purchase_categories.'):
         import approved_purchases
         if method=='purchase_categories.review': return approved_purchases.review(db,p.get('name'),actor)
@@ -134,6 +141,14 @@ def handle(db, method, p, catalog, actor='Local purchaser'):
         by_item = {row['item']:row for row in catalog}; lines=[]
         for raw in rows:
             item = by_item.get(raw.get('item'))
+            chosen=purchase_defaults.category(db,raw.get('item'),raw.get('name')) if p.get('use_item_categories') else None
+            if chosen and raw.get('category') and chosen!=raw['category']:raise ValueError('The saved category changed. Reopen the bill form.')
+            category=chosen or raw.get('category')
+            if category in ('Not sure','Packaging'):
+                label=(raw.get('name') or (item['name'] if item else '')).strip()
+                if not label:raise ValueError('Enter an item description.')
+                lines.append(dict(item=None,name=label,unit='Bill',qty=1,price=number(raw.get('price'),'Amount')*number(raw.get('qty'),'Quantity'),old_price=0,category=category))
+                continue
             if not item: raise ValueError('Choose an existing stock item for this preview.')
             if raw.get('category') not in ('Food / Ingredients','Staff Meals'): raise ValueError('Choose an item-listed category.')
             if raw.get('unit') != item['stock_uom']: raise ValueError('The item unit changed. Reload the bill.')
@@ -177,11 +192,12 @@ def handle(db, method, p, catalog, actor='Local purchaser'):
                 if category['name'] == line['category']: continue
                 if category['has_item_list'] and not line.get('item'):
                     raise ValueError('An item-list category needs a linked Item.')
-                history.append(dict(row_name=line['row_name'], before=line['category'], after=category['name']))
+                history.append(dict(row_name=line['row_name'],item=line.get('item'),name=line['name'],before=line['category'],after=category['name']))
                 line['category'] = category['name']
                 if not category['has_item_list']:
                     line.update(item=None, price=line['qty']*line['price'], qty=1, unit='Bill', old_price=0)
             payload['category_changes'] = history
+            purchase_defaults.remember(db,history)
             for line in payload['lines']:
                 if line['category']!='Food / Ingredients': continue
                 row=db.execute('SELECT * FROM stock WHERE item=?',(line['item'],)).fetchone()
