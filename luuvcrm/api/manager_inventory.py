@@ -115,6 +115,12 @@ def dashboard(restaurant=None):
         versions = [v for v in managed if v.item == item.name]
         item["recipe_status"] = ("Active" if versions[0].docstatus == 1 else "Draft") if versions else (
             "Active" if inventory._default_bom(item.name) else "No recipe")
+    from luuvcrm.recipe_sheets import references
+    supplied = references(restaurant)
+    for item in items:
+        item['has_sheet_draft'] = item.name in supplied
+        if item['has_sheet_draft'] and item['recipe_status'] == 'No recipe':
+            item['recipe_status'] = 'Draft · needs review'
     audits = frappe.get_all("Stock Reconciliation", filters={"luuv_audit_restaurant": restaurant, "docstatus": 1},
                             fields=["name", "creation", "owner", "luuv_audit_details"],
                             order_by="creation desc", limit_page_length=25)
@@ -152,9 +158,17 @@ def recipe(item_code, restaurant=None, version=None):
             uom, factor = _display(line.stock_uom)
             rows.append({"item": line.item_code, "name": line.item_name,
                          "qty": flt(line.stock_qty) / flt(doc.quantity or 1) * factor, "uom": uom})
+    from luuvcrm.api.recipe_sheets import get as sheet_draft
     return {"item": item_code, "name": frappe.db.get_value("Item", item_code, "item_name"),
+            "sheet_draft": sheet_draft(item_code, restaurant, warehouse),
             "latest": latest, "version": selected, "status": status, "ingredients": rows,
             "versions": versions, "catalog": _catalog(warehouse), "restaurant": restaurant}
+
+
+@frappe.whitelist(methods=['POST'])
+def save_sheet_draft(item_code, ingredients, expected_revision, note='', restaurant=None):
+    from luuvcrm.api.recipe_sheets import save
+    return save(item_code, ingredients, expected_revision, note, restaurant)
 
 
 @frappe.whitelist(methods=['POST'])

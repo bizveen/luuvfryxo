@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from luuvcrm.inventory_planning import low_stock
+from luuvcrm import recipe_sheets
 from luuvcrm.stock_policy import normalize as normalize_policy, assess as assess_stock, rejection as stock_rejection
 ITEM = 'KG-FRIES-CHICKEN'
 NAME = 'Crispy Chicken Loaded Fries'
@@ -98,6 +99,13 @@ class Store:
                 CREATE TRIGGER IF NOT EXISTS immutable_order_revision_delete BEFORE DELETE ON order_revisions BEGIN SELECT RAISE(ABORT,'Order revision history is immutable'); END;
             ''')
             db.execute('INSERT OR IGNORE INTO recipe_items VALUES(?,?)',(ITEM,'menu'))
+            db.executescript('''
+                CREATE TABLE IF NOT EXISTS recipe_sheet_versions(item TEXT,revision INTEGER,payload TEXT NOT NULL,PRIMARY KEY(item,revision));
+                CREATE TRIGGER IF NOT EXISTS immutable_recipe_sheet BEFORE UPDATE ON recipe_sheet_versions BEGIN SELECT RAISE(ABORT,'Recipe draft history is immutable'); END;
+            ''')
+            for code,reference in recipe_sheets.references('Kurunegala').items():
+                db.execute('INSERT OR IGNORE INTO recipe_items VALUES(?,?)',(code,'menu'))
+                db.execute('INSERT OR IGNORE INTO recipe_sheet_versions VALUES(?,0,?)',(code,json.dumps(recipe_sheets.initial(reference))))
             if not db.execute('SELECT count(*) FROM stock').fetchone()[0]:
                 db.executemany('INSERT INTO stock(item,name,stock_uom,uom,balance,rate) VALUES(?,?,?,?,0,0)', [(a,b,c,d) for a,b,c,d,e in INGREDIENTS])
                 rows = [dict(item=a,name=b,qty=e,uom=d) for a,b,c,d,e in INGREDIENTS]
@@ -139,7 +147,9 @@ class Store:
         if selected and not r:
             raise ValueError('Recipe version not found.')
         batches=[dict(name=b['name'],creation=b['creation'],details=json.loads(b['details'])) for b in db.execute('SELECT * FROM batches WHERE item=? ORDER BY creation DESC,rowid DESC LIMIT 25',(item,))]
-        return dict(item=item,name=NAME if item==ITEM else stock['name'],kind=target['kind'],latest=latest,version=r['name'] if r else '',
+        reference=recipe_sheets.references('Kurunegala').get(item)
+        sheet=recipe_sheets.view(reference,[json.loads(row[0]) for row in db.execute('SELECT payload FROM recipe_sheet_versions WHERE item=? ORDER BY revision',(item,))]) if reference else None
+        return dict(item=item,name=reference['name'] if reference else (NAME if item==ITEM else stock['name']),sheet_draft=sheet,kind=target['kind'],latest=latest,version=r['name'] if r else '',
             status='Active' if r and r['docstatus']==1 else 'Draft',ingredients=json.loads(r['ingredients']) if r else [],
             output_qty=r['output_qty'] if r else (1000 if stock and stock['stock_uom'] in ('Kg','L') else 1),
             recipe_note=r['recipe_note'] if r else '',
@@ -246,6 +256,17 @@ class Store:
             if p.get('restaurant') not in (None,'','Kurunegala'):
                 raise ValueError('Switch to that branch before managing its stock.')
             item_code=p.get('item_code') or ITEM
+            if method=='save_sheet_draft':
+                if p.get('_actor') not in (None,'Local manager'):raise ValueError('Only a manager can edit recipe drafts.')
+                reference=recipe_sheets.references('Kurunegala').get(item_code)
+                if not reference:raise ValueError('Choose a supplied recipe from this branch.')
+                history=[json.loads(row[0]) for row in db.execute('SELECT payload FROM recipe_sheet_versions WHERE item=? ORDER BY revision',(item_code,))]
+                ingredients=json.loads(p['ingredients']) if isinstance(p.get('ingredients'),str) else p.get('ingredients')
+                revision=recipe_sheets.changed(history,ingredients,p.get('note',''),p.get('expected_revision'),p.get('_actor','Local manager'),now())
+                if revision:
+                    db.execute('INSERT INTO recipe_sheet_versions VALUES(?,?,?)',(item_code,revision['revision'],json.dumps(revision)))
+                    history.append(revision)
+                return recipe_sheets.view(reference,history)
             if method=='ingredient_options':
                 if p.get('_actor') not in (None,'Local manager'):raise ValueError('Only a manager can add ingredients.')
                 return dict(items=self.catalog(db))
@@ -277,8 +298,9 @@ class Store:
                 menu=[]
                 for target in db.execute('SELECT * FROM recipe_items ORDER BY kind,item'):
                     latest=db.execute('SELECT docstatus FROM recipes WHERE item_code=? ORDER BY creation DESC,rowid DESC LIMIT 1',(target['item'],)).fetchone()
-                    name=NAME if target['item']==ITEM else db.execute('SELECT name FROM stock WHERE item=?',(target['item'],)).fetchone()['name']
-                    menu.append(dict(name=target['item'],item_name=name,kind=target['kind'],recipe_status=('Active' if latest['docstatus'] else 'Draft') if latest else 'Recipe needed'))
+                    reference=recipe_sheets.references('Kurunegala').get(target['item'])
+                    name=reference['name'] if reference else (NAME if target['item']==ITEM else db.execute('SELECT name FROM stock WHERE item=?',(target['item'],)).fetchone()['name'])
+                    menu.append(dict(name=target['item'],item_name=name,kind=target['kind'],has_sheet_draft=bool(reference),recipe_status=('Active' if latest['docstatus'] else 'Draft') if latest else ('Draft · needs review' if reference else 'Recipe needed')))
                 audits=[dict(r) for r in db.execute("SELECT name,creation,owner,details FROM movements WHERE kind='audit' ORDER BY creation DESC,rowid DESC LIMIT 25")]
                 for a in audits:a['details']=json.loads(a['details'])
                 shortage_sales=[]

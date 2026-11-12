@@ -9,13 +9,16 @@
 <style>
 .mi-prep-usage{padding:12px 0;border-top:1px solid var(--line);margin-top:16px}.mi-prep-usage p{display:flex;justify-content:space-between;gap:12px;font-size:13px}.mi-prep-usage strong{white-space:nowrap;color:var(--ink)}.mi-prep-help{font-size:12px;margin-top:10px!important}.mi #miVersion{max-width:100%}.mi-history details{margin-top:8px;color:var(--muted);font-size:12px}.mi-history summary{cursor:pointer}
 </style>
+<style>
+.mi .mi-sheet-row{grid-template-columns:minmax(0,1fr)90px 90px 30px}.mi-sheet-row input,.mi-sheet-row select{width:100%;min-width:0}@media(max-width:700px){.mi .mi-sheet-row{grid-template-columns:minmax(0,1fr)65px 78px 28px;gap:6px}.mi-sheet-row input,.mi-sheet-row select{padding:8px 6px}}
+</style>
 <script>
 window.LFInventory=(()=>{
   const base='/api/method/luuvcrm.api.manager_inventory.';
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num=n=>Number(n||0).toLocaleString('en',{maximumFractionDigits:4});
-  let root,data,current,mode='stock',dirty=false,busy=false,loading=false,selected='',error='';
-  let equipmentSearch='';
+  let root,data,current,mode=new URLSearchParams(location.search).get('view')==='recipes'?'recipes':'stock',dirty=false,busy=false,loading=false,selected='',error='';
+  let equipmentSearch='',showStockRecipe=false,sheetRevision=null;
   let policyDraft=null,policyBranch='',policyDirty=false,ruleSearch='';
   const requestedView=new URLSearchParams(location.search).get('view');
   let stockView=['piles','list','graphs'].includes(requestedView)?requestedView:'piles',stockSearch='',onlyLow=false;
@@ -87,6 +90,7 @@ window.LFInventory=(()=>{
     }else if(mode==='recipes'){
       content.innerHTML='<div class="mi-grid"><div>'+(data.preparation_recipes?'<button class="mi-btn" id="miNewPrepared" style="width:100%;margin-bottom:12px">+ Prepared item recipe</button>':'')+'<input id="miMenuSearch" class="mi-search" placeholder="Search recipes…" aria-label="Search menu items"><div class="mi-menu" id="miMenu"></div></div><div class="mi-card" id="miEditor"><div class="mi-empty">Select an item to view its recipe.</div></div></div>';
       content.querySelector('#miMenuSearch').oninput=menuRows;menuRows();if(current)editor();
+      if(!current){const first=data.menu.find(m=>m.has_sheet_draft);if(first)openRecipe(first.name)}
       if(data.preparation_recipes)content.querySelector('#miNewPrepared').onclick=openNewPrepared;
     }else if(mode==='rules'){rules();
     }else{
@@ -304,11 +308,37 @@ window.LFInventory=(()=>{
   async function openRecipe(item,version){
     if(dirty&&!confirm('Discard the unsaved recipe changes?'))return;
     if(busy)return;busy=true;
-    try{current=await call('recipe',{item_code:item,version:version||''});selected=item;dirty=false;error='';menuRows();editor()}catch(e){error=e.message;showError()}finally{busy=false}
+    try{current=await call('recipe',{item_code:item,version:version||''});selected=item;showStockRecipe=false;sheetRevision=null;dirty=false;error='';menuRows();editor()}catch(e){error=e.message;showError()}finally{busy=false}
+  }
+  function sheetEditor(){
+    const sheet=current.sheet_draft,ref=sheet.reference,latest=sheet.current;
+    const source=sheet.history.find(v=>v.revision===sheetRevision)||latest,old=source.revision!==latest.revision;
+    const draft=old?JSON.parse(JSON.stringify(source)):(current.sheet_working||(current.sheet_working=JSON.parse(JSON.stringify(source)))),box=root.querySelector('#miEditor');
+    box.innerHTML='<span class="mi-pill">'+(old?'Historical draft':'Draft · needs review')+'</span><h2 style="margin-top:12px">'+escape(ref.name)+'</h2><p>Ingredients for 1 portion · supplied recipe</p><div class="mi-note">These recipe details are saved here. Stock deductions start only after the ingredients and units are linked and a stock recipe is activated.</div><label for="miSheetVersion">Draft history</label><select id="miSheetVersion" style="width:100%;margin:8px 0 14px">'+[...sheet.history].reverse().map(v=>'<option value="'+v.revision+'" '+(v.revision===source.revision?'selected':'')+'>'+(v.revision===0?'Original sheet':'Draft '+v.revision)+' · '+escape(v.by)+' · '+escape(v.revision===0?v.when:new Date(v.when).toLocaleString())+'</option>').join('')+'</select><div id="miSheetRows"></div><button class="mi-btn" id="miSheetAdd" '+(old?'disabled':'')+'>+ Ingredient row</button><label for="miSheetNote" style="display:block;margin-top:16px">Draft note</label><textarea id="miSheetNote" rows="2" maxlength="1000" style="width:100%" '+(old?'disabled':'')+'>'+escape(draft.note)+'</textarea><div class="mi-actions"><span id="miSheetStatus" role="status" style="margin-right:auto"></span><button class="mi-btn mi-primary" id="miSheetSave" '+(old?'disabled':'')+'>Save draft changes</button></div><div id="miRecipeError"></div><details style="margin-top:16px"><summary>Details to confirm before stock deduction</summary><ul>'+sheet.pending_notes.map(n=>'<li style="margin:8px 0">'+escape(n)+'</li>').join('')+'</ul></details><details style="margin-top:16px"><summary>Original sheet costing · Rs. '+num(ref.total_portion_cost)+' per portion</summary><p>Reference costs from the supplied sheet. Editing this draft does not recalculate those original estimates.</p>'+ref.ingredients.map(r=>'<p style="display:flex;justify-content:space-between;gap:16px"><span>'+escape(r.name)+'</span><span>Rs. '+num(r.cost)+'</span></p>').join('')+'<p>Ingredients: Rs. '+num(ref.ingredient_cost)+' · Packaging: '+num(ref.packaging.qty)+' '+escape(ref.packaging.unit)+' / Rs. '+num(ref.packaging.cost)+' · Staff & overhead: Rs. '+num(ref.staff_and_overhead_cost)+'</p>'+(ref.source_discrepancy?'<p>'+escape(ref.source_discrepancy)+'</p>':'')+'</details><div class="mi-actions"><button class="mi-btn" id="miStockRecipeSetup">Open stock recipe setup</button></div>';
+    const mark=()=>{dirty=true;box.querySelector('#miSheetStatus').textContent='Unsaved draft changes';box.querySelector('#miSheetVersion').disabled=true;box.querySelector('#miStockRecipeSetup').disabled=true};
+    const rows=()=>{
+      box.querySelector('#miSheetRows').innerHTML=draft.ingredients.map((r,i)=>'<div class="mi-recipe-row mi-sheet-row"><input data-sheet-name="'+i+'" aria-label="Ingredient name '+(i+1)+'" maxlength="140" value="'+escape(r.name)+'" '+(old?'disabled':'')+'><input data-sheet-qty="'+i+'" aria-label="Ingredient quantity '+(i+1)+'" type="number" min="0.001" step="any" value="'+Number(r.qty)+'" '+(old?'disabled':'')+'><select data-sheet-unit="'+i+'" aria-label="Ingredient unit '+(i+1)+'" '+(old?'disabled':'')+'>'+sheet.units.map(u=>'<option '+(u===r.unit?'selected':'')+'>'+escape(u)+'</option>').join('')+'</select><button data-sheet-remove="'+i+'" aria-label="Remove draft ingredient '+(i+1)+'" '+(old?'disabled':'')+'>×</button></div>').join('');
+      box.querySelectorAll('[data-sheet-name]').forEach(e=>e.oninput=()=>{draft.ingredients[Number(e.dataset.sheetName)].name=e.value;mark()});
+      box.querySelectorAll('[data-sheet-qty]').forEach(e=>e.oninput=()=>{draft.ingredients[Number(e.dataset.sheetQty)].qty=e.value;mark()});
+      box.querySelectorAll('[data-sheet-unit]').forEach(e=>e.onchange=()=>{draft.ingredients[Number(e.dataset.sheetUnit)].unit=e.value;mark()});
+      box.querySelectorAll('[data-sheet-remove]').forEach(e=>e.onclick=()=>{draft.ingredients.splice(Number(e.dataset.sheetRemove),1);mark();rows()});
+    };rows();
+    box.querySelector('#miSheetAdd').onclick=()=>{draft.ingredients.push({name:'',qty:1,unit:'g'});mark();rows()};
+    box.querySelector('#miSheetNote').oninput=e=>{draft.note=e.target.value;mark()};
+    box.querySelector('#miSheetVersion').onchange=e=>{sheetRevision=Number(e.target.value);sheetEditor()};
+    box.querySelector('#miStockRecipeSetup').onclick=()=>{showStockRecipe=true;editor()};
+    box.querySelector('#miSheetSave').onclick=async()=>{
+      if(busy||old)return;busy=true;const button=box.querySelector('#miSheetSave');button.disabled=true;
+      try{current.sheet_draft=await call('save_sheet_draft',{item_code:selected,ingredients:JSON.stringify(draft.ingredients),note:draft.note,expected_revision:latest.revision});delete current.sheet_working;dirty=false;sheetRevision=null;sheetEditor();box.querySelector('#miSheetStatus').textContent='Draft saved. Earlier versions are kept.'}
+      catch(e){recipeError(e.message)}finally{busy=false;if(button.isConnected)button.disabled=false}
+    };
+    if(dirty)mark();
   }
   function editor(){
+    if(current.sheet_draft&&!showStockRecipe){sheetEditor();return}
     const r=current,old=r.version!==r.latest,prepared=r.kind==='prepared';
     root.querySelector('#miEditor').innerHTML='<div class="mi-head"><div><span class="mi-pill '+(r.status==='Active'?'green':'')+'">'+escape(old?'Historical version':r.status)+'</span><h2 style="margin-top:12px">'+escape(r.name)+'</h2><p>'+(prepared?'Make this item, then use it as an ingredient in other recipes.':'Ingredients for <strong>1 portion</strong>')+'</p></div></div>'+(prepared?'<div class="mi-fields" style="margin-bottom:16px"><label for="miOutputQty">This recipe makes</label><input id="miOutputQty" aria-label="Recipe output quantity" type="number" min="0.001" step="'+(r.output_uom==='nos'?'1':'any')+'" style="width:120px" value="'+Number(r.output_qty)+'" '+(old?'disabled':'')+'><strong>'+escape(r.output_uom)+'</strong></div>':'')+'<div class="mi-fields"><label for="miVersion">Version</label><select id="miVersion">'+(!r.version?'<option value="">New recipe</option>':'')+r.versions.map(v=>'<option value="'+escape(v.name)+'" '+(v.name===r.version?'selected':'')+'>'+escape(v.name)+' · '+(v.docstatus===1?'Published':'Draft')+'</option>').join('')+'</select></div><div class="mi-note">'+(old?'This version is read only. Select the latest version to make a new draft.':prepared?'Saving creates a new draft. Completing a batch consumes ingredients and adds finished stock. Past batches keep their saved recipe.':'Saving creates a new draft version. Activation applies to new orders; past orders and stock usage keep their original recipe.')+'</div><div id="miIngredients"></div><button class="mi-btn" id="miAdd" '+(old?'disabled':'')+'>+ Add ingredient</button> <button class="mi-btn" id="miNewRecipeIngredient" '+(old?'disabled':'')+'>+ New ingredient</button><div class="mi-actions"><span id="miDirty" style="margin-right:auto;align-self:center;color:var(--muted)"></span><button class="mi-btn" id="miSave" '+(old?'disabled':'')+'>Save new draft</button><button class="mi-btn mi-primary" id="miActivate" '+(old||r.status!=='Draft'||!r.version?'disabled':'')+'>Activate recipe</button></div><div id="miRecipeError"></div>'+(prepared?'<section style="border-top:1px solid var(--line);margin-top:24px;padding-top:20px"><div class="mi-head"><div><h2>Make a batch</h2><p>Finished stock: '+num(r.balance)+' '+escape(r.stock_uom)+'</p></div><button class="mi-btn mi-primary" id="miPrepare" '+(old||r.status!=='Active'||dirty?'disabled':'')+'>Complete batch</button></div><p>Record the batch after preparation is finished. Use '+escape(r.output_uom)+' when adding this item to another recipe.</p><div id="miBatches" class="mi-history" style="margin-top:20px"></div></section>':'');
+    if(r.sheet_draft){const back=document.createElement('button');back.className='mi-btn';back.textContent='View supplied recipe draft';back.onclick=()=>{if(dirty)return;showStockRecipe=false;sheetRevision=null;sheetEditor()};root.querySelector('#miEditor').prepend(back)}
     root.querySelector('#miVersion').onchange=e=>openRecipe(selected,e.target.value);
     root.querySelector('#miAdd').onclick=()=>{r.ingredients.push({item:'',qty:0,uom:''});setDirty();ingredientRows()};
     root.querySelector('#miNewRecipeIngredient').onclick=()=>openNewIngredient(true);root.querySelector('#miSave').onclick=saveRecipe;root.querySelector('#miActivate').onclick=activateRecipe;ingredientRows();

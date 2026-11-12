@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "restaurant": "Kurunegala",
+  "status": "reference_draft_awaiting_clarification",
+  "source": "User-supplied LUUV FRYXO Full Menu Costing & Selling Price Report, five images, received 2026-11-12",
+  "imported_to_live_bom": false,
+  "quantity_basis": "per portion",
+  "currency": "LKR",
+  "cost_basis": "Source report estimates; not purchase prices or inventory valuations",
+  "activation_blockers": [
+    "Confirm how sauce weights in g relate to purchase/stock units. Do not assume 1 g equals 1 ml.",
+    "Confirm whether creamy coleslaw, creamy salad, garden mayo salad and mixed garden creamy salad share one prepared-salad recipe.",
+    "Confirm whether crispy chicken, crispy fish and tempura prawns are weighed before or after frying; determine oil/flour deductions or their preparation recipes.",
+    "Fish & Chips: hot sauce and BBQ sauce are each 1 portion, with no physical quantity specified.",
+    "Spicy Luuv Chips: the 50 g BBQ/hot-sauce row gives no split or blend recipe.",
+    "Packaging is 1 set; identify its component stock items and whether it applies to all orders or takeaway only.",
+    "Match stock-tracked ingredient records. Some matching live items have stock tracking disabled or count units for weight-based recipe quantities.",
+    "Opening stock and activation remain pending, as previously requested."
+  ],
+  "history_rule": "Create new recipe versions after mappings are confirmed. Preserve previous recipes, order snapshots and stock movements.",
+  "recipes": [
+    {
+      "name": "Crispy Chicken Loaded Fries",
+      "menu_item": "KG-FRIES-CHICKEN",
+      "menu_match": "exact",
+      "source_file": "1000347547.jpg",
+      "ingredients": [
+        {"name": "French fries", "qty": 200, "unit": "g", "cost": 230},
+        {"name": "Crispy chicken", "qty": 150, "unit": "g", "cost": 270},
+        {"name": "Mozzarella cheese", "qty": 20, "unit": "g", "cost": 60},
+        {"name": "Creamy coleslaw", "qty": 50, "unit": "g", "cost": 60},
+        {"name": "Hot sauce", "qty": 25, "unit": "g", "cost": 47.5},
+        {"name": "Garlic mayo", "qty": 25, "unit": "g", "cost": 37.5},
+        {"name": "Mustard mayo", "qty": 20, "unit": "g", "cost": 37.5},
+        {"name": "BBQ sauce", "qty": 25, "unit": "g", "cost": 37.5}
+      ],
+      "ingredient_cost": 780,
+      "packaging": {"qty": 1, "unit": "set", "cost": 105},
+      "staff_and_overhead_cost": 90,
+      "total_portion_cost": 975,
+      "source_discrepancy": "The footnote and overall notes claim ingredient cost 817.50 and total 1012.50. The visible ingredient rows sum to 780.00; adding packaging 105.00 and overhead 90.00 gives 975.00, matching the tables."
+    },
+    {
+      "name": "Crispy Fish Loaded Fries",
+      "menu_item": "KG-FRIES-FISH",
+      "menu_match": "exact",
+      "source_file": "1000347547.jpg",
+      "ingredients": [
+        {"name": "French fries", "qty": 200, "unit": "g", "cost": 230},
+        {"name": "Crispy fish", "qty": 150, "unit": "g", "cost": 577.5},
+        {"name": "Mozzarella cheese", "qty": 20, "unit": "g", "cost": 60},
+        {"name": "Creamy coleslaw", "qty": 50, "unit": "g", "cost": 60},
+        {"name": "Hot sauce", "qty": 25, "unit": "g", "cost": 47.5},
+        {"name": "Garlic mayo", "qty": 25, "unit": "g", "cost": 37.5},
+        {"name": "Mustard mayo", "qty": 20, "unit": "g", "cost": 37.5},
+        {"name": "BBQ sauce", "qty": 25, "unit": "g", "cost": 37.5}
+      ],
+      "ingredient_cost": 1087.5,
+      "packaging": {"qty": 1, "unit": "set", "cost": 105},
+      "staff_and_overhead_cost": 90,
+      "total_portion_cost": 1282.5
+    },
+    {
+      "name": "Tempura Prawn Loaded Fries",
+      "menu_item": "KG-FRIES-PRAWN",
+      "menu_match": "exact",
+      "source_file": "1000347548.jpg",
+      "ingredients": [
+        {"name": "French fries", "qty": 200, "unit": "g", "cost": 230},
+        {"name": "Tempura prawns", "qty": 150, "unit": "g", "cost": 360},
+        {"name": "Mozzarella cheese", "qty": 20, "unit": "g", "cost": 60},
+        {"name": "Creamy coleslaw", "qty": 50, "unit": "g", "cost": 60},
+        {"name": "Hot sauce", "qty": 25, "unit": "g", "cost": 47.5},
+        {"name": "Garlic mayo", "qty": 25, "unit": "g", "cost": 37.5},
+        {"name": "Mustard mayo", "qty": 20, "unit": "g", "cost": 37.5},
+        {"name": "BBQ sauce", "qty": 25, "unit": "g", "cost": 37.5}
+      ],
+      "ingredient_cost": 870,
+      "packaging": {"qty": 1, "unit": "set", "cost": 105},
+      "staff_and_overhead_cost": 90,
+      "total_portion_cost": 1065
+    },
+    {
+      "name": "Ground Beef Spicy Masala Loaded Fries",
+      "menu_item": "KG-FRIES-BEEF",
+      "menu_match": "exact",
+      "source_file": "1000347548.jpg",
+      "ingredients": [
+        {"name": "French fries", "qty": 200, "unit": "g", "cost": 230},
+        {"name": "Ground beef", "qty": 150, "unit": "g", "cost": 420},
+        {"name": "Mozzarella cheese", "qty": 20, "unit": "g", "cost": 60},
+        {"name": "Garden mayo salad", "qty": 50, "unit": "g", "cost": 60},
+        {"name": "Hot sauce", "qty": 25, "unit": "g", "cost": 47.5},
+        {"name": "Garlic mayo", "qty": 25, "unit": "g", "cost": 37.5},
+        {"name": "Mustard mayo", "qty": 20, "unit": "g", "cost": 37.5},
+        {"name": "BBQ sauce", "qty": 25, "unit": "g", "cost": 37.5}
+      ],
+      "ingredient_cost": 930,
+      "packaging": {"qty": 1, "unit": "set", "cost": 105},
+      "staff_and_overhead_cost": 90,
+      "total_portion_cost": 1125,
+      "source_note": "The report describes the 150 g beef portion as assumed."
+    },
+    {
+      "name": "Grilled Bratwurst Sausage Loaded Fries",
+      "menu_item": "KG-FRIES-SAUSAGE",
+      "menu_match": "exact",
+      "source_file": "1000347549.jpg",
+      "ingredients": [
+        {"name": "French fries", "qty": 200, "unit": "g", "cost": 230},
+        {"name": "Bratwurst sausages", "qty": 2, "unit": "pieces", "cost": 220},
+        {"name": "Mozzarella cheese", "qty": 20, "unit": "g", "cost": 60},
+        {"name": "Creamy salad", "qty": 50, "unit": "g", "cost": 60},
+        {"name": "BBQ sauce", "qty": 25, "unit": "g", "cost": 37.5},
+        {"name": "Mustard mayo", "qty": 20, "unit": "g", "cost": 37.5},
+        {"name": "Garlic mayo", "qty": 25, "unit": "g", "cost": 37.5},
+        {"name": "Hot sauce", "qty": 25, "unit": "g", "cost": 47.5}
+      ],
+      "ingredient_cost": 730,
+      "packaging": {"qty": 1, "unit": "set", "cost": 105},
+      "staff_and_overhead_cost": 90,
+      "total_portion_cost": 925
+    },
+    {
+      "name": "Fish & Chips",
+      "menu_item": "KG-CHIPS-FISH",
+      "live_menu_name": "Fish and Chips",
+      "menu_match": "name_alias",
+      "source_file": "1000347549.jpg",
+      "ingredients": [
+        {"name": "Fish", "qty": 80, "unit": "g", "cost": 308},
+        {"name": "French fries", "qty": 200, "unit": "g", "cost": 230},
+        {"name": "Mixed garden creamy salad", "qty": 50, "unit": "g", "cost": 60},
+        {"name": "Hot sauce", "qty": 1, "unit": "portion", "cost": 47.5, "physical_quantity_pending": true},
+        {"name": "BBQ sauce", "qty": 1, "unit": "portion", "cost": 37.5, "physical_quantity_pending": true}
+      ],
+      "ingredient_cost": 683,
+      "packaging": {"qty": 1, "unit": "set", "cost": 30},
+      "staff_and_overhead_cost": 90,
+      "total_portion_cost": 803
+    },
+    {
+      "name": "Spicy Luuv Chips",
+      "menu_item": "KG-CHIPS-SPICY",
+      "live_menu_name": "Spicy Chips",
+      "menu_match": "candidate_name_alias_requires_confirmation",
+      "source_file": "1000347549.jpg",
+      "ingredients": [
+        {"name": "Chips", "qty": 200, "unit": "g", "cost": 100},
+        {"name": "Spicy seasoning", "qty": 5, "unit": "g", "cost": 20},
+        {"name": "Creamy salad", "qty": 30, "unit": "g", "cost": 36},
+        {"name": "BBQ sauce & hot sauce", "qty": 50, "unit": "g", "cost": 72, "sauce_split_pending": true}
+      ],
+      "ingredient_cost": 228,
+      "packaging": {"qty": 1, "unit": "set", "cost": 30},
+      "staff_and_overhead_cost": 90,
+      "total_portion_cost": 348,
+      "source_note": "The report marks some costs as estimates. Do not assume these chips are the same stock ingredient as French fries."
+    }
+  ]
+}
