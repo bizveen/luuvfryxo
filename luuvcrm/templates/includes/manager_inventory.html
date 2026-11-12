@@ -10,7 +10,8 @@
 .mi-prep-usage{padding:12px 0;border-top:1px solid var(--line);margin-top:16px}.mi-prep-usage p{display:flex;justify-content:space-between;gap:12px;font-size:13px}.mi-prep-usage strong{white-space:nowrap;color:var(--ink)}.mi-prep-help{font-size:12px;margin-top:10px!important}.mi #miVersion{max-width:100%}.mi-history details{margin-top:8px;color:var(--muted);font-size:12px}.mi-history summary{cursor:pointer}
 </style>
 <style>
-.mi .mi-sheet-row{grid-template-columns:minmax(0,1fr)90px 90px 30px}.mi-sheet-row input,.mi-sheet-row select{width:100%;min-width:0}@media(max-width:700px){.mi .mi-sheet-row{grid-template-columns:minmax(0,1fr)65px 78px 28px;gap:6px}.mi-sheet-row input,.mi-sheet-row select{padding:8px 6px}}
+.mi-recipe-list{display:flex;flex-direction:column;gap:12px}.mi-recipe-tile{min-width:0;border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden;scroll-margin-top:20px}.mi-recipe-tile.active{border-color:#ed9d70}.mi-recipe-toggle{scroll-margin-top:130px;display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;padding:17px 20px;border:0;background:#fff;text-align:left;color:var(--ink);line-height:1.5}.mi-recipe-toggle:hover,.mi-recipe-toggle[aria-expanded=true]{background:#fff5ed}.mi-recipe-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}.mi-recipe-toggle strong{display:block;font-size:16px;overflow-wrap:anywhere}.mi-recipe-toggle small{display:block;color:var(--muted);font-size:12px;margin-top:3px}.mi-recipe-chevron{display:grid;place-items:center;flex:0 0 32px;height:32px;border-radius:50%;background:#f6eee6;font-size:21px;color:var(--accent)}.mi-recipe-toggle[aria-expanded=true] .mi-recipe-chevron{transform:rotate(180deg)}.mi-recipe-panel{border-top:1px solid var(--line)}.mi-recipe-panel[hidden]{display:none}.mi-recipe-editor{min-width:0;padding:20px;overflow-wrap:anywhere}.mi-recipe-editor input,.mi-recipe-editor select,.mi-recipe-editor textarea{max-width:100%;min-height:44px}.mi-recipe-editor .mi-btn{min-height:44px}.mi-recipe-editor summary{cursor:pointer;padding:8px 0}.mi-recipe-editor .mi-head{flex-wrap:wrap}.mi-recipe-tools{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}.mi-recipe-tools p{margin:0}.mi-recipe-editor .mi-recipe-row{grid-template-columns:minmax(0,1fr)100px 90px 44px;align-items:end;gap:10px;padding:12px 0;border-bottom:1px solid #f0ebe5}.mi-recipe-row label{display:flex;flex-direction:column;gap:6px;min-width:0;margin:0}.mi-recipe-row label>span{font-size:11px;color:var(--muted);font-weight:650}.mi-recipe-row input,.mi-recipe-row select{width:100%;min-width:0}.mi-recipe-row .mi-recipe-unit{min-height:44px;display:flex;align-items:center}.mi-recipe-row button{min-width:44px;min-height:44px;border-radius:9px;background:#fff3ef}.mi-recipe-editor .mi-actions{align-items:center}.mi-recipe-list .mi-empty{border:1px dashed var(--line);border-radius:14px}
+@media(max-width:700px){.mi-recipe-toggle{padding:15px}.mi-recipe-editor{padding:14px}.mi-recipe-editor .mi-recipe-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px;gap:10px;padding:14px 0}.mi-recipe-row label:first-child{grid-column:1/-1}.mi-recipe-editor input,.mi-recipe-editor select,.mi-recipe-editor textarea{font-size:16px}.mi-recipe-editor .mi-actions{gap:10px}.mi-recipe-editor .mi-actions .mi-btn{flex:1 1 135px}.mi-recipe-editor .mi-actions>span{flex-basis:100%}.mi-recipe-tools .mi-btn{width:100%}.mi-recipe-editor .mi-note{padding:10px 12px;font-size:13px}}
 </style>
 <script>
 window.LFInventory=(()=>{
@@ -18,7 +19,7 @@ window.LFInventory=(()=>{
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num=n=>Number(n||0).toLocaleString('en',{maximumFractionDigits:4});
   let root,data,current,mode=new URLSearchParams(location.search).get('view')==='recipes'?'recipes':'stock',dirty=false,busy=false,loading=false,selected='',error='';
-  let equipmentSearch='',showStockRecipe=false,sheetRevision=null;
+  let equipmentSearch='',showStockRecipe=false,sheetRevision=null,recipeCollapsed=false,recipeSearch='';
   let policyDraft=null,policyBranch='',policyDirty=false,ruleSearch='';
   const requestedView=new URLSearchParams(location.search).get('view');
   let stockView=['piles','list','graphs'].includes(requestedView)?requestedView:'piles',stockSearch='',onlyLow=false;
@@ -88,9 +89,8 @@ window.LFInventory=(()=>{
       content.innerHTML='<div class="mi-stock-intro"><div><h2>Main inventory</h2><p>Reusable equipment, furniture and registered assets kept by this branch.</p></div></div><input class="mi-search" id="miEquipmentSearch" aria-label="Search main inventory" placeholder="Find equipment…"><p id="miEquipmentCount" style="margin-bottom:16px"></p><div id="miEquipmentRows" class="mi-stock-grid"></div>';
       const input=content.querySelector('#miEquipmentSearch');input.value=equipmentSearch;input.oninput=()=>{equipmentSearch=input.value;equipmentRows()};equipmentRows();
     }else if(mode==='recipes'){
-      content.innerHTML='<div class="mi-grid"><div>'+(data.preparation_recipes?'<button class="mi-btn" id="miNewPrepared" style="width:100%;margin-bottom:12px">+ Prepared item recipe</button>':'')+'<input id="miMenuSearch" class="mi-search" placeholder="Search recipes…" aria-label="Search menu items"><div class="mi-menu" id="miMenu"></div></div><div class="mi-card" id="miEditor"><div class="mi-empty">Select an item to view its recipe.</div></div></div>';
-      content.querySelector('#miMenuSearch').oninput=menuRows;menuRows();if(current)editor();
-      if(!current){const first=data.menu.find(m=>m.has_sheet_draft);if(first)openRecipe(first.name)}
+      content.innerHTML='<div class="mi-recipe-tools"><p>Tap a recipe to view or edit its ingredients.</p>'+(data.preparation_recipes?'<button class="mi-btn" id="miNewPrepared">+ Prepared item recipe</button>':'')+'</div><input id="miMenuSearch" class="mi-search" placeholder="Search recipes…" aria-label="Search menu items"><div id="miMenu" class="mi-recipe-list"></div><div id="miEditorParking" hidden><div class="mi-recipe-editor" id="miEditor"></div></div>';
+      const search=content.querySelector('#miMenuSearch');search.value=recipeSearch;search.oninput=()=>{recipeSearch=search.value;menuRows()};menuRows();if(current)editor();
       if(data.preparation_recipes)content.querySelector('#miNewPrepared').onclick=openNewPrepared;
     }else if(mode==='rules'){rules();
     }else{
@@ -254,7 +254,7 @@ window.LFInventory=(()=>{
       try{
         const created=await call('create_ingredient',{item_name:name.value,uom:unit.value,minimum_qty:minimum.value,...(existing?{item_code:existing.item}:{})});
         if(fromRecipe==='prepared'){
-          current=await call('create_prepared_recipe',{item_code:created.item});selected=created.item;dirty=false;data=await call('dashboard');mode='recipes';render();
+          current=await call('create_prepared_recipe',{item_code:created.item});selected=created.item;recipeCollapsed=false;recipeSearch='';dirty=false;data=await call('dashboard');mode='recipes';render();
         }else if(fromRecipe){
           const refreshed=await call('recipe',{item_code:selected});current.catalog=refreshed.catalog;
           const ingredient=current.catalog.find(x=>x.item===created.item);if(!current.ingredients.some(x=>x.item===created.item))current.ingredients.push({item:created.item,name:created.name,qty:0,uom:ingredient.uom});
@@ -267,8 +267,37 @@ window.LFInventory=(()=>{
     catch(e){if(d.open&&pick.isConnected)d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}
   }
   function menuRows(){
-    const q=root.querySelector('#miMenuSearch').value.toLowerCase();root.querySelector('#miMenu').innerHTML=data.menu.filter(m=>m.item_name.toLowerCase().includes(q)).map(m=>'<button class="'+(selected===m.name?'active':'')+'" data-item="'+escape(m.name)+'"><strong>'+escape(m.item_name)+'</strong><small>'+(data.preparation_recipes?(m.kind==='prepared'?'Prepared item':'Menu item')+' · ':'')+escape(m.recipe_status)+'</small></button>').join('');
-    root.querySelectorAll('[data-item]').forEach(b=>b.onclick=()=>openRecipe(b.dataset.item));
+    const list=root.querySelector('#miMenu');if(!list)return;
+    // Move the existing editor rather than recreating it: filtering, collapsing
+    // and status refreshes must preserve typed values, handlers and draft state.
+    const box=root.querySelector('#miEditor'),parking=root.querySelector('#miEditorParking');
+    parking.appendChild(box);
+    const q=recipeSearch.trim().toLowerCase();
+    const matches=data.menu.filter(m=>m.item_name.toLowerCase().includes(q)||(dirty&&m.name===selected));
+    list.innerHTML=matches.map(m=>{
+      const index=data.menu.indexOf(m),active=selected===m.name,expanded=active&&!recipeCollapsed;
+      return '<article class="mi-recipe-tile '+(expanded?'active':'')+'"><button type="button" class="mi-recipe-toggle" id="miRecipeToggle'+index+'" data-item="'+escape(m.name)+'" aria-expanded="'+expanded+'" aria-controls="miRecipePanel'+index+'"><span><strong>'+escape(m.item_name)+'</strong><small>'+(data.preparation_recipes?(m.kind==='prepared'?'Prepared item':'Menu item')+' · ':'')+escape(m.recipe_status)+'</small></span><span class="mi-recipe-chevron" aria-hidden="true">⌄</span></button><div class="mi-recipe-panel" id="miRecipePanel'+index+'" role="region" aria-labelledby="miRecipeToggle'+index+'" '+(expanded?'':'hidden')+'></div></article>';
+    }).join('')||'<div class="mi-empty">No matching recipes. Try another name.</div>';
+    list.querySelectorAll('[data-item]').forEach(button=>{
+      if(button.dataset.item===selected)button.nextElementSibling.appendChild(box);
+      button.onclick=()=>{
+        if(busy)return;
+        if(selected===button.dataset.item&&current){recipeCollapsed=!recipeCollapsed;menuRows();focusRecipe();return}
+        openRecipe(button.dataset.item);
+      };
+    });
+  }
+  function focusRecipe(){
+    const button=[...root.querySelectorAll('#miMenu [data-item]')].find(b=>b.dataset.item===selected);
+    button?.focus({preventScroll:true});
+    button?.scrollIntoView({block:'nearest'});
+  }
+  function confirmRecipeSwitch(item,version){
+    const d=document.getElementById('miAudit');d.className='mi mi-dialog';
+    d.innerHTML='<h2>Unsaved recipe changes</h2><p>Keep editing to save your changes, or discard them to open the other recipe.</p><div class="mi-actions"><button class="mi-btn mi-primary" id="miKeepRecipe">Keep editing</button><button class="mi-btn" id="miDiscardRecipe">Discard changes</button></div>';
+    d.querySelector('#miKeepRecipe').onclick=()=>{d.close();recipeCollapsed=false;menuRows();focusRecipe()};
+    d.querySelector('#miDiscardRecipe').onclick=()=>{d.close();openRecipe(item,version,true)};
+    d.showModal();d.querySelector('#miKeepRecipe').focus();
   }
   function openNewPrepared(){
     if(dirty&&!confirm('Discard the unsaved recipe changes?'))return;
@@ -279,7 +308,7 @@ window.LFInventory=(()=>{
     d.querySelector('#miNewFinished').onclick=()=>{d.close();openNewIngredient('prepared')};
     d.querySelector('#miCreatePrepared').onclick=async()=>{
       const button=d.querySelector('#miCreatePrepared');if(button.disabled)return;button.disabled=true;
-      try{current=await call('create_prepared_recipe',{item_code:d.querySelector('#miPreparedItem').value});selected=current.item;dirty=false;data=await call('dashboard');d.close();render()}catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{button.disabled=false}
+      try{current=await call('create_prepared_recipe',{item_code:d.querySelector('#miPreparedItem').value});selected=current.item;recipeCollapsed=false;recipeSearch='';dirty=false;data=await call('dashboard');d.close();render()}catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{button.disabled=false}
     };d.showModal();
   }
   function batchHistory(){
@@ -305,10 +334,11 @@ window.LFInventory=(()=>{
       }catch(e){d.querySelector('#miAuditError').innerHTML='<div class="mi-error">'+escape(e.message)+'</div>'}finally{button.disabled=false}
     };d.showModal();planned.focus();
   }
-  async function openRecipe(item,version){
-    if(dirty&&!confirm('Discard the unsaved recipe changes?'))return;
-    if(busy)return;busy=true;
-    try{current=await call('recipe',{item_code:item,version:version||''});selected=item;showStockRecipe=false;sheetRevision=null;dirty=false;error='';menuRows();editor()}catch(e){error=e.message;showError()}finally{busy=false}
+  async function openRecipe(item,version,discard=false){
+    if(busy)return;
+    if(dirty&&!discard){confirmRecipeSwitch(item,version);return}
+    busy=true;
+    try{current=await call('recipe',{item_code:item,version:version||''});selected=item;recipeCollapsed=false;showStockRecipe=!!version;sheetRevision=null;dirty=false;error='';menuRows();editor();focusRecipe()}catch(e){error=e.message;showError()}finally{busy=false}
   }
   function sheetEditor(){
     const sheet=current.sheet_draft,ref=sheet.reference,latest=sheet.current;
@@ -317,7 +347,7 @@ window.LFInventory=(()=>{
     box.innerHTML='<span class="mi-pill">'+(old?'Historical draft':'Draft · needs review')+'</span><h2 style="margin-top:12px">'+escape(ref.name)+'</h2><p>Ingredients for 1 portion · supplied recipe</p><div class="mi-note">These recipe details are saved here. Stock deductions start only after the ingredients and units are linked and a stock recipe is activated.</div><label for="miSheetVersion">Draft history</label><select id="miSheetVersion" style="width:100%;margin:8px 0 14px">'+[...sheet.history].reverse().map(v=>'<option value="'+v.revision+'" '+(v.revision===source.revision?'selected':'')+'>'+(v.revision===0?'Original sheet':'Draft '+v.revision)+' · '+escape(v.by)+' · '+escape(v.revision===0?v.when:new Date(v.when).toLocaleString())+'</option>').join('')+'</select><div id="miSheetRows"></div><button class="mi-btn" id="miSheetAdd" '+(old?'disabled':'')+'>+ Ingredient row</button><label for="miSheetNote" style="display:block;margin-top:16px">Draft note</label><textarea id="miSheetNote" rows="2" maxlength="1000" style="width:100%" '+(old?'disabled':'')+'>'+escape(draft.note)+'</textarea><div class="mi-actions"><span id="miSheetStatus" role="status" style="margin-right:auto"></span><button class="mi-btn mi-primary" id="miSheetSave" '+(old?'disabled':'')+'>Save draft changes</button></div><div id="miRecipeError"></div><details style="margin-top:16px"><summary>Details to confirm before stock deduction</summary><ul>'+sheet.pending_notes.map(n=>'<li style="margin:8px 0">'+escape(n)+'</li>').join('')+'</ul></details><details style="margin-top:16px"><summary>Original sheet costing · Rs. '+num(ref.total_portion_cost)+' per portion</summary><p>Reference costs from the supplied sheet. Editing this draft does not recalculate those original estimates.</p>'+ref.ingredients.map(r=>'<p style="display:flex;justify-content:space-between;gap:16px"><span>'+escape(r.name)+'</span><span>Rs. '+num(r.cost)+'</span></p>').join('')+'<p>Ingredients: Rs. '+num(ref.ingredient_cost)+' · Packaging: '+num(ref.packaging.qty)+' '+escape(ref.packaging.unit)+' / Rs. '+num(ref.packaging.cost)+' · Staff & overhead: Rs. '+num(ref.staff_and_overhead_cost)+'</p>'+(ref.source_discrepancy?'<p>'+escape(ref.source_discrepancy)+'</p>':'')+'</details><div class="mi-actions"><button class="mi-btn" id="miStockRecipeSetup">Open stock recipe setup</button></div>';
     const mark=()=>{dirty=true;box.querySelector('#miSheetStatus').textContent='Unsaved draft changes';box.querySelector('#miSheetVersion').disabled=true;box.querySelector('#miStockRecipeSetup').disabled=true};
     const rows=()=>{
-      box.querySelector('#miSheetRows').innerHTML=draft.ingredients.map((r,i)=>'<div class="mi-recipe-row mi-sheet-row"><input data-sheet-name="'+i+'" aria-label="Ingredient name '+(i+1)+'" maxlength="140" value="'+escape(r.name)+'" '+(old?'disabled':'')+'><input data-sheet-qty="'+i+'" aria-label="Ingredient quantity '+(i+1)+'" type="number" min="0.001" step="any" value="'+Number(r.qty)+'" '+(old?'disabled':'')+'><select data-sheet-unit="'+i+'" aria-label="Ingredient unit '+(i+1)+'" '+(old?'disabled':'')+'>'+sheet.units.map(u=>'<option '+(u===r.unit?'selected':'')+'>'+escape(u)+'</option>').join('')+'</select><button data-sheet-remove="'+i+'" aria-label="Remove draft ingredient '+(i+1)+'" '+(old?'disabled':'')+'>×</button></div>').join('');
+      box.querySelector('#miSheetRows').innerHTML=draft.ingredients.map((r,i)=>'<div class="mi-recipe-row mi-sheet-row"><label><span>Ingredient</span><input data-sheet-name="'+i+'" aria-label="Ingredient name '+(i+1)+'" maxlength="140" value="'+escape(r.name)+'" '+(old?'disabled':'')+'></label><label><span>Quantity</span><input inputmode="decimal" data-sheet-qty="'+i+'" aria-label="Ingredient quantity '+(i+1)+'" type="number" min="0.001" step="any" value="'+Number(r.qty)+'" '+(old?'disabled':'')+'></label><label><span>Unit</span><select data-sheet-unit="'+i+'" aria-label="Ingredient unit '+(i+1)+'" '+(old?'disabled':'')+'>'+sheet.units.map(u=>'<option '+(u===r.unit?'selected':'')+'>'+escape(u)+'</option>').join('')+'</select></label><button data-sheet-remove="'+i+'" aria-label="Remove draft ingredient '+(i+1)+'" '+(old?'disabled':'')+'>×</button></div>').join('');
       box.querySelectorAll('[data-sheet-name]').forEach(e=>e.oninput=()=>{draft.ingredients[Number(e.dataset.sheetName)].name=e.value;mark()});
       box.querySelectorAll('[data-sheet-qty]').forEach(e=>e.oninput=()=>{draft.ingredients[Number(e.dataset.sheetQty)].qty=e.value;mark()});
       box.querySelectorAll('[data-sheet-unit]').forEach(e=>e.onchange=()=>{draft.ingredients[Number(e.dataset.sheetUnit)].unit=e.value;mark()});
@@ -352,7 +382,7 @@ window.LFInventory=(()=>{
   function setDirty(){dirty=true;root.querySelector('#miDirty').textContent='Unsaved changes';root.querySelector('#miActivate').disabled=true;const prepare=root.querySelector('#miPrepare');if(prepare)prepare.disabled=true}
   function ingredientRows(){
     const old=current.version!==current.latest;
-    root.querySelector('#miIngredients').innerHTML=current.ingredients.map((r,i)=>'<div class="mi-recipe-row"><select data-row="'+i+'" aria-label="Ingredient '+(i+1)+'" '+(old?'disabled':'')+'><option value="">Choose ingredient</option>'+current.catalog.filter(c=>c.item!==current.item).map(c=>'<option value="'+escape(c.item)+'" '+(r.item===c.item?'selected':'')+'>'+escape(c.name)+(c.prepared?' · prepared':'')+'</option>').join('')+'</select><input data-qty="'+i+'" type="number" step="any" min="0.001" value="'+r.qty+'" aria-label="Quantity '+(i+1)+'" '+(old?'disabled':'')+'><span>'+escape(r.uom)+'</span><button data-remove="'+i+'" aria-label="Remove ingredient '+(i+1)+'" '+(old?'disabled':'')+'>×</button></div>').join('');
+    root.querySelector('#miIngredients').innerHTML=current.ingredients.map((r,i)=>'<div class="mi-recipe-row"><label><span>Ingredient</span><select data-row="'+i+'" aria-label="Ingredient '+(i+1)+'" '+(old?'disabled':'')+'><option value="">Choose ingredient</option>'+current.catalog.filter(c=>c.item!==current.item).map(c=>'<option value="'+escape(c.item)+'" '+(r.item===c.item?'selected':'')+'>'+escape(c.name)+(c.prepared?' · prepared':'')+'</option>').join('')+'</select></label><label><span>Quantity</span><input inputmode="decimal" data-qty="'+i+'" type="number" step="any" min="0.001" value="'+r.qty+'" aria-label="Quantity '+(i+1)+'" '+(old?'disabled':'')+'></label><label><span>Unit</span><span class="mi-recipe-unit">'+escape(r.uom)+'</span></label><button data-remove="'+i+'" aria-label="Remove ingredient '+(i+1)+'" '+(old?'disabled':'')+'>×</button></div>').join('');
     root.querySelectorAll('[data-row]').forEach(e=>e.onchange=()=>{const r=current.ingredients[Number(e.dataset.row)],c=current.catalog.find(x=>x.item===e.value);r.item=e.value;r.name=c?.name;r.uom=c?.uom||'';setDirty();ingredientRows()});
     root.querySelectorAll('[data-qty]').forEach(e=>e.oninput=()=>{current.ingredients[Number(e.dataset.qty)].qty=e.value;setDirty()});
     root.querySelectorAll('[data-remove]').forEach(e=>e.onclick=()=>{current.ingredients.splice(Number(e.dataset.remove),1);setDirty();ingredientRows()});
