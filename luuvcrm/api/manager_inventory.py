@@ -163,6 +163,42 @@ def move_inventory_item(item_code, section, expected_revision, category='', comm
     return move(item_code, section, expected_revision, category, comment, restaurant)
 
 
+@frappe.whitelist(methods=['POST'])
+def rename_inventory_item(item_code, item_name, expected_name, restaurant=None):
+    """Change the Item display name only; document IDs and saved rows stay fixed."""
+    restaurant, warehouse = _context(restaurant)
+    if not isinstance(item_name, str):
+        frappe.throw(_("Enter an item name."))
+    name = item_name.strip()
+    if not 2 <= len(name) <= 140 or any(ord(c) < 32 or ord(c) == 127 or c in '<>' for c in name):
+        frappe.throw(_("Use a plain-text item name of 2–140 characters."))
+    visible = dashboard(restaurant)
+    allowed = {r['item'] for r in visible['stock'] + visible['main_inventory']}
+    if item_code not in allowed:
+        frappe.throw(_("Choose an item in this branch inventory."), frappe.PermissionError)
+    item = frappe.get_doc('Item', item_code, for_update=True)
+    if item.disabled:
+        frappe.throw(_("Choose an enabled item."))
+    before = item.item_name
+    if name == before:
+        return dict(ok=True, changed=False, item=item_code, name=name)
+    if expected_name != before:
+        frappe.throw(_("This item name changed on another screen. Reopen it before saving."))
+    if frappe.db.exists('Item', {'item_name': name, 'name': ['!=', item_code]}):
+        frappe.throw(_("Another item already uses that name. Choose a different name."))
+    # Do not use rename_doc or Item.save: neither linked IDs nor historical
+    # child-row labels should be rewritten by an inventory name correction.
+    frappe.db.set_value('Item', item_code, 'item_name', name)
+    record = dict(item=item_code, restaurant=restaurant, before=before, after=name)
+    frappe.get_doc(dict(doctype='Version', ref_doctype='Item', docname=item_code,
+        data=frappe.as_json({'changed': [['item_name', before, name]],
+                            'inventory_name_change': record}))).insert(ignore_permissions=True)
+    activity.log_activity('item.name', label='Item name changed: '+name,
+        ref_doctype='Item', ref_name=item_code, item=item_code, item_name=name, detail=record)
+    frappe.clear_document_cache('Item', item_code)
+    return dict(ok=True, changed=True, item=item_code, name=name)
+
+
 def _number(value, label, allow_zero=False):
     try:
         number = float(value)

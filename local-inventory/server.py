@@ -12,6 +12,7 @@ import threading
 import purchasing
 import existing_purchases
 import equipment
+import item_names
 import native_pages
 import sys
 from http.cookies import SimpleCookie
@@ -231,7 +232,7 @@ class Store:
         # _dispatch exits its transaction before notifying browser streams.
         # Failed transactions and duplicate kitchen sends publish nothing.
         result = self._dispatch(method,p)
-        if method in ('move_inventory_item','fire_order','correct_stock','set_minimum','create_ingredient','demo_stock','save_recipe','activate_recipe','create_prepared_recipe','complete_batch','save_purchase','receive_purchase','cancel_purchase','native:create_purchase_bill','native:resolve_approval','native:purchase_categories.correct','save_stock_policy') and not result.get('already_processed'):
+        if method in ('rename_inventory_item','move_inventory_item','fire_order','correct_stock','set_minimum','create_ingredient','demo_stock','save_recipe','activate_recipe','create_prepared_recipe','complete_batch','save_purchase','receive_purchase','cancel_purchase','native:create_purchase_bill','native:resolve_approval','native:purchase_categories.correct','save_stock_policy') and not result.get('already_processed'):
             with self.changed:
                 self.revision += 1
                 self.last_change = dict(revision=self.revision,kind=method)
@@ -244,6 +245,7 @@ class Store:
             if p.get('restaurant') not in (None,'','Kurunegala'):
                 raise ValueError('Switch to that branch before managing its stock.')
             item_code=p.get('item_code') or ITEM
+            if method=='rename_inventory_item':return item_names.rename(db,p)
             if method=='move_inventory_item':return equipment.move(db,p)
             if method=='save_stock_policy':
                 if p.get('_actor') not in (None,'Local manager'):raise ValueError('Only Manager can change branch stock rules.')
