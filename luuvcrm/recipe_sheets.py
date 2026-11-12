@@ -30,6 +30,9 @@ def view(reference,history=None):
         notes=['Confirm the actual ingredients and finished batch yield, then link each raw ingredient to its stock item.',
                'Complete a batch only after preparation. This consumes raw ingredients and adds finished coleslaw stock.']
     current=history[-1]['ingredients']
+    packaging={'loaded fries box','disposable spoon','wooden fork','serviettes'}
+    if reference.get('kind')!='prepared' and packaging <= {r['name'].strip().casefold() for r in current if r['unit']=='Nos'}:
+        notes[2]='Packaging quantities are specified in Nos; link each component to its stock item.'
     portions=[r['name'] for r in current if r['unit']=='portion']
     if portions:
         notes.append('Enter a measured quantity for: '+', '.join(portions)+'.')
