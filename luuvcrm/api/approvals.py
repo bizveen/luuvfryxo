@@ -92,7 +92,7 @@ def _snapshot_edit_payload(action_payload, order_name):
 @frappe.whitelist(methods=["POST"])
 def create_approval():
     """POS raises an approval request for a bill change that needs a manager."""
-    roles.require_pos()
+    roles.require_waiter()
     if not frappe.db.exists("DocType", "POS Approval"):
         _install_pos_approval()
     data = frappe.local.form_dict
@@ -100,6 +100,7 @@ def create_approval():
     pos_order = data.get("pos_order", "")
     if pos_order:
         branch.require_access("POS Order", pos_order)
+        order_doc = frappe.get_doc('POS Order', pos_order, for_update=True)
     action = data.get("action", "")
     action_payload = data.get("action_payload", "") or ""
     if pos_order and action == "update_items":
@@ -107,6 +108,26 @@ def create_approval():
     details_json = data.get("details_json", "") or ""
     if approval_type == "discount":
         details_json = json.dumps(_discount_order_snapshot(details_json, pos_order))
+
+    # Only delivery-protected removals extend request access to floor staff.
+    # All previous approval types retain their POS-role gate.
+    from luuvcrm.api import waiter_delivery
+    proof = None
+    payload = json.loads(action_payload or '{}')
+    if not isinstance(payload, dict):
+        frappe.throw(_('Invalid approval details'))
+    supplied_proof = payload.pop(waiter_delivery.EVIDENCE, None)
+    if pos_order:
+        payload, proof = waiter_delivery.prepare_request(order_doc, action, payload, data)
+    if proof:
+        if order_doc.docstatus != 0 or order_doc.pos_invoice:
+            frappe.throw(_('Removal requests are available only for open, unpaid bills'))
+        details_json = json.dumps(_discount_order_snapshot(json.dumps(proof), pos_order))
+        action_payload = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    else:
+        roles.require_pos()
+        if supplied_proof is not None:
+            action_payload = json.dumps(payload, sort_keys=True, separators=(',', ':'))
 
     # Dedupe. The POS leaves a removed or edited item on screen until the manager
     # approves, so nothing visibly changes after a tap and the cashier taps again
@@ -217,6 +238,8 @@ def _void_order(order_name):
     if po.docstatus != 0 or po.pos_invoice:
         return False
     old_status = po.kitchen_status
+    from luuvcrm.api.waiter_delivery import guard_cancel
+    guard_cancel(po)
     po.db_set("docstatus", 2)
     po.db_set("kitchen_status", "Cancelled")
     frappe.get_doc({
@@ -250,6 +273,12 @@ def _order_is_moot(order_name, order=None):
 
 
 def _run_bill_action(doc):
+    from luuvcrm.api.waiter_delivery import approved_change
+    with approved_change(doc):
+        return _run_bill_action_checked(doc)
+
+
+def _run_bill_action_checked(doc):
     """Apply an approved bill change. Returns (executed, note): `executed` names
     what happened for the trail; `note` is a sentence for the manager when the
     card could not be applied as asked (it is then closed as rejected)."""
@@ -411,6 +440,8 @@ def _format_approvals(rows):
                     expense_category = expense.category or ""
         except Exception:
             image = ""
+        if details.get('delivery_removal'):
+            image = details.get('delivery_photo') or ''
 
         # Overlay the bill's per-line price detail onto this card's lines.
         lines = details.get("lines") or []
@@ -451,6 +482,8 @@ def _format_approvals(rows):
             "status": r.get("status") or "pending",
             "time": frappe.utils.pretty_date(r.get("requested_at")),
             "image": image,
+            "delivery_removal": bool(details.get('delivery_removal')),
+            "delivery_comment": details.get('delivery_comment') or '',
             "expense_category": expense_category,
             # The exact same classifier as New bill / expense: blank means a
             # stock Purchase Bill; every other value is an Expense Category.
@@ -588,6 +621,11 @@ def resolve_approval():
         frappe.throw(_("Decision must be 'approved' or 'rejected'"))
     branch.require_access("POS Approval", name)
     doc = frappe.get_doc("POS Approval", name, for_update=True)
+    delivery_proof = json.loads(doc.action_payload or '{}').get('_delivery_evidence')
+    if delivery_proof:
+        roles.require_manager()
+        if len((data.get('comment') or '').strip()) < 3:
+            frappe.throw(_('Add a manager comment for this delivered-item removal'))
     if (doc.action or "") == "purchase_bill":
         roles.require_purchases()
     else:

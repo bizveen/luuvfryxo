@@ -448,6 +448,8 @@ def cancel_order():
     if pos_order.pos_invoice:
         frappe.throw(_("Cannot cancel — payment already processed"))
     old_kitchen_status = pos_order.kitchen_status
+    from luuvcrm.api.waiter_delivery import guard_cancel
+    guard_cancel(pos_order)
     pos_order.db_set("docstatus", 2)
     pos_order.db_set("kitchen_status", "Cancelled")
     # Manually create a Version record so Changes tab shows this

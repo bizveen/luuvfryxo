@@ -363,6 +363,8 @@ def execute():
     _step("inventory sections", inventory_sections)
     from luuvcrm.patches.v1_0.purchase_item_defaults import execute as purchase_item_defaults
     _step("purchase item defaults", purchase_item_defaults)
+    from luuvcrm.patches.v1_0.waiter_delivery import execute as waiter_delivery
+    _step("waiter delivery", waiter_delivery)
     _step("Walk In customer", ensure_walk_in_customer)
     frappe.clear_cache()
     frappe.db.commit()

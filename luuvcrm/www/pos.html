@@ -882,17 +882,19 @@ function lfPoll(fn, ms){
   // Reduce/remove an item already fired to the kitchen → manager approval (the item stays until approved).
   async function requestFiredRemoval(code,removeQty){
     if(!currentOrder){ return; }
+    const removalOrder=currentOrder,removalEpoch=_saveEpoch;
     const table=document.getElementById('tableSel').value;
     const it=itemMap[code]||{name:code,rate:0};
     const desired={}; Object.keys(cart).forEach(c=>desired[c]=cart[c]); desired[code]=(desired[code]||0)-removeQty; if(desired[code]<=0) delete desired[code];
     const payload=[]; Object.keys(desired).forEach(c=>linesFor(c,desired[c]).forEach(l=>payload.push(l)));
     const tName=table?document.getElementById('tableSel').options[document.getElementById('tableSel').selectedIndex].text:'';
-    const flags=await getOrderFlags(currentOrder);
+    const flags=await getOrderFlags(removalOrder);
+    if(currentOrder!==removalOrder||_saveEpoch!==removalEpoch){toast('Bill changed. Please check the item again.');return;}
     const flagText=flags.check_printed?'⚠ Guest check already printed — removal needs sign-off':'Item already sent to kitchen';
     const details=JSON.stringify({lines:[{qtyStr:removeQty+'×',name:it.name,totalStr:nfmt(it.rate*removeQty)}],footer_label:'Items removed',footer_value:String(removeQty)});
     try{ const r=await _post('/api/method/luuvcrm.api.create_approval',{approval_type:'edit',pos_order:currentOrder,title:'Remove item approval',subhead:'Order #'+shortNo(currentOrder)+(tName?' · '+tName:''),flag_text:flagText,details_json:details,action:'update_items',action_payload:JSON.stringify({items:payload})});
       if(!r) return; const d=await r.json();
-      if(r.ok && d.message && d.message.ok){ toast('Removal sent to manager 📱'); pollEdit(d.message.name,currentOrder,table); }
+      if(r.ok && d.message && d.message.ok){ toast('Removal sent to manager 📱'); pollEdit(d.message.name,removalOrder,table); }
       else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
   function newTakeaway(){ setOrderType('Take Away'); }
   async function setOrderType(t){ orderType=t; document.getElementById('segDine').classList.toggle('active',t==='Dine In'); document.getElementById('segTake').classList.toggle('active',t==='Take Away');
@@ -2781,5 +2783,6 @@ function lfPoll(fn, ms){
 <script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(e){console.error("SW reg failed:",e)})}</script>
 {% include "templates/includes/branch_switcher.html" %}
 {% include "templates/includes/app_switch.html" %}
+{% include "templates/includes/delivery_removal.html" %}
 </body>
 </html>

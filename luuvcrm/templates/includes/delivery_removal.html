@@ -1,0 +1,62 @@
+<style>
+#deliveryProof{border:0;border-radius:20px;padding:24px;width:min(460px,calc(100vw - 32px));box-sizing:border-box;box-shadow:0 24px 80px #0004;color:#292320;background:#fff;font:14px system-ui;}
+#deliveryProof::backdrop{background:#20160d88;backdrop-filter:blur(3px);}
+#deliveryProof h2{margin:0 0 8px;font-size:21px;}#deliveryProof p{line-height:1.5;color:#766b64;}
+#deliveryProof label{display:block;font-weight:700;margin-top:18px;}#deliveryProof textarea,#deliveryProof input{display:block;box-sizing:border-box;width:100%;margin-top:8px;border:1px solid #d9d0c9;border-radius:10px;padding:12px;font:inherit;}
+#deliveryProof button{border:1px solid #ded6cf;background:#fff;border-radius:10px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;}#deliveryProof button[type=submit]{background:#e95212;color:white;border-color:#e95212;}#deliveryProof button:disabled{opacity:.5;cursor:wait;}
+#deliveryProofError{color:#ad291c;min-height:20px;margin-top:12px;}#deliveryProofPreview{display:none;max-width:100%;max-height:150px;margin-top:10px;border-radius:10px;}
+</style>
+<dialog id="deliveryProof" aria-labelledby="deliveryProofTitle">
+ <form id="deliveryProofForm">
+  <h2 id="deliveryProofTitle">Request delivered-item removal</h2>
+  <p id="deliveryProofInfo"></p><p>The item stays on the bill until a manager approves.</p>
+  <label for="deliveryProofComment">Reason / comment *</label><textarea id="deliveryProofComment" rows="3" minlength="3" maxlength="1000" required placeholder="Explain why this delivered item needs to be removed"></textarea>
+  <label for="deliveryProofPhoto">Photo of the item *</label><input id="deliveryProofPhoto" type="file" accept="image/jpeg,image/png,image/webp" required>
+  <p style="font-size:12px;margin:7px 0;">Choose a photo or use your phone camera. JPG, PNG or WebP, up to 5 MB.</p><img id="deliveryProofPreview" alt="Removal evidence preview">
+  <div id="deliveryProofError" role="alert"></div>
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;"><button type="button" id="deliveryProofCancel">Cancel</button><button type="submit" id="deliveryProofSend">Send for approval</button></div>
+ </form>
+</dialog>
+<script>
+window.LFDelivery=(()=>{
+ const base='/api/method/luuvcrm.api.waiter_delivery.',dlg=document.getElementById('deliveryProof'),form=document.getElementById('deliveryProofForm');
+ let pending=null,preview='',busy=false;
+ function message(d){try{return JSON.parse(d._server_messages).map(s=>JSON.parse(s).message).join(' ');}catch(e){return d.error||d.message||'Could not save. Please try again.';}}
+ async function api(method,data){const r=await fetch(base+method,{method:'POST',headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':typeof CSRF!=='undefined'?CSRF:'{{ csrf_token }}'},body:JSON.stringify(data)});const d=await r.json();if(!r.ok||d.exc)throw Error(message(d));return d.message;}
+ function close(value){if(preview)URL.revokeObjectURL(preview);preview='';dlg.close();const p=pending;pending=null;if(p)p.resolve(value);}
+ function evidence(order,revision,description){if(pending)throw Error('Finish the current removal request first.');form.reset();document.getElementById('deliveryProofPreview').style.display='none';document.getElementById('deliveryProofError').textContent='';document.getElementById('deliveryProofInfo').textContent=description||order;dlg.showModal();document.getElementById('deliveryProofComment').focus();return new Promise(resolve=>{pending={order,revision,resolve};});}
+ document.getElementById('deliveryProofCancel').onclick=()=>{if(!busy)close(null);};dlg.addEventListener('cancel',e=>{e.preventDefault();if(!busy)close(null);});
+ document.getElementById('deliveryProofPhoto').onchange=e=>{if(preview)URL.revokeObjectURL(preview);const file=e.target.files[0],img=document.getElementById('deliveryProofPreview');preview=file?URL.createObjectURL(file):'';img.src=preview;img.style.display=file?'block':'none';};
+ form.onsubmit=async e=>{e.preventDefault();if(busy||!pending)return;const comment=document.getElementById('deliveryProofComment').value.trim(),file=document.getElementById('deliveryProofPhoto').files[0],error=document.getElementById('deliveryProofError');error.textContent='';
+  if(comment.length<3||!file){error.textContent='Add a comment and a photo.';return;}if(file.size>5*1024*1024){error.textContent='Choose a photo smaller than 5 MB.';return;}
+  busy=true;const buttons=Array.from(form.querySelectorAll('button'));buttons.forEach(b=>b.disabled=true);document.getElementById('deliveryProofSend').textContent='Uploading photo…';
+  try{const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('Could not read this photo'));reader.readAsDataURL(file);});const proof=await api('upload_photo',{order_name:pending.order,content});close({delivery_comment:comment,delivery_photo:proof.photo,delivery_revision:pending.revision});}
+  catch(ex){error.textContent=String(ex.message).replace(/<[^>]*>/g,'');}finally{busy=false;buttons.forEach(b=>b.disabled=false);document.getElementById('deliveryProofSend').textContent='Send for approval';}
+ };
+ return {api,evidence,isOpen:()=>!!pending};
+})();
+// Existing POS removals acquire evidence only when they cross delivered quantities.
+if(typeof _post==='function'&&typeof requestFiredRemoval==='function'){
+ const deliveryOriginalPost=_post;
+ _post=async function(url,body){
+  if(url.endsWith('create_approval')&&body.pos_order&&['update_items','void'].includes(body.action)){
+   try{const payload=JSON.parse(body.action_payload||'{}'),check=await LFDelivery.api('removal_check',{order_name:body.pos_order,items:payload.items||[],action:body.action});
+    if(check.required){const proof=await LFDelivery.evidence(body.pos_order,check.revision,'Order '+body.pos_order);if(!proof)return null;body=Object.assign({},body,proof);}
+   }catch(e){toast(String(e.message).replace(/<[^>]*>/g,''),5000);return null;}
+  }
+  return deliveryOriginalPost(url,body);
+ };
+ const deliverySetQty=setQty,deliveryRemoveItem=removeItem;let deliveryChecking=false;
+ async function deliveryReduce(code,qty,normal){
+  if(!currentOrder)return normal();if(deliveryChecking)return;deliveryChecking=true;
+  const order=currentOrder,epoch=_saveEpoch,snapshot=JSON.stringify([cart,cartTA]);
+  try{const desired=Object.assign({},cart);desired[code]-=qty;if(desired[code]<=0)delete desired[code];const items=[];Object.keys(desired).forEach(c=>linesFor(c,desired[c]).forEach(l=>items.push(l)));
+   const check=await LFDelivery.api('removal_check',{order_name:order,items});
+   if(order!==currentOrder||epoch!==_saveEpoch||snapshot!==JSON.stringify([cart,cartTA])){toast('Bill changed. Please check the item again.');return;}
+   if(check.required)await requestFiredRemoval(code,qty);else normal();
+  }catch(e){toast(String(e.message).replace(/<[^>]*>/g,''),5000);}finally{deliveryChecking=false;}
+ }
+ setQty=function(code,d){if(d<0)return deliveryReduce(code,-d,()=>deliverySetQty(code,d));return deliverySetQty(code,d);};
+ removeItem=function(code){return deliveryReduce(code,cart[code]||0,()=>deliveryRemoveItem(code));};
+}
+</script>
