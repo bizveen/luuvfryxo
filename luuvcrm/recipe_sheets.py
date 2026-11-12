@@ -13,11 +13,17 @@ def references(restaurant):
     result={r['menu_item']:r for r in data['recipes']}
     prepared=json.loads((Path(__file__).parent/'data/coleslaw-sample.json').read_text(encoding='utf-8'))
     result[prepared['menu_item']]=prepared
+    juices=json.loads((Path(__file__).parent/'data/juice-packaging.json').read_text(encoding='utf-8'))
+    if restaurant==juices['restaurant']:
+        for code,name in juices['items'].items():
+            result[code]=dict(menu_item=code,name=name,packaging_only=True,
+                source_label='Owner packaging instructions',source_note=juices['note'],
+                ingredients=deepcopy(juices['ingredients']),packaging={})
     return result
 
 
 def initial(reference):
-    return dict(revision=0,by='Sample preparation draft' if reference.get('sample') else 'Supplied recipe sheet',when='2026-11-12',note=reference['source_note'] if reference.get('sample') else 'Original recipe supplied by the owner.',
+    return dict(revision=0,by=reference.get('source_label') or ('Sample preparation draft' if reference.get('sample') else 'Supplied recipe sheet'),when='2026-11-12',note=reference['source_note'] if reference.get('sample') or reference.get('packaging_only') else 'Original recipe supplied by the owner.',
         ingredients=[dict(name=r['name'],qty=r['qty'],unit=r['unit']) for r in reference['ingredients']])
 
 
@@ -29,9 +35,12 @@ def view(reference,history=None):
     if reference.get('kind')=='prepared':
         notes=['Confirm the actual ingredients and finished batch yield, then link each raw ingredient to its stock item.',
                'Complete a batch only after preparation. This consumes raw ingredients and adds finished coleslaw stock.']
+    elif reference.get('packaging_only'):
+        notes=['Add the beverage ingredients and their measured quantities before activating a stock recipe.',
+               'Confirm the cup and lid size used by this drink, then link the three packaging stock items.']
     current=history[-1]['ingredients']
     packaging={'loaded fries box','disposable spoon','wooden fork','serviettes'}
-    if reference.get('kind')!='prepared' and packaging <= {r['name'].strip().casefold() for r in current if r['unit']=='Nos'}:
+    if reference.get('kind')!='prepared' and not reference.get('packaging_only') and packaging <= {r['name'].strip().casefold() for r in current if r['unit']=='Nos'}:
         notes[2]='Packaging quantities are specified in Nos; link each component to its stock item.'
     portions=[r['name'] for r in current if r['unit']=='portion']
     if portions:

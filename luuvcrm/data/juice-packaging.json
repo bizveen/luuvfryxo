@@ -1,0 +1,15 @@
+{
+  "restaurant": "Kurunegala",
+  "items": {
+    "KG-LEMON-MINT": "Lemon and Mint (300ml)",
+    "KG-LEMONADE-PASSION": "Passion Lemonade (300ml)",
+    "KG-LEMONADE-STRAWBERRY": "Strawberry Lemonade (300ml)",
+    "KG-LEMONADE-BLUEBERRY": "Blueberry Lemonade (300ml)"
+  },
+  "ingredients": [
+    {"name": "Clear cups", "qty": 1, "unit": "Nos"},
+    {"name": "Juice lid", "qty": 1, "unit": "Nos"},
+    {"name": "Juice bag", "qty": 1, "unit": "Nos"}
+  ],
+  "note": "Packaging per juice: 1 cup, 1 lid and 1 juice bag, counted individually in Nos. Beverage ingredient quantities are still to be supplied."
+}

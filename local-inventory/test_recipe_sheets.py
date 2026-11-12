@@ -11,14 +11,14 @@ class RecipeSheetTest(unittest.TestCase):
         self.path=Path(self.temp.name)/'recipes.sqlite3';self.store=Store(self.path)
     def test_menu_and_coleslaw_drafts_without_opening_stock(self):
         data=self.store.dispatch('dashboard',{})
-        self.assertEqual(len([r for r in data['menu'] if r['has_sheet_draft']]),8)
+        self.assertEqual(len([r for r in data['menu'] if r['has_sheet_draft']]),12)
         self.assertEqual(len(data['stock']),10)
         total=0
         for item in references('Kurunegala'):
             draft=self.store.dispatch('recipe',dict(item_code=item))['sheet_draft']
             total+=len(draft['current']['ingredients'])
             self.assertEqual(draft['current']['revision'],0)
-        self.assertEqual(total,52)
+        self.assertEqual(total,64)
         fish=self.store.dispatch('recipe',dict(item_code='KG-CHIPS-FISH'))['sheet_draft']
         self.assertEqual(fish['current']['ingredients'][-1]['unit'],'portion')
         spicy=self.store.dispatch('recipe',dict(item_code='KG-CHIPS-SPICY'))['sheet_draft']
