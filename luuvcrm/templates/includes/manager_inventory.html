@@ -102,25 +102,36 @@ window.LFInventory=(()=>{
     root.querySelectorAll('[data-equipment-audit]').forEach(b=>b.onclick=()=>openAudit(b.dataset.equipmentAudit));
     root.querySelectorAll('[data-running]').forEach(b=>b.onclick=()=>openSection(b.dataset.running,'running'));
   }
-  function renameButton(r){return '<button data-rename="'+escape(r.item)+'" aria-label="Edit name for '+escape(r.name)+'" title="Edit name" style="border:0;background:transparent;color:var(--accent);padding:4px 7px;border-radius:6px;font-size:17px;vertical-align:middle">✎</button>';}
+  function renameButton(r){return '<button data-rename="'+escape(r.item)+'" aria-label="Edit name and unit for '+escape(r.name)+'" title="Edit name / unit" style="border:0;background:transparent;color:var(--accent);padding:4px 7px;border-radius:6px;font-size:17px;vertical-align:middle">✎</button>';}
   function bindRename(){root.querySelectorAll('[data-rename]').forEach(b=>b.onclick=()=>openRename(b.dataset.rename));}
-  function openRename(item){
+  async function openRename(item){
     const r=[...data.stock,...(data.main_inventory||[])].find(x=>x.item===item);if(!r)return;
     const before=r.name,restaurant=data.restaurant,d=document.getElementById('miAudit');
     d.className='mi mi-dialog';
-    d.innerHTML='<h2>Edit item name</h2><p>'+escape(before)+'</p><label for="miRenameName">Item name</label><input id="miRenameName" maxlength="140" value="'+escape(before)+'" autocomplete="off"><div class="mi-note">This name is shared wherever the item is used, including other branches. Saved bills and stock history keep their original details.</div><div id="miRenameError" role="alert"></div><div class="mi-actions"><button class="mi-btn" id="miRenameCancel">Cancel</button><button class="mi-btn mi-primary" id="miRenameSave">Save name</button></div>';
+    d.innerHTML='<h2>Edit item</h2><p>'+escape(before)+'</p><label for="miRenameName">Item name</label><input id="miRenameName" maxlength="140" value="'+escape(before)+'" autocomplete="off"><label for="miRenameUnit">Stock unit</label><select id="miRenameUnit" disabled style="width:100%"><option>'+escape(r.stock_uom)+'</option></select><p id="miUnitInfo" style="font-size:12px">Checking unit history…</p><div id="miUnitHistory"></div><div class="mi-note">Item details are shared across branches. Saved bills, recipes and stock movements keep their original details.</div><div id="miRenameError" role="alert"></div><div class="mi-actions"><button class="mi-btn" id="miRenameCancel">Cancel</button><button class="mi-btn mi-primary" id="miRenameSave" disabled>Save item</button></div>';
     const input=d.querySelector('#miRenameName'),button=d.querySelector('#miRenameSave'),cancel=d.querySelector('#miRenameCancel');
+    const unit=d.querySelector('#miRenameUnit');let unitInfo=null;
     cancel.onclick=()=>d.close();
     button.onclick=async()=>{
       button.disabled=true;cancel.disabled=true;input.disabled=true;button.textContent='Saving…';d.querySelector('#miRenameError').textContent='';
-      try{const result=await call('rename_inventory_item',{item_code:item,item_name:input.value,expected_name:before,restaurant});
+      try{const result=await call('rename_inventory_item',{item_code:item,item_name:input.value,expected_name:before,restaurant,unit:unit.value,expected_unit:unitInfo.unit});
         if(current){if(current.item===item)current.name=result.name;for(const row of [...(current.catalog||[]),...(current.ingredients||[])])if(row.item===item)row.name=result.name;}
         stockSearch='';equipmentSearch='';d.close();await load();
       }catch(e){d.querySelector('#miRenameError').className='mi-error';d.querySelector('#miRenameError').textContent=e.message;}
-      button.disabled=false;cancel.disabled=false;input.disabled=false;button.textContent='Save name';
+      button.disabled=false;cancel.disabled=false;input.disabled=false;button.textContent='Save item';
     };
     input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();if(!button.disabled)button.click();}};
     d.showModal();input.focus();input.select();
+    try{
+      const info=await call('inventory_item_units',{item_code:item,restaurant});if(!d.open||!unit.isConnected)return;unitInfo=info;
+      const favorites=['Nos','Kg','g','L','Litre','ml','Pkt','Pack','Box','Dozen'];
+      const options=info.units.map(u=>u.name);if(!options.includes(info.unit))options.push(info.unit);
+      options.sort((a,b)=>(favorites.includes(a)?favorites.indexOf(a):100)-(favorites.includes(b)?favorites.indexOf(b):100)||a.localeCompare(b));
+      unit.innerHTML=options.map(u=>'<option value="'+escape(u)+'"'+(u===info.unit?' selected':'')+'>'+escape(u)+'</option>').join('');unit.disabled=!info.can_change;
+      d.querySelector('#miUnitInfo').textContent=info.can_change?'This item has no recorded use. Choose its stock unit before adding stock, prices or recipes.':'Unit locked · '+info.reasons.join(', ')+'. Existing quantities must keep this unit. You can still edit the name.';
+      d.querySelector('#miUnitHistory').innerHTML=info.history.length?'<details style="font-size:12px;margin:12px 0"><summary>Unit change history</summary>'+info.history.map(h=>'<p>'+escape(h.before)+' → '+escape(h.after)+'<br>'+escape(h.by)+' · '+escape(h.when)+'</p>').join('')+'</details>':'';
+      button.disabled=false;
+    }catch(e){if(unit.isConnected){d.querySelector('#miRenameError').className='mi-error';d.querySelector('#miRenameError').textContent=e.message;}}
   }
   function openSection(item,section){
     const r=[...data.stock,...(data.main_inventory||[])].find(x=>x.item===item&&x.source!=='asset');if(!r)return;

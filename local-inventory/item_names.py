@@ -13,10 +13,13 @@ def rename(db,p):
         raise ValueError('Use a plain-text item name of 2–140 characters.')
     item=p.get('item_code');row=db.execute('SELECT * FROM stock WHERE item=?',(item,)).fetchone()
     if not row:raise ValueError('Choose an item in this branch inventory.')
-    if name==row['name']:return dict(ok=True,changed=False,item=item,name=name)
+    if name==row['name'] and p.get('unit') in (None,row['stock_uom']):return dict(ok=True,changed=False,item=item,name=name)
     if p.get('expected_name')!=row['name']:raise ValueError('This item name changed on another screen. Reopen it before saving.')
     if db.execute('SELECT 1 FROM stock WHERE lower(name)=lower(?) AND item<>?',(name,item)).fetchone():
         raise ValueError('Another item already uses that name. Choose a different name.')
+    import item_units
+    unit_changed=item_units.change(db,p)
+    if name==row['name']:return dict(ok=True,changed=unit_changed,item=item,name=name,unit=p.get('unit'))
     db.execute('UPDATE stock SET name=? WHERE item=?',(name,item))
     db.execute('INSERT INTO movements VALUES(?,?,?,?,?)',('ITEM-NAME-'+uuid4().hex,now(),'Local manager','item_name',
         json.dumps(dict(item=item,before=row['name'],after=name))))

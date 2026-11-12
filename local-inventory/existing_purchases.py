@@ -112,6 +112,14 @@ def handle(db, method, p, catalog, actor='Local purchaser'):
     if method == 'get_purchase_catalog':
         return dict(items=[dict(item=r['item'],name=r['name'],unit=r['stock_uom'],
                                price=r['rate'],group='Ingredients') for r in catalog])
+    if method == 'inventory_units.purchase_item':
+        import item_units
+        return item_units.describe(db,p['item'])
+    if method == 'rename_purchase_item':
+        import item_names
+        row=db.execute('SELECT name FROM stock WHERE item=?',(p['item'],)).fetchone()
+        if not row:raise ValueError('Choose a purchase item')
+        return item_names.rename(db,dict(item_code=p['item'],item_name=p['new_name'],expected_name=row['name'],unit=p.get('unit'),expected_unit=p.get('expected_unit'),_actor='Local manager'))
     if method == 'get_expense_categories':
         return dict(categories=[r['name'] for r in CATEGORIES], expense_categories=[r['name'] for r in CATEGORIES if not r['in_stock']], category_details=CATEGORIES)
     if method == 'get_expenses':

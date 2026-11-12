@@ -13,6 +13,7 @@ import purchasing
 import existing_purchases
 import equipment
 import item_names
+import item_units
 import native_pages
 import sys
 from http.cookies import SimpleCookie
@@ -245,6 +246,9 @@ class Store:
             if p.get('restaurant') not in (None,'','Kurunegala'):
                 raise ValueError('Switch to that branch before managing its stock.')
             item_code=p.get('item_code') or ITEM
+            if method=='inventory_item_units':
+                if p.get('_actor') not in (None,'Local manager'):raise ValueError('Only a manager can edit item units.')
+                return item_units.describe(db,item_code)
             if method=='rename_inventory_item':return item_names.rename(db,p)
             if method=='move_inventory_item':return equipment.move(db,p)
             if method=='save_stock_policy':
@@ -289,11 +293,11 @@ class Store:
                 name=(p.get('item_name') or '').strip()
                 if not 2<=len(name)<=80:raise ValueError('Enter an ingredient name (2–80 characters).')
                 unit=p.get('uom')
-                if unit not in ('Kg','L','nos','g','ml'):raise ValueError('Choose a defined unit.')
+                if unit not in item_units.UNITS+['nos']:raise ValueError('Choose a defined unit.')
                 if db.execute('SELECT 1 FROM stock WHERE lower(name)=lower(?)',(name,)).fetchone():
                     raise ValueError('That ingredient already exists. Choose it from the stock list.')
                 minimum=number(p.get('minimum_qty',0),'Minimum stock level',True)
-                if unit=='nos' and minimum!=int(minimum):raise ValueError('Enter a whole number of nos.')
+                if unit.lower()=='nos' and minimum!=int(minimum):raise ValueError('Enter a whole number of nos.')
                 key='LOCAL-ING-'+str(db.execute('SELECT count(*) FROM stock').fetchone()[0]+1).zfill(4)
                 db.execute('INSERT INTO stock(item,name,stock_uom,uom,balance,rate,minimum_qty) VALUES(?,?,?,?,0,0,?)',
                     (key,name,unit,{'Kg':'g','L':'ml'}.get(unit,unit),minimum))

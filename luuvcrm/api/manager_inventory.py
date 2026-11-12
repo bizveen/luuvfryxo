@@ -132,7 +132,7 @@ def dashboard(restaurant=None):
             "stock_policy": stock_rules(restaurant), "shortage_sales": shortages,
             "stock": [r for r in catalog if r["item"] in recipe_items | bins | registered], "audits": audits,
             "purchasing": True, "purchasing_flow": "bill_approval",
-            "uoms": frappe.get_all("UOM", order_by="name asc", pluck="name", limit_page_length=0)}
+            "uoms": frappe.get_all("UOM", filters={"enabled": 1}, order_by="name asc", pluck="name", limit_page_length=0)}
 
 
 @frappe.whitelist()
@@ -164,8 +164,18 @@ def move_inventory_item(item_code, section, expected_revision, category='', comm
 
 
 @frappe.whitelist(methods=['POST'])
-def rename_inventory_item(item_code, item_name, expected_name, restaurant=None):
-    """Change the Item display name only; document IDs and saved rows stay fixed."""
+def inventory_item_units(item_code, restaurant=None):
+    from luuvcrm.api import inventory_units
+    restaurant, warehouse = _context(restaurant)
+    visible = dashboard(restaurant)
+    if item_code not in {r['item'] for r in visible['stock'] + visible['main_inventory']}:
+        frappe.throw(_('Choose an item in this branch inventory.'), frappe.PermissionError)
+    return inventory_units.describe(item_code)
+
+
+@frappe.whitelist(methods=['POST'])
+def rename_inventory_item(item_code, item_name, expected_name, restaurant=None, unit=None, expected_unit=None):
+    """Edit the display name and, before recorded use, its base unit."""
     restaurant, warehouse = _context(restaurant)
     if not isinstance(item_name, str):
         frappe.throw(_("Enter an item name."))
@@ -180,12 +190,18 @@ def rename_inventory_item(item_code, item_name, expected_name, restaurant=None):
     if item.disabled:
         frappe.throw(_("Choose an enabled item."))
     before = item.item_name
-    if name == before:
-        return dict(ok=True, changed=False, item=item_code, name=name)
+    if name == before and (unit is None or unit == item.stock_uom):
+        return dict(ok=True, changed=False, item=item_code, name=name, unit=item.stock_uom)
     if expected_name != before:
         frappe.throw(_("This item name changed on another screen. Reopen it before saving."))
     if frappe.db.exists('Item', {'item_name': name, 'name': ['!=', item_code]}):
         frappe.throw(_("Another item already uses that name. Choose a different name."))
+    unit_changed = False
+    if unit is not None:
+        from luuvcrm.api import inventory_units
+        unit_changed = inventory_units.change(item, unit, expected_unit)
+    if name == before:
+        return dict(ok=True, changed=unit_changed, item=item_code, name=name, unit=item.stock_uom)
     # Do not use rename_doc or Item.save: neither linked IDs nor historical
     # child-row labels should be rewritten by an inventory name correction.
     frappe.db.set_value('Item', item_code, 'item_name', name)
@@ -196,7 +212,7 @@ def rename_inventory_item(item_code, item_name, expected_name, restaurant=None):
     activity.log_activity('item.name', label='Item name changed: '+name,
         ref_doctype='Item', ref_name=item_code, item=item_code, item_name=name, detail=record)
     frappe.clear_document_cache('Item', item_code)
-    return dict(ok=True, changed=True, item=item_code, name=name)
+    return dict(ok=True, changed=True, item=item_code, name=name, unit=item.stock_uom)
 
 
 def _number(value, label, allow_zero=False):
@@ -242,8 +258,8 @@ def create_ingredient(item_name, uom, minimum_qty=0, restaurant=None):
     name = (item_name or "").strip()
     if not 2 <= len(name) <= 80:
         frappe.throw(_("Enter an ingredient name (2–80 characters)"))
-    if not frappe.db.exists("UOM", uom):
-        frappe.throw(_("Choose a defined unit"))
+    from luuvcrm.api.inventory_units import validate_unit
+    validate_unit(uom)
     if frappe.db.exists("Item", {"item_name": name}):
         frappe.throw(_("That ingredient already exists. Choose it from the ingredient list."))
     minimum = _number(minimum_qty, "Minimum stock level", True)

@@ -172,6 +172,8 @@ def create_purchase_item():
     if not item_name:
         frappe.throw(_("Item name is required"))
     unit = (data.get("unit") or "Nos").strip() or "Nos"
+    from luuvcrm.api.inventory_units import validate_unit
+    validate_unit(unit)
 
     existing = frappe.db.get_value("Item", {"item_name": item_name},
                                    ["name", "stock_uom"], as_dict=True)
@@ -190,8 +192,6 @@ def create_purchase_item():
                 "is_fixed_asset": int(is_asset), "asset_category": asset_category or ""}
 
     try:
-        if not frappe.db.exists("UOM", unit):
-            frappe.get_doc({"doctype": "UOM", "uom_name": unit}).insert(ignore_permissions=True)
         if is_asset:
             group = ("Products" if frappe.db.exists("Item Group", "Products") else
                      frappe.db.get_value("Item Group", {"is_group": 0}, "name"))
@@ -242,14 +242,7 @@ def _validate_item_for_category(item, category):
         frappe.throw(_("Fixed Asset Item {0} needs a fixed-asset purchase category").format(item))
 @frappe.whitelist(methods=["POST"])
 def rename_purchase_item():
-    """Fix a purchase item's display name (and unit) from the price book.
-
-    Only the display name (`item_name`) and the unit (`stock_uom`) change — the
-    item_code, the price book entry and every existing bill's link stay put, so
-    nothing is re-priced or orphaned. The correction shows in the price book, the
-    picker and on every bill raised from now on; bills already raised keep the
-    name and unit they were saved with, because their line is a snapshot.
-    """
+    """Correct a display name; only an unused Item can change its base unit."""
     roles.require_purchases()
     data = frappe.local.form_dict
     item = (data.get("item") or "").strip()
@@ -259,17 +252,18 @@ def rename_purchase_item():
         frappe.throw(_("Item and a new name are required"))
     if not frappe.db.exists("Item", item):
         frappe.throw(_("Item not found"))
+    doc = frappe.get_doc('Item', item, for_update=True)
     # Another item already carries this exact name — renaming into it would make
     # the picker ambiguous, since create_purchase_item dedupes on item_name.
     clash = frappe.db.get_value("Item", {"item_name": new_name, "name": ["!=", item]}, "name")
     if clash:
         frappe.throw(_("Another item is already called '{0}'").format(new_name))
-    was = frappe.db.get_value("Item", item, "item_name")
-    frappe.db.set_value("Item", item, "item_name", new_name)
+    was = doc.item_name
     if unit:
-        if not frappe.db.exists("UOM", unit):
-            frappe.get_doc({"doctype": "UOM", "uom_name": unit}).insert(ignore_permissions=True)
-        frappe.db.set_value("Item", item, "stock_uom", unit)
+        from luuvcrm.api.inventory_units import change
+        change(doc, unit, data.get('expected_unit'))
+    frappe.db.set_value("Item", item, "item_name", new_name)
+    frappe.clear_document_cache('Item', item)
 
     activity.log_activity(
         "item.rename", label="%s → %s" % (was or item, new_name),

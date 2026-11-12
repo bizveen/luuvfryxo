@@ -200,13 +200,14 @@ input,button{font-family:inherit;}
 <div id="renameOverlay" style="position:fixed;inset:0;z-index:70;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;" onclick="closeRename()">
   <div onclick="event.stopPropagation()" style="width:430px;max-width:100%;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-xl);padding:8px 22px 26px;animation:peSheet var(--duration-base) var(--ease-spring);">
     <div style="width:40px;height:4px;border-radius:var(--radius-pill);background:var(--border-default);margin:0 auto 16px;"></div>
-    <div style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">Fix item name</div>
-    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Correct a spelling. Only the name changes — the price and bills already raised stay as they are.</div>
+    <div style="font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--text-strong);margin-bottom:3px;">Edit item</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Correct the name or set the unit before the item is used. Saved bills and stock history keep their original details.</div>
     <input type="hidden" id="renameItem">
     <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Item name</div>
     <input id="renameName" class="inp" placeholder="Item name" onkeydown="if(event.key==='Enter')submitRename()" style="margin-bottom:14px;">
     <div style="font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:7px;">Unit</div>
-    <select id="renameUnit" class="inp"></select>
+    <select id="renameUnit" class="inp" aria-label="Stock unit"></select>
+    <p id="renameUnitInfo" style="font-size:12px;line-height:1.5;color:var(--text-muted);margin-top:9px;"></p>
     <div id="renameErr" style="display:none;align-items:center;gap:6px;color:var(--color-danger);font-size:13px;font-weight:600;margin-top:13px;"><i data-lucide="alert-circle" style="width:15px;height:15px;"></i> <span id="renameErrMsg"></span></div>
     <div style="display:flex;gap:10px;margin-top:20px;">
       <button onclick="closeRename()" style="flex:none;padding:0 22px;border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-body);border-radius:var(--radius-pill);cursor:pointer;font-family:var(--font-display);font-size:15px;font-weight:700;">Cancel</button>
@@ -487,25 +488,32 @@ function lfPoll(fn, ms){
       renderRecipeItems();
     }catch(e){ box.innerHTML='<div style="color:var(--color-danger);text-align:center;padding:35px;font-size:13px;">Connection error</div>'; }
   }
-  // ── Fix a purchase item's name/unit (typo) — display only; price and existing bills untouched ──
-  const RENAME_UNITS=['Nos','Kg','g','L','ml','Pkt','Box','Dozen'];
-  function openRename(ix){ const p=priceItems[ix]; if(!p) return;
+  // Units are editable only before stock, prices, bills or recipes use them.
+  let renameUnitInfo=null,renameUnitRequest=0;
+  async function openRename(ix){ const p=priceItems[ix]; if(!p) return;const request=++renameUnitRequest;renameUnitInfo=null;
     document.getElementById('renameItem').value=p.item;
     const inp=document.getElementById('renameName'); inp.value=p.name||'';
-    const units=RENAME_UNITS.includes(p.unit)?RENAME_UNITS:[p.unit,...RENAME_UNITS];
-    document.getElementById('renameUnit').innerHTML=units.map(u=>`<option${u===p.unit?' selected':''}>${esc(u)}</option>`).join('');
+    const unitSelect=document.getElementById('renameUnit');unitSelect.innerHTML=`<option>${esc(p.unit)}</option>`;unitSelect.disabled=true;
+    document.getElementById('renameSaveBtn').disabled=true;document.getElementById('renameUnitInfo').textContent='Checking unit history…';
     document.getElementById('renameErr').style.display='none';
     document.getElementById('renameOverlay').style.display='flex';
-    setTimeout(()=>{ inp.focus(); inp.select(); },50); icons(); }
-  function closeRename(){ document.getElementById('renameOverlay').style.display='none'; }
+    setTimeout(()=>{ inp.focus(); inp.select(); },50); icons();
+    try{const r=await _post('/api/method/luuvcrm.api.inventory_units.purchase_item',{item:p.item});if(!r)throw Error('Could not check units');const d=await r.json();if(!r.ok||!d.message)throw Error(srvMsg(d,'Could not check units'));if(request!==renameUnitRequest)return;
+      renameUnitInfo=d.message;const units=renameUnitInfo.units.map(u=>u.name);if(!units.includes(renameUnitInfo.unit))units.push(renameUnitInfo.unit);
+      unitSelect.innerHTML=units.map(u=>`<option value="${esc(u)}"${u===renameUnitInfo.unit?' selected':''}>${esc(u)}</option>`).join('');unitSelect.disabled=!renameUnitInfo.can_change;
+      document.getElementById('renameUnitInfo').textContent=renameUnitInfo.can_change?'Choose a defined unit before using this item.':'Unit locked · '+renameUnitInfo.reasons.join(', ')+'. Existing quantities and history keep this unit. You can still edit the name.';document.getElementById('renameSaveBtn').disabled=false;
+    }catch(e){if(request===renameUnitRequest){document.getElementById('renameErrMsg').textContent=e.message;document.getElementById('renameErr').style.display='flex';}}
+  }
+  function closeRename(){ renameUnitRequest++;document.getElementById('renameOverlay').style.display='none'; }
   async function submitRename(){
     const item=document.getElementById('renameItem').value;
     const name=(document.getElementById('renameName').value||'').trim();
     const unit=document.getElementById('renameUnit').value||'';
     const err=document.getElementById('renameErr'), errMsg=document.getElementById('renameErrMsg');
+    if(!renameUnitInfo||document.getElementById('renameSaveBtn').disabled)return;
     if(!name){ errMsg.textContent='Name cannot be empty'; err.style.display='flex'; return; }
     const btn=document.getElementById('renameSaveBtn'); btn.disabled=true;
-    try{ const r=await _post('/api/method/luuvcrm.api.rename_purchase_item',{item:item,new_name:name,unit:unit});
+    try{ const r=await _post('/api/method/luuvcrm.api.rename_purchase_item',{item:item,new_name:name,unit:unit,expected_unit:renameUnitInfo.unit});
       if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.ok){ closeRename(); toast('Item updated ✏️'); await loadCatalog(); loadPriceBook(); }
       else{ errMsg.textContent=(d.message&&d.message.message)||srvMsg(d,'could not update'); err.style.display='flex'; btn.disabled=false; }

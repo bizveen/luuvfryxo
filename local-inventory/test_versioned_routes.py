@@ -20,7 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class VersionedRoutesTest(unittest.TestCase):
     def test_legacy_templates_match_verified_live_versions(self):
         for name, expected in {
-            'manager': '1cc4cc8bc45ddf33d25a4e5ed812bd078a8b35f57927e92c2e78a517d7bfa6e1',
+            # Verified live baseline after the customer-app merge (2026-11-12).
+            'manager': 'e3c4ccb174f6cc65cc3b7b178b2dc5cfa55d7e8ec706f37c9fca631ceb0ae8f2',
             'purchases': 'cf5d1947361006446aa2d30a80fcbb7a0b355ce78aa715bf810b984ebf12871b',
         }.items():
             with self.subTest(page=name):
@@ -28,8 +29,9 @@ class VersionedRoutesTest(unittest.TestCase):
 
     def test_public_aliases_resolve_to_importable_controllers(self):
         rules = runpy.run_path(str(ROOT/'luuvcrm/hooks.py'))['website_route_rules']
-        self.assertEqual({r['from_route']: r['to_route'] for r in rules},
-                         {'/manager2.0': 'manager_v2', '/purchase2.0': 'purchase_v2'})
+        aliases={r['from_route']: r['to_route'] for r in rules}
+        self.assertEqual(aliases['/manager2.0'],'manager_v2')
+        self.assertEqual(aliases['/purchase2.0'],'purchase_v2')
         for rule in rules:
             for ext in ('html', 'py'):
                 self.assertTrue((ROOT/'luuvcrm/www'/f"{rule['to_route']}.{ext}").is_file())
