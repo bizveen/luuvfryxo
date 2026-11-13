@@ -151,6 +151,21 @@
     }
     .ks-new { width:100%; padding:11px; border:2px solid #E5E7EB; border-radius:10px; background:#fff; color:#6B7280; font-size:0.85rem; font-weight:600; cursor:pointer; font-family:inherit; }
 
+    .k-ready-alert {
+      position:fixed; inset:0; z-index:300; display:none; padding:20px;
+      background:rgba(17,24,39,0.72); align-items:center; justify-content:center;
+    }
+    .k-ready-alert.show { display:flex; }
+    .kra-card {
+      width:min(420px,100%); padding:32px 24px; border-radius:22px; text-align:center;
+      background:#fff; box-shadow:0 24px 70px rgba(0,0,0,0.28); animation:popIn 0.25s ease;
+    }
+    .kra-icon { font-size:3.4rem; margin-bottom:8px; }
+    .kra-title { color:#059669; font-size:1.45rem; font-weight:800; }
+    .kra-order { margin:8px 0 4px; color:#1F2937; font-size:1.2rem; font-weight:800; }
+    .kra-msg { color:#6B7280; font-size:0.92rem; margin-bottom:20px; }
+    .kra-done { width:100%; padding:13px; border:0; border-radius:10px; background:#059669; color:#fff; font:700 0.95rem inherit; cursor:pointer; }
+
     @media (min-width:640px) {
       .k-items { grid-template-columns:repeat(3,1fr); }
     }
@@ -240,6 +255,16 @@
   </div>
 </div>
 
+<div class="k-ready-alert" id="readyAlert" role="alertdialog" aria-live="assertive">
+  <div class="kra-card">
+    <div class="kra-icon">🔔</div>
+    <div class="kra-title">Order Ready!</div>
+    <div class="kra-order" id="readyOrder">#—</div>
+    <div class="kra-msg">Please collect your order.</div>
+    <button class="kra-done" onclick="dismissReadyAlert()">Done</button>
+  </div>
+</div>
+
   <script>window.frappe = window.frappe || {};</script>
   <!-- csrf_token -->
   <meta name="csrf-token" content="">
@@ -252,6 +277,9 @@
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.csrf_token || '';
 let cart = {};
 let activeCat = 'all';
+const kioskWatches = new Map();
+const readyQueue = [];
+let kioskPollTimer = null;
 
 async function _get(url, args) {
   const params = new URLSearchParams();
@@ -373,6 +401,9 @@ async function placeOrder() {
     if (res.message && res.message.name) {
       closeDrawer();
       showSuccess(res.message, table, items, rateMap);
+      if (res.message.status_ticket) {
+        watchKioskOrder(res.message.name, res.message.status_ticket);
+      }
     } else {
       alert('Error: ' + (res.message || 'Failed to place order'));
     }
@@ -415,6 +446,74 @@ function newOrder() {
   document.getElementById('custPhone').value = '';
 }
 
+function saveKioskWatches() {
+  try { localStorage.setItem('lf_kiosk_watches', JSON.stringify(Object.fromEntries(kioskWatches))); } catch (_e) {}
+}
+
+function watchKioskOrder(orderName, statusTicket) {
+  if (!orderName || !statusTicket) return;
+  kioskWatches.set(orderName, statusTicket);
+  saveKioskWatches();
+  scheduleKioskPoll(500);
+}
+
+function restoreKioskWatches() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('lf_kiosk_watches') || '{}');
+    Object.entries(saved || {}).forEach(([name, ticket]) => {
+      if (name && ticket) kioskWatches.set(name, String(ticket));
+    });
+  } catch (_e) { localStorage.removeItem('lf_kiosk_watches'); }
+  if (kioskWatches.size) scheduleKioskPoll(800);
+}
+
+function scheduleKioskPoll(delay=4000) {
+  if (kioskPollTimer) clearTimeout(kioskPollTimer);
+  kioskPollTimer = setTimeout(pollKioskOrders, delay);
+}
+
+async function pollKioskOrders() {
+  kioskPollTimer = null;
+  const entries = [...kioskWatches.entries()];
+  await Promise.all(entries.map(async ([orderName, statusTicket]) => {
+    try {
+      const res = await _get('/api/method/luuvcrm.api.kiosk_order_status', {
+        order_name: orderName,
+        status_ticket: statusTicket,
+      });
+      const msg = res && res.message;
+      if (!msg || !msg.success) return;
+      if (msg.status === 'Ready') {
+        kioskWatches.delete(orderName);
+        queueReadyAlert(orderName);
+      } else if (msg.status === 'Served' || msg.status === 'Cancelled') {
+        kioskWatches.delete(orderName);
+      }
+    } catch (_e) {
+      // Keep the watch and retry after a temporary connection error.
+    }
+  }));
+  saveKioskWatches();
+  if (kioskWatches.size) scheduleKioskPoll();
+}
+
+function queueReadyAlert(orderName) {
+  if (!readyQueue.includes(orderName)) readyQueue.push(orderName);
+  if (!document.getElementById('readyAlert').classList.contains('show')) showNextReadyAlert();
+}
+
+function showNextReadyAlert() {
+  if (!readyQueue.length) return;
+  document.getElementById('readyOrder').textContent = 'Order #' + readyQueue[0];
+  document.getElementById('readyAlert').classList.add('show');
+}
+
+function dismissReadyAlert() {
+  document.getElementById('readyAlert').classList.remove('show');
+  readyQueue.shift();
+  showNextReadyAlert();
+}
+
 function escapeHtml(s) {
   const d = document.createElement('div');
   d.textContent = String(s||'');
@@ -427,6 +526,7 @@ document.getElementById('cartDrawer').addEventListener('click', function(e) {
 });
 
 render();
+restoreKioskWatches();
 </script>
 {%- else %}
 {% include "templates/includes/branch_choose.html" %}

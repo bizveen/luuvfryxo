@@ -4,6 +4,9 @@ Split out of the single 7,338-line api.py; every name here is re-exported
 from `luuvcrm.api`, so the whitelisted method paths are unchanged.
 """
 
+import html
+import re
+
 import frappe
 
 import secrets
@@ -77,6 +80,7 @@ def _get_or_create_customer_token(mobile):
 #: whole table on a guest token.
 CUSTOMER_ORDER_PAGE = 20
 CUSTOMER_ORDER_MAX = 100
+CUSTOMER_FEEDBACK_SUBJECT = "Luuv customer order feedback"
 
 @frappe.whitelist(allow_guest=True)
 def customer_create_or_login():
@@ -247,7 +251,22 @@ def customer_get_orders():
         limit_page_length=limit,
     )
 
-    lines = lines_by_order([o.name for o in orders])
+    order_names = [o.name for o in orders]
+    lines = lines_by_order(order_names)
+    feedback_rows = frappe.get_all(
+        "Comment",
+        filters={
+            "reference_doctype": "POS Order",
+            "reference_name": ["in", order_names],
+            "subject": CUSTOMER_FEEDBACK_SUBJECT,
+        },
+        fields=["reference_name", "content"],
+        limit_page_length=0,
+    ) if order_names else []
+    feedback_ratings = {}
+    for row in feedback_rows:
+        match = re.search(r"Customer rating:\s*([1-5])/5", row.content or "")
+        feedback_ratings[row.reference_name] = int(match.group(1)) if match else 0
     result = []
     for o in orders:
         items = [{"item": i.item, "item_name": i.item_name or i.item, "qty": i.qty, "rate": i.rate}
@@ -269,9 +288,40 @@ def customer_get_orders():
             "scheduled_time": str(o.get("scheduled_time") or ""),
             "confirm_link": ("https://wa.me/" + wa.wa_number() + "?text="
                              + quote(f"Confirming my order #{o.name} ✅")) if awaiting else "",
+            "feedback_submitted": o.name in feedback_ratings,
+            "feedback_rating": feedback_ratings.get(o.name, 0),
         })
 
     return {"success": True, "orders": result, "mobile": mobile}
+
+
+@frappe.whitelist(allow_guest=True)
+def customer_account_summary():
+    """Small, exact order totals for the signed-in customer's account tab."""
+    token = str(frappe.local.form_dict.get("token") or "").strip()
+    mobile = _mobile_from_token(token)
+    if not mobile:
+        return {"success": False, "error": "Login required"}
+    rows = frappe.db.sql(
+        """
+        SELECT
+            COUNT(*) AS total_orders,
+            COALESCE(SUM(CASE
+                WHEN docstatus = 0
+                 AND IFNULL(kitchen_status, 'Pending') NOT IN ('Served', 'Cancelled')
+                THEN 1 ELSE 0 END), 0) AS active_orders
+        FROM `tabPOS Order`
+        WHERE mobile = %s
+        """,
+        (mobile,),
+        as_dict=True,
+    )
+    row = rows[0] if rows else frappe._dict()
+    return {
+        "success": True,
+        "total_orders": int(row.get("total_orders") or 0),
+        "active_orders": int(row.get("active_orders") or 0),
+    }
 # ─── Customer profile (name / address / area — one account per number) ─────
 
 def _install_customer_profile_fields():
@@ -328,6 +378,67 @@ def _mobile_from_token(token):
             now_datetime(), row.created) > CUSTOMER_TOKEN_DAYS * 86400:
         return None
     return row.mobile
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def customer_submit_order_feedback():
+    """Save one authenticated customer rating against one completed order."""
+    data = frappe.local.form_dict
+    token = str(data.get("token") or "").strip()
+    mobile = _mobile_from_token(token)
+    if not mobile:
+        return {"success": False, "error": "Login required"}
+
+    order_name = str(data.get("order_name") or "").strip()
+    try:
+        rating = int(data.get("rating") or 0)
+    except (TypeError, ValueError):
+        rating = 0
+    comment = str(data.get("comment") or "").strip()[:1000]
+    if not order_name or rating not in range(1, 6):
+        return {"success": False,
+                "error": "Order and a 1–5 star rating are required"}
+
+    order = frappe.db.get_value(
+        "POS Order",
+        {"name": order_name, "mobile": mobile},
+        ["name", "customer_name", "kitchen_status", "docstatus"],
+        as_dict=True,
+    )
+    if not order:
+        return {"success": False, "error": "Order not found"}
+    if order.kitchen_status != "Served" and int(order.docstatus or 0) != 1:
+        return {"success": False,
+                "error": "Feedback is available after the order is complete"}
+
+    existing = frappe.db.get_value("Comment", {
+        "reference_doctype": "POS Order",
+        "reference_name": order.name,
+        "subject": CUSTOMER_FEEDBACK_SUBJECT,
+    }, "name")
+    if existing:
+        return {"success": True, "already_submitted": True, "name": existing}
+
+    customer_name = (order.customer_name
+                     or frappe.db.get_value("Customer Account", {"mobile": mobile},
+                                            "customer_name")
+                     or "Customer")
+    content = f"<p><strong>Customer rating: {rating}/5</strong></p>"
+    if comment:
+        content += f"<p>{html.escape(comment)}</p>"
+    feedback = frappe.get_doc({
+        "doctype": "Comment",
+        "comment_type": "Comment",
+        "reference_doctype": "POS Order",
+        "reference_name": order.name,
+        "subject": CUSTOMER_FEEDBACK_SUBJECT,
+        "comment_by": customer_name,
+        "comment_email": mobile,
+        "content": content,
+    })
+    feedback.flags.ignore_permissions = True
+    feedback.insert()
+    return {"success": True, "name": feedback.name}
 @frappe.whitelist(allow_guest=True)
 def customer_get_profile():
     """Profile for the signed-in /app customer — drives the complete-your-profile

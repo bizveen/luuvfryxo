@@ -50,6 +50,7 @@ from luuvcrm.api.categories import (
     SHEET_LIMIT,
 )
 from luuvcrm.api.customers import (
+    CUSTOMER_FEEDBACK_SUBJECT,
     CUSTOMER_TOKEN_DAYS,
     PIN_LOCKOUT_SEC,
     PIN_MAX_ATTEMPTS,
@@ -64,9 +65,11 @@ from luuvcrm.api.customers import (
     _pin_note_failure,
     _verify_pin,
     customer_create_or_login,
+    customer_account_summary,
     customer_get_orders,
     customer_get_profile,
     customer_set_pin,
+    customer_submit_order_feedback,
     customer_update_profile,
     customer_verify_pin,
     setup_customer_accounts,
@@ -154,6 +157,7 @@ from luuvcrm.api.guides import (
     update_guide_settings,
 )
 from luuvcrm.api.kiosk import (
+    kiosk_order_status,
     kiosk_place_order,
     setup_kiosk_tools,
 )
@@ -167,23 +171,31 @@ from luuvcrm.api.kitchen import (
     setup_kitchen_groups,
 )
 from luuvcrm.api.push import (
+    CUSTOMER_SCOPE,
     FCM_SCOPE,
+    GUEST_ORDER_SCOPE,
     PUSH_DOCTYPE,
     _clean_device_token,
     _disable_token,
     _enabled_devices,
     _fcm_context,
+    _guest_token_hash,
+    _order_ready_devices,
     _push_data,
     _send_one,
     _service_account_path,
     _token_hash,
     _value,
+    customer_register_guest_order_push,
     customer_register_push_token,
     customer_unregister_push_token,
+    guest_order_push_ticket,
     queue_customer_push_broadcast,
+    queue_order_confirmed_push,
     queue_order_ready_push,
     send_customer_push,
     send_customer_push_broadcast,
+    send_order_confirmed_push,
     send_order_ready_push,
 )
 from luuvcrm.api.loyalty import (
@@ -194,6 +206,13 @@ from luuvcrm.api.loyalty import (
     _get_loyalty_customer,
     _get_loyalty_settings,
     _process_cashback,
+    _redeem_cashback,
+    _expire_reward_requests,
+    _new_reward_code,
+    _request_reward_redemption,
+    finalize_reward_redemption,
+    reverse_order_cashback,
+    reverse_reward_redemption,
     get_kitchen_groups,
     loyalty_apply_referral,
     loyalty_find_referrer,
@@ -201,6 +220,10 @@ from luuvcrm.api.loyalty import (
     loyalty_get_info,
     loyalty_get_settings_api,
     loyalty_redeem,
+    loyalty_request_redemption,
+    manager_get_rewards,
+    manager_redeem_reward,
+    manager_update_loyalty_settings,
     setup_loyalty,
 )
 from luuvcrm.api.menu import (
@@ -284,6 +307,7 @@ from luuvcrm.api.offline import (
     sync_offline_orders,
 )
 from luuvcrm.api.orders import (
+    confirm_app_order,
     _line_dict,
     _order_fully_paid,
     cancel_order,
@@ -544,3 +568,25 @@ from luuvcrm.api.branch_requests import (
 )
 
 from luuvcrm.api.expenses import PACKAGING_CATEGORY, PNL_EXPENSE_CATEGORIES
+
+from luuvcrm.api.offers import (
+    _clean_float,
+    _clean_int,
+    _csv_values,
+    _daily_window,
+    _eligible_lines,
+    _offer_is_live,
+    _offer_payload,
+    _offer_stats,
+    _record_offer_event,
+    _redemption_count,
+    customer_active_offers,
+    customer_track_offer_event,
+    finalize_offer_redemption,
+    manager_get_offers,
+    manager_save_offer,
+    manager_toggle_offer,
+    prepare_customer_offer,
+    record_customer_offer,
+    reverse_offer_redemption,
+)
