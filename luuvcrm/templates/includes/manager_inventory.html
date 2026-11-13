@@ -338,7 +338,7 @@ window.LFInventory=(()=>{
     if(busy)return;
     if(dirty&&!discard){confirmRecipeSwitch(item,version);return}
     busy=true;
-    try{current=await call('recipe',{item_code:item,version:version||''});selected=item;recipeCollapsed=false;if(recipeSearch&&!current.name.toLowerCase().includes(recipeSearch.toLowerCase())){recipeSearch='';root.querySelector('#miMenuSearch').value=''}showStockRecipe=!!version;sheetRevision=null;dirty=false;error='';menuRows();editor();focusRecipe()}catch(e){error=e.message;showError()}finally{busy=false}
+    try{current=await call('recipe',{item_code:item,version:version||''});selected=item;recipeCollapsed=false;if(recipeSearch&&!current.name.toLowerCase().includes(recipeSearch.toLowerCase())){recipeSearch='';root.querySelector('#miMenuSearch').value=''}showStockRecipe=!!version||!!current.version;sheetRevision=null;dirty=false;error='';menuRows();editor();focusRecipe()}catch(e){error=e.message;showError()}finally{busy=false}
   }
   function sheetEditor(){
     const sheet=current.sheet_draft,ref=sheet.reference,latest=sheet.current;

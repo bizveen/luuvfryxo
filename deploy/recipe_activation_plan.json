@@ -1,0 +1,1247 @@
+{
+  "restaurant": "Kurunegala",
+  "period_start": "2026-11-06",
+  "period_end_exclusive": "2026-11-13",
+  "authorization": "Owner explicitly approved the exact linked stock plan, mappings, sample coleslaw and zero/pending costs on 2026-11-13; also confirmed Mint 10 g per drink. Correct actual quantities/cost at next audit.",
+  "items": {
+    "French fries": {
+      "create": "French fries (stock)",
+      "unit": "Kg",
+      "sheet_rate": 1150
+    },
+    "Crispy chicken": {
+      "create": "Marinated chicken",
+      "unit": "Kg",
+      "sheet_rate": 1800
+    },
+    "Crispy fish": {
+      "existing": "RM-FISH",
+      "unit": "Kg"
+    },
+    "Fish": {
+      "existing": "RM-FISH",
+      "unit": "Kg"
+    },
+    "Tempura prawns": {
+      "create": "Tempura prawns",
+      "unit": "Kg",
+      "sheet_rate": 2400
+    },
+    "Ground beef": {
+      "existing": "RM-BEEF",
+      "unit": "Kg"
+    },
+    "Bratwurst sausages": {
+      "create": "Bratwurst sausages",
+      "unit": "Nos",
+      "sheet_rate": 110
+    },
+    "Mozzarella cheese": {
+      "existing": "Mozzarella cheese",
+      "unit": "Kg"
+    },
+    "Hot sauce": {
+      "create": "Hot sauce",
+      "unit": "Kg",
+      "sheet_rate": 1900
+    },
+    "Garlic mayo": {
+      "create": "Garlic mayo",
+      "unit": "Kg",
+      "sheet_rate": 1500
+    },
+    "Mustard mayo": {
+      "create": "Mustard mayo",
+      "unit": "Kg",
+      "sheet_rate": 1875
+    },
+    "BBQ sauce": {
+      "create": "BBQ sauce",
+      "unit": "Kg",
+      "sheet_rate": 1500
+    },
+    "Frying oil": {
+      "existing": "RM-OIL",
+      "unit": "Litre"
+    },
+    "Seasoning": {
+      "create": "Seasoning",
+      "unit": "Kg"
+    },
+    "Spicy seasoning": {
+      "create": "Spicy seasoning",
+      "unit": "Kg",
+      "sheet_rate": 4000
+    },
+    "Chips": {
+      "create": "Chips (stock)",
+      "unit": "Kg",
+      "sheet_rate": 500
+    },
+    "Loaded fries box": {
+      "existing": "LF-ING-882c4f6191",
+      "unit": "Nos"
+    },
+    "Disposable spoon": {
+      "existing": "LF-ING-35fba2691c",
+      "unit": "Nos"
+    },
+    "Wooden fork": {
+      "existing": "Wooden fork",
+      "unit": "Nos"
+    },
+    "Serviettes": {
+      "existing": "Serviettes",
+      "unit": "Nos"
+    },
+    "Passion pulp": {
+      "create": "Passion pulp",
+      "unit": "L"
+    },
+    "Strawberry pulp": {
+      "create": "Strawberry pulp",
+      "unit": "L"
+    },
+    "Blueberry": {
+      "existing": "LF-ING-20bf329f92",
+      "unit": "g"
+    },
+    "Ice": {
+      "create": "Ice (weighed stock)",
+      "unit": "Kg"
+    },
+    "Sprite": {
+      "existing": "Sprite",
+      "unit": "L"
+    },
+    "Lime": {
+      "existing": "Lime",
+      "unit": "Kg"
+    },
+    "Clear cups": {
+      "existing": "Clear cups",
+      "unit": "Nos"
+    },
+    "Juice lid": {
+      "existing": "LF-ING-467af8dcc0",
+      "unit": "Nos"
+    },
+    "Juice bag": {
+      "existing": "LF-ING-daa57b6b3f",
+      "unit": "Nos"
+    },
+    "Straw": {
+      "existing": "Straw",
+      "unit": "Nos"
+    },
+    "Cabbage": {
+      "existing": "Cabbage",
+      "unit": "Kg"
+    },
+    "Carrot": {
+      "existing": "Carrot",
+      "unit": "Kg"
+    },
+    "Mayonnaise": {
+      "create": "Mayonnaise",
+      "unit": "Kg"
+    },
+    "Creamy coleslaw": {
+      "existing": "KG-STOCK-COLESLAW",
+      "unit": "Kg",
+      "sheet_rate": 1200
+    },
+    "Creamy salad": {
+      "existing": "KG-STOCK-COLESLAW",
+      "unit": "Kg",
+      "sheet_rate": 1200
+    },
+    "Garden mayo salad": {
+      "existing": "KG-STOCK-COLESLAW",
+      "unit": "Kg",
+      "sheet_rate": 1200
+    },
+    "Mixed garden creamy salad": {
+      "existing": "KG-STOCK-COLESLAW",
+      "unit": "Kg",
+      "sheet_rate": 1200
+    },
+    "Mint": {
+      "existing": "Mint",
+      "unit": "Kg"
+    }
+  },
+  "pending": [],
+  "exact_plan_approved": true,
+  "reviewed_proposal": {
+    "period": [
+      "2026-11-06",
+      "2026-11-13"
+    ],
+    "menu_portions": {
+      "KG-CHIPS-FISH": 20.0,
+      "KG-CHIPS-SPICY": 23.0,
+      "KG-FRIES-BEEF": 6.0,
+      "KG-FRIES-CHICKEN": 127.0,
+      "KG-FRIES-FISH": 1.0,
+      "KG-FRIES-PRAWN": 8.0,
+      "KG-FRIES-SAUSAGE": 6.0,
+      "KG-LEMON-MINT": 22.0,
+      "KG-LEMONADE-BLUEBERRY": 11.0,
+      "KG-LEMONADE-PASSION": 40.0,
+      "KG-LEMONADE-STRAWBERRY": 8.0
+    },
+    "recipes": [
+      {
+        "item": "KG-FRIES-CHICKEN",
+        "kind": "menu",
+        "name": "Crispy Chicken Loaded Fries",
+        "rows": [
+          {
+            "name": "French fries",
+            "qty": 200.0,
+            "unit": "g"
+          },
+          {
+            "name": "Crispy chicken",
+            "qty": 150.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mozzarella cheese",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Creamy coleslaw",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "Hot sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Garlic mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mustard mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "BBQ sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Frying oil",
+            "qty": 50.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Seasoning",
+            "qty": 1.0,
+            "unit": "g"
+          },
+          {
+            "name": "Loaded fries box",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Disposable spoon",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Wooden fork",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Serviettes",
+            "qty": 2.0,
+            "unit": "Nos"
+          }
+        ]
+      },
+      {
+        "item": "KG-FRIES-FISH",
+        "kind": "menu",
+        "name": "Crispy Fish Loaded Fries",
+        "rows": [
+          {
+            "name": "French fries",
+            "qty": 200.0,
+            "unit": "g"
+          },
+          {
+            "name": "Crispy fish",
+            "qty": 150.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mozzarella cheese",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Creamy coleslaw",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "Hot sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Garlic mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mustard mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "BBQ sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Frying oil",
+            "qty": 50.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Seasoning",
+            "qty": 1.0,
+            "unit": "g"
+          },
+          {
+            "name": "Loaded fries box",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Disposable spoon",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Wooden fork",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Serviettes",
+            "qty": 2.0,
+            "unit": "Nos"
+          }
+        ]
+      },
+      {
+        "item": "KG-FRIES-PRAWN",
+        "kind": "menu",
+        "name": "Tempura Prawn Loaded Fries",
+        "rows": [
+          {
+            "name": "French fries",
+            "qty": 200.0,
+            "unit": "g"
+          },
+          {
+            "name": "Tempura prawns",
+            "qty": 150.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mozzarella cheese",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Creamy coleslaw",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "Hot sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Garlic mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mustard mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "BBQ sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Frying oil",
+            "qty": 50.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Seasoning",
+            "qty": 1.0,
+            "unit": "g"
+          },
+          {
+            "name": "Loaded fries box",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Disposable spoon",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Wooden fork",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Serviettes",
+            "qty": 2.0,
+            "unit": "Nos"
+          }
+        ]
+      },
+      {
+        "item": "KG-FRIES-BEEF",
+        "kind": "menu",
+        "name": "Ground Beef Spicy Masala Loaded Fries",
+        "rows": [
+          {
+            "name": "French fries",
+            "qty": 200.0,
+            "unit": "g"
+          },
+          {
+            "name": "Ground beef",
+            "qty": 150.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mozzarella cheese",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Garden mayo salad",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "Hot sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Garlic mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mustard mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "BBQ sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Frying oil",
+            "qty": 50.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Seasoning",
+            "qty": 1.0,
+            "unit": "g"
+          },
+          {
+            "name": "Loaded fries box",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Disposable spoon",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Wooden fork",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Serviettes",
+            "qty": 2.0,
+            "unit": "Nos"
+          }
+        ]
+      },
+      {
+        "item": "KG-FRIES-SAUSAGE",
+        "kind": "menu",
+        "name": "Grilled Bratwurst Sausage Loaded Fries",
+        "rows": [
+          {
+            "name": "French fries",
+            "qty": 200.0,
+            "unit": "g"
+          },
+          {
+            "name": "Bratwurst sausages",
+            "qty": 2.0,
+            "unit": "pieces"
+          },
+          {
+            "name": "Mozzarella cheese",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Creamy salad",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "BBQ sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mustard mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Garlic mayo",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Hot sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Frying oil",
+            "qty": 50.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Seasoning",
+            "qty": 1.0,
+            "unit": "g"
+          },
+          {
+            "name": "Loaded fries box",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Disposable spoon",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Wooden fork",
+            "qty": 2.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Serviettes",
+            "qty": 2.0,
+            "unit": "Nos"
+          }
+        ]
+      },
+      {
+        "item": "KG-CHIPS-FISH",
+        "kind": "menu",
+        "name": "Fish and Chips",
+        "rows": [
+          {
+            "name": "Fish",
+            "qty": 80.0,
+            "unit": "g"
+          },
+          {
+            "name": "French fries",
+            "qty": 200.0,
+            "unit": "g"
+          },
+          {
+            "name": "Mixed garden creamy salad",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "Hot sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "BBQ sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Frying oil",
+            "qty": 50.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Seasoning",
+            "qty": 1.0,
+            "unit": "g"
+          }
+        ]
+      },
+      {
+        "item": "KG-CHIPS-SPICY",
+        "kind": "menu",
+        "name": "Spicy Chips",
+        "rows": [
+          {
+            "name": "Chips",
+            "qty": 200.0,
+            "unit": "g"
+          },
+          {
+            "name": "Spicy seasoning",
+            "qty": 1.0,
+            "unit": "g"
+          },
+          {
+            "name": "Creamy salad",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "BBQ sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Hot sauce",
+            "qty": 30.0,
+            "unit": "g"
+          },
+          {
+            "name": "Frying oil",
+            "qty": 50.0,
+            "unit": "ml"
+          }
+        ]
+      },
+      {
+        "item": "KG-STOCK-COLESLAW",
+        "kind": "prepared",
+        "name": "Coleslaw salad",
+        "rows": [
+          {
+            "name": "Cabbage",
+            "qty": 600,
+            "unit": "g"
+          },
+          {
+            "name": "Carrot",
+            "qty": 250,
+            "unit": "g"
+          },
+          {
+            "name": "Mayonnaise",
+            "qty": 150,
+            "unit": "g"
+          }
+        ]
+      },
+      {
+        "item": "KG-LEMON-MINT",
+        "kind": "menu",
+        "name": "Lemon and Mint (300ml)",
+        "rows": [
+          {
+            "name": "Ice",
+            "qty": 50,
+            "unit": "g"
+          },
+          {
+            "name": "Sprite",
+            "qty": 210,
+            "unit": "ml"
+          },
+          {
+            "name": "Lime",
+            "qty": 20,
+            "unit": "g"
+          },
+          {
+            "name": "Clear cups",
+            "qty": 1,
+            "unit": "Nos"
+          },
+          {
+            "name": "Juice lid",
+            "qty": 1,
+            "unit": "Nos"
+          },
+          {
+            "name": "Juice bag",
+            "qty": 1,
+            "unit": "Nos"
+          },
+          {
+            "name": "Straw",
+            "qty": 1,
+            "unit": "Nos"
+          },
+          {
+            "name": "Mint",
+            "qty": 10,
+            "unit": "g"
+          }
+        ]
+      },
+      {
+        "item": "KG-LEMONADE-PASSION",
+        "kind": "menu",
+        "name": "Passion Lemonade (300ml)",
+        "rows": [
+          {
+            "name": "Passion pulp",
+            "qty": 60.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Ice",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "Sprite",
+            "qty": 210.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Lime",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Clear cups",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Juice lid",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Straw",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Juice bag",
+            "qty": 1.0,
+            "unit": "Nos"
+          }
+        ]
+      },
+      {
+        "item": "KG-LEMONADE-STRAWBERRY",
+        "kind": "menu",
+        "name": "Strawberry Lemonade (300ml)",
+        "rows": [
+          {
+            "name": "Strawberry pulp",
+            "qty": 60.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Ice",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "Sprite",
+            "qty": 210.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Lime",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Clear cups",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Juice lid",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Straw",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Juice bag",
+            "qty": 1.0,
+            "unit": "Nos"
+          }
+        ]
+      },
+      {
+        "item": "KG-LEMONADE-BLUEBERRY",
+        "kind": "menu",
+        "name": "Blueberry Lemonade (300ml)",
+        "rows": [
+          {
+            "name": "Blueberry",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Ice",
+            "qty": 50.0,
+            "unit": "g"
+          },
+          {
+            "name": "Sprite",
+            "qty": 210.0,
+            "unit": "ml"
+          },
+          {
+            "name": "Lime",
+            "qty": 20.0,
+            "unit": "g"
+          },
+          {
+            "name": "Clear cups",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Juice lid",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Straw",
+            "qty": 1.0,
+            "unit": "Nos"
+          },
+          {
+            "name": "Juice bag",
+            "qty": 1.0,
+            "unit": "Nos"
+          }
+        ]
+      }
+    ],
+    "stock": [
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:French fries (stock)",
+        "name": "French fries (stock)",
+        "rate": 1150.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 33.6,
+        "unit": "Kg",
+        "weekly_need": 33.6
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Marinated chicken",
+        "name": "Marinated chicken",
+        "rate": 1800.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 19.1,
+        "unit": "Kg",
+        "weekly_need": 19.05
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0.0,
+        "item": "Mozzarella cheese",
+        "name": "Mozzarella cheese",
+        "rate": 5300.0,
+        "rate_source": "Existing buying rate",
+        "target": 3.0,
+        "unit": "Kg",
+        "weekly_need": 2.9600000000000004
+      },
+      {
+        "action": "Existing stock item",
+        "current": 0.0,
+        "item": "KG-STOCK-COLESLAW",
+        "name": "Coleslaw salad",
+        "rate": 1200.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 1.3,
+        "unit": "Kg",
+        "weekly_need": 1.3
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Hot sauce",
+        "name": "Hot sauce",
+        "rate": 1900.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 5.8,
+        "unit": "Kg",
+        "weekly_need": 5.729999999999999
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Garlic mayo",
+        "name": "Garlic mayo",
+        "rate": 1500.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 4.5,
+        "unit": "Kg",
+        "weekly_need": 4.4399999999999995
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Mustard mayo",
+        "name": "Mustard mayo",
+        "rate": 1875.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 4.5,
+        "unit": "Kg",
+        "weekly_need": 4.4399999999999995
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:BBQ sauce",
+        "name": "BBQ sauce",
+        "rate": 1500.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 5.8,
+        "unit": "Kg",
+        "weekly_need": 5.729999999999999
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0.0,
+        "item": "RM-OIL",
+        "name": "Cooking oil",
+        "rate": 650.0,
+        "rate_source": "Existing buying rate",
+        "target": 9.6,
+        "unit": "Litre",
+        "weekly_need": 9.55
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Seasoning",
+        "name": "Seasoning",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 0.17,
+        "unit": "Kg",
+        "weekly_need": 0.168
+      },
+      {
+        "action": "Existing stock item",
+        "current": 0.0,
+        "item": "LF-ING-882c4f6191",
+        "name": "Loaded fries box",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 148.0,
+        "unit": "Nos",
+        "weekly_need": 148.0
+      },
+      {
+        "action": "Existing stock item",
+        "current": 0.0,
+        "item": "LF-ING-35fba2691c",
+        "name": "Disposable spoon",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 296.0,
+        "unit": "Nos",
+        "weekly_need": 296.0
+      },
+      {
+        "action": "Existing stock item",
+        "current": 0.0,
+        "item": "Wooden fork",
+        "name": "Wooden fork",
+        "rate": 4.5,
+        "rate_source": "Existing stock valuation",
+        "target": 296.0,
+        "unit": "Nos",
+        "weekly_need": 296.0
+      },
+      {
+        "action": "Existing stock item",
+        "current": 14.0,
+        "item": "Serviettes",
+        "name": "Serviettes",
+        "rate": 200.0,
+        "rate_source": "Existing stock valuation",
+        "target": 296.0,
+        "unit": "Nos",
+        "weekly_need": 296.0
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0.0,
+        "item": "RM-FISH",
+        "name": "Fish",
+        "rate": 950.0,
+        "rate_source": "Existing buying rate",
+        "target": 1.8,
+        "unit": "Kg",
+        "weekly_need": 1.75
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Tempura prawns",
+        "name": "Tempura prawns",
+        "rate": 2400.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 1.2,
+        "unit": "Kg",
+        "weekly_need": 1.2
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0.0,
+        "item": "RM-BEEF",
+        "name": "Beef mince",
+        "rate": 1800.0,
+        "rate_source": "Existing buying rate",
+        "target": 0.9,
+        "unit": "Kg",
+        "weekly_need": 0.8999999999999999
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Bratwurst sausages",
+        "name": "Bratwurst sausages",
+        "rate": 110.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 12.0,
+        "unit": "Nos",
+        "weekly_need": 12.0
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Chips (stock)",
+        "name": "Chips (stock)",
+        "rate": 500.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 4.6,
+        "unit": "Kg",
+        "weekly_need": 4.6000000000000005
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Spicy seasoning",
+        "name": "Spicy seasoning",
+        "rate": 4000.0,
+        "rate_source": "Supplied costing estimate",
+        "target": 0.03,
+        "unit": "Kg",
+        "weekly_need": 0.023
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Ice (weighed stock)",
+        "name": "Ice (weighed stock)",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 4.1,
+        "unit": "Kg",
+        "weekly_need": 4.05
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0.0,
+        "item": "Sprite",
+        "name": "Sprite",
+        "rate": 320.0,
+        "rate_source": "Existing buying rate",
+        "target": 17.1,
+        "unit": "L",
+        "weekly_need": 17.009999999999998
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0.0,
+        "item": "Lime",
+        "name": "Lime",
+        "rate": 1800.0,
+        "rate_source": "Existing buying rate",
+        "target": 1.7,
+        "unit": "Kg",
+        "weekly_need": 1.6199999999999999
+      },
+      {
+        "action": "Existing stock item",
+        "current": 90.0,
+        "item": "Clear cups",
+        "name": "Clear cups",
+        "rate": 6.0,
+        "rate_source": "Existing stock valuation",
+        "target": 90.0,
+        "unit": "Nos",
+        "weekly_need": 81.0
+      },
+      {
+        "action": "Existing stock item",
+        "current": 0.0,
+        "item": "LF-ING-467af8dcc0",
+        "name": "Juice lid",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 81.0,
+        "unit": "Nos",
+        "weekly_need": 81.0
+      },
+      {
+        "action": "Existing stock item",
+        "current": 0.0,
+        "item": "LF-ING-daa57b6b3f",
+        "name": "Juice bag",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 81.0,
+        "unit": "Nos",
+        "weekly_need": 81.0
+      },
+      {
+        "action": "Existing stock item",
+        "current": 900.0,
+        "item": "Straw",
+        "name": "Straw",
+        "rate": 140.0,
+        "rate_source": "Existing stock valuation",
+        "target": 900.0,
+        "unit": "Nos",
+        "weekly_need": 81.0
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Passion pulp",
+        "name": "Passion pulp",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 2.4,
+        "unit": "L",
+        "weekly_need": 2.4
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Strawberry pulp",
+        "name": "Strawberry pulp",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 0.48,
+        "unit": "L",
+        "weekly_need": 0.48
+      },
+      {
+        "action": "Existing stock item",
+        "current": 0.0,
+        "item": "LF-ING-20bf329f92",
+        "name": "Blueberry",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 220.0,
+        "unit": "g",
+        "weekly_need": 220.0
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0.0,
+        "item": "Cabbage",
+        "name": "Cabbage",
+        "rate": 880.0,
+        "rate_source": "Existing buying rate",
+        "target": 4.7,
+        "unit": "Kg",
+        "weekly_need": 4.6739999999999995
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0.0,
+        "item": "Carrot",
+        "name": "Carrot",
+        "rate": 680.0,
+        "rate_source": "Existing buying rate",
+        "target": 2.0,
+        "unit": "Kg",
+        "weekly_need": 1.9475
+      },
+      {
+        "action": "New weighed/counted stock item",
+        "current": 0.0,
+        "item": "NEW:Mayonnaise",
+        "name": "Mayonnaise",
+        "rate": 0.0,
+        "rate_source": "Cost pending; zero valuation",
+        "target": 1.2,
+        "unit": "Kg",
+        "weekly_need": 1.1684999999999999
+      },
+      {
+        "action": "Enable stock tracking, preserve unit",
+        "current": 0,
+        "item": "Mint",
+        "name": "Mint",
+        "rate": 639.5,
+        "rate_source": "Existing buying rate",
+        "target": 0.22,
+        "unit": "Kg",
+        "weekly_need": 0.22
+      }
+    ]
+  }
+}
