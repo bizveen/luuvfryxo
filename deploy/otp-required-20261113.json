@@ -1,0 +1,19 @@
+{
+  "file": "luuvcrm/api/customers.py",
+  "sha256": "1b1cbaaa930e696f840ff566fd36d7a9c892f264c000daf9ee5887890b78f44d",
+  "md5": "2826695832a870d94063414468ac77ba",
+  "verified_at": "2026-11-13T05:21:12.410Z",
+  "containers": [
+    "frappe_docker-backend-1",
+    "frappe_docker-queue-short-1",
+    "frappe_docker-queue-long-1",
+    "frappe_docker-scheduler-1"
+  ],
+  "previous": {
+    "frappe_docker-backend-1": "7ad8e1f79334dd5fa522db74796d87fb39c1d0c353fa2692ac49c4d1530a86e3",
+    "frappe_docker-queue-short-1": "7ad8e1f79334dd5fa522db74796d87fb39c1d0c353fa2692ac49c4d1530a86e3",
+    "frappe_docker-queue-long-1": "7ad8e1f79334dd5fa522db74796d87fb39c1d0c353fa2692ac49c4d1530a86e3",
+    "frappe_docker-scheduler-1": "7ad8e1f79334dd5fa522db74796d87fb39c1d0c353fa2692ac49c4d1530a86e3"
+  },
+  "reason": "Always send requested SMS OTP even for previously registered/redeemed WhatsApp promo numbers"
+}

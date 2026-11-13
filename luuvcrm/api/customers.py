@@ -499,16 +499,12 @@ def sms_send_otp():
     """Send a 4-digit code so the customer confirms the phone is really theirs.
 
     Older installed PWAs can still use the legacy alias declared below, but
-    delivery is SMS-only.
+    delivery is SMS-only. Previous promo registration does not replace OTP
+    verification when a customer requests a code.
     """
     mobile = (frappe.local.form_dict.get("mobile") or "").strip()
     if not mobile or len(mobile) < 10:
         return {"sent": False, "error": "Valid mobile required"}
-    # Numbers that claimed a promo via WhatsApp are already proven — skip the OTP.
-    if frappe.db.exists("DocType", "QR Promo Code") and frappe.db.exists(
-            "QR Promo Code", {"mobile": mobile, "status": ["in", ["Registered", "Redeemed"]]}):
-        frappe.cache().set_value(f"sms_verified:{mobile}", 1, expires_in_sec=900)
-        return {"sent": False, "verified": True}
     cache = frappe.cache()
     if cache.get_value(f"sms_otp_cool:{mobile}", expires=True):
         channel = cache.get_value(f"sms_otp_channel:{mobile}", expires=True)
