@@ -1,0 +1,538 @@
+{
+  "verified_at": "2026-11-13T04:32:19.686Z",
+  "source_commit": "169d3f16ec441d96a6634ff2947307c69a55ed36",
+  "files": {
+    "luuvcrm/api/__init__.py": {
+      "sha256": "292944fef2c9bddbeff3e9fc7caefe7a8da180bef30481994a5d419746299a21",
+      "md5": "379fdf3970832f0c53c35511d977ade1"
+    },
+    "luuvcrm/api/customers.py": {
+      "sha256": "7ad8e1f79334dd5fa522db74796d87fb39c1d0c353fa2692ac49c4d1530a86e3",
+      "md5": "ea45ce4195d2410fc5876856f41fc10b"
+    },
+    "luuvcrm/api/kiosk.py": {
+      "sha256": "68ae51c162488a75de1081667f118a7a0ef0cce2421cc5d384be5c01e056bb22",
+      "md5": "9d8c035d8a78abf6d34716980627ab9d"
+    },
+    "luuvcrm/api/kitchen.py": {
+      "sha256": "9a947abf42676d8904fcd4d6710470b0addbb382609ca5996a2f7baa2c9cde8d",
+      "md5": "506b40f39cfeb340ce9e9a1174fbb0e4"
+    },
+    "luuvcrm/api/loyalty.py": {
+      "sha256": "6df8be11453c99c70704174f7315bddb4249afb960486adbb13a13b91d18eace",
+      "md5": "d1ebdb87d2daa9f020fc56d91bed5431"
+    },
+    "luuvcrm/api/offers.py": {
+      "sha256": "c4fbaafdd9f6d2a11ef7cfbb5abda91a4c3058c3547892ce5394ceacff784bcf",
+      "md5": "ca0f38e093ff5d52af78c7155dcf3296"
+    },
+    "luuvcrm/api/orders.py": {
+      "sha256": "391799763c1d7571c4019c67de1153fbb0f4ca4ace1dbe3b41b1e5163d5d4c45",
+      "md5": "05a6355249adc9e37730a44a04b6c7e9"
+    },
+    "luuvcrm/api/payments.py": {
+      "sha256": "3bd702faa77b7406c8419a199fa826558d630350f519eb7d8a03488e03a78b1e",
+      "md5": "dab7bfad0b29e98b670204972fcb7e65"
+    },
+    "luuvcrm/api/pricing.py": {
+      "sha256": "b59416d7e76fd533c19ee120745d55c9ed88fb754f551fdd146ab6fa34ee9aa4",
+      "md5": "373b95c17b5c7acfc0e4a2441c93f62e"
+    },
+    "luuvcrm/api/push.py": {
+      "sha256": "8e2beeb70232ee39327d4b259e242dbf487eaa349a95226d23d87682c702cfb1",
+      "md5": "686cd569d5264ca3d205e08dcca3d8b8"
+    },
+    "luuvcrm/api/sms.py": {
+      "sha256": "0b826806de9a2248a68218caf96f8e5fd5e26a8abcdae42f05c6b361e695128e",
+      "md5": "4f3ed7a0674b7ba109a4930568eaf4fd"
+    },
+    "luuvcrm/api/whatsapp.py": {
+      "sha256": "e1f252cdc4eb146ecee106e1115483fe0fafbacd5ae18d4789be893cccbf1739",
+      "md5": "b3dcbe42b7541f9f20e16156fa332706"
+    },
+    "luuvcrm/patches.txt": {
+      "sha256": "3f6edf7361a0da99c4fdc58fccadc230e8468f5e5c7a047da3d1772a1280fe1b",
+      "md5": "9c94106ebbd8df4eb28333ba8f09463c"
+    },
+    "luuvcrm/patches/v1_0/offer_reward_fields.py": {
+      "sha256": "1d4e6140251c00d7974eae57441aa008b1825fbdf7b7cf3ecebc1aaed82531ce",
+      "md5": "a75c84e4306fd63092cb5c14b1cc77cd"
+    },
+    "luuvcrm/setup_doctype.py": {
+      "sha256": "0f24d0c1d408ef42d4479b704568e4f2eee979c4e489d1d431211966a010b6f7",
+      "md5": "343ddc1fefcad911e99d7a81165be1c0"
+    },
+    "luuvcrm/www/cus.html": {
+      "sha256": "06c52928a2855c99b88d7340cea7b73d5cf7e243ff94e521b55bd6d564fde770",
+      "md5": "cc718408f000b469a43c1726c4756bf7"
+    },
+    "luuvcrm/www/cus.py": {
+      "sha256": "520c41c4d35182b10b7d3bb79d6b748c1e9d940121393b20e95f871233e56876",
+      "md5": "50bcc5e733ac4d8ff59fc98db0dba82f"
+    },
+    "luuvcrm/www/cus_sw.js": {
+      "sha256": "6532bb0400ea1fa254ed3dd4071808d9d189a230f3e321354c3d9a1454c72af1",
+      "md5": "b2937b3d312121e2de10896bde4fd51d"
+    },
+    "luuvcrm/www/kiosk.html": {
+      "sha256": "a6c0ea0777520ab9b52e00b97b7abaf9eba5302f61c2a8f5d8dc9c4e88ba671a",
+      "md5": "1189d97d0bf88977d03abaceed713e14"
+    },
+    "luuvcrm/www/manager.html": {
+      "sha256": "a6af53f56f7bea57eb8d9c5b90145842879791ddf638868208b12fc8dbf8a4dc",
+      "md5": "3c8f01711e4eca69084c34139c477b98"
+    },
+    "luuvcrm/www/pos.html": {
+      "sha256": "de1fab69334b92a74e8d19ce50585e914f78b79e1bdaff5fbbd831d7f10e4099",
+      "md5": "ac6540b6f8acf64ec342fa21ee66b450"
+    },
+    "luuvcrm/zeloura/doctype/cashback_transaction/cashback_transaction.json": {
+      "sha256": "bf318a8e55d49e19f2ef5a5cebbb84480f4198a5bdbe9043e7c35489bec266d8",
+      "md5": "fd1be293f0d089746a7c54988ab4c8e0"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer/__init__.py": {
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "md5": "68b329da9893e34099c7d8ad5cb9c940"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer/customer_offer.json": {
+      "sha256": "d7827e5f4788c24d655a835036ce3e4ae8c45452f3af6036be0dfb5c324f1bae",
+      "md5": "da0712730a251bf925fcd891d033ee81"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer/customer_offer.py": {
+      "sha256": "bee764edc8fb0d965c6ff9d7f469c348e1c5c64452f777927bca408d58c71da3",
+      "md5": "e68fc2c015aea369aa3705815f3f9ba2"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer_event/__init__.py": {
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "md5": "68b329da9893e34099c7d8ad5cb9c940"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.json": {
+      "sha256": "1b571e61554b3ed654324ecd643b757caa0cece717f5efeed27487ba025eb482",
+      "md5": "00f2eb67862f55b43ef98cf16154b67f"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.py": {
+      "sha256": "d6247fd2c7b4241d77c86d69ead175706651aaf78b3fc82c8a383407e087962d",
+      "md5": "0d0205fb55bd8de71e00bd89febaf312"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer_redemption/__init__.py": {
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "md5": "68b329da9893e34099c7d8ad5cb9c940"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.json": {
+      "sha256": "a8951892e2c26b925b94db8384d99c6122a046a81a13c61bb63da897d12ea036",
+      "md5": "4d4410adbefccfe6262d3c1cc16d6b9c"
+    },
+    "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.py": {
+      "sha256": "12c14a474d117da1eb08b68b48cbaafe5f80088c833153e6be50c24850a5cd84",
+      "md5": "afee7dff70f8918e006da12e2bd4d522"
+    },
+    "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.json": {
+      "sha256": "0dc346b0e71679c77b4bd481c46a6be6573b5456b47677cfac61b60780e238d4",
+      "md5": "1deff472a483689d1f10ef7fa3012689"
+    },
+    "luuvcrm/zeloura/doctype/reward_redemption_request/__init__.py": {
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "md5": "68b329da9893e34099c7d8ad5cb9c940"
+    },
+    "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.json": {
+      "sha256": "b27750826fee1a3888192eabec940f1d508bc3d216019b678e5b4a377f0f23fb",
+      "md5": "a0aae91ddf5fe8a4bf3a005a8642689f"
+    },
+    "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.py": {
+      "sha256": "a601961118b99577c72df8a2ef1077069b75aae259795a61da03a68216a2d054",
+      "md5": "fc5dc1675d2cafe8642a76c555dfe149"
+    },
+    "luuvcrm/api/approvals.py": {
+      "sha256": "03bf07e5ecc7f2261ef181a3f2a0d1af002882beca39ab78e6dd48ddb6cb0f5b",
+      "md5": "f27df4cb0cf2e5ddc984ad2b642b1b2a"
+    },
+    "luuvcrm/api/branch_stock_policy.py": {
+      "sha256": "78b823dd48efd0ddc01bde476daa837139c4868c192e5ee05bbbd878578b27d8",
+      "md5": "57071da164a59ec37070fbcaa6d47b4e"
+    },
+    "luuvcrm/api/inventory.py": {
+      "sha256": "34963ec12fc37f8da60e5af768bceba533c3f22db54ee2886a2789aab902198b",
+      "md5": "439df783c40dea4e8744a291ef430434"
+    },
+    "luuvcrm/api/inventory_purchasing.py": {
+      "sha256": "ce94c96bf5640b2e34c256dcb826ecc706730e701d283ecadefd83dcb26a5e96",
+      "md5": "45adc3e5581a929bcc5ddb3280e92f68"
+    },
+    "luuvcrm/api/inventory_sections.py": {
+      "sha256": "9f12fe483e0b59e524262d11b8843e617dc7a3275bb668acbd2e81aea064a0ba",
+      "md5": "f63f053520847e9dddf76baad7dad714"
+    },
+    "luuvcrm/api/inventory_units.py": {
+      "sha256": "5cf06f03cae1890a5748d5578e9d31c32161ceaff2c54d590e59e3f6b0c94682",
+      "md5": "91f702463398dd229e1c54d327e982e9"
+    },
+    "luuvcrm/api/manager_inventory.py": {
+      "sha256": "980eea0b785532cb59a7c0e3abe926126595ac68a5040b313fbf73675fcfe562",
+      "md5": "3036b2f85e3fb86e662dc1d6a40365c6"
+    },
+    "luuvcrm/api/manager_preparation.py": {
+      "sha256": "2b45089e17a0bba74655cd5297171de44c006f48849b096e3ed1cc98137beca9",
+      "md5": "33b9fed76b08e26c37669f8e0725e916"
+    },
+    "luuvcrm/api/pos_inventory.py": {
+      "sha256": "68320aff024e37624280a8d39cd5924f47b711bd185e91aca10ae03b4c816e1d",
+      "md5": "2c705af1f593fd05a45c8f2dd62dc7e2"
+    },
+    "luuvcrm/api/purchase_category_history.py": {
+      "sha256": "9dcc49879c8c2ed895d3fc9c35bf3ccb18d1e35cae988c802c65aa70dbfca490",
+      "md5": "9a7589ef56087403a733530729902b94"
+    },
+    "luuvcrm/api/purchase_item_categories.py": {
+      "sha256": "cf0e5cbbf7efe95819454b2f8f30f7fefacc5073e919be07c6773791d91d6e34",
+      "md5": "f87643a4911263d3c2872cd565f107af"
+    },
+    "luuvcrm/api/purchases.py": {
+      "sha256": "1379ab88c259502966771ddef25faba6683dd6e2539bd8263ba4a3be117204a7",
+      "md5": "95d597bd13390484019746c58e9273b1"
+    },
+    "luuvcrm/api/recipe_sheets.py": {
+      "sha256": "bb6ad065daf800b39e52ffd0e5cb3dedea98136407e00ee4a64b793ca9986c81",
+      "md5": "ec97953189949df1a5bfb02cc3245013"
+    },
+    "luuvcrm/api/waiter_delivery.py": {
+      "sha256": "f77deba64fd093e6f27a485256e2e2042317a2c6d990a7059a1ec47ebfa54cdc",
+      "md5": "bf0ce15d7e2abd2d1a34b81a5074ab04"
+    },
+    "luuvcrm/branch_stock_entry.py": {
+      "sha256": "5f79c83681d9fa47ae730e1187bb3dbf7bc1087e99ea0472e2d1fddb4ed9f5ff",
+      "md5": "0df357892788430badca862d8cd511f4"
+    },
+    "luuvcrm/inventory_planning.py": {
+      "sha256": "d8cd6dcbb00b93b245a2500d97e4b81c3f3fd23119b37765f65b4f0c1028fbb3",
+      "md5": "b7e23530f914a30ad6458a660730a125"
+    },
+    "luuvcrm/patches/v1_0/inventory_sections.py": {
+      "sha256": "8775ec3e259d2476289526504de815f41099c89c9a821141a24012157531a32b",
+      "md5": "5a1413baed95408b6795dceced4b4c71"
+    },
+    "luuvcrm/patches/v1_0/purchase_item_defaults.py": {
+      "sha256": "2b027f5734f90f909ae175b8f35a897c74cc2c36fde7af99b80699fcd84477a0",
+      "md5": "4c3c6049eb978d41c20434dc36fab145"
+    },
+    "luuvcrm/patches/v1_0/waiter_delivery.py": {
+      "sha256": "d771b033bad9b22c40af730035e95d98fd316340cc91b606e013eae75606a3b3",
+      "md5": "3c9d3d7ff7166d9ef084f4853666a3f2"
+    },
+    "luuvcrm/recipe_sheets.py": {
+      "sha256": "0411ef5633de624605b3794c8805aac4fdbeafbb082b47f2407c4da283165ad0",
+      "md5": "d362af3094223b0daf5efcd99d190486"
+    },
+    "luuvcrm/stock_policy.py": {
+      "sha256": "9c22b5d42c0c5f79a26dde2f809ab4b16eb4c3154311e8cf19e2b9ddf644ebee",
+      "md5": "1ec5cb54b69e4d2be3f9afc60de43556"
+    },
+    "luuvcrm/activity.py": {
+      "sha256": "eb333cea6236b7cf6abc4f115be2efb27e1225384daff01a2520fde23e76e6fe",
+      "md5": "1eeb1160e103131e433a938bcb20f1b9"
+    },
+    "luuvcrm/api/assets.py": {
+      "sha256": "d1eac22fb10a0378ac8243319813f01265e8a1110d1aae40fdac2e0bf0b7033a",
+      "md5": "ef10b597f1b889641d89018cba38adb6"
+    },
+    "luuvcrm/api/branch_requests.py": {
+      "sha256": "62d093ad780609e92b3e09d885c056d16d8cca19655b180653049b2fe7168280",
+      "md5": "9cda4159feea8f4260fc507a575bf288"
+    },
+    "luuvcrm/api/categories.py": {
+      "sha256": "e9d42e5b6115bdf015efe3c5fed5552d41690ff8cb19b1703f1e51d983675722",
+      "md5": "4c4c734c79e3da84be8d3872cb4be5f1"
+    },
+    "luuvcrm/api/expenses.py": {
+      "sha256": "92e4998d66d4272b1c9ca5131ae41d3871d51878c22a1fbb6c9cec86864a2f44",
+      "md5": "1c74b880fdef6e4069eac0e7c137b30d"
+    },
+    "luuvcrm/api/items.py": {
+      "sha256": "53db9f2a7ea26551e8e324e26909c13aa74a8168c664a7103c3d010e6ba5d2a4",
+      "md5": "43cd863d60126d5d8f6608ae0f6e1f0c"
+    },
+    "luuvcrm/api/menu.py": {
+      "sha256": "4cfd4b48f0ac35b4f21e0dbbf5d6282751bc0fcf7800f303cd33d70f69aa4624",
+      "md5": "b7b6a29ef1da71738393003381d44456"
+    },
+    "luuvcrm/api/offline.py": {
+      "sha256": "e3ceeef1aa0cc00c0b0f07bbf4aa71943ec601659c3762ce3b485058e94c034c",
+      "md5": "53988ad1deacb6fac5245ff41ddeaad2"
+    },
+    "luuvcrm/api/owner.py": {
+      "sha256": "d5d78585b2cbfbed0d59d1e10260b88d506d22c3db3ac38d02198c862bc87f3b",
+      "md5": "303e2d5c5dcca1ad68ca0fb01cb8a8c9"
+    },
+    "luuvcrm/api/pnl.py": {
+      "sha256": "ade9183100d936ed5504a8c1ad33d45aa8dc858056806368db209133e3f09bb8",
+      "md5": "a47c7774fcec2e97114b823c56f89938"
+    },
+    "luuvcrm/api/printing.py": {
+      "sha256": "b2593b832cf305ea5d45677c9315476bf1d89f0d1a4f387b1ea189077a7d8192",
+      "md5": "a8d1b6c9e1f29a74f2714345a7aafba8"
+    },
+    "luuvcrm/api/promos.py": {
+      "sha256": "61a3608399d66d09b36ac22b3fd83cee065af3d19b5ab9fcf2bfdbe52b028901",
+      "md5": "0572eb26564d4a5483c671a8582d5332"
+    },
+    "luuvcrm/api/reports.py": {
+      "sha256": "2641d6982765a966ff1b69fb8cdb73228fd148f0b06343bc6ae17bee957a3f59",
+      "md5": "a543bd527f697a4749f6cf878b20822b"
+    },
+    "luuvcrm/api/shifts.py": {
+      "sha256": "c3988760ab02dfe5838209b298387086de402446542334fbb4c133a7a02f5253",
+      "md5": "a71c4f275daa2aceff0570b851af67b6"
+    },
+    "luuvcrm/api/wastage.py": {
+      "sha256": "7dd86aa66125933ce137ca9d89eefb560f81818906a2116136b6f2f2230a65f7",
+      "md5": "e9cb3e04310b98b5af46ced30e822874"
+    },
+    "luuvcrm/branch.py": {
+      "sha256": "344235c72d6ceb8b35ce545f602ba7b4f8d3f91757c2b3e0c0fb43b7c6b3e120",
+      "md5": "35790c9e7d6c5ecae97a1c4b87503c52"
+    },
+    "luuvcrm/patches/v1_0/allow_fractional_nos.py": {
+      "sha256": "fb2177720a42e9b0320381ea694f780de9b785f97f70255538260e043a571af0",
+      "md5": "dfc638b3d14f3498e6c7c056815f37ee"
+    },
+    "luuvcrm/roles.py": {
+      "sha256": "41a43c93f423ac340a3a71ce271b60487ee5232110f989e8839016e7b33e0fed",
+      "md5": "ffa68884fdfb85e28d9d060e5796a412"
+    },
+    "luuvcrm/settings.py": {
+      "sha256": "2436185cd05ebd468aa314a2d00b6dafd8ea31dac1ee989ff2bcf5931af43891",
+      "md5": "0a9d04392f4b1b6ccd6a3acfdb6ab1b7"
+    }
+  },
+  "containers": {
+    "frappe_docker-backend-1": [
+      "luuvcrm/api/__init__.py",
+      "luuvcrm/api/customers.py",
+      "luuvcrm/api/kiosk.py",
+      "luuvcrm/api/kitchen.py",
+      "luuvcrm/api/loyalty.py",
+      "luuvcrm/api/offers.py",
+      "luuvcrm/api/orders.py",
+      "luuvcrm/api/payments.py",
+      "luuvcrm/api/pricing.py",
+      "luuvcrm/api/push.py",
+      "luuvcrm/api/sms.py",
+      "luuvcrm/api/whatsapp.py",
+      "luuvcrm/patches.txt",
+      "luuvcrm/patches/v1_0/offer_reward_fields.py",
+      "luuvcrm/setup_doctype.py",
+      "luuvcrm/www/cus.html",
+      "luuvcrm/www/cus.py",
+      "luuvcrm/www/cus_sw.js",
+      "luuvcrm/www/kiosk.html",
+      "luuvcrm/www/manager.html",
+      "luuvcrm/www/pos.html",
+      "luuvcrm/zeloura/doctype/cashback_transaction/cashback_transaction.json",
+      "luuvcrm/zeloura/doctype/customer_offer/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer/customer_offer.json",
+      "luuvcrm/zeloura/doctype/customer_offer/customer_offer.py",
+      "luuvcrm/zeloura/doctype/customer_offer_event/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.json",
+      "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.py",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.json",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.py",
+      "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.json",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/__init__.py",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.json",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.py"
+    ],
+    "frappe_docker-queue-short-1": [
+      "luuvcrm/api/__init__.py",
+      "luuvcrm/api/customers.py",
+      "luuvcrm/api/kiosk.py",
+      "luuvcrm/api/kitchen.py",
+      "luuvcrm/api/loyalty.py",
+      "luuvcrm/api/offers.py",
+      "luuvcrm/api/orders.py",
+      "luuvcrm/api/payments.py",
+      "luuvcrm/api/pricing.py",
+      "luuvcrm/api/push.py",
+      "luuvcrm/api/sms.py",
+      "luuvcrm/api/whatsapp.py",
+      "luuvcrm/patches.txt",
+      "luuvcrm/patches/v1_0/offer_reward_fields.py",
+      "luuvcrm/setup_doctype.py",
+      "luuvcrm/www/cus.py",
+      "luuvcrm/zeloura/doctype/cashback_transaction/cashback_transaction.json",
+      "luuvcrm/zeloura/doctype/customer_offer/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer/customer_offer.json",
+      "luuvcrm/zeloura/doctype/customer_offer/customer_offer.py",
+      "luuvcrm/zeloura/doctype/customer_offer_event/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.json",
+      "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.py",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.json",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.py",
+      "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.json",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/__init__.py",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.json",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.py",
+      "luuvcrm/api/approvals.py",
+      "luuvcrm/api/branch_stock_policy.py",
+      "luuvcrm/api/inventory.py",
+      "luuvcrm/api/inventory_purchasing.py",
+      "luuvcrm/api/inventory_sections.py",
+      "luuvcrm/api/inventory_units.py",
+      "luuvcrm/api/manager_inventory.py",
+      "luuvcrm/api/manager_preparation.py",
+      "luuvcrm/api/pos_inventory.py",
+      "luuvcrm/api/purchase_category_history.py",
+      "luuvcrm/api/purchase_item_categories.py",
+      "luuvcrm/api/purchases.py",
+      "luuvcrm/api/recipe_sheets.py",
+      "luuvcrm/api/waiter_delivery.py",
+      "luuvcrm/branch_stock_entry.py",
+      "luuvcrm/inventory_planning.py",
+      "luuvcrm/patches/v1_0/inventory_sections.py",
+      "luuvcrm/patches/v1_0/purchase_item_defaults.py",
+      "luuvcrm/patches/v1_0/waiter_delivery.py",
+      "luuvcrm/recipe_sheets.py",
+      "luuvcrm/stock_policy.py"
+    ],
+    "frappe_docker-queue-long-1": [
+      "luuvcrm/api/__init__.py",
+      "luuvcrm/api/customers.py",
+      "luuvcrm/api/kiosk.py",
+      "luuvcrm/api/kitchen.py",
+      "luuvcrm/api/loyalty.py",
+      "luuvcrm/api/offers.py",
+      "luuvcrm/api/orders.py",
+      "luuvcrm/api/payments.py",
+      "luuvcrm/api/pricing.py",
+      "luuvcrm/api/push.py",
+      "luuvcrm/api/sms.py",
+      "luuvcrm/api/whatsapp.py",
+      "luuvcrm/patches.txt",
+      "luuvcrm/patches/v1_0/offer_reward_fields.py",
+      "luuvcrm/setup_doctype.py",
+      "luuvcrm/www/cus.py",
+      "luuvcrm/zeloura/doctype/cashback_transaction/cashback_transaction.json",
+      "luuvcrm/zeloura/doctype/customer_offer/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer/customer_offer.json",
+      "luuvcrm/zeloura/doctype/customer_offer/customer_offer.py",
+      "luuvcrm/zeloura/doctype/customer_offer_event/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.json",
+      "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.py",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.json",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.py",
+      "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.json",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/__init__.py",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.json",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.py",
+      "luuvcrm/api/approvals.py",
+      "luuvcrm/api/branch_stock_policy.py",
+      "luuvcrm/api/inventory.py",
+      "luuvcrm/api/inventory_purchasing.py",
+      "luuvcrm/api/inventory_sections.py",
+      "luuvcrm/api/inventory_units.py",
+      "luuvcrm/api/manager_inventory.py",
+      "luuvcrm/api/manager_preparation.py",
+      "luuvcrm/api/pos_inventory.py",
+      "luuvcrm/api/purchase_category_history.py",
+      "luuvcrm/api/purchase_item_categories.py",
+      "luuvcrm/api/purchases.py",
+      "luuvcrm/api/recipe_sheets.py",
+      "luuvcrm/api/waiter_delivery.py",
+      "luuvcrm/branch_stock_entry.py",
+      "luuvcrm/inventory_planning.py",
+      "luuvcrm/patches/v1_0/inventory_sections.py",
+      "luuvcrm/patches/v1_0/purchase_item_defaults.py",
+      "luuvcrm/patches/v1_0/waiter_delivery.py",
+      "luuvcrm/recipe_sheets.py",
+      "luuvcrm/stock_policy.py"
+    ],
+    "frappe_docker-scheduler-1": [
+      "luuvcrm/api/__init__.py",
+      "luuvcrm/api/customers.py",
+      "luuvcrm/api/kiosk.py",
+      "luuvcrm/api/kitchen.py",
+      "luuvcrm/api/loyalty.py",
+      "luuvcrm/api/offers.py",
+      "luuvcrm/api/orders.py",
+      "luuvcrm/api/payments.py",
+      "luuvcrm/api/pricing.py",
+      "luuvcrm/api/push.py",
+      "luuvcrm/api/sms.py",
+      "luuvcrm/api/whatsapp.py",
+      "luuvcrm/patches.txt",
+      "luuvcrm/patches/v1_0/offer_reward_fields.py",
+      "luuvcrm/setup_doctype.py",
+      "luuvcrm/www/cus.py",
+      "luuvcrm/zeloura/doctype/cashback_transaction/cashback_transaction.json",
+      "luuvcrm/zeloura/doctype/customer_offer/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer/customer_offer.json",
+      "luuvcrm/zeloura/doctype/customer_offer/customer_offer.py",
+      "luuvcrm/zeloura/doctype/customer_offer_event/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.json",
+      "luuvcrm/zeloura/doctype/customer_offer_event/customer_offer_event.py",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/__init__.py",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.json",
+      "luuvcrm/zeloura/doctype/customer_offer_redemption/customer_offer_redemption.py",
+      "luuvcrm/zeloura/doctype/customer_push_token/customer_push_token.json",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/__init__.py",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.json",
+      "luuvcrm/zeloura/doctype/reward_redemption_request/reward_redemption_request.py",
+      "luuvcrm/activity.py",
+      "luuvcrm/api/approvals.py",
+      "luuvcrm/api/assets.py",
+      "luuvcrm/api/branch_requests.py",
+      "luuvcrm/api/branch_stock_policy.py",
+      "luuvcrm/api/categories.py",
+      "luuvcrm/api/expenses.py",
+      "luuvcrm/api/inventory.py",
+      "luuvcrm/api/inventory_purchasing.py",
+      "luuvcrm/api/inventory_sections.py",
+      "luuvcrm/api/inventory_units.py",
+      "luuvcrm/api/items.py",
+      "luuvcrm/api/manager_inventory.py",
+      "luuvcrm/api/manager_preparation.py",
+      "luuvcrm/api/menu.py",
+      "luuvcrm/api/offline.py",
+      "luuvcrm/api/owner.py",
+      "luuvcrm/api/pnl.py",
+      "luuvcrm/api/pos_inventory.py",
+      "luuvcrm/api/printing.py",
+      "luuvcrm/api/promos.py",
+      "luuvcrm/api/purchase_category_history.py",
+      "luuvcrm/api/purchase_item_categories.py",
+      "luuvcrm/api/purchases.py",
+      "luuvcrm/api/recipe_sheets.py",
+      "luuvcrm/api/reports.py",
+      "luuvcrm/api/shifts.py",
+      "luuvcrm/api/waiter_delivery.py",
+      "luuvcrm/api/wastage.py",
+      "luuvcrm/branch.py",
+      "luuvcrm/branch_stock_entry.py",
+      "luuvcrm/inventory_planning.py",
+      "luuvcrm/patches/v1_0/allow_fractional_nos.py",
+      "luuvcrm/patches/v1_0/inventory_sections.py",
+      "luuvcrm/patches/v1_0/purchase_item_defaults.py",
+      "luuvcrm/patches/v1_0/waiter_delivery.py",
+      "luuvcrm/recipe_sheets.py",
+      "luuvcrm/roles.py",
+      "luuvcrm/settings.py",
+      "luuvcrm/stock_policy.py"
+    ]
+  },
+  "backend_restarted": true,
+  "schema_verified": true,
+  "sms_sender_id": "Luuv Fryxo",
+  "push": {
+    "service_account_file_present": true,
+    "web_vapid_configured": false
+  },
+  "device_delivery_tested": false,
+  "database_backup": {
+    "path": "/home/frappe/frappe-bench/sites/fryxo/private/backups/cus-pre-release-20261113-20261113T042102Z-6821d8.sql.gz",
+    "bytes": 17704055,
+    "sha256": "e2a2522cc16a9a5441a146a0bb07a7be2e8ea956b15b995e783da30c82dfa08c",
+    "tables": 895,
+    "gzip_crc_verified": true
+  }
+}
