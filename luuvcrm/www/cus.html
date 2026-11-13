@@ -212,6 +212,24 @@ input,button{font-family:inherit;}
 .overlay{position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;}
 .overlay.show{display:flex;}
 .sheet{width:430px;max-width:100%;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:20px 20px calc(26px + env(safe-area-inset-bottom,0px));max-height:88vh;max-height:88dvh;overflow-y:auto;animation:up var(--duration-base) var(--ease-out);}
+.offer-dialog-overlay{align-items:center;padding:20px;box-sizing:border-box;background:rgba(20,18,16,.72);backdrop-filter:blur(8px);z-index:1150;}
+.offer-dialog-card{position:relative;width:min(100%,420px);max-height:calc(100dvh - 40px);overflow-y:auto;background:#fff;border-radius:26px;box-shadow:0 28px 70px rgba(24,13,6,.38);animation:offerPop .32s cubic-bezier(.2,.8,.2,1);}
+@keyframes offerPop{from{opacity:0;transform:translateY(12px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
+.offer-dialog-hero{position:relative;min-height:208px;overflow:hidden;padding:26px 27px 23px;box-sizing:border-box;background:radial-gradient(circle at 88% 18%,#ffb768 0,transparent 35%),linear-gradient(145deg,#fb6c03 10%,#dc4800 85%);color:#fff;text-align:center;}
+.offer-dialog-hero::before,.offer-dialog-hero::after{content:"";position:absolute;border:1px solid rgba(255,255,255,.28);border-radius:50%;pointer-events:none;}
+.offer-dialog-hero::before{width:230px;height:230px;left:-110px;top:-110px;}
+.offer-dialog-hero::after{width:180px;height:180px;right:-85px;bottom:-110px;}
+.offer-dialog-close{position:absolute;z-index:2;right:13px;top:13px;width:36px;height:36px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.65);border-radius:50%;background:rgba(255,255,255,.22);color:#fff;font-size:25px;line-height:1;cursor:pointer;}
+.offer-dialog-kicker{position:relative;z-index:1;display:inline-block;border:1px solid rgba(255,255,255,.5);border-radius:99px;padding:5px 12px;font-size:10px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;}
+.offer-dialog-visual{position:relative;z-index:1;width:78px;height:78px;display:grid;place-items:center;margin:18px auto 11px;border:2px solid rgba(255,255,255,.74);border-radius:25px;background:rgba(255,255,255,.17);box-shadow:0 13px 24px rgba(84,24,0,.22),inset 0 1px 0 rgba(255,255,255,.35);font-size:39px;transform:rotate(-8deg);}
+.offer-dialog-benefit{position:relative;z-index:1;font-family:var(--font-display);font-size:23px;font-weight:900;line-height:1.12;text-shadow:0 2px 7px rgba(93,26,0,.16);}
+.offer-dialog-body{padding:23px 25px 25px;text-align:center;}
+.offer-dialog-title{margin:0;color:var(--text-strong);font-family:var(--font-display);font-size:21px;font-weight:900;line-height:1.24;}
+.offer-dialog-desc{margin:10px 0 0;color:var(--text-body);font-size:13.5px;line-height:1.55;}
+.offer-dialog-code{display:none;margin:17px 0 0;padding:11px 13px;border:1.5px dashed var(--orange-400);border-radius:13px;background:var(--orange-50);color:var(--orange-700);font-family:var(--font-mono);font-size:16px;font-weight:800;letter-spacing:.12em;}
+.offer-dialog-action{width:100%;min-height:47px;margin-top:19px;border:0;border-radius:13px;background:linear-gradient(100deg,var(--orange-500),var(--orange-600));color:#fff;font-family:var(--font-display);font-size:14px;font-weight:800;box-shadow:0 9px 18px rgba(232,92,0,.24);cursor:pointer;}
+.offer-dialog-later{display:block;width:100%;margin-top:11px;border:0;background:transparent;color:var(--text-muted);font-size:12px;font-weight:700;cursor:pointer;}
+@media (prefers-reduced-motion:reduce){.offer-dialog-card{animation:none;}}
 .feedback-stars{display:flex;justify-content:center;gap:7px;margin:16px 0 13px;}
 .feedback-star{width:48px;height:48px;border:0;border-radius:15px;background:var(--surface-sunken);color:var(--gray-300);font-size:29px;line-height:1;cursor:pointer;transition:transform .16s ease,color .16s ease,background .16s ease;}
 .feedback-star.selected{color:#f5a300;background:#fff4d8;transform:translateY(-2px);}
@@ -795,7 +813,7 @@ html[data-theme="dark"] .pwa-banner{background:rgba(23,25,24,.97);border-color:r
     <button class="navb active" data-tab="home" aria-label="Home" title="Home" onclick="setTab('home')"><span class="nav-icon"><i data-lucide="house"></i></span><span class="nav-label">Home</span></button>
     <button class="navb" data-tab="order" aria-label="Menu" title="Menu" onclick="setTab('order')"><span class="nav-icon"><i data-lucide="utensils-crossed"></i></span><span class="nav-label">Menu</span></button>
     <button class="navb" data-tab="orders" aria-label="Orders" title="Orders" onclick="setTab('orders')"><span class="nav-icon"><i data-lucide="receipt-text"></i><span class="dot" id="navActiveOrderCount"></span></span><span class="nav-label">Orders</span></button>
-    <button class="navb" data-tab="offers" aria-label="Offers" title="Offers" onclick="setTab('offers')"><span class="nav-icon"><i data-lucide="badge-percent"></i></span><span class="nav-label">Offers</span></button>
+    <button class="navb" data-tab="offers" aria-label="Offers" title="Offers" onclick="setTab('offers')"><span class="nav-icon"><i data-lucide="badge-percent"></i><span class="dot" id="navActiveOfferCount"></span></span><span class="nav-label">Offers</span></button>
     <button class="navb" data-tab="account" aria-label="Account" title="Account" onclick="setTab('account')"><span class="nav-icon"><i data-lucide="user-round"></i></span><span class="nav-label">Account</span></button>
   </div>
 </div></div>
@@ -964,6 +982,25 @@ html[data-theme="dark"] .pwa-banner{background:rgba(23,25,24,.97);border-color:r
   </div>
 </div>
 
+<!-- New customer offer, shown once per offer on this device -->
+<div class="overlay offer-dialog-overlay" id="newOfferPop" onclick="if(event.target===this)closeNewOfferPopup()">
+  <div class="offer-dialog-card" role="dialog" aria-modal="true" aria-labelledby="newOfferTitle">
+    <div class="offer-dialog-hero">
+      <button class="offer-dialog-close" onclick="closeNewOfferPopup()" aria-label="Close offer">×</button>
+      <div class="offer-dialog-kicker" id="newOfferBadge">New at Luuv Fryxo</div>
+      <div class="offer-dialog-visual" id="newOfferVisual" aria-hidden="true">🎁</div>
+      <div class="offer-dialog-benefit" id="newOfferBenefit">A deal for you</div>
+    </div>
+    <div class="offer-dialog-body">
+      <h2 class="offer-dialog-title" id="newOfferTitle"></h2>
+      <p class="offer-dialog-desc" id="newOfferDescription"></p>
+      <div class="offer-dialog-code" id="newOfferCode"></div>
+      <button class="offer-dialog-action" onclick="viewNewOfferPopup()">View offer</button>
+      <button class="offer-dialog-later" onclick="closeNewOfferPopup()">Maybe later</button>
+    </div>
+  </div>
+</div>
+
 <!-- Complete-your-profile sheet (shown on load when name/address/area missing) -->
 <div class="overlay" id="profOverlay" onclick="if(event.target===this)closeProf()">
   <div class="profile-completion-sheet" style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:20px 20px 30px;">
@@ -1014,6 +1051,11 @@ let _profile = null;      // cached customer profile for completion progress
 let _profilePromise = null;
 let _refInfo = null;      // validated referral code + server-configured discount
 let _activeOffers = [];   // manager-published customer offer cards
+let _pendingNewOffer = null;
+// Temporary design preview: local port 8000 shows the offer once on every page load.
+const OFFER_POPUP_PREVIEW=window.location.port==='8000' && (IS_LOCAL_DEV||/^(192\.168\.|10\.)/.test(window.location.hostname));
+let _offerPreviewShown=false;
+const SEEN_OFFERS_KEY = 'lf_seen_offers_'+RESTAURANT;
 let _selectedOffer = localStorage.getItem('lf_selected_offer') || '';
 const OFFER_VISITOR = (()=>{ let v=localStorage.getItem('lf_offer_visitor'); if(!v){ v=(crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random())); localStorage.setItem('lf_offer_visitor',v); } return v; })();
 let _ordersPromise = null;
@@ -1561,15 +1603,59 @@ function renderOfferHighlights(){
 }
 async function loadActiveOffers(force){
   if(_activeOffers.length&&!force) return _activeOffers;
-  try{ const r=await _call('luuvcrm.api.customer_active_offers',{restaurant:RESTAURANT}); const m=r&&r.message; _activeOffers=(m&&m.success&&m.offers)||[]; if(_selectedOffer&&!_activeOffers.some(o=>o.name===_selectedOffer)){ _selectedOffer=''; localStorage.removeItem('lf_selected_offer'); } _activeOffers.forEach(o=>trackOfferEvent(o.name,'View')); }
+  try{ const r=await _call('luuvcrm.api.customer_active_offers',{restaurant:RESTAURANT}); const m=r&&r.message; _activeOffers=(m&&m.success&&m.offers)||[]; if(_selectedOffer&&!_activeOffers.some(o=>o.name===_selectedOffer)){ _selectedOffer=''; localStorage.removeItem('lf_selected_offer'); } _activeOffers.forEach(o=>trackOfferEvent(o.name,'View')); updateActiveOfferCount(); }
   catch(e){ _activeOffers=[]; }
   return _activeOffers;
 }
+function updateActiveOfferCount(){
+  const badge=document.getElementById('navActiveOfferCount'),count=_activeOffers.length;
+  if(badge){ badge.textContent=count>9?'9+':String(count); badge.style.display=count?'flex':'none'; }
+}
+function seenOfferNames(){ try{ const names=JSON.parse(localStorage.getItem(SEEN_OFFERS_KEY)||'[]'); return Array.isArray(names)?names:[]; }catch(e){ return []; } }
+function markOffersSeen(names){ localStorage.setItem(SEEN_OFFERS_KEY,JSON.stringify([...new Set([...seenOfferNames(),...names])].slice(-100))); }
+function showPendingNewOffer(){
+  const offer=_pendingNewOffer;
+  if(tab==='offers'){ _pendingNewOffer=null; return; }
+  if(!offer||document.querySelector('.overlay.show')) return;
+  _pendingNewOffer=null;
+  const kind=offer.offer_type||'';
+  const benefit=kind==='Percentage Off'&&Number(offer.discount_percent)>0?`${nf(offer.discount_percent)}% OFF`:
+    kind==='Buy X Get Y Free'?`BUY ${offer.buy_quantity||'MORE'} · GET ${offer.free_quantity||1} FREE`:
+    kind==='Free Item'?'FREE ITEM':'SPECIAL OFFER';
+  document.getElementById('newOfferBadge').textContent=offer.badge_text||'NEW AT LUUV FRYXO';
+  document.getElementById('newOfferVisual').textContent=kind==='Percentage Off'?'%':kind==='Announcement'?'✨':'🎁';
+  document.getElementById('newOfferBenefit').textContent=benefit;
+  document.getElementById('newOfferTitle').textContent=offer.title||'New offer';
+  document.getElementById('newOfferDescription').textContent=offer.description||'Open Offers to see the details.';
+  const code=document.getElementById('newOfferCode');
+  code.textContent=offer.promo_code?'CODE  '+offer.promo_code:''; code.style.display=offer.promo_code?'block':'none';
+  document.getElementById('newOfferPop').classList.add('show');
+  if(!OFFER_POPUP_PREVIEW) markOffersSeen([offer.name]);
+}
+function maybeShowNewOffer(){
+  if(tab==='offers') return;
+  if(OFFER_POPUP_PREVIEW){
+    if(_offerPreviewShown) return;
+    _offerPreviewShown=true;
+    _pendingNewOffer=_activeOffers[0]||{name:'local-offer-preview',title:DEV_SAMPLE_OFFER.title,
+      description:DEV_SAMPLE_OFFER.copy,promo_code:DEV_SAMPLE_OFFER.code,
+      badge_text:DEV_SAMPLE_OFFER.badge,offer_type:'Buy X Get Y Free',buy_quantity:5,free_quantity:1};
+    showPendingNewOffer();
+    return;
+  }
+  const seen=seenOfferNames();
+  _pendingNewOffer=_activeOffers.find(o=>!seen.includes(o.name))||null;
+  showPendingNewOffer();
+}
+function closeNewOfferPopup(){ document.getElementById('newOfferPop').classList.remove('show'); if(!isAuthed()) guestLoginPrompt(); }
+function viewNewOfferPopup(){ closeNewOfferPopup(); setTab('offers'); }
 function trackOfferEvent(offer,eventType){ if(!offer) return; _post('luuvcrm.api.customer_track_offer_event',{offer:offer,event_type:eventType,visitor_id:OFFER_VISITOR}).catch(()=>{}); }
 function selectCustomerOffer(name){ _selectedOffer=name; localStorage.setItem('lf_selected_offer',name); trackOfferEvent(name,'Claim'); renderOfferHighlights(); toast('Offer selected · it will be checked at checkout'); setTimeout(()=>setTab('order'),350); }
 async function renderOffers(){
   await promoBanner();
   await loadActiveOffers(true);
+  markOffersSeen(_activeOffers.map(o=>o.name));
+  _pendingNewOffer=null;
   renderOfferHighlights();
   renderRewards();
 }
@@ -2426,7 +2512,7 @@ function openWaConfirm(m){ document.getElementById('waOrdNo').textContent='#'+m.
   b.onclick=()=>{ window.open(m.confirm_link,'_blank'); closeWaPop(); if(isAuthed()) setTab('orders'); };
   document.getElementById('waConfirmPop').classList.add('show'); icons(); }
 function closeWaPop(){ document.getElementById('waConfirmPop').classList.remove('show'); }
-function closeLoginPrompt(){ document.getElementById('loginPrompt').classList.remove('show'); }
+function closeLoginPrompt(){ document.getElementById('loginPrompt').classList.remove('show'); showPendingNewOffer(); }
 function loginFromPrompt(){ closeLoginPrompt(); setTab('account'); window.scrollTo(0,0); }
 function guestLoginPrompt(attempt){
   if(isAuthed()) return;
@@ -2543,9 +2629,10 @@ setupKeyboardNav();
 reflectAuth();
 setInterval(refreshStoreStatus,60000);
 setInterval(refreshCustomerOrderViews,2000);
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ refreshStoreStatus(); refreshCustomerOrderViews(); } });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ refreshStoreStatus(); refreshCustomerOrderViews(); loadActiveOffers(true).then(maybeShowNewOffer); } });
 syncCart();
 setTab(tab);
+if(tab!=='offers') loadActiveOffers(true).then(maybeShowNewOffer);
 validateReferral();
 promoLanding();
 loadCustomerProfile(false).then(()=>{ if(tab==='account'&&isAuthed()) renderAccount(); });

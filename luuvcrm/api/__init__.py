@@ -222,6 +222,7 @@ from luuvcrm.api.loyalty import (
     loyalty_redeem,
     loyalty_request_redemption,
     manager_get_rewards,
+    manager_customer_reward_history,
     manager_redeem_reward,
     manager_update_loyalty_settings,
     setup_loyalty,

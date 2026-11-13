@@ -478,9 +478,9 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
       </div>
 
       <div id="tabOffersRewards" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;">
-          <div><div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);">Offers & rewards</div><div style="font-size:13px;color:var(--text-muted);margin-top:3px;">Publish customer offers and redeem cashback at the counter.</div></div>
-          <button class="monthBtn active" onclick="openOfferEditor()"><i data-lucide="plus"></i><span>New offer</span></button>
+        <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;">
+          <div style="flex:1;min-width:140px;"><div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);">Offers & rewards</div><div style="font-size:13px;color:var(--text-muted);margin-top:3px;">Publish customer offers and redeem cashback at the counter.</div></div>
+          <div style="display:flex;align-items:center;gap:8px;flex:none;"><button type="button" onclick="openProgrammeSettings()" aria-label="Programme settings" title="Programme settings" style="width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--border-default);border-radius:50%;background:var(--surface-card);color:var(--text-body);cursor:pointer;"><i data-lucide="settings" style="width:18px;height:18px;"></i></button><button class="monthBtn active" onclick="openOfferEditor()"><i data-lucide="plus"></i><span>New offer</span></button></div>
         </div>
 
         <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
@@ -500,6 +500,13 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
         </section>
 
         <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
+          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:3px;">Customer rewards</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Search by mobile number to see the current balance and reward history.</div>
+          <div style="display:grid;gap:8px;margin-bottom:10px;"><input id="rwMobileSearch" type="tel" inputmode="tel" autocomplete="off" placeholder="Customer mobile number" onkeydown="if(event.key==='Enter') searchCustomerRewards()" style="width:100%;min-width:0;box-sizing:border-box;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px;font-size:14px;"><button class="lf-btn" id="rwSearchBtn" onclick="searchCustomerRewards()" style="width:100%;">Search</button></div>
+          <div id="rwCustomerResult" aria-live="polite"></div>
+        </section>
+
+        <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
           <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:3px;">Redeem at counter</div>
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Enter the customer's 6-digit code and link it to their unpaid order. The balance is deducted only after this confirmation.</div>
           <div style="display:flex;gap:8px;margin-bottom:9px;"><input id="rwCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-digit code" style="flex:1;min-width:0;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px;font-family:var(--font-mono);font-size:15px;letter-spacing:.1em;"><input id="rwOrder" type="text" placeholder="POS order" style="flex:1;min-width:0;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px;font-family:var(--font-mono);font-size:14px;"></div>
@@ -507,18 +514,6 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
           <div id="rwMatches" style="margin-bottom:10px;"></div>
           <div id="rwError" style="display:none;color:var(--color-danger);font-size:12.5px;font-weight:700;margin-bottom:9px;"></div>
           <button class="lf-btn" id="rwRedeemBtn" onclick="redeemCustomerReward()">Redeem reward</button>
-        </section>
-
-        <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:11px;">Programme settings</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Minimum redeem<input id="rwMin" type="number" min="0" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Friend discount %<input id="rwDiscount" type="number" min="0" max="100" step="0.5" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 1 %<input id="rwL1" type="number" min="0" max="50" step="0.5" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 2 %<input id="rwL2" type="number" min="0" max="50" step="0.5" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 3 %<input id="rwL3" type="number" min="0" max="50" step="0.5" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-          </div>
-          <button class="lf-btn" id="rwSettingsBtn" onclick="saveRewardSettings()" style="margin-top:12px;">Save settings</button>
         </section>
 
         <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
@@ -751,6 +746,22 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <div id="ofPreview" style="margin-bottom:12px;"></div>
     <div id="ofError" style="display:none;color:var(--color-danger);font-size:12.5px;font-weight:700;margin-bottom:10px;"></div>
     <button class="lf-btn" id="ofSave" onclick="saveOffer()">Save offer</button>
+  </div>
+</div>
+
+<!-- Reward programme settings -->
+<div id="rwSettingsModal" role="dialog" aria-modal="true" aria-labelledby="rwSettingsTitle" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1100;" onclick="closeProgrammeSettings()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-sizing:border-box;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:18px 22px calc(24px + env(safe-area-inset-bottom));">
+    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;"><div id="rwSettingsTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);flex:1;">Programme settings</div><button type="button" onclick="closeProgrammeSettings()" aria-label="Close" style="width:36px;height:36px;border:1px solid var(--border-default);border-radius:50%;background:var(--surface-card);color:var(--text-body);display:grid;place-items:center;"><i data-lucide="x"></i></button></div>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+      <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Minimum redeem<input id="rwMin" type="number" min="0" style="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
+      <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Friend discount %<input id="rwDiscount" type="number" min="0" max="100" step="0.5" style="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
+      <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 1 %<input id="rwL1" type="number" min="0" max="50" step="0.5" style="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
+      <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 2 %<input id="rwL2" type="number" min="0" max="50" step="0.5" style="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
+      <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 3 %<input id="rwL3" type="number" min="0" max="50" step="0.5" style="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
+    </div>
+    <button class="lf-btn" id="rwSettingsBtn" onclick="saveRewardSettings()" style="width:100%;margin-top:16px;">Save settings</button>
   </div>
 </div>
 
@@ -2449,15 +2460,42 @@ function lfPoll(fn, ms){
   }
   async function toggleOffer(i){ const o=mgrOffers[i]; if(!o) return; const r=await _post('/api/method/luuvcrm.api.manager_toggle_offer',{name:o.name,active:o.active?0:1}); if(r&&r.ok){ o.active=!o.active; renderManagerOffers(); toast(o.active?'Offer activated':'Offer paused'); } }
   async function notifyOffer(i){ const o=mgrOffers[i]; if(!o) return; const r=await _post('/api/method/luuvcrm.api.queue_customer_push_broadcast',{kind:'offer',title:o.title,body:o.description||'A new offer is waiting in the LUUV FRYXO app.',restaurant:o.restaurant||mgrOfferMeta.restaurant||''}); if(r&&r.ok){ const d=await r.json(); toast('Offer notification queued for '+nfmt((d.message&&d.message.queued)||0)+' devices'); } else toast('Could not queue notification'); }
+  async function searchCustomerRewards(){
+    const btn=document.getElementById('rwSearchBtn'),out=document.getElementById('rwCustomerResult');
+    const mobile=document.getElementById('rwMobileSearch').value.trim();
+    if(!mobile){ out.textContent='Enter a mobile number'; return; }
+    btn.disabled=true; out.textContent='Loading rewards…';
+    try{
+      const r=await _post('/api/method/luuvcrm.api.manager_customer_reward_history',{mobile});
+      if(!r){ out.textContent='Could not load rewards'; return; }
+      const d=await r.json(),m=d.message||{};
+      if(!r.ok||!m.success){ out.textContent=m.error||_smsg(d,'Could not load rewards'); return; }
+      const c=m.customer,h=m.history||[];
+      out.innerHTML=`<div style="font-weight:800;margin:10px 0;">${esc(c.customer_name||'Customer')} · ${esc(c.mobile)}</div>`+
+        `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px;">`+
+        [['Balance',c.cashback_balance],['Earned',c.total_earned],['Redeemed',c.total_redeemed]].map(([label,value])=>`<div style="background:var(--surface-sunken);border-radius:var(--radius-md);padding:9px;"><div style="font-size:11px;color:var(--text-muted);">${label}</div><strong class="mono">Rs ${nfmt(value||0)}</strong></div>`).join('')+
+        `</div><div style="font-size:13px;font-weight:800;margin-bottom:4px;">Reward history</div>`+
+        (h.length?h.map(x=>`<div style="padding:9px 0;border-bottom:1px solid var(--border-subtle);display:flex;gap:9px;align-items:flex-start;"><div style="flex:1;min-width:0;"><strong style="font-size:13px;">${esc(x.type)}</strong><div style="font-size:11px;color:var(--text-muted);">${esc(String(x.creation||'').slice(0,16))}${x.reference_order?' · '+esc(x.reference_order):''}${x.level?' · Level '+esc(x.level):''}</div>${x.notes?`<div style="font-size:11px;color:var(--text-muted);">${esc(x.notes)}</div>`:''}</div><strong class="mono" style="font-size:13px;color:${x.type==='Redeem'?'var(--color-danger)':'var(--color-success)'};">${x.type==='Redeem'?'−':'+'}Rs ${nfmt(x.amount||0)}</strong></div>`).join(''):'<div style="font-size:12px;color:var(--text-muted);">No reward transactions yet.</div>');
+    }catch(e){ out.textContent='Could not load rewards'; }
+    finally{ btn.disabled=false; }
+  }
+  let rwSavedSettings={};
+  function openProgrammeSettings(){
+    const s=rwSavedSettings;
+    for(const [id,key] of [['rwMin','min_redeem'],['rwDiscount','referral_discount_percent'],['rwL1','level_1_percent'],['rwL2','level_2_percent'],['rwL3','level_3_percent']]) document.getElementById(id).value=s[key]??0;
+    document.getElementById('rwSettingsModal').style.display='flex';
+  }
+  function closeProgrammeSettings(){ document.getElementById('rwSettingsModal').style.display='none'; }
   function renderManagerRewards(m){
     const t=m.totals||{},s=m.settings||{}; document.getElementById('rwOutstanding').textContent='Rs '+nfmt(t.outstanding||0); document.getElementById('rwRedeemed').textContent='Rs '+nfmt(t.redeemed||0); document.getElementById('rwCustomers').textContent=nfmt(t.customers||0); document.getElementById('rwEarned').textContent='Rs '+nfmt(t.earned||0);
+    rwSavedSettings=s;
     document.getElementById('rwMin').value=s.min_redeem||0; document.getElementById('rwDiscount').value=s.referral_discount_percent||0; document.getElementById('rwL1').value=s.level_1_percent||0; document.getElementById('rwL2').value=s.level_2_percent||0; document.getElementById('rwL3').value=s.level_3_percent||0;
     renderPendingRewards(m.pending_requests||[],m.open_orders||[]); const rows=m.recent_redemptions||[]; document.getElementById('rwRecent').innerHTML=rows.length?rows.map(x=>`<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-subtle);"><div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:700;">${esc(x.customer_name||x.mobile)}</div><div style="font-size:11.5px;color:var(--text-muted);">${esc(x.mobile)} · ${esc(String(x.creation||'').slice(0,16))}</div></div><div class="mono" style="font-size:13px;font-weight:700;color:var(--color-danger);">−Rs ${nfmt(x.amount||0)}</div></div>`).join(''):'<div style="font-size:13px;color:var(--text-muted);">No redemptions yet.</div>';
   }
   function renderPendingRewards(requests,orders){ const wrap=document.getElementById('rwMatches'); if(!requests.length){ wrap.innerHTML='<div style="font-size:12.5px;color:var(--text-muted);padding:6px 0;">No pending customer codes.</div>'; return; } wrap.innerHTML=requests.map(x=>{ const order=orders.find(o=>String(o.mobile||'').replace(/\D/g,'').slice(-9)===String(x.mobile||'').replace(/\D/g,'').slice(-9)); return `<button onclick="pickRewardRequest('${esc(x.code)}','${order?esc(order.name):''}')" style="display:flex;width:100%;align-items:center;gap:8px;border:0;border-bottom:1px solid var(--border-subtle);background:transparent;padding:9px 2px;color:var(--text-body);"><span class="mono" style="font-weight:800;letter-spacing:.08em;">${esc(x.code)}</span><span style="flex:1;text-align:left;font-size:11.5px;color:var(--text-muted);">${esc(x.mobile)}${order?' · '+esc(order.name):' · no open order'}</span><span class="mono" style="font-size:12.5px;font-weight:700;color:var(--color-success);">Rs ${nfmt(x.amount||0)}</span></button>`; }).join(''); }
   function pickRewardRequest(code,order){ document.getElementById('rwCode').value=code; document.getElementById('rwOrder').value=order; }
-  async function redeemCustomerReward(){ const btn=document.getElementById('rwRedeemBtn'),err=document.getElementById('rwError'); err.style.display='none'; btn.disabled=true; const r=await _post('/api/method/luuvcrm.api.manager_redeem_reward',{code:document.getElementById('rwCode').value,order_name:document.getElementById('rwOrder').value,notes:document.getElementById('rwNote').value}); if(r){ const d=await r.json(),m=d.message||{}; if(r.ok&&m.success){ toast('Reward linked · order total Rs '+nfmt(m.order_total)); document.getElementById('rwCode').value=''; document.getElementById('rwOrder').value=''; document.getElementById('rwNote').value=''; loadOffersRewards(); } else { err.textContent=m.error||_smsg(d,'Could not redeem'); err.style.display='block'; } } btn.disabled=false; }
-  async function saveRewardSettings(){ const btn=document.getElementById('rwSettingsBtn'); btn.disabled=true; const r=await _post('/api/method/luuvcrm.api.manager_update_loyalty_settings',{min_redeem:document.getElementById('rwMin').value,referral_discount_percent:document.getElementById('rwDiscount').value,level_1_percent:document.getElementById('rwL1').value,level_2_percent:document.getElementById('rwL2').value,level_3_percent:document.getElementById('rwL3').value}); if(r&&r.ok){ toast('Reward settings saved'); } else toast('Could not save settings'); btn.disabled=false; }
+  async function redeemCustomerReward(){ const btn=document.getElementById('rwRedeemBtn'),err=document.getElementById('rwError'); err.style.display='none'; btn.disabled=true; const r=await _post('/api/method/luuvcrm.api.manager_redeem_reward',{code:document.getElementById('rwCode').value,order_name:document.getElementById('rwOrder').value,notes:document.getElementById('rwNote').value}); if(r){ const d=await r.json(),m=d.message||{}; if(r.ok&&m.success){ toast('Reward linked · order total Rs '+nfmt(m.order_total)); document.getElementById('rwCode').value=''; document.getElementById('rwOrder').value=''; document.getElementById('rwNote').value=''; loadOffersRewards(); if(document.getElementById('rwMobileSearch').value.trim()) searchCustomerRewards(); } else { err.textContent=m.error||_smsg(d,'Could not redeem'); err.style.display='block'; } } btn.disabled=false; }
+  async function saveRewardSettings(){ const btn=document.getElementById('rwSettingsBtn'); btn.disabled=true; try{ const r=await _post('/api/method/luuvcrm.api.manager_update_loyalty_settings',{min_redeem:document.getElementById('rwMin').value,referral_discount_percent:document.getElementById('rwDiscount').value,level_1_percent:document.getElementById('rwL1').value,level_2_percent:document.getElementById('rwL2').value,level_3_percent:document.getElementById('rwL3').value}); if(r&&r.ok){ const d=await r.json(); if(d.message&&d.message.success){ rwSavedSettings=d.message.settings||{}; closeProgrammeSettings(); toast('Reward settings saved'); } else toast('Could not save settings'); } else toast('Could not save settings'); }catch(e){ toast('Could not save settings'); } finally{ btn.disabled=false; } }
   // Zoomable image viewer: pinch / double-tap / wheel to zoom, drag to pan.
   const _iv={scale:1,tx:0,ty:0,startDist:0,startScale:1,panX:0,panY:0,startTx:0,startTy:0,lastTap:0,moved:false,mouseDown:false};
   function viewImg(src){ const img=document.getElementById('imgViewerImg'); img.src=src; ivReset(); document.getElementById('imgViewer').style.display='flex'; }
