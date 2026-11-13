@@ -708,7 +708,8 @@ html[data-theme="dark"] .pwa-banner{background:rgba(23,25,24,.97);border-color:r
       <article class="made-card">
         <span class="made-card-head"><span class="made-card-mark"><i data-lucide="map-pinned" style="width:20px;height:20px;"></i></span><span><span class="made-card-kicker">Restaurant information</span><span class="made-card-title">{{ restaurant_name or brand_name }} outlet</span></span></span>
         <span class="outlet-card-copy">Planning a visit or picking up an order? Find us, check our opening hours or call the restaurant.</span>
-        <a class="outlet-directions" href="https://www.google.com/maps/dir/?api=1&amp;destination=Luuv%20Fryxo%2C%20Kurunegala&amp;travelmode=driving&amp;dir_action=navigate" target="_blank" rel="noopener" aria-label="Get driving directions to the Kurunegala outlet from your current location">
+        {% set directions_city = "Dambulla" if restaurant_name == "Luuv Fryxo" else restaurant_name %}
+        <a class="outlet-directions" href="https://www.google.com/maps/dir/?api=1&amp;destination=Luuv%20Fryxo%2C%20{{ directions_city|urlencode }}&amp;travelmode=driving&amp;dir_action=navigate" target="_blank" rel="noopener" aria-label="Get driving directions to the {{ directions_city }} outlet from your current location">
           <span class="outlet-action-icon"><i data-lucide="navigation"></i></span><span class="outlet-action-copy"><strong>Get directions</strong><small>Route from your current location</small></span><i class="outlet-arrow" data-lucide="arrow-up-right"></i>
         </a>
         <span class="outlet-info-grid">

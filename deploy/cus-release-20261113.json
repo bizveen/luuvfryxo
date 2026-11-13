@@ -63,8 +63,8 @@
       "md5": "343ddc1fefcad911e99d7a81165be1c0"
     },
     "luuvcrm/www/cus.html": {
-      "sha256": "06c52928a2855c99b88d7340cea7b73d5cf7e243ff94e521b55bd6d564fde770",
-      "md5": "cc718408f000b469a43c1726c4756bf7"
+      "sha256": "df461a2e4b32567b3bd7c16af0933e296c7031b8a7eaffe8eba87db0ad1fb093",
+      "md5": "65cf8ab5732f7af14c866cfdf5f483cb"
     },
     "luuvcrm/www/cus.py": {
       "sha256": "520c41c4d35182b10b7d3bb79d6b748c1e9d940121393b20e95f871233e56876",
@@ -534,5 +534,10 @@
     "sha256": "e2a2522cc16a9a5441a146a0bb07a7be2e8ea956b15b995e783da30c82dfa08c",
     "tables": 895,
     "gzip_crc_verified": true
+  },
+  "followup": {
+    "verified_at": "2026-11-13T04:34:21.020Z",
+    "file": "luuvcrm/www/cus.html",
+    "reason": "Restore outlet-specific directions lost in the incoming branch"
   }
 }
