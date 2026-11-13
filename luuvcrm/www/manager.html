@@ -80,8 +80,8 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
 @media (min-width:900px){
   .card{width:100%;max-width:1260px;margin:0 24px;}
   /* dashboard-style tabs flow into two masonry columns; cards never split */
-  #tabToday,#tabReports,#tabCash,#tabPurchases,#tabSettings,#tabOffersRewards{column-count:2;column-gap:16px;}
-  #tabToday>*,#tabReports>*,#tabCash>*,#tabPurchases>*,#tabSettings>*,#tabOffersRewards>*{break-inside:avoid;}
+  #tabToday,#tabReports,#tabCash,#tabPurchases,#tabSettings{column-count:2;column-gap:16px;}
+  #tabToday>*,#tabReports>*,#tabCash>*,#tabPurchases>*,#tabSettings>*{break-inside:avoid;}
   /* approvals feed becomes a two-column grid of cards */
   .apprGrid{display:grid !important;grid-template-columns:1fr 1fr;gap:14px !important;align-items:start;}
   .apprReqDesktop{display:block;text-align:right;flex:none;max-width:180px;}
@@ -477,56 +477,6 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
         </div>
       </div>
 
-      <div id="tabOffersRewards" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;">
-          <div><div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);">Offers & rewards</div><div style="font-size:13px;color:var(--text-muted);margin-top:3px;">Publish customer offers and redeem cashback at the counter.</div></div>
-          <button class="monthBtn active" onclick="openOfferEditor()"><i data-lucide="plus"></i><span>New offer</span></button>
-        </div>
-
-        <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px;"><div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);">Customer offers</div><span id="mgrOfferCount" class="mono" style="font-size:12px;color:var(--text-faint);"></span></div>
-          <div id="mgrOfferRows"><div style="font-size:13px;color:var(--text-muted);padding:8px 0;">Loading…</div></div>
-        </section>
-
-        <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:3px;">Reward programme</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:13px;">Outstanding balances and lifetime totals.</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div style="padding:11px;border-radius:var(--radius-md);background:var(--orange-50);"><div style="font-size:10px;font-weight:800;color:var(--orange-700);text-transform:uppercase;">Outstanding</div><div id="rwOutstanding" class="mono" style="font-size:18px;font-weight:700;margin-top:3px;">—</div></div>
-            <div style="padding:11px;border-radius:var(--radius-md);background:var(--surface-sunken);"><div style="font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;">Redeemed</div><div id="rwRedeemed" class="mono" style="font-size:18px;font-weight:700;margin-top:3px;">—</div></div>
-            <div style="padding:11px;border-radius:var(--radius-md);background:var(--surface-sunken);"><div style="font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;">Customers</div><div id="rwCustomers" class="mono" style="font-size:18px;font-weight:700;margin-top:3px;">—</div></div>
-            <div style="padding:11px;border-radius:var(--radius-md);background:var(--surface-sunken);"><div style="font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;">Total earned</div><div id="rwEarned" class="mono" style="font-size:18px;font-weight:700;margin-top:3px;">—</div></div>
-          </div>
-        </section>
-
-        <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:3px;">Redeem at counter</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Enter the customer's 6-digit code and link it to their unpaid order. The balance is deducted only after this confirmation.</div>
-          <div style="display:flex;gap:8px;margin-bottom:9px;"><input id="rwCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-digit code" style="flex:1;min-width:0;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px;font-family:var(--font-mono);font-size:15px;letter-spacing:.1em;"><input id="rwOrder" type="text" placeholder="POS order" style="flex:1;min-width:0;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px;font-family:var(--font-mono);font-size:14px;"></div>
-          <input id="rwNote" type="text" maxlength="180" placeholder="Note (optional)" style="width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:12px;font-size:14px;margin-bottom:9px;">
-          <div id="rwMatches" style="margin-bottom:10px;"></div>
-          <div id="rwError" style="display:none;color:var(--color-danger);font-size:12.5px;font-weight:700;margin-bottom:9px;"></div>
-          <button class="lf-btn" id="rwRedeemBtn" onclick="redeemCustomerReward()">Redeem reward</button>
-        </section>
-
-        <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:11px;">Programme settings</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Minimum redeem<input id="rwMin" type="number" min="0" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Friend discount %<input id="rwDiscount" type="number" min="0" max="100" step="0.5" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 1 %<input id="rwL1" type="number" min="0" max="50" step="0.5" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 2 %<input id="rwL2" type="number" min="0" max="50" step="0.5" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-            <label style="font-size:12px;font-weight:700;color:var(--text-strong);">Level 3 %<input id="rwL3" type="number" min="0" max="50" step="0.5" style="width:100%;margin-top:5px;padding:10px;border:1px solid var(--border-default);border-radius:var(--radius-md);"></label>
-          </div>
-          <button class="lf-btn" id="rwSettingsBtn" onclick="saveRewardSettings()" style="margin-top:12px;">Save settings</button>
-        </section>
-
-        <section style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:17px;box-shadow:var(--shadow-sm);margin-bottom:14px;">
-          <div style="font-family:var(--font-display);font-weight:800;font-size:15px;color:var(--text-strong);margin-bottom:10px;">Recent redemptions</div>
-          <div id="rwRecent"><div style="font-size:13px;color:var(--text-muted);">Loading…</div></div>
-        </section>
-      </div>
-
       <div id="tabSettings" style="display:none;animation:mgrFade var(--duration-base) var(--ease-out);">
         <div style="font-family:var(--font-display);font-weight:800;font-size:21px;color:var(--text-strong);letter-spacing:-.01em;margin-bottom:3px;">Menu settings</div>
         <div style="font-size:13.5px;color:var(--text-muted);margin-bottom:14px;" id="setSub">—</div>
@@ -546,7 +496,7 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     </div>
 
     <!-- bottom nav -->
-    <div class="manager-bottom-nav" style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);border-radius:22px 22px 0 0;display:flex;padding:10px 12px 14px;gap:4px;box-shadow:0 -5px 13px rgba(48,32,21,.08),0 -18px 38px rgba(48,32,21,.08);">
+    <div style="position:sticky;bottom:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border-subtle);display:flex;padding:10px 12px 14px;gap:4px;">
       <button class="navb active" data-tab="today" onclick="setTab('today')"><span style="position:relative;display:inline-flex;"><i data-lucide="bar-chart-3"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Today</span></button>
       <button class="navb" data-tab="approvals" onclick="setTab('approvals')"><span style="position:relative;display:inline-flex;"><i data-lucide="bell"></i><span id="navBadge" style="display:none;position:absolute;top:-6px;right:-9px;min-width:18px;height:18px;border-radius:9px;background:var(--color-danger);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface-card);"></span></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Approvals</span></button>
       <button class="navb" data-tab="cash" onclick="setTab('cash')"><span style="position:relative;display:inline-flex;"><i data-lucide="wallet"></i></span><span style="font-size:11.5px;font-weight:700;font-family:var(--font-display);">Cash</span></button>
@@ -729,31 +679,6 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
   </div>
 </div>
 
-<!-- Customer offer editor -->
-<div id="offerEditor" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1100;" onclick="closeOfferEditor()">
-  <div onclick="event.stopPropagation()" style="width:100%;max-width:520px;max-height:92vh;overflow-y:auto;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:18px 22px calc(24px + env(safe-area-inset-bottom));">
-    <div style="width:44px;height:5px;border-radius:99px;background:var(--gray-300);margin:0 auto 14px;"></div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><div id="ofTitle" style="font-family:var(--font-display);font-weight:800;font-size:19px;color:var(--text-strong);flex:1;">New offer</div><button onclick="closeOfferEditor()" aria-label="Close" style="width:36px;height:36px;border:1px solid var(--border-default);border-radius:50%;background:var(--surface-card);color:var(--text-body);display:grid;place-items:center;"><i data-lucide="x"></i></button></div>
-    <label style="display:block;font-size:12.5px;font-weight:700;margin-bottom:10px;">Offer title<input id="ofCustomerTitle" type="text" maxlength="140" placeholder="Buy 5, get 1 FREE" oninput="renderOfferPreview()" style="width:100%;margin-top:5px;padding:11px 12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);font-size:15px;"></label>
-    <label style="display:block;font-size:12.5px;font-weight:700;margin-bottom:10px;">Description<textarea id="ofDescription" maxlength="500" oninput="renderOfferPreview()" placeholder="Order 5 eligible items and your 6th item is free." style="width:100%;margin-top:5px;padding:11px 12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);font-size:14px;min-height:70px;resize:vertical;"></textarea></label>
-    <label style="display:block;font-size:12.5px;font-weight:700;margin-bottom:10px;">Offer type<select id="ofType" onchange="syncOfferFields();renderOfferPreview()" style="width:100%;margin-top:5px;padding:11px 12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);background:var(--surface-card);font-size:14px;"><option>Buy X Get Y Free</option><option>Percentage Off</option><option>Free Item</option><option>Announcement</option></select></label>
-    <div id="ofBuyFields" style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;"><label style="font-size:12.5px;font-weight:700;">Buy quantity<input id="ofBuyQty" type="number" min="1" value="5" oninput="renderOfferPreview()" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label><label style="font-size:12.5px;font-weight:700;">Free quantity<input id="ofFreeQty" type="number" min="1" value="1" oninput="renderOfferPreview()" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label></div>
-    <label id="ofPercentWrap" style="display:none;font-size:12.5px;font-weight:700;margin-bottom:10px;">Discount %<input id="ofPercent" type="number" min="0" max="100" step="0.5" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label>
-    <label id="ofItemWrap" style="display:none;font-size:12.5px;font-weight:700;margin-bottom:10px;">Free item code<input id="ofFreeItem" type="text" placeholder="Item code" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;"><label style="font-size:12.5px;font-weight:700;">Eligible category<input id="ofGroup" type="text" list="ofGroupList" placeholder="All categories" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label><label style="font-size:12.5px;font-weight:700;">Eligible item codes<input id="ofItems" type="text" placeholder="ITEM-1, ITEM-2" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label></div><datalist id="ofGroupList"></datalist>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:10px;"><label style="font-size:12px;font-weight:700;">Minimum bill<input id="ofMinimum" type="number" min="0" value="0" style="width:100%;margin-top:5px;padding:10px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label><label style="font-size:12px;font-weight:700;">Per customer<input id="ofPerCustomer" type="number" min="0" value="1" style="width:100%;margin-top:5px;padding:10px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label><label style="font-size:12px;font-weight:700;">Total limit<input id="ofTotalLimit" type="number" min="0" value="0" style="width:100%;margin-top:5px;padding:10px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label></div>
-    <label style="display:block;font-size:12.5px;font-weight:700;margin-bottom:10px;">Active days (blank = every day)<input id="ofDays" type="text" placeholder="Mon,Tue,Wed,Thu,Fri,Sat,Sun" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;"><label style="font-size:12.5px;font-weight:700;">Daily start<input id="ofDailyStart" type="time" style="width:100%;margin-top:5px;padding:10px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label><label style="font-size:12.5px;font-weight:700;">Daily end<input id="ofDailyEnd" type="time" style="width:100%;margin-top:5px;padding:10px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label></div>
-    <label style="display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700;margin:8px 0 10px;"><input id="ofStackable" type="checkbox" style="width:18px;height:18px;accent-color:var(--color-primary);"> Allow referral discount too</label>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;"><label style="font-size:12.5px;font-weight:700;">Promo code<input id="ofCode" type="text" maxlength="40" oninput="renderOfferPreview()" placeholder="FRYXO5PLUS1" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);text-transform:uppercase;"></label><label style="font-size:12.5px;font-weight:700;">Badge<input id="ofBadge" type="text" maxlength="80" oninput="renderOfferPreview()" placeholder="Ends Sunday" style="width:100%;margin-top:5px;padding:11px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;"><label style="font-size:12.5px;font-weight:700;">Starts<input id="ofStarts" type="datetime-local" style="width:100%;margin-top:5px;padding:10px 7px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label><label style="font-size:12.5px;font-weight:700;">Ends<input id="ofEnds" type="datetime-local" style="width:100%;margin-top:5px;padding:10px 7px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);"></label></div>
-    <label style="display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700;margin:8px 0 12px;"><input id="ofActive" type="checkbox" checked style="width:18px;height:18px;accent-color:var(--color-primary);"> Active in customer app</label>
-    <div id="ofPreview" style="margin-bottom:12px;"></div>
-    <div id="ofError" style="display:none;color:var(--color-danger);font-size:12.5px;font-weight:700;margin-bottom:10px;"></div>
-    <button class="lf-btn" id="ofSave" onclick="saveOffer()">Save offer</button>
-  </div>
-</div>
-
 <!-- More menu drawer (bottom bar overflow: Reports / Purchases / Settings / Tour guides) -->
 <div id="moreDrawer" style="position:fixed;inset:0;background:rgba(20,18,16,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:1000;" onclick="hideMore()">
   <div onclick="event.stopPropagation()" style="width:100%;max-width:430px;background:var(--surface-card);border-radius:var(--radius-2xl) var(--radius-2xl) 0 0;box-shadow:var(--shadow-lg);padding:18px 22px 30px;">
@@ -763,7 +688,6 @@ button[disabled]{opacity:.4;cursor:not-allowed;}
     <button onclick="moreGo('purchases')" class="moreRow"><span class="moreIco"><i data-lucide="shopping-cart"></i></span><span style="flex:1;text-align:left;">Purchases</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="moreGo('ratecard')" class="moreRow"><span class="moreIco"><i data-lucide="file-text"></i></span><span style="flex:1;text-align:left;">Tour companies</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="moreGo('settings')" class="moreRow"><span class="moreIco"><i data-lucide="settings"></i></span><span style="flex:1;text-align:left;">Menu settings</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
-    <button onclick="moreGo('offersRewards')" class="moreRow"><span class="moreIco"><i data-lucide="badge-percent"></i></span><span style="flex:1;text-align:left;">Offers & rewards</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="hideMore();openGuides()" class="moreRow"><span class="moreIco">🧭</span><span style="flex:1;text-align:left;">Tour guides</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="hideMore();openWastage()" class="moreRow"><span class="moreIco">🗑️</span><span style="flex:1;text-align:left;">Wastage</span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
     <button onclick="location.href='/activity'" class="moreRow"><span class="moreIco">👀</span><span style="flex:1;text-align:left;">Staff activity</span><span id="actFlagPill" style="display:none;font-family:var(--font-mono);font-size:11.5px;font-weight:700;color:#fff;background:var(--color-danger);border-radius:var(--radius-pill);padding:3px 9px;margin-right:6px;"></span><i data-lucide="chevron-right" style="width:17px;height:17px;color:var(--text-faint);"></i></button>
@@ -939,7 +863,7 @@ function lfPoll(fn, ms){
       if(r.ok && d.message && d.message.ok){ toast((cashDir==='in'?'Cash in':'Cash out')+' recorded'); hideCash(); loadDashboard(); }
       else { err.textContent=(d.message&&d.message.message)||'Could not record'; err.style.display='block'; } }catch(e){ err.textContent='Connection error'; err.style.display='block'; } btn.disabled=false; }
 
-  function setTab(t){ tab=t; const bar=(t==='reports'||t==='purchases'||t==='settings'||t==='ratecard'||t==='offersRewards')?'more':t;
+  function setTab(t){ tab=t; const bar=(t==='reports'||t==='purchases'||t==='settings'||t==='ratecard')?'more':t;
     document.querySelectorAll('.navb').forEach(b=>b.classList.toggle('active',b.dataset.tab===bar));
     document.getElementById('tabToday').style.display=t==='today'?'block':'none';
     document.getElementById('tabReports').style.display=t==='reports'?'block':'none';
@@ -948,12 +872,10 @@ function lfPoll(fn, ms){
     document.getElementById('tabPurchases').style.display=t==='purchases'?'block':'none';
     document.getElementById('tabSettings').style.display=t==='settings'?'block':'none';
     document.getElementById('tabRatecard').style.display=t==='ratecard'?'block':'none';
-    document.getElementById('tabOffersRewards').style.display=t==='offersRewards'?'block':'none';
     if(t==='purchases') loadPurchases();
     if(t==='approvals') loadApprovals();
     if(t==='settings') loadSettings();
     if(t==='ratecard') loadRatecard();
-    if(t==='offersRewards') loadOffersRewards();
     if(t==='reports') loadReports(); icons(); }
 
   function hourLabel(h){ const ap=h<12?'a':'p'; let hh=h%12; if(hh===0) hh=12; return hh+ap; }
@@ -2394,70 +2316,6 @@ function lfPoll(fn, ms){
   function openMore(){ document.getElementById('moreDrawer').style.display='flex'; icons(); }
   function hideMore(){ document.getElementById('moreDrawer').style.display='none'; }
   function moreGo(t){ hideMore(); setTab(t); }
-
-  // ── Customer offers + cashback rewards ───────────────────────────────
-  let mgrOffers=[], mgrOfferMeta={}, editingOffer=null, rewardSearchTimer=null;
-  async function loadOffersRewards(){
-    document.getElementById('mgrOfferRows').innerHTML='<div style="font-size:13px;color:var(--text-muted);padding:8px 0;">Loading…</div>';
-    try{
-      const [or,rr]=await Promise.all([
-        _post('/api/method/luuvcrm.api.manager_get_offers',{}),
-        _post('/api/method/luuvcrm.api.manager_get_rewards',{})
-      ]);
-      if(or){ const d=await or.json(); const m=d.message||{}; mgrOfferMeta=m; mgrOffers=m.offers||[]; document.getElementById('ofGroupList').innerHTML=(m.item_groups||[]).map(g=>`<option value="${esc(g)}"></option>`).join(''); renderManagerOffers(); }
-      if(rr){ const d=await rr.json(); renderManagerRewards(d.message||{}); }
-    }catch(e){ toast('Could not load offers & rewards'); }
-  }
-  function renderManagerOffers(){
-    const wrap=document.getElementById('mgrOfferRows');
-    document.getElementById('mgrOfferCount').textContent=mgrOffers.length?(mgrOffers.length+' saved'):'';
-    if(!mgrOffers.length){ wrap.innerHTML='<div style="padding:12px 0;font-size:13px;color:var(--text-muted);">No offers yet. Create the first customer offer.</div>'; return; }
-    wrap.innerHTML=mgrOffers.map((o,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border-subtle);">
-      <span style="width:39px;height:39px;border-radius:12px;background:${o.active?'var(--orange-50)':'var(--surface-sunken)'};display:grid;place-items:center;font-size:19px;flex:none;">${o.offer_type==='Percentage Off'?'%':'🎁'}</span>
-      <div onclick="editOffer(${i})" style="flex:1;min-width:0;cursor:pointer;"><div style="font-size:14px;font-weight:800;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(o.title)}</div><div style="font-size:11.5px;color:var(--text-muted);">${esc(o.offer_type)}${o.promo_code?' · '+esc(o.promo_code):''}</div><div class="mono" style="font-size:10.5px;color:var(--text-faint);margin-top:3px;">${nfmt(o.views||0)} views · ${nfmt(o.claims||0)} claims · ${nfmt(o.redemptions||0)} used · Rs ${nfmt(o.revenue_generated||0)}</div></div>
-      <button onclick="notifyOffer(${i})" aria-label="Notify customers" style="width:34px;height:34px;border:1px solid var(--border-default);border-radius:50%;background:var(--surface-card);color:var(--text-body);display:grid;place-items:center;padding:0;"><i data-lucide="bell" style="width:14px;"></i></button>
-      <button onclick="toggleOffer(${i})" style="border:0;border-radius:99px;padding:6px 10px;background:${o.active?'var(--color-success-subtle)':'var(--surface-sunken)'};color:${o.active?'var(--color-success)':'var(--text-muted)'};font-size:11.5px;font-weight:800;">${o.active?'Active':'Off'}</button>
-      <button onclick="editOffer(${i})" aria-label="Edit" style="width:34px;height:34px;border:1px solid var(--border-default);border-radius:50%;background:var(--surface-card);color:var(--text-body);display:grid;place-items:center;padding:0;"><i data-lucide="pencil" style="width:14px;"></i></button>
-    </div>`).join(''); icons();
-  }
-  function offerDate(v){ return v?String(v).replace(' ','T').slice(0,16):''; }
-  function openOfferEditor(){
-    editingOffer=null; document.getElementById('ofTitle').textContent='New offer';
-    document.getElementById('ofCustomerTitle').value='Buy 5, get 1 FREE';
-    document.getElementById('ofDescription').value='Order 5 eligible items and your 6th item is free.';
-    document.getElementById('ofType').value='Buy X Get Y Free'; document.getElementById('ofBuyQty').value=5; document.getElementById('ofFreeQty').value=1;
-    document.getElementById('ofPercent').value=''; document.getElementById('ofFreeItem').value=''; document.getElementById('ofCode').value='FRYXO5PLUS1'; document.getElementById('ofBadge').value='Limited time'; document.getElementById('ofStarts').value=''; document.getElementById('ofEnds').value=''; document.getElementById('ofActive').checked=true;
-    document.getElementById('ofGroup').value=''; document.getElementById('ofItems').value=''; document.getElementById('ofMinimum').value=0; document.getElementById('ofPerCustomer').value=1; document.getElementById('ofTotalLimit').value=0; document.getElementById('ofDays').value=''; document.getElementById('ofDailyStart').value=''; document.getElementById('ofDailyEnd').value=''; document.getElementById('ofStackable').checked=false;
-    document.getElementById('ofError').style.display='none'; syncOfferFields(); renderOfferPreview(); document.getElementById('offerEditor').style.display='flex'; icons();
-  }
-  function editOffer(i){
-    const o=mgrOffers[i]; if(!o) return; editingOffer=o.name; document.getElementById('ofTitle').textContent='Edit offer';
-    document.getElementById('ofCustomerTitle').value=o.title||''; document.getElementById('ofDescription').value=o.description||''; document.getElementById('ofType').value=o.offer_type||'Announcement'; document.getElementById('ofBuyQty').value=o.buy_quantity||5; document.getElementById('ofFreeQty').value=o.free_quantity||1; document.getElementById('ofPercent').value=o.discount_percent||''; document.getElementById('ofFreeItem').value=o.free_item||''; document.getElementById('ofCode').value=o.promo_code||''; document.getElementById('ofBadge').value=o.badge_text||''; document.getElementById('ofStarts').value=offerDate(o.starts_on); document.getElementById('ofEnds').value=offerDate(o.ends_on); document.getElementById('ofActive').checked=!!o.active;
-    document.getElementById('ofGroup').value=o.eligible_item_group||''; document.getElementById('ofItems').value=o.eligible_items||''; document.getElementById('ofMinimum').value=o.minimum_order_amount||0; document.getElementById('ofPerCustomer').value=o.per_customer_limit||0; document.getElementById('ofTotalLimit').value=o.total_redemption_limit||0; document.getElementById('ofDays').value=o.days_of_week||''; document.getElementById('ofDailyStart').value=String(o.daily_start_time||'').slice(0,5); document.getElementById('ofDailyEnd').value=String(o.daily_end_time||'').slice(0,5); document.getElementById('ofStackable').checked=!!o.stackable;
-    document.getElementById('ofError').style.display='none'; syncOfferFields(); renderOfferPreview(); document.getElementById('offerEditor').style.display='flex'; icons();
-  }
-  function closeOfferEditor(){ document.getElementById('offerEditor').style.display='none'; }
-  function syncOfferFields(){ const t=document.getElementById('ofType').value; document.getElementById('ofBuyFields').style.display=t==='Buy X Get Y Free'?'grid':'none'; document.getElementById('ofPercentWrap').style.display=t==='Percentage Off'?'block':'none'; document.getElementById('ofItemWrap').style.display=t==='Free Item'?'block':'none'; }
-  function renderOfferPreview(){
-    const title=document.getElementById('ofCustomerTitle').value||'Offer title'; const desc=document.getElementById('ofDescription').value||'Offer details appear here.'; const badge=document.getElementById('ofBadge').value; const code=document.getElementById('ofCode').value;
-    document.getElementById('ofPreview').innerHTML=`<div style="border:1px solid var(--orange-200);background:linear-gradient(135deg,#fff 35%,var(--orange-50));border-radius:18px;padding:15px;"><div style="width:39px;height:39px;border-radius:12px;background:var(--orange-100);display:grid;place-items:center;font-size:20px;margin-bottom:9px;">🍟</div><div style="font-size:15px;font-weight:800;color:var(--text-strong);">${esc(title)}</div><div style="font-size:12px;color:var(--text-muted);line-height:1.45;margin-top:4px;">${esc(desc)}</div>${badge?`<span style="display:inline-block;margin-top:9px;padding:4px 9px;border-radius:99px;background:var(--orange-100);color:var(--orange-700);font-size:10.5px;font-weight:800;">${esc(badge)}</span>`:''}${code?`<div class="mono" style="margin-top:9px;font-weight:700;">${esc(code.toUpperCase())}</div>`:''}</div>`;
-  }
-  async function saveOffer(){
-    const err=document.getElementById('ofError'),btn=document.getElementById('ofSave'); err.style.display='none'; btn.disabled=true;
-    const payload={name:editingOffer||'',title:document.getElementById('ofCustomerTitle').value,description:document.getElementById('ofDescription').value,offer_type:document.getElementById('ofType').value,buy_quantity:document.getElementById('ofBuyQty').value,free_quantity:document.getElementById('ofFreeQty').value,discount_percent:document.getElementById('ofPercent').value||0,free_item:document.getElementById('ofFreeItem').value,eligible_item_group:document.getElementById('ofGroup').value,eligible_items:document.getElementById('ofItems').value,minimum_order_amount:document.getElementById('ofMinimum').value,per_customer_limit:document.getElementById('ofPerCustomer').value,total_redemption_limit:document.getElementById('ofTotalLimit').value,days_of_week:document.getElementById('ofDays').value,daily_start_time:document.getElementById('ofDailyStart').value,daily_end_time:document.getElementById('ofDailyEnd').value,stackable:document.getElementById('ofStackable').checked?1:0,promo_code:document.getElementById('ofCode').value,badge_text:document.getElementById('ofBadge').value,starts_on:document.getElementById('ofStarts').value,ends_on:document.getElementById('ofEnds').value,active:document.getElementById('ofActive').checked?1:0};
-    try{ const r=await _post('/api/method/luuvcrm.api.manager_save_offer',payload); if(!r){ btn.disabled=false; return; } const d=await r.json(); if(r.ok&&d.message&&d.message.success){ toast('Offer saved · customer app updated'); closeOfferEditor(); loadOffersRewards(); } else { err.textContent=_smsg(d,'Could not save offer'); err.style.display='block'; } }catch(e){ err.textContent='Connection error'; err.style.display='block'; } btn.disabled=false;
-  }
-  async function toggleOffer(i){ const o=mgrOffers[i]; if(!o) return; const r=await _post('/api/method/luuvcrm.api.manager_toggle_offer',{name:o.name,active:o.active?0:1}); if(r&&r.ok){ o.active=!o.active; renderManagerOffers(); toast(o.active?'Offer activated':'Offer paused'); } }
-  async function notifyOffer(i){ const o=mgrOffers[i]; if(!o) return; const r=await _post('/api/method/luuvcrm.api.queue_customer_push_broadcast',{kind:'offer',title:o.title,body:o.description||'A new offer is waiting in the LUUV FRYXO app.',restaurant:o.restaurant||mgrOfferMeta.restaurant||''}); if(r&&r.ok){ const d=await r.json(); toast('Offer notification queued for '+nfmt((d.message&&d.message.queued)||0)+' devices'); } else toast('Could not queue notification'); }
-  function renderManagerRewards(m){
-    const t=m.totals||{},s=m.settings||{}; document.getElementById('rwOutstanding').textContent='Rs '+nfmt(t.outstanding||0); document.getElementById('rwRedeemed').textContent='Rs '+nfmt(t.redeemed||0); document.getElementById('rwCustomers').textContent=nfmt(t.customers||0); document.getElementById('rwEarned').textContent='Rs '+nfmt(t.earned||0);
-    document.getElementById('rwMin').value=s.min_redeem||0; document.getElementById('rwDiscount').value=s.referral_discount_percent||0; document.getElementById('rwL1').value=s.level_1_percent||0; document.getElementById('rwL2').value=s.level_2_percent||0; document.getElementById('rwL3').value=s.level_3_percent||0;
-    renderPendingRewards(m.pending_requests||[],m.open_orders||[]); const rows=m.recent_redemptions||[]; document.getElementById('rwRecent').innerHTML=rows.length?rows.map(x=>`<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-subtle);"><div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:700;">${esc(x.customer_name||x.mobile)}</div><div style="font-size:11.5px;color:var(--text-muted);">${esc(x.mobile)} · ${esc(String(x.creation||'').slice(0,16))}</div></div><div class="mono" style="font-size:13px;font-weight:700;color:var(--color-danger);">−Rs ${nfmt(x.amount||0)}</div></div>`).join(''):'<div style="font-size:13px;color:var(--text-muted);">No redemptions yet.</div>';
-  }
-  function renderPendingRewards(requests,orders){ const wrap=document.getElementById('rwMatches'); if(!requests.length){ wrap.innerHTML='<div style="font-size:12.5px;color:var(--text-muted);padding:6px 0;">No pending customer codes.</div>'; return; } wrap.innerHTML=requests.map(x=>{ const order=orders.find(o=>String(o.mobile||'').replace(/\D/g,'').slice(-9)===String(x.mobile||'').replace(/\D/g,'').slice(-9)); return `<button onclick="pickRewardRequest('${esc(x.code)}','${order?esc(order.name):''}')" style="display:flex;width:100%;align-items:center;gap:8px;border:0;border-bottom:1px solid var(--border-subtle);background:transparent;padding:9px 2px;color:var(--text-body);"><span class="mono" style="font-weight:800;letter-spacing:.08em;">${esc(x.code)}</span><span style="flex:1;text-align:left;font-size:11.5px;color:var(--text-muted);">${esc(x.mobile)}${order?' · '+esc(order.name):' · no open order'}</span><span class="mono" style="font-size:12.5px;font-weight:700;color:var(--color-success);">Rs ${nfmt(x.amount||0)}</span></button>`; }).join(''); }
-  function pickRewardRequest(code,order){ document.getElementById('rwCode').value=code; document.getElementById('rwOrder').value=order; }
-  async function redeemCustomerReward(){ const btn=document.getElementById('rwRedeemBtn'),err=document.getElementById('rwError'); err.style.display='none'; btn.disabled=true; const r=await _post('/api/method/luuvcrm.api.manager_redeem_reward',{code:document.getElementById('rwCode').value,order_name:document.getElementById('rwOrder').value,notes:document.getElementById('rwNote').value}); if(r){ const d=await r.json(),m=d.message||{}; if(r.ok&&m.success){ toast('Reward linked · order total Rs '+nfmt(m.order_total)); document.getElementById('rwCode').value=''; document.getElementById('rwOrder').value=''; document.getElementById('rwNote').value=''; loadOffersRewards(); } else { err.textContent=m.error||_smsg(d,'Could not redeem'); err.style.display='block'; } } btn.disabled=false; }
-  async function saveRewardSettings(){ const btn=document.getElementById('rwSettingsBtn'); btn.disabled=true; const r=await _post('/api/method/luuvcrm.api.manager_update_loyalty_settings',{min_redeem:document.getElementById('rwMin').value,referral_discount_percent:document.getElementById('rwDiscount').value,level_1_percent:document.getElementById('rwL1').value,level_2_percent:document.getElementById('rwL2').value,level_3_percent:document.getElementById('rwL3').value}); if(r&&r.ok){ toast('Reward settings saved'); } else toast('Could not save settings'); btn.disabled=false; }
   // Zoomable image viewer: pinch / double-tap / wheel to zoom, drag to pan.
   const _iv={scale:1,tx:0,ty:0,startDist:0,startScale:1,panX:0,panY:0,startTx:0,startTy:0,lastTap:0,moved:false,mouseDown:false};
   function viewImg(src){ const img=document.getElementById('imgViewerImg'); img.src=src; ivReset(); document.getElementById('imgViewer').style.display='flex'; }

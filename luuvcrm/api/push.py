@@ -1,16 +1,15 @@
 """Firebase Cloud Messaging for the native customer app.
 
-Signed-in installations are attached to the customer's seven-day session.
-Guest installations can be attached to one order using a server-signed ticket
-returned by the order-placement response.  A bare phone number is never enough
-to register a device, and guest devices never receive marketing broadcasts.
-The raw FCM token is never used as a customer identifier or written to a log.
+The Flutter shell registers an FCM token only after the customer has signed in.
+The public endpoints below authenticate with that same seven-day customer token;
+the raw FCM token never becomes a customer identifier and is never written to a
+log.  Sending uses FCM HTTP v1 with a service account kept in the site's private
+configuration, outside this repository.
 """
 
 from __future__ import annotations
 
 import hashlib
-import hmac
 import os
 from urllib.parse import urlencode
 
@@ -26,10 +25,8 @@ from luuvcrm.api.customers import _mobile_from_token
 PUSH_DOCTYPE = "Customer Push Token"
 FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 FCM_TIMEOUT_SECONDS = 12
-VALID_PLATFORMS = {"android": "Android", "ios": "iOS", "web": "Web"}
+VALID_PLATFORMS = {"android": "Android", "ios": "iOS"}
 VALID_BROADCAST_KINDS = {"offer", "promotion"}
-CUSTOMER_SCOPE = "Customer"
-GUEST_ORDER_SCOPE = "Guest Order"
 
 
 def _value(explicit, key):
@@ -38,20 +35,6 @@ def _value(explicit, key):
 
 def _token_hash(device_token):
     return hashlib.sha256(device_token.encode("utf-8")).hexdigest()
-
-
-def _guest_token_hash(order_name, device_token):
-    value = f"guest-order:{order_name}:{device_token}"
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def guest_order_push_ticket(order_name):
-    """Unforgeable proof returned only to the client that placed this order."""
-    from frappe.utils.password import get_encryption_key
-
-    value = f"guest-order-push:{order_name}".encode("utf-8")
-    return hmac.new(get_encryption_key().encode(), value,
-                    hashlib.sha256).hexdigest()[:32]
 
 
 def _clean_device_token(value):
@@ -78,7 +61,7 @@ def customer_register_push_token(customer_token=None, device_token=None, platfor
     platform_key = str(_value(platform, "platform") or "").strip().lower()
     platform_label = VALID_PLATFORMS.get(platform_key)
     if not platform_label:
-        return {"success": False, "error": "Platform must be Android, iOS or Web"}
+        return {"success": False, "error": "Platform must be Android or iOS"}
 
     restaurant = str(_value(restaurant, "restaurant") or "").strip()
     if restaurant and not frappe.db.exists("Restaurant", restaurant):
@@ -91,8 +74,6 @@ def customer_register_push_token(customer_token=None, device_token=None, platfor
         "restaurant": restaurant,
         "platform": platform_label,
         "app_version": str(_value(app_version, "app_version") or "")[:40],
-        "token_scope": CUSTOMER_SCOPE,
-        "order_name": "",
         "enabled": 1,
         "last_seen": now_datetime(),
     }
@@ -105,65 +86,6 @@ def customer_register_push_token(customer_token=None, device_token=None, platfor
             **values,
         }).insert(ignore_permissions=True)
     return {"success": True, "registered": True}
-
-
-@frappe.whitelist(allow_guest=True, methods=["POST"])
-def customer_register_guest_order_push(order_name=None, guest_ticket=None,
-                                       device_token=None, platform=None,
-                                       app_version=None):
-    """Attach this native installation to one CUS order, without a login.
-
-    The signed ticket is returned in the HTTPS response that created the order.
-    It prevents somebody who merely knows a sequential POS order name or phone
-    number from registering their device for another customer's notification.
-    """
-    order_name = str(_value(order_name, "order_name") or "").strip()
-    guest_ticket = str(_value(guest_ticket, "guest_ticket") or "").strip()
-    expected = guest_order_push_ticket(order_name) if order_name else ""
-    if not expected or not hmac.compare_digest(guest_ticket, expected):
-        return {"success": False, "error": "Invalid order ticket"}
-    if not frappe.db.exists("DocType", PUSH_DOCTYPE):
-        return {"success": False, "error": "Push notifications need bench migrate"}
-
-    order = frappe.db.get_value(
-        "POS Order", order_name,
-        ["name", "mobile", "restaurant", "waiter_name", "order_source",
-         "kitchen_status"], as_dict=True,
-    )
-    if (not order or not order.mobile or order.order_source != "Online"
-            or str(order.waiter_name or "").strip().upper() != "CUS"
-            or order.kitchen_status in ("Served", "Cancelled")):
-        return {"success": False, "error": "Order is not available"}
-
-    device_token = _clean_device_token(_value(device_token, "device_token"))
-    if not device_token:
-        return {"success": False, "error": "Invalid device token"}
-    platform_key = str(_value(platform, "platform") or "").strip().lower()
-    platform_label = VALID_PLATFORMS.get(platform_key)
-    if not platform_label:
-        return {"success": False, "error": "Platform must be Android, iOS or Web"}
-
-    digest = _guest_token_hash(order.name, device_token)
-    values = {
-        "device_token": device_token,
-        "mobile": order.mobile,
-        "restaurant": order.restaurant or "",
-        "platform": platform_label,
-        "app_version": str(_value(app_version, "app_version") or "")[:40],
-        "token_scope": GUEST_ORDER_SCOPE,
-        "order_name": order.name,
-        "enabled": 1,
-        "last_seen": now_datetime(),
-    }
-    if frappe.db.exists(PUSH_DOCTYPE, digest):
-        frappe.db.set_value(PUSH_DOCTYPE, digest, values)
-    else:
-        frappe.get_doc({
-            "doctype": PUSH_DOCTYPE,
-            "token_hash": digest,
-            **values,
-        }).insert(ignore_permissions=True)
-    return {"success": True, "registered": True, "order_name": order.name}
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -226,39 +148,7 @@ def _disable_token(token_hash):
 def _send_one(device, title, body, data, fcm_context):
     access_token, project_id = fcm_context
     kind = data.get("type") or "promotion"
-    is_order_update = kind in {"order_confirmed", "order_ready"}
-    channel = "order_updates" if is_order_update else "offers_promotions"
-    message = {
-        "token": device.device_token,
-        "notification": {"title": title, "body": body},
-        "data": _push_data(data),
-        "android": {
-            "priority": "HIGH" if is_order_update else "NORMAL",
-            "notification": {
-                "channel_id": channel,
-                "sound": "default",
-                "click_action": "FLUTTER_NOTIFICATION_CLICK",
-            },
-        },
-        "apns": {
-            "payload": {"aps": {"sound": "default", "badge": 1}},
-        },
-    }
-    if device.get("platform") == "Web":
-        route = str(data.get("route") or "/cus?tab=orders")
-        web_link = (route if route.startswith(("http://", "https://"))
-                    else frappe.utils.get_url(route))
-        message["webpush"] = {
-            "headers": {"Urgency": "high" if is_order_update else "normal"},
-        }
-        # FCM only accepts secure click/icon URLs. Local HTTP development still
-        # receives the notification; cus_sw.js routes the click from data.route.
-        if web_link.startswith("https://"):
-            icon = frappe.utils.get_url("/assets/luuvcrm/app/icon-192.png")
-            message["webpush"].update({
-                "notification": {"icon": icon, "badge": icon},
-                "fcm_options": {"link": web_link},
-            })
+    channel = "order_updates" if kind == "order_ready" else "offers_promotions"
     try:
         response = requests.post(
             f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send",
@@ -266,7 +156,24 @@ def _send_one(device, title, body, data, fcm_context):
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json; charset=UTF-8",
             },
-            json={"message": message},
+            json={
+                "message": {
+                    "token": device.device_token,
+                    "notification": {"title": title, "body": body},
+                    "data": _push_data(data),
+                    "android": {
+                        "priority": "HIGH" if kind == "order_ready" else "NORMAL",
+                        "notification": {
+                            "channel_id": channel,
+                            "sound": "default",
+                            "click_action": "FLUTTER_NOTIFICATION_CLICK",
+                        },
+                    },
+                    "apns": {
+                        "payload": {"aps": {"sound": "default", "badge": 1}},
+                    },
+                }
+            },
             timeout=FCM_TIMEOUT_SECONDS,
         )
     except requests.RequestException as error:
@@ -295,26 +202,10 @@ def _send_one(device, title, body, data, fcm_context):
 
 
 def _enabled_devices(filters=None):
-    wanted = {"enabled": 1, "token_scope": CUSTOMER_SCOPE, **(filters or {})}
+    wanted = {"enabled": 1, **(filters or {})}
     return frappe.get_all(PUSH_DOCTYPE, filters=wanted,
-                          fields=["name", "device_token", "mobile", "restaurant",
-                                  "platform", "token_scope", "order_name"],
+                          fields=["name", "device_token", "mobile", "restaurant"],
                           limit_page_length=10000)
-
-
-def _order_ready_devices(order_name, mobile):
-    """Signed-in devices for the mobile plus guest devices for this order."""
-    devices = _enabled_devices({"mobile": mobile})
-    devices.extend(_enabled_devices({
-        "token_scope": GUEST_ORDER_SCOPE,
-        "order_name": order_name,
-    }))
-    # A signed-in customer may have placed the order before logging in. Avoid a
-    # duplicate notification if the same FCM installation exists in both sets.
-    unique = {}
-    for device in devices:
-        unique.setdefault(device.device_token, device)
-    return list(unique.values())
 
 
 def send_customer_push(mobile, title, body, data=None):
@@ -340,61 +231,18 @@ def send_order_ready_push(order_name):
         return {"sent": 0, "failed": 0}
     restaurant = order.restaurant or ""
     query = urlencode({"r": restaurant, "tab": "orders"}) if restaurant else urlencode({"tab": "orders"})
-    devices = _order_ready_devices(order.name, order.mobile)
-    if not devices:
-        return {"sent": 0, "failed": 0}
-    try:
-        context = _fcm_context()
-    except Exception as error:
-        frappe.log_error(title="Firebase push is not configured",
-                         message=f"FCM credential setup failed ({type(error).__name__})")
-        return {"sent": 0, "failed": len(devices)}
-    data = {
-        "type": "order_ready",
-        "order_name": order.name,
-        "restaurant": restaurant,
-        "route": f"/cus?{query}",
-    }
-    title = "Your order is ready! 🍽️"
-    body = (f"#{order.name} is prepared and ready for pickup"
-            + (f" at {restaurant}." if restaurant else "."))
-    sent = sum(bool(_send_one(device, title, body, data, context))
-               for device in devices)
-    return {"sent": sent, "failed": len(devices) - sent}
-
-
-def send_order_confirmed_push(order_name):
-    """Tell the installation that placed an APP order it was accepted."""
-    order = frappe.db.get_value(
-        "POS Order", order_name,
-        ["name", "mobile", "restaurant"], as_dict=True)
-    if not order or not order.mobile:
-        return {"sent": 0, "failed": 0}
-    restaurant = order.restaurant or ""
-    query = urlencode({"r": restaurant, "tab": "orders"}) if restaurant else urlencode({"tab": "orders"})
-    devices = _order_ready_devices(order.name, order.mobile)
-    if not devices:
-        return {"sent": 0, "failed": 0}
-    try:
-        context = _fcm_context()
-    except Exception as error:
-        frappe.log_error(title="Firebase push is not configured",
-                         message=f"FCM credential setup failed ({type(error).__name__})")
-        return {"sent": 0, "failed": len(devices)}
-    data = {
-        "type": "order_confirmed",
-        "order_name": order.name,
-        "restaurant": restaurant,
-        "status": "Pending",
-        "route": f"/cus?{query}",
-    }
-    title = "Order confirmed ✅"
-    body = (f"#{order.name} was confirmed"
-            + (f" by {restaurant}." if restaurant else ".")
-            + " We will start preparing it shortly.")
-    sent = sum(bool(_send_one(device, title, body, data, context))
-               for device in devices)
-    return {"sent": sent, "failed": len(devices) - sent}
+    return send_customer_push(
+        order.mobile,
+        "Your order is ready! 🍽️",
+        f"#{order.name} is prepared and ready for pickup"
+        + (f" at {restaurant}." if restaurant else "."),
+        {
+            "type": "order_ready",
+            "order_name": order.name,
+            "restaurant": restaurant,
+            "route": f"/cus?{query}",
+        },
+    )
 
 
 def queue_order_ready_push(order_name):
@@ -409,22 +257,6 @@ def queue_order_ready_push(order_name):
         "luuvcrm.api.push.send_order_ready_push",
         queue="short",
         enqueue_after_commit=True,
-        order_name=order_name,
-    )
-    return True
-
-
-def queue_order_confirmed_push(order_name):
-    """Queue confirmation after confirm_app_order has made its explicit commit."""
-    if not frappe.db.exists("DocType", PUSH_DOCTYPE):
-        return False
-    mobile = frappe.db.get_value("POS Order", order_name, "mobile")
-    if not mobile or not frappe.db.exists(
-            PUSH_DOCTYPE, {"mobile": mobile, "enabled": 1}):
-        return False
-    frappe.enqueue(
-        "luuvcrm.api.push.send_order_confirmed_push",
-        queue="short",
         order_name=order_name,
     )
     return True

@@ -68,7 +68,7 @@ _LINE_OPTIONAL = ["takeaway", "sent_qty", "notes"]
 
 
 def _is_cus_call_pending(order):
-    """CUS tickets stay held until POS staff explicitly confirm the call."""
+    """CUS tickets stay held until staff confirm the call and fire the KOT."""
     return (order.get("order_source") == "Online"
             and str(order.get("waiter_name") or "").strip().upper() == "CUS"
             and order.get("kitchen_status") == "Draft")
@@ -76,85 +76,7 @@ def _is_cus_call_pending(order):
 
 def _require_cus_call_released(order):
     if _is_cus_call_pending(order):
-        frappe.throw(_("Confirm the APP order before continuing."))
-
-
-@frappe.whitelist(methods=["POST"])
-def confirm_app_order():
-    """Accept one held APP order without firing its kitchen ticket.
-
-    Confirmation is deliberately separate from KOT acknowledgement: the app
-    sees Draft -> Pending immediately, while sent_qty and inventory move only
-    when staff subsequently press KOT.
-    """
-    roles.require_pos()
-    order_name = str(frappe.local.form_dict.get("order_name") or "").strip()
-    if not order_name:
-        frappe.throw(_("Order name is required"))
-    branch.require_access("POS Order", order_name)
-    order = frappe.get_doc("POS Order", order_name, for_update=True)
-    is_app = (order.get("order_source") == "Online"
-              and str(order.get("waiter_name") or "").strip().upper() == "CUS")
-    if not is_app:
-        frappe.throw(_("Only APP orders can be confirmed here."))
-    if order.kitchen_status in ("Served", "Cancelled"):
-        frappe.throw(_("This order is already closed."))
-
-    confirmed = order.kitchen_status == "Draft"
-    push_queued = False
-    if confirmed:
-        frappe.db.set_value("POS Order", order_name, "kitchen_status", "Pending")
-        # Make acceptance durable before the best-effort customer notification.
-        # Referral cashback is awarded only after payment.
-        frappe.db.commit()
-        try:
-            from luuvcrm.api.push import queue_order_confirmed_push
-
-            push_queued = queue_order_confirmed_push(order_name)
-        except Exception as exc:
-            # Confirmation has already committed; notification delivery is
-            # best effort and must never turn a successful POS tap into an
-            # error response or invite a duplicate confirmation.
-            frappe.log_error(
-                f"APP confirmation push queue error: {type(exc).__name__}",
-                "Customer push notification failed",
-            )
-    return {
-        "ok": True,
-        "name": order_name,
-        "status": "Pending" if confirmed else order.kitchen_status,
-        "confirmed": confirmed,
-        "push_queued": push_queued,
-    }
-
-
-def _mobile_key(mobile):
-    """Comparable local form for customer-account/order mobile numbers."""
-    digits = "".join(ch for ch in str(mobile or "") if ch.isdigit())
-    if digits.startswith("94") and len(digits) == 11:
-        return "0" + digits[2:]
-    return digits
-
-
-def _tag_registered_customers(orders):
-    """Mark orders whose phone belongs to an OTP-registered Customer Account.
-
-    One lookup covers the whole POS list; this screen polls, so checking each
-    order separately would turn a small UI badge into an N+1 query.
-    """
-    keys = {_mobile_key(o.get("mobile")) for o in orders if o.get("mobile")}
-    keys.discard("")
-    registered = set()
-    if keys and frappe.db.exists("DocType", "Customer Account"):
-        variants = set(keys)
-        variants.update("94" + key[1:] for key in keys if key.startswith("0") and len(key) == 10)
-        variants.update("+94" + key[1:] for key in keys if key.startswith("0") and len(key) == 10)
-        accounts = frappe.get_all("Customer Account", filters={"mobile": ["in", list(variants)]},
-                                  fields=["mobile"], limit_page_length=0)
-        registered = {_mobile_key(account.mobile) for account in accounts}
-    for order in orders:
-        order["customer_registered"] = bool(_mobile_key(order.get("mobile")) in registered)
-    return orders
+        frappe.throw(_("Call the customer to confirm, then print the KOT before continuing."))
 
 
 def lines_by_order(names):
@@ -449,7 +371,6 @@ def get_ongoing_orders():
         rows = lines.get(o.name, [])
         o["items_count"] = len(rows)
         o["items_json"] = json.dumps([_line_dict(i) for i in rows])
-    _tag_registered_customers(orders)
     return {"orders": orders}
 # ─── Kiosk Orders (Online source) ────────────────────────
 
@@ -512,7 +433,6 @@ def get_completed_orders():
                                 break
                     except Exception:
                         pass
-    _tag_registered_customers(orders)
     return {"orders": orders}
 # ─── Cancel Order ────────────────────────────────────────
 
@@ -532,12 +452,6 @@ def cancel_order():
     guard_cancel(pos_order)
     pos_order.db_set("docstatus", 2)
     pos_order.db_set("kitchen_status", "Cancelled")
-    from luuvcrm.api.loyalty import reverse_order_cashback, reverse_reward_redemption
-    from luuvcrm.api.offers import reverse_offer_redemption
-
-    reverse_reward_redemption(order_name)
-    reverse_order_cashback(order_name)
-    reverse_offer_redemption(order_name)
     # Manually create a Version record so Changes tab shows this
     from frappe.utils import now_datetime
     version = frappe.get_doc({
@@ -662,10 +576,14 @@ def mark_kot_printed():
     if not frappe.db.has_column("POS Order Item", "sent_qty"):
         _install_sent_qty_field()
     # A locking read sees the latest state even when a branch-access query
-    # opened an earlier database snapshot.
+    # opened an earlier database snapshot. Serialize the first CUS release
+    # so two counters cannot both confirm a stale Draft and credit cashback.
     doc = frappe.get_doc("POS Order", order_name, for_update=True)
-    if _is_cus_call_pending(doc):
-        frappe.throw(_("Confirm the APP order before printing its KOT."))
+    call_pending = _is_cus_call_pending(doc)
+    if call_pending:
+        confirmed = str(frappe.local.form_dict.get("call_confirmed") or "").strip().lower()
+        if confirmed not in ("1", "true", "yes"):
+            frappe.throw(_("Confirm the customer call before printing this CUS order's KOT."))
     # Issue the BOM ingredients before acknowledging the KOT. If stock cannot
     # move (for example, a configured ingredient is short), the transaction
     # rolls back and the ticket remains unfired rather than silently drifting.
@@ -673,21 +591,25 @@ def mark_kot_printed():
 
     stock = consume_order_stock(order_name)
     doc = frappe.get_doc("POS Order", order_name, for_update=True)
-    fired_new_lines = False
     for i in (doc.get("items") or []):
         if int(i.get("sent_qty") or 0) != int(i.qty or 0):
-            fired_new_lines = True
             frappe.db.set_value("POS Order Item", i.name, "sent_qty", int(i.qty or 0))
-    # This installation runs without a separate kitchen-status screen. Firing
-    # new KOT lines is therefore the authoritative start of cooking. The
-    # reprint path deliberately never calls this endpoint, and a redundant
-    # acknowledgement with no new lines leaves the current status untouched.
-    status = doc.kitchen_status
-    if fired_new_lines and status not in ("Served", "Cancelled"):
-        status = "Processing"
-        frappe.db.set_value("POS Order", order_name, "kitchen_status", status)
-    return {"ok": True, "stock": stock, "call_confirmed": False,
-            "status": status}
+    # Firing the KOT promotes a draft to the kitchen queue.
+    if doc.kitchen_status == "Draft":
+        frappe.db.set_value("POS Order", order_name, "kitchen_status", "Pending")
+    if call_pending:
+        # Match the former customer-confirmation flow: release is durable
+        # before best-effort cashback, whose helper may also commit. Retries
+        # see Pending and never credit the same first release again.
+        frappe.db.commit()
+        if doc.get("mobile") and float(doc.grand_total or 0) > 0:
+            try:
+                from luuvcrm.api.loyalty import _process_cashback
+
+                _process_cashback(doc.mobile, order_name, float(doc.grand_total or 0))
+            except Exception as exc:
+                frappe.log_error(f"Cashback error after CUS confirmation: {exc}", "Cashback")
+    return {"ok": True, "stock": stock, "call_confirmed": call_pending}
 @frappe.whitelist()
 def setup_kitchen_status_options():
     """Allow 'Draft' (auto-created, not yet fired) and 'Cancelled' as kitchen_status values via a
@@ -817,7 +739,6 @@ def get_table_orders():
     for o in orders:
         o["time_ago"] = frappe.utils.pretty_date(o["creation"])
         o["items"] = [_line_dict(i) for i in lines.get(o.name, [])]
-    _tag_registered_customers(orders)
     return {"orders": orders}
 @frappe.whitelist()
 def get_my_orders():

@@ -10,7 +10,7 @@ import json
 from frappe.utils import now_datetime
 
 from luuvcrm import branch, roles
-from luuvcrm.api.orders import SCREEN_ORDER_CEILING, _is_cus_call_pending, lines_by_order
+from luuvcrm.api.orders import SCREEN_ORDER_CEILING, lines_by_order
 from luuvcrm.api.shifts import _get_invoice_doc
 
 #: How far back the kitchen queue reaches.
@@ -23,10 +23,10 @@ from luuvcrm.api.shifts import _get_invoice_doc
 #: invisible to the kitchen** — with nothing on the screen saying so. Found on
 #: the test site at 275 pending against a ceiling of 200.
 #:
-#: Older versions did not close a ticket after full payment, so over months the
-#: ones nobody explicitly served accumulated. The customer flow now completes
-#: an existing ticket at payment; this window remains a safety net for legacy
-#: and otherwise abandoned tickets.
+#: Nothing closes a ticket automatically. `process_payment` sets the invoice and
+#: leaves `kitchen_status` alone, on purpose: a walk-in pays before the food is
+#: cooked, so "paid" is not "served". Somebody has to press Served, and over
+#: months the ones nobody pressed accumulate.
 #:
 #: Two days rather than "today": a shift that starts at 6pm and ends at 2am
 #: would otherwise lose half its tickets at midnight. Anything older than this
@@ -138,17 +138,11 @@ def mark_kitchen_ready():
     if not order_name:
         frappe.throw(_("Order name required"))
     branch.require_access("POS Order", order_name)
-    order = frappe.get_doc("POS Order", order_name, for_update=True)
-    if _is_cus_call_pending(order):
-        frappe.throw(_("Confirm the APP order before marking it ready."))
-    channel = str(order.get("waiter_name") or "").strip().upper()
     frappe.db.set_value("POS Order", order_name, "kitchen_status", "Ready")
     # Delivery is asynchronous and starts only after this transaction commits;
     # the kitchen button must never wait on Firebase or fail because it is down.
-    push_queued = False
-    if channel == "CUS":
-        from luuvcrm.api.push import queue_order_ready_push
-        push_queued = queue_order_ready_push(order_name)
+    from luuvcrm.api.push import queue_order_ready_push
+    push_queued = queue_order_ready_push(order_name)
     return {"status": "ready", "name": order_name, "push_queued": push_queued}
 @frappe.whitelist(methods=["POST"])
 def mark_kitchen_served():

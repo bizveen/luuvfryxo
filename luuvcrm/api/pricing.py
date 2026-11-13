@@ -39,8 +39,7 @@ def _apply_takeaway_service_charge(pos_order):
     sc_base = sum((i.qty or 1) * (i.rate or 0) for i in pos_order.items if not i.get("takeaway"))
     # A manager-approved discount applies to the items subtotal (before service charge),
     # so the SC base shrinks proportionally and the discount comes off the total.
-    disc = (float(pos_order.get("discount_amount") or 0)
-            + float(pos_order.get("reward_redeem_amount") or 0))
+    disc = float(pos_order.get("discount_amount") or 0)
     if disc > subtotal:
         disc = subtotal
     factor = (1 - disc / subtotal) if subtotal > 0 else 1

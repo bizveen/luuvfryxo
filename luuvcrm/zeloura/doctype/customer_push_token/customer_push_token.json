@@ -13,8 +13,6 @@
   "restaurant",
   "platform",
   "app_version",
-  "token_scope",
-  "order_name",
   "enabled",
   "last_seen"
  ],
@@ -53,29 +51,13 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Platform",
-   "options": "Android\niOS\nWeb",
+   "options": "Android\niOS",
    "reqd": 1
   },
   {
    "fieldname": "app_version",
    "fieldtype": "Data",
    "label": "App Version"
-  },
-  {
-   "default": "Customer",
-   "fieldname": "token_scope",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Token Scope",
-   "options": "Customer\nGuest Order",
-   "reqd": 1
-  },
-  {
-   "fieldname": "order_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Guest Order",
-   "search_index": 1
   },
   {
    "default": "1",

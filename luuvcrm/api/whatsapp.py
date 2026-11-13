@@ -17,6 +17,7 @@ from luuvcrm.api.guides import (
     _guide_default_percent,
     _hash_guide_pw,
 )
+from luuvcrm.api.loyalty import _process_cashback
 from luuvcrm.api.promos import PROMO_PICKUP_OUTLET, PROMO_WINDOW_HOURS, _claim_promo_code
 from luuvcrm.api.wa import _intl_number, _local_number, _normalize_wa_number
 from luuvcrm.api import wa
@@ -248,7 +249,11 @@ def process_wa_reply(doc, method):
                 if st:
                     sched_txt = ("\n⏰ Scheduled for "
                                  + frappe.utils.format_datetime(st, "d MMM h:mm a"))
-            # Referral cashback is awarded only after payment.
+            try:
+                if row.grand_total:
+                    _process_cashback(local, oname, float(row.grand_total or 0))
+            except Exception:
+                pass
             try:
                 send_order_whatsapp(oname)
             except Exception as e:
