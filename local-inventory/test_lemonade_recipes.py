@@ -18,7 +18,7 @@ class LemonadeRecipeTest(unittest.TestCase):
                     'KG-LEMONADE-PASSION':('Passion pulp',60,'ml'),
                     'KG-LEMONADE-BLUEBERRY':('Blueberry',20,'g')}
             self.assertEqual(set(refs),set(fruits))
-            shared=[('Ice',50,'g'),('Sprite',280,'ml'),('Lime',20,'g'),('Clear cups',1,'Nos'),
+            shared=[('Ice',50,'g'),('Sprite',210,'ml'),('Lime',20,'g'),('Clear cups',1,'Nos'),
                     ('Juice lid',1,'Nos'),('Straw',1,'Nos'),('Juice bag',1,'Nos')]
             for code,ref in refs.items():
                 before=deepcopy(store.dispatch('recipe',dict(item_code=code)))
@@ -30,8 +30,8 @@ class LemonadeRecipeTest(unittest.TestCase):
                 self.assertEqual(saved['history'][:-1],before['sheet_draft']['history'])
                 self.assertEqual(saved['current']['revision'],1)
                 self.assertNotIn('still to be supplied',saved['current']['note'])
-                self.assertTrue(any('Confirm Sprite quantity' in n for n in saved['pending_notes']))
-                if code.endswith('BLUEBERRY'):self.assertTrue(any('Confirm Blueberry quantity' in n for n in saved['pending_notes']))
+                self.assertEqual(ref['beverage_recipe']['pending_notes'],[])
+                self.assertFalse(any('provisionally' in n or 'Confirm Sprite quantity' in n or 'Confirm Blueberry quantity' in n for n in saved['pending_notes']))
                 self.assertFalse(any('sauce' in n.lower() or 'salad' in n.lower() for n in saved['pending_notes']))
                 args['expected_revision']=1
                 self.assertEqual(store.dispatch('save_sheet_draft',args)['history'],saved['history'])

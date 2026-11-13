@@ -1,7 +1,7 @@
 {
   "restaurant": "Kurunegala",
   "source_label": "Owner handwritten lemonade recipe",
-  "source_note": "Shared base for Strawberry, Passion and Blueberry lemonade, as instructed by the owner. Use a 300 ml cup. Keep the previously requested juice bag and add one straw. Sprite is provisionally read as 280 ml; Blueberry is provisionally read as 20 g. Confirm these handwritten quantities before stock activation.",
+  "source_note": "Shared base for Strawberry, Passion and Blueberry lemonade, as instructed by the owner. Use a 300 ml cup, lid, straw and juice bag: one each. Owner confirmed on 2026-11-13: Sprite 210 ml per lemonade and Blueberry 20 g in Blueberry Lemonade.",
   "shared_ingredients": [
     {
       "name": "Ice",
@@ -10,7 +10,7 @@
     },
     {
       "name": "Sprite",
-      "qty": 280,
+      "qty": 210,
       "unit": "ml"
     },
     {
@@ -41,9 +41,7 @@
       "unit": "Nos"
     }
   ],
-  "pending_notes": [
-    "Confirm Sprite quantity: the handwritten amount is provisionally read as 280 ml."
-  ],
+  "pending_notes": [],
   "recipes": [
     {
       "menu_item": "KG-LEMONADE-STRAWBERRY",
@@ -70,10 +68,7 @@
         "name": "Blueberry",
         "qty": 20,
         "unit": "g"
-      },
-      "pending_notes": [
-        "Confirm Blueberry quantity: the handwritten amount is provisionally read as 20 g."
-      ]
+      }
     }
   ]
 }
