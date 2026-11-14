@@ -36,3 +36,4 @@ luuvcrm.patches.v1_0.waiter_delivery
 luuvcrm.patches.v1_0.recipe_sheet_drafts
 luuvcrm.patches.v1_0.manager_preparation
 luuvcrm.patches.v1_0.offer_reward_fields
+luuvcrm.patches.v1_0.pos_customer_app

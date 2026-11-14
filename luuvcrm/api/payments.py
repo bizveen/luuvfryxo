@@ -83,6 +83,9 @@ def get_tour_company_options():
 def place_order():
     roles.require_pos()
     data = frappe.local.form_dict
+    from luuvcrm.api.pos_customers import prepare_pos_customer, queue_install_invite
+
+    prepared_customer = prepare_pos_customer(data)
     from luuvcrm.api.pos_inventory import FIELD as INVENTORY_MODE, creation_mode
     inventory_mode = creation_mode()
 
@@ -93,7 +96,7 @@ def place_order():
         frappe.throw(_("At least one item is required"))
 
     customer_name = data.get("customer_name", "").strip() or "Walk-in"
-    mobile = data.get("mobile", "").strip() or ""
+    mobile = prepared_customer.get("mobile", data.get("mobile", "").strip() or "")
     table = data.get("table", "")
     if table:
         branch.require_access("Restaurant Table", table)
@@ -197,6 +200,7 @@ def place_order():
         "notes": notes,
         "items": [],
     })
+    pos_order.update(prepared_customer)
 
     opening_entry_name = frappe.db.get_value("POS Opening Entry",
         {"status": "Open", "user": frappe.session.user,
@@ -245,6 +249,7 @@ def place_order():
                 "order_type": order_type, "source": order_source,
                 "tour_company": tour.get("tour_company")})
 
+    queue_install_invite(pos_order.name)
     return {
         "name": pos_order.name,
         "invoice_name": invoice.name,
@@ -270,7 +275,8 @@ def process_payment():
         frappe.throw(_("Order name is required"))
 
     branch.require_access("POS Order", order_name)
-    pos_order = frappe.get_doc("POS Order", order_name)
+    # Serialize payment with customer metadata edits and other payment requests.
+    pos_order = frappe.get_doc("POS Order", order_name, for_update=True)
     if pos_order.pos_invoice:
         frappe.throw(_("Payment already processed for this order"))
     if pos_order.docstatus != 0:
@@ -381,6 +387,9 @@ def process_payment():
                 "guide_redeem": redeem_amt, "items": len(pos_order.items),
                 "tour_company": tour.get("tour_company")})
 
+    from luuvcrm.api.pos_customers import queue_install_invite
+
+    queue_install_invite(order_name)
     return {
         "name": order_name,
         "invoice_name": invoice.name,
@@ -542,6 +551,10 @@ def pay_split():
                 "guide_redeem": redeem_amt, "fully_paid": bool(fully_paid),
                 "tour_company": tour.get("tour_company")})
 
+    if fully_paid:
+        from luuvcrm.api.pos_customers import queue_install_invite
+
+        queue_install_invite(order_name)
     return {
         "name": order_name,
         "invoice_name": invoice.name,

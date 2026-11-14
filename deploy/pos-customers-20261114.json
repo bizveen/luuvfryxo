@@ -23,12 +23,36 @@
     "luuvcrm/zeloura/doctype/customer_app_contact/customer_app_contact.json": {
       "sha256": "4af48cc65fe791a9a57d1ca0cbc1f822db5a4f136be182ac23e89884cc212921",
       "md5": "490b72e8b58207666fd28b99de8e00b6"
+    },
+    "luuvcrm/api/orders.py": {
+      "sha256": "ee102773deb05db8d46045cf3427268d3299f6436cb65c5353ba0126a98cc2e6",
+      "md5": "5eb361ef495832e98c5b93e5cdcb7f56"
+    },
+    "luuvcrm/api/payments.py": {
+      "sha256": "702ce39259dd8598978b36075d4331f0a8c52784c3a0b58c603cc4eba3565ef7",
+      "md5": "919b12301c7c1abd6e0646da6eabe0ab"
+    },
+    "luuvcrm/api/customers.py": {
+      "sha256": "ae5bb857f3a1f6ebe49378e779bb59754ed7ee146106a682452c9c80d724c119",
+      "md5": "6f7734816ebd580d0e4daf63ecf568d5"
+    },
+    "luuvcrm/patches.txt": {
+      "sha256": "ef34f32f4909fb4ad6afd7915b783d9eeee13df870461fc7eed60992b41f7278",
+      "md5": "3cacc1c322aed13f72a56caeb4739965"
+    },
+    "luuvcrm/setup_doctype.py": {
+      "sha256": "82e1b2b58b258cd9b31bda48a11e74681fa880fb096ed360527a9acdd0c11ab7",
+      "md5": "a9d17cd60b435d227e68af82af7944f1"
     }
   },
   "phases": [
     {
       "phase": "schema and invitation service",
       "verified_at": "2026-11-14T00:17:45.200Z"
+    },
+    {
+      "phase": "order and payment APIs",
+      "verified_at": "2026-11-14T00:20:40.445Z"
     }
   ],
   "containers": [

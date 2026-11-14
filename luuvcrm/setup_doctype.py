@@ -105,6 +105,7 @@ EXPECTED_DOCTYPES = (
     "Customer Account",
     "Customer Token",
     "Customer Push Token",
+    "Customer App Contact",
     "Loyalty Customer",
     "Cashback Transaction",
     "Loyalty Settings",
@@ -156,6 +157,8 @@ CUSTOM_FIELDS = [
      "fieldtype": "Percent", "description": "Guide commission percentage"},
 
     # POS Order header
+    {"dt": "POS Order", "fieldname": "customer_app_invite", "label": "Send App Installation SMS",
+     "fieldtype": "Check", "default": "0", "no_copy": 1, "read_only": 1, "insert_after": "mobile"},
     # Select, not Data: _is_takeaway() matches on "Take Away", and the option list
     # is what stops a typo from silently costing the service charge.
     {"dt": "POS Order", "fieldname": "order_type", "label": "Order Type", "fieldtype": "Select",

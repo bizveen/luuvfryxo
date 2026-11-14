@@ -14,6 +14,7 @@ import hashlib
 from frappe.utils import now_datetime
 
 from luuvcrm import settings
+from luuvcrm.customer_phone import phone_variants
 from luuvcrm.api.orders import lines_by_order
 from luuvcrm.api.wa import _wa_number
 from luuvcrm.api import sms, wa
@@ -245,7 +246,7 @@ def customer_get_orders():
     except Exception:
         limit = CUSTOMER_ORDER_PAGE
     orders = frappe.get_all("POS Order",
-        filters={"mobile": mobile},
+        filters={"mobile": ["in", phone_variants(mobile)]},
         fields=_fields,
         order_by="creation desc",
         limit_page_length=limit,
@@ -302,8 +303,10 @@ def customer_account_summary():
     mobile = _mobile_from_token(token)
     if not mobile:
         return {"success": False, "error": "Login required"}
+    variants = phone_variants(mobile)
+    placeholders = ", ".join(["%s"] * len(variants))
     rows = frappe.db.sql(
-        """
+        f"""
         SELECT
             COUNT(*) AS total_orders,
             COALESCE(SUM(CASE
@@ -311,9 +314,9 @@ def customer_account_summary():
                  AND IFNULL(kitchen_status, 'Pending') NOT IN ('Served', 'Cancelled')
                 THEN 1 ELSE 0 END), 0) AS active_orders
         FROM `tabPOS Order`
-        WHERE mobile = %s
+        WHERE mobile IN ({placeholders})
         """,
-        (mobile,),
+        tuple(variants),
         as_dict=True,
     )
     row = rows[0] if rows else frappe._dict()
@@ -401,7 +404,7 @@ def customer_submit_order_feedback():
 
     order = frappe.db.get_value(
         "POS Order",
-        {"name": order_name, "mobile": mobile},
+        {"name": order_name, "mobile": ["in", phone_variants(mobile)]},
         ["name", "customer_name", "kitchen_status", "docstatus"],
         as_dict=True,
     )

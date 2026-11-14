@@ -221,6 +221,10 @@ def get_tables_with_status():
 def send_to_kitchen():
     roles.require_waiter()
     data = frappe.local.form_dict
+    from luuvcrm.api.pos_customers import prepare_pos_customer
+    from luuvcrm.customer_phone import normalize_mobile
+
+    customer_fields = prepare_pos_customer(data)
     items_raw = data.get("items")
     items = frappe.parse_json(items_raw) if isinstance(items_raw, str) else items_raw
 
@@ -228,7 +232,7 @@ def send_to_kitchen():
         frappe.throw(_("At least one item is required"))
 
     customer_name = data.get("customer_name", "").strip() or "Walk-in"
-    mobile = data.get("mobile", "").strip() or ""
+    mobile = customer_fields.get("mobile", data.get("mobile", "").strip() or "")
     country_code = (data.get("country_code") or "94").strip() or "94"   # dial code for the WhatsApp number
     table = data.get("table", "")
     if table:
@@ -263,7 +267,9 @@ def send_to_kitchen():
                 continue
             existing = sorted((i.item, int(i.get("takeaway") or 0), int(i.qty or 0))
                               for i in (dup.get("items") or []))
-            if existing == incoming:
+            if existing == incoming and (not customer_fields or normalize_mobile(dup.mobile) == mobile):
+                if customer_fields:
+                    frappe.db.set_value("POS Order", dup.name, customer_fields)
                 return {
                     "name": dup.name,
                     "grand_total": dup.grand_total,
@@ -272,6 +278,7 @@ def send_to_kitchen():
                     "service_charge_amount": dup.service_charge_amount,
                     "table": table,
                     "customer_name": dup.customer_name,
+                    "mobile": mobile,
                     "deduped": True,
                 }
 
@@ -350,6 +357,7 @@ def send_to_kitchen():
     pos_order.grand_total = subtotal + sc_amount
     pos_order.service_charge_rate = sc_rate
     pos_order.service_charge_amount = sc_amount
+    pos_order.update(customer_fields)
     pos_order.flags.ignore_permissions = True
     pos_order.flags.ignore_links = True
     pos_order.insert()
