@@ -422,7 +422,7 @@ def loyalty_apply_referral():
     if result.get("already_linked"):
         return {"success": False, "error": "Already linked to a referrer"}
     return result
-def _redeem_cashback(mobile, amount, notes="", reference_order=""):
+def _redeem_cashback(mobile, amount, notes="", reference_order="", respect_minimum=True):
     """Atomically redeem one customer's balance and append its money trail."""
     lc_name = frappe.db.get_value("Loyalty Customer", {"mobile": mobile}, "name")
     if not lc_name:
@@ -433,10 +433,12 @@ def _redeem_cashback(mobile, amount, notes="", reference_order=""):
         "SELECT name FROM `tabLoyalty Customer` WHERE name=%s FOR UPDATE",
         lc_name,
     )
-    lc = frappe.get_doc("Loyalty Customer", lc_name)
+    lc = frappe.get_doc("Loyalty Customer", lc_name, for_update=True)
     settings = _get_loyalty_settings()
 
-    if amount < settings["min_redeem"]:
+    if amount <= 0:
+        return {"success": False, "error": "Valid amount required"}
+    if respect_minimum and amount < settings["min_redeem"]:
         return {"success": False, "error": f"Minimum redeem is LKR {settings['min_redeem']:.0f}"}
 
     if (lc.cashback_balance or 0) < amount:
@@ -681,11 +683,21 @@ def finalize_reward_redemption(order_name, invoice_name):
 
 
 def reverse_reward_redemption(order_name):
+    # Payment also locks the order first. A late cancellation must not restore
+    # rewards after payment has completed, even if its initial read was stale.
+    if not frappe.db.exists("POS Order", order_name):
+        return False
+    order = frappe.get_doc("POS Order", order_name, for_update=True)
+    if order.get("pos_invoice"):
+        return False
     name = frappe.db.get_value("Reward Redemption Request",
                                {"pos_order": order_name, "status": "Approved"}, "name")
     if not name:
         return False
-    req = frappe.get_doc("Reward Redemption Request", name)
+    req = frappe.get_doc("Reward Redemption Request", name, for_update=True)
+    # A concurrent cancellation may have restored this request while we waited.
+    if req.status != "Approved":
+        return False
     if not req.loyalty_customer or not frappe.db.exists(
             "Loyalty Customer", req.loyalty_customer):
         # A restored/test database can retain the audit request after its
@@ -695,7 +707,7 @@ def reverse_reward_redemption(order_name):
         return False
     frappe.db.sql("SELECT name FROM `tabLoyalty Customer` WHERE name=%s FOR UPDATE",
                   req.loyalty_customer)
-    lc = frappe.get_doc("Loyalty Customer", req.loyalty_customer)
+    lc = frappe.get_doc("Loyalty Customer", req.loyalty_customer, for_update=True)
     amount = float(req.amount or 0)
     lc.cashback_balance = float(lc.cashback_balance or 0) + amount
     lc.total_redeemed = max(0, float(lc.total_redeemed or 0) - amount)

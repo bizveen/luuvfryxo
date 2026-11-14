@@ -7,10 +7,14 @@ Use --ref COMMIT to demonstrate the previous promo-verification bypass.
 
 import argparse
 import ast
+from concurrent.futures import ThreadPoolExecutor
+import hashlib
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
@@ -50,6 +54,13 @@ class MemoryCache:
     def __init__(self):
         self.now = 0
         self.entries = {}
+        self.locks = {}
+
+    def make_key(self, key):
+        return key
+
+    def lock(self, key, **kwargs):
+        return self.locks.setdefault(key, threading.RLock())
 
     def get_value(self, key, expires=False):
         assert expires, "OTP cache reads must check Redis expiry"
@@ -81,12 +92,15 @@ class OtpDeliveryTests(unittest.TestCase):
             "frappe": self.frappe,
             "sms": SimpleNamespace(textlk_configured=self.configured, send_textlk_sms=self.transport),
             "settings": SimpleNamespace(get=lambda key: "Luuv test restaurant"),
-            "secrets": SimpleNamespace(choice=lambda alphabet: "4"),
+            "secrets": SimpleNamespace(choice=lambda alphabet: "4", token_hex=secrets.token_hex,
+                                       compare_digest=secrets.compare_digest),
+            "hashlib": hashlib,
         }
         load_functions("luuvcrm/api/wa.py", {"_wa_number"}, self.context)
         load_functions("luuvcrm/api/customers.py", {
             "_send_customer_otp", "sms_send_otp", "sms_verify_otp",
             "wa_send_otp", "wa_verify_otp", "customer_create_or_login",
+            "_customer_auth_lock", "_password_proof_key", "PASSWORD_PROOF_SECONDS",
         }, self.context)
 
     def exists(self, doctype, filters):
@@ -167,7 +181,12 @@ class OtpDeliveryTests(unittest.TestCase):
         code = self.cached("sms_otp")
         self.assertFalse(self.call("sms_verify_otp", code="9999")["ok"])
         self.assertIsNone(self.cached("sms_verified"))
-        self.assertTrue(self.call("sms_verify_otp", code=code)["ok"])
+        verified = self.call("sms_verify_otp", code=code)
+        self.assertTrue(verified["ok"])
+        self.assertRegex(verified["verification_token"], r"^[0-9a-f]{64}$")
+        self.assertEqual(self.cached("sms_password_proof"),
+                         hashlib.sha256(verified["verification_token"].encode()).hexdigest())
+        self.assertFalse(self.call("sms_verify_otp", code=code)["ok"])
         self.assertEqual(self.cached("sms_verified"), 1)
         self.assertIsNone(self.cached("sms_otp"))
 
@@ -176,13 +195,39 @@ class OtpDeliveryTests(unittest.TestCase):
         self.assertIs(self.context["wa_send_otp"], self.context["sms_send_otp"])
         self.assert_sms_submitted(self.call("wa_send_otp"))
 
-    def test_existing_account_keeps_pin_login_without_requesting_sms(self):
+    def test_password_otp_does_not_open_legacy_pin_signup(self):
+        self.call("sms_send_otp")
+        self.cache.set_value(f"sms_verified:{self.MOBILE}", 1, expires_in_sec=900)
+        result = self.call("sms_verify_otp", code=self.cached("sms_otp"), purpose="password")
+        self.assertTrue(result["ok"])
+        self.assertRegex(result["verification_token"], r"^[0-9a-f]{64}$")
+        self.assertIsNone(self.cached("sms_verified"))
+
+    def test_concurrent_otp_verification_issues_only_one_proof(self):
+        self.call("sms_send_otp")
+        self.form.update(code=self.cached("sms_otp"), purpose="password")
+        start = threading.Barrier(2)
+
+        def verify():
+            start.wait()
+            return self.context["sms_verify_otp"]()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: verify(), range(2)))
+        successful = [result for result in results if result["ok"]]
+        self.assertEqual(len(successful), 1)
+        self.assertEqual(self.cached("sms_password_proof"),
+                         hashlib.sha256(successful[0]["verification_token"].encode()).hexdigest())
+        self.assertIsNone(self.cached("sms_verified"))
+
+    def test_existing_account_lookup_requests_upgrade_without_sending_sms(self):
         self.promo_status = "Registered"
         self.frappe.db.get_value = Mock(return_value="EXISTING-ACCOUNT")
-        self.frappe.get_doc = Mock(return_value=SimpleNamespace(customer_name="Existing customer"))
+        self.frappe.get_doc = Mock(return_value=SimpleNamespace(customer_name="Existing customer", pin="1234"))
         result = self.call("customer_create_or_login")
         self.assertTrue(result["success"])
         self.assertTrue(result["exists"])
+        self.assertTrue(result["needs_password"])
         self.transport.assert_not_called()
         self.assertIsNone(self.cached("sms_verified"))
 

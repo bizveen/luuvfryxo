@@ -364,6 +364,41 @@ class TestSpendingTheBalance(LoyaltyTestCase):
         return float(frappe.db.get_value("Loyalty Customer",
                                          {"mobile": self.MOBILE}, "cashback_balance"))
 
+    def test_customer_checkout_applies_balance_and_cancel_restores_it(self):
+        item = fx.item(self, "REWARD-CHECKOUT")
+        fx.item_price(self, item, 1200)
+        order_name = None
+
+        def drop_checkout():
+            if not order_name:
+                return
+            for request in frappe.get_all("Reward Redemption Request",
+                                          filters={"pos_order": order_name}, pluck="name"):
+                frappe.delete_doc("Reward Redemption Request", request,
+                                  force=True, ignore_permissions=True)
+            for txn in frappe.get_all("Cashback Transaction",
+                                      filters={"reference_order": order_name}, pluck="name"):
+                frappe.delete_doc("Cashback Transaction", txn,
+                                  force=True, ignore_permissions=True)
+            if frappe.db.exists("POS Order", order_name):
+                frappe.delete_doc("POS Order", order_name, force=True, ignore_permissions=True)
+            frappe.db.commit()
+
+        self.addCleanup(drop_checkout)
+        result = self.call(api.kiosk_place_order,
+                           items=json.dumps([{"item": item, "qty": 1}]),
+                           customer_name="Reward test", mobile=self.MOBILE,
+                           customer_token=self.token, order_channel="CUS",
+                           order_type="Take Away", use_rewards="1")
+        order_name = result["name"]
+        self.assertEqual(result["reward_redeemed"], 1000)
+        self.assertEqual(result["grand_total"], 200)
+        self.assertEqual(self.balance(), 0)
+        self.assertTrue(api.reverse_reward_redemption(result["name"]))
+        self.assertEqual(self.balance(), 1000)
+        self.assertFalse(api.reverse_reward_redemption(result["name"]))
+        self.assertEqual(self.balance(), 1000, "Repeated cancellation must not credit rewards twice")
+
     def open_order(self):
         item = frappe.db.get_value("Item", {"disabled": 0}, "name")
         order = frappe.get_doc({

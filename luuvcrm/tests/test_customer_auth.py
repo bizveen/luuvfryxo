@@ -19,7 +19,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from luuvcrm import api, settings
-from luuvcrm.api import sms
+from luuvcrm.api import customers as customer_api, sms
 from luuvcrm.tests import fixtures as fx
 
 
@@ -52,6 +52,11 @@ class CustomerAuthTestCase(FrappeTestCase):
             settings.forget()
 
         self.addCleanup(restore_textlk_config)
+        mobile = getattr(self, "MOBILE", None)
+        if mobile:
+            proof_key = f"sms_password_proof:{mobile}"
+            frappe.cache().delete_value(proof_key)
+            self.addCleanup(frappe.cache().delete_value, proof_key)
 
     def configure_textlk(self, token="test-token", sender_id="TextLKTest", allow_demo=False):
         frappe.conf["luuvcrm_textlk_api_token"] = token
@@ -98,7 +103,8 @@ class TestAskingWhetherAnAccountExists(CustomerAuthTestCase):
         back the PIN, the hash, or a token on the strength of a number alone."""
         fx.customer_account(self, self.MOBILE, pin="4321", name="Nimal")
         result = self.call(api.customer_create_or_login, mobile=self.MOBILE)
-        self.assertEqual(set(result), {"success", "exists", "name"})
+        self.assertEqual(set(result), {"success", "exists", "name", "needs_password"})
+        self.assertTrue(result["needs_password"])
 
     def test_a_short_number_is_refused(self):
         result = self.call(api.customer_create_or_login, mobile="0771")
@@ -167,6 +173,162 @@ class TestSettingAPin(CustomerAuthTestCase):
         self.assertFalse(result["success"])
         self.assertEqual(result["error"], "Account already exists")
         self.assertEqual(self.stored_pin(self.MOBILE), before)
+
+
+class TestPasswordLogin(CustomerAuthTestCase):
+    MOBILE = "0770000299"
+
+    def setUp(self):
+        super().setUp()
+        fx.drop_customer(self, self.MOBILE)
+        fx.forget_customer_cache(self.MOBILE)
+
+    def proof(self, mobile=None):
+        mobile = mobile or self.MOBILE
+        cache = frappe.cache()
+        cache.delete_value(f"sms_otp_tries:{mobile}")
+        cache.set_value(f"sms_otp:{mobile}", "4321", expires_in_sec=300)
+        self.addCleanup(fx.forget_customer_cache, mobile)
+        self.addCleanup(cache.delete_value, f"sms_password_proof:{mobile}")
+        verified = self.call(api.sms_verify_otp, mobile=mobile, code="4321", purpose="password")
+        self.assertTrue(verified["ok"])
+        self.assertRegex(verified["verification_token"], r"^[0-9a-f]{64}$")
+        return verified["verification_token"]
+
+    def create_password_account(self, password="long-password-123"):
+        result = self.call(api.customer_set_password, mobile=self.MOBILE,
+                           password=password, name="Nimal", verification_token=self.proof())
+        self.assertTrue(result["success"])
+        return result
+
+    def test_password_requires_otp_and_is_hashed(self):
+        denied = self.call(api.customer_set_password, mobile=self.MOBILE,
+                           password="long-password-123", name="Nimal")
+        self.assertFalse(denied["success"])
+        created = self.call(api.customer_set_password, mobile=self.MOBILE,
+                            password="long-password-123", name="Nimal",
+                            verification_token=self.proof())
+        self.assertTrue(created["success"])
+        self.assertTrue(self.stored_pin(self.MOBILE).startswith("pbkdf2_sha256$"))
+        self.assertLessEqual(len(self.stored_pin(self.MOBILE)), 140)
+        self.assertFalse(self.call(api.customer_verify_password, mobile=self.MOBILE,
+                                   password="wrong-password")["success"])
+        signed_in = self.call(api.customer_verify_password, mobile=self.MOBILE,
+                              password="long-password-123")
+        self.assertEqual(api._mobile_from_token(signed_in["token"]), self.MOBILE)
+
+    def test_otp_reset_replaces_legacy_pin_and_revokes_old_token(self):
+        fx.customer_account(self, self.MOBILE, pin="1234", name="Nimal")
+        old_token = self.call(api.customer_verify_pin, mobile=self.MOBILE,
+                              pin="1234")["token"]
+        reset = self.call(api.customer_set_password, mobile=self.MOBILE,
+                          password="new-password-123", verification_token=self.proof())
+        self.assertTrue(reset["success"])
+        self.assertIsNone(api._mobile_from_token(old_token))
+        self.assertFalse(self.call(api.customer_verify_pin, mobile=self.MOBILE,
+                                   pin="1234")["success"])
+        self.assertTrue(self.call(api.customer_verify_password, mobile=self.MOBILE,
+                                  password="new-password-123")["success"])
+
+    def test_another_callers_phone_wide_verified_flag_cannot_reset_password(self):
+        created = self.create_password_account()
+        before = self.stored_pin(self.MOBILE)
+        proof = self.proof()  # The victim confirmed OTP, but has not submitted a password yet.
+        frappe.cache().set_value(f"sms_verified:{self.MOBILE}", 1, expires_in_sec=900)
+        for supplied in ("", "0" * 64):
+            with self.subTest(proof_supplied=bool(supplied)):
+                denied = self.call(api.customer_set_password, mobile=self.MOBILE,
+                                   password="attacker-password", verification_token=supplied)
+                self.assertFalse(denied["success"])
+        self.assertEqual(self.stored_pin(self.MOBILE), before)
+        self.assertEqual(api._mobile_from_token(created["token"]), self.MOBILE)
+        self.assertTrue(self.call(api.customer_set_password, mobile=self.MOBILE,
+                                  password="owner-password", verification_token=proof)["success"])
+
+    def test_proof_is_phone_bound_and_single_use(self):
+        other_proof = self.proof("0770000297")
+        self.assertFalse(self.call(api.customer_set_password, mobile=self.MOBILE,
+                                   password="long-password-123",
+                                   verification_token=other_proof)["success"])
+        proof = self.proof()
+        created = self.call(api.customer_set_password, mobile=self.MOBILE,
+                            password="long-password-123", verification_token=proof)
+        self.assertTrue(created["success"])
+        stored = self.stored_pin(self.MOBILE)
+        self.assertFalse(self.call(api.customer_set_password, mobile=self.MOBILE,
+                                   password="replacement-password",
+                                   verification_token=proof)["success"])
+        self.assertEqual(self.stored_pin(self.MOBILE), stored)
+
+    def test_expired_proof_is_rejected_even_with_verified_flag(self):
+        proof = self.proof()
+        frappe.cache().set_value(f"sms_verified:{self.MOBILE}", 1, expires_in_sec=900)
+        frappe.cache().delete_value(f"sms_password_proof:{self.MOBILE}")
+        self.assertTrue(frappe.cache().get_value(f"sms_verified:{self.MOBILE}", expires=True))
+        self.assertFalse(self.call(api.customer_set_password, mobile=self.MOBILE,
+                                   password="long-password-123",
+                                   verification_token=proof)["success"])
+
+    def test_password_otp_does_not_authorize_legacy_pin_registration(self):
+        frappe.cache().set_value(f"sms_verified:{self.MOBILE}", 1, expires_in_sec=900)
+        proof = self.proof()
+        self.assertIsNone(frappe.cache().get_value(f"sms_verified:{self.MOBILE}", expires=True))
+        self.assertFalse(self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234")["success"])
+        self.assertTrue(self.call(api.customer_set_password, mobile=self.MOBILE,
+                                  password="long-password-123", verification_token=proof)["success"])
+
+    def test_password_bounds_do_not_consume_proof(self):
+        proof = self.proof()
+        for password in ("1234567", "x" * 129):
+            self.assertFalse(self.call(api.customer_set_password, mobile=self.MOBILE,
+                                       password=password, verification_token=proof)["success"])
+        self.assertTrue(self.call(api.customer_set_password, mobile=self.MOBILE,
+                                  password="x" * 128, verification_token=proof)["success"])
+        self.assertTrue(self.call(api.customer_verify_password, mobile=self.MOBILE,
+                                  password="x" * 128)["success"])
+
+    def test_login_rejects_out_of_bounds_password_before_hashing(self):
+        self.create_password_account()
+        with patch.object(customer_api, "_verify_password", side_effect=AssertionError("must not hash")):
+            for password in ("1234567", "x" * 129):
+                denied = self.call(api.customer_verify_password, mobile=self.MOBILE,
+                                   password=password)
+                self.assertEqual(denied["error"], "Wrong password")
+        self.assertEqual(api._pin_fails(self.MOBILE), 2)
+
+    def test_five_wrong_passwords_lock_out_even_the_right_password(self):
+        self.create_password_account()
+        for _ in range(api.PIN_MAX_ATTEMPTS):
+            self.assertFalse(self.call(api.customer_verify_password, mobile=self.MOBILE,
+                                       password="wrong-password")["success"])
+        denied = self.call(api.customer_verify_password, mobile=self.MOBILE,
+                           password="long-password-123")
+        self.assertFalse(denied["success"])
+        self.assertIn("Too many attempts", denied["error"])
+
+    def test_legacy_pin_paths_cannot_login_or_overwrite_password_account(self):
+        self.create_password_account()
+        before = self.stored_pin(self.MOBILE)
+        frappe.cache().set_value(f"sms_verified:{self.MOBILE}", 1, expires_in_sec=900)
+        self.assertFalse(self.call(api.customer_set_pin, mobile=self.MOBILE, pin="1234")["success"])
+        for pin in ("1234", "long-password-123", before):
+            self.assertFalse(self.call(api.customer_verify_pin, mobile=self.MOBILE, pin=pin)["success"])
+        self.assertEqual(self.stored_pin(self.MOBILE), before)
+
+    def test_token_failure_rolls_back_reset_and_preserves_proof(self):
+        created = self.create_password_account()
+        before = self.stored_pin(self.MOBILE)
+        proof = self.proof()
+        with patch.object(customer_api, "_get_or_create_customer_token",
+                          side_effect=RuntimeError("test token insertion failure")) as get_token:
+            with self.assertRaises(RuntimeError):
+                self.call(api.customer_set_password, mobile=self.MOBILE,
+                          password="new-password-123", verification_token=proof)
+            get_token.assert_called_once_with(self.MOBILE, commit=False)
+        self.assertEqual(self.stored_pin(self.MOBILE), before)
+        self.assertEqual(api._mobile_from_token(created["token"]), self.MOBILE)
+        self.assertTrue(self.call(api.customer_set_password, mobile=self.MOBILE,
+                                  password="new-password-123", verification_token=proof)["success"])
 
 
 class TestThePhoneGateOnRegistration(CustomerAuthTestCase):
@@ -512,7 +674,7 @@ class TestSendingTheCode(CustomerAuthTestCase):
         code = re.search(r"\b(\d{4})\b", body).group(1)
         self.assertEqual(code, frappe.cache().get_value(f"sms_otp:{self.MOBILE}"))
 
-    def test_textlk_sends_plain_sms_with_bearer_json_api_when_configured(self):
+    def test_textlk_sends_plain_sms_with_http_api_token_when_configured(self):
         self.configure_textlk()
         response = Mock(ok=True, content=b"{}")
         response.json.return_value = {"status": "success"}
@@ -522,12 +684,12 @@ class TestSendingTheCode(CustomerAuthTestCase):
         self.assertTrue(result["sent"])
         self.assertEqual(result["channel"], "sms")
         request = post.call_args.kwargs
-        self.assertEqual(post.call_args.args[0], "https://app.text.lk/api/v3/sms/send")
+        self.assertEqual(post.call_args.args[0], "https://app.text.lk/api/http/sms/send")
         self.assertEqual(request["json"]["recipient"], "94" + self.MOBILE[1:])
         self.assertEqual(request["json"]["sender_id"], "TextLKTest")
         self.assertEqual(request["json"]["type"], "plain")
-        self.assertNotIn("api_token", request["json"])
-        self.assertEqual(request["headers"]["Authorization"], "Bearer test-token")
+        self.assertEqual(request["json"]["api_token"], "test-token")
+        self.assertNotIn("Authorization", request["headers"])
         self.assertEqual(request["timeout"], 10)
         import re
         code = re.search(r"\b(\d{4})\b", request["json"]["message"]).group(1)

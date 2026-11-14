@@ -30,7 +30,7 @@
   {
    "fieldname": "pin",
    "fieldtype": "Data",
-   "label": "PIN",
+   "label": "Password Hash",
    "reqd": 1
   },
   {

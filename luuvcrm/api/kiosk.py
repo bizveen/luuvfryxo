@@ -15,6 +15,8 @@ from frappe.utils import now_datetime
 from luuvcrm.api.loyalty import (
     _apply_referral_for_mobile,
     _claim_first_order_referral_discount,
+    _redeem_cashback,
+    _new_reward_code,
 )
 from luuvcrm.api.offers import prepare_customer_offer, record_customer_offer
 from luuvcrm.api.pricing import (
@@ -213,6 +215,34 @@ def kiosk_place_order():
     if discounts:
         pos_order.db_set("discount_note", " · ".join(discounts)[:140])
     _apply_takeaway_service_charge(pos_order)
+    reward_redeemed = 0.0
+    if is_cus and str(data.get("use_rewards") or "").lower() in ("1", "true", "yes"):
+        if not customer_token:
+            frappe.throw(_("Sign in to use rewards"))
+        loyalty_name = frappe.db.get_value("Loyalty Customer", {"mobile": mobile}, "name")
+        available = float(frappe.db.get_value("Loyalty Customer", loyalty_name, "cashback_balance") or 0) if loyalty_name else 0
+        # Rewards use the same pre-service-charge discount base as POS payment.
+        # Capping at grand_total could debit service charge too and create an
+        # invoice discount larger than its item subtotal.
+        remaining_subtotal = max(0.0, round(subtotal - float(pos_order.get("discount_amount") or 0), 2))
+        reward_redeemed = round(min(available, remaining_subtotal), 2)
+        if reward_redeemed <= 0:
+            frappe.throw(_("No rewards are available for this order"))
+        result = _redeem_cashback(mobile, reward_redeemed,
+                                  "Applied to customer app order", pos_order.name,
+                                  respect_minimum=False)
+        if not result.get("success"):
+            frappe.throw(_(result.get("error") or "Could not apply rewards"))
+        request = frappe.get_doc({
+            "doctype": "Reward Redemption Request", "code": _new_reward_code(),
+            "loyalty_customer": loyalty_name, "mobile": mobile,
+            "amount": reward_redeemed, "status": "Approved",
+            "expires_on": add_to_date(now_datetime(), minutes=10),
+            "pos_order": pos_order.name, "redeemed_by": "Customer app",
+        }).insert(ignore_permissions=True)
+        pos_order.db_set("reward_redeem_amount", reward_redeemed)
+        pos_order.db_set("reward_redemption_request", request.name)
+        _apply_takeaway_service_charge(pos_order)
     offer_redemption = record_customer_offer(offer_result, pos_order)
     if scheduled_dt and frappe.db.has_column("POS Order", "scheduled_time"):
         pos_order.db_set("scheduled_time", scheduled_dt)
@@ -272,6 +302,7 @@ def kiosk_place_order():
         "offer_name": offer_result.get("offer") or "",
         "offer_title": offer_result.get("title") or "",
         "offer_saving": offer_result.get("benefit_amount") or 0,
+        "reward_redeemed": reward_redeemed,
         "offer_redemption": offer_redemption or "",
         "table": table,
         "customer_name": customer_name,

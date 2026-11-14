@@ -1,4 +1,4 @@
-"""Customer accounts: registering, the PIN, the token, the profile, and SMS OTP.
+"""Customer accounts: registering, passwords, tokens, profiles, and SMS OTP.
 
 Split out of the single 7,338-line api.py; every name here is re-exported
 from `luuvcrm.api`, so the whitelisted method paths are unchanged.
@@ -56,10 +56,11 @@ def setup_customer_accounts():
 
 # ─── Customer Account API ─────────────────────────────────
 
-def _get_or_create_customer_token(mobile):
+def _get_or_create_customer_token(mobile, commit=True):
     # Clean existing expired tokens (older than 7 days)
     frappe.db.sql("DELETE FROM `tabCustomer Token` WHERE created < NOW() - INTERVAL 7 DAY")
-    frappe.db.commit()
+    if commit:
+        frappe.db.commit()
     # Check for existing valid token
     existing = frappe.db.get_value("Customer Token", {"mobile": mobile}, "token")
     if existing:
@@ -74,7 +75,8 @@ def _get_or_create_customer_token(mobile):
     })
     ct.flags.ignore_permissions = True
     ct.insert()
-    frappe.db.commit()
+    if commit:
+        frappe.db.commit()
     return token
 #: The customer PWA shows a recent history, not an archive. The page may ask
 #: for more with `limit`; the ceiling is what stops a request asking for a
@@ -95,13 +97,123 @@ def customer_create_or_login():
     existing = frappe.db.get_value("Customer Account", {"mobile": mobile}, "name")
 
     if existing:
-        # Return that account exists — PIN verification needed
+        # Legacy PIN accounts must verify their phone and choose a password.
         account = frappe.get_doc("Customer Account", existing)
-        return {"success": True, "exists": True, "name": account.customer_name or ""}
+        return {"success": True, "exists": True, "name": account.customer_name or "",
+                "needs_password": not str(account.pin or "").startswith("pbkdf2_sha256$")}
 
-    # New account — set PIN in next step
-    frappe.db.set_value("Customer Account", None, {})  # dummy
+    # New account — verify the phone and set a password in the next step.
     return {"success": True, "exists": False}
+
+
+PASSWORD_ITERATIONS = 260000
+PASSWORD_PROOF_SECONDS = 900
+
+
+def _customer_auth_lock(mobile):
+    cache = frappe.cache()
+    return cache.lock(cache.make_key(f"customer_auth:{mobile}"),
+                      timeout=120, blocking_timeout=5)
+
+
+def _password_proof_key(mobile):
+    return f"sms_password_proof:{mobile}"
+
+
+def _hash_password(password):
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, PASSWORD_ITERATIONS)
+    return f"pbkdf2_sha256${PASSWORD_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+
+def _verify_password(password, stored):
+    if not stored or not stored.startswith("pbkdf2_sha256$"):
+        return False
+    try:
+        _, count, salt, expected = stored.split("$", 3)
+        iterations = int(count)
+        salt_bytes, expected_bytes = bytes.fromhex(salt), bytes.fromhex(expected)
+        if not 1 <= iterations <= 1000000 or len(salt_bytes) != 16 or len(expected_bytes) != 32:
+            return False
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt_bytes, iterations)
+        return secrets.compare_digest(actual, expected_bytes)
+    except (ValueError, TypeError, OverflowError):
+        return False
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def customer_set_password():
+    data = frappe.local.form_dict
+    mobile = str(data.get("mobile") or "").strip()
+    password = str(data.get("password") or "")
+    name = str(data.get("name") or "").strip()
+    if len(mobile) != 10 or not mobile.isdigit():
+        return {"success": False, "error": "Valid 10-digit phone required"}
+    if not 8 <= len(password) <= 128:
+        return {"success": False, "error": "Password must be 8–128 characters"}
+    proof = str(data.get("verification_token") or "")
+    if not re.fullmatch(r"[0-9a-f]{64}", proof):
+        return {"success": False, "error": "Confirm the verification code first"}
+    cache = frappe.cache()
+    with _customer_auth_lock(mobile):
+        # A phone-wide Boolean proves nothing about this caller. Only the
+        # random proof returned to the successful OTP caller can set/reset it.
+        stored = cache.get_value(_password_proof_key(mobile), expires=True)
+        stored = stored.decode() if isinstance(stored, bytes) else str(stored or "")
+        if not secrets.compare_digest(stored, hashlib.sha256(proof.encode()).hexdigest()):
+            return {"success": False, "error": "Confirm the verification code first"}
+        frappe.db.savepoint("customer_password_change")
+        try:
+            existing = frappe.db.get_value("Customer Account", {"mobile": mobile}, "name")
+            if existing:
+                account = frappe.get_doc("Customer Account", existing, for_update=True)
+                account.pin = _hash_password(password)
+                if name and not account.customer_name:
+                    account.customer_name = name
+                account.last_login = now_datetime()
+                account.save(ignore_permissions=True)
+                # An OTP reset signs out sessions holding the old credential.
+                frappe.db.delete("Customer Token", {"mobile": mobile})
+            else:
+                account = frappe.get_doc({"doctype": "Customer Account", "mobile": mobile,
+                                          "customer_name": name, "pin": _hash_password(password),
+                                          "last_login": now_datetime()})
+                account.insert(ignore_permissions=True)
+            token = _get_or_create_customer_token(mobile, commit=False)
+            # Keep password, token revocation and replacement atomic. The old
+            # token helper committed before the replacement token was inserted.
+            frappe.db.commit()
+        except Exception:
+            frappe.db.rollback(save_point="customer_password_change")
+            raise
+        cache.delete_value(_password_proof_key(mobile))
+        cache.delete_value(f"sms_verified:{mobile}")
+        cache.delete_value(_pin_attempts_key(mobile))
+        return {"success": True, "token": token, "name": account.customer_name or ""}
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def customer_verify_password():
+    data = frappe.local.form_dict
+    mobile = str(data.get("mobile") or "").strip()
+    password = str(data.get("password") or "")
+    if len(mobile) != 10 or not mobile.isdigit() or not password:
+        return {"success": False, "error": "Phone and password required"}
+    with _customer_auth_lock(mobile):
+        if _pin_locked(mobile):
+            return {"success": False, "error": "Too many attempts — try again in 15 minutes"}
+        if not 8 <= len(password) <= 128:
+            _pin_note_failure(mobile)
+            return {"success": False, "error": "Wrong password"}
+        account = frappe.db.get_value("Customer Account", {"mobile": mobile},
+                                      ["name", "customer_name", "pin"], as_dict=True)
+        if not account or not _verify_password(password, account.pin):
+            _pin_note_failure(mobile)
+            return {"success": False, "error": "Wrong password"}
+        frappe.cache().delete_value(_pin_attempts_key(mobile))
+        frappe.db.set_value("Customer Account", account.name, "last_login", now_datetime())
+        return {"success": True, "token": _get_or_create_customer_token(mobile),
+                "name": account.customer_name or ""}
 @frappe.whitelist(allow_guest=True)
 def customer_set_pin():
     data = frappe.local.form_dict
@@ -114,32 +226,33 @@ def customer_set_pin():
     if not pin or len(pin) != 4 or not pin.isdigit():
         return {"success": False, "error": "PIN must be 4 digits"}
 
-    existing = frappe.db.get_value("Customer Account", {"mobile": mobile}, "name")
-    if existing:
-        return {"success": False, "error": "Account already exists"}
+    with _customer_auth_lock(mobile):
+        existing = frappe.db.get_value("Customer Account", {"mobile": mobile}, "name")
+        if existing:
+            return {"success": False, "error": "Account already exists"}
 
-    # A new account is created only after this phone has completed the SMS OTP.
-    # Existing accounts never return to this path; they sign in with their PIN.
-    cache = frappe.cache()
-    if not cache.get_value(f"sms_verified:{mobile}", expires=True):
-        return {"success": False, "error": "Confirm the verification code first"}
+        # Only old clients' PIN-signup OTP flow sets this legacy flag. The new
+        # password flow returns a caller-held proof and never opens this gate.
+        cache = frappe.cache()
+        if not cache.get_value(f"sms_verified:{mobile}", expires=True):
+            return {"success": False, "error": "Confirm the verification code first"}
 
-    account = frappe.get_doc({
-        "doctype": "Customer Account",
-        "mobile": mobile,
-        "customer_name": name,
-        "pin": _hash_pin(pin),
-        "last_login": now_datetime(),
-    })
-    account.flags.ignore_permissions = True
-    account.insert(ignore_permissions=True)
-    frappe.db.commit()
+        account = frappe.get_doc({
+            "doctype": "Customer Account",
+            "mobile": mobile,
+            "customer_name": name,
+            "pin": _hash_pin(pin),
+            "last_login": now_datetime(),
+        })
+        account.flags.ignore_permissions = True
+        account.insert(ignore_permissions=True)
+        frappe.db.commit()
 
-    # The confirmation is a one-time registration gate, not a reusable grant.
-    cache.delete_value(f"sms_verified:{mobile}")
+        # The confirmation is a one-time registration gate, not a reusable grant.
+        cache.delete_value(f"sms_verified:{mobile}")
 
-    token = _get_or_create_customer_token(mobile)
-    return {"success": True, "token": token, "name": name}
+        token = _get_or_create_customer_token(mobile)
+        return {"success": True, "token": token, "name": name}
 # ── customer PIN ──
 # A 4-digit PIN is a 10,000-key space, so the lockout below is what actually
 # protects the account; the hash protects it if the table ever leaks. The guide
@@ -153,7 +266,7 @@ def _hash_pin(pin, salt=None):
 def _verify_pin(pin, stored):
     """True if the PIN matches. Second return value says the stored form is a
     legacy plaintext PIN and should be upgraded to a hash by the caller."""
-    if not stored:
+    if not stored or str(stored).startswith("pbkdf2_sha256$"):
         return False, False
     if "$" in stored:
         salt = stored.split("$", 1)[0]
@@ -189,32 +302,33 @@ def customer_verify_pin():
     if not mobile or not pin:
         return {"success": False, "error": "Phone and PIN required"}
 
-    if _pin_locked(mobile):
-        return {"success": False, "error": "Too many wrong PINs — try again in 15 minutes"}
+    with _customer_auth_lock(mobile):
+        if _pin_locked(mobile):
+            return {"success": False, "error": "Too many wrong PINs — try again in 15 minutes"}
 
-    # One account per number is the invariant; ask for one row, not the set.
-    accounts = frappe.get_all("Customer Account", filters={"mobile": mobile},
-                              fields=["name", "customer_name"], limit_page_length=1)
-    if not accounts:
-        # Same shape and cost as a wrong PIN: do not confirm which numbers exist.
-        _pin_note_failure(mobile)
-        return {"success": False, "error": "Wrong PIN"}
+        # One account per number is the invariant; ask for one row, not the set.
+        accounts = frappe.get_all("Customer Account", filters={"mobile": mobile},
+                                  fields=["name", "customer_name"], limit_page_length=1)
+        if not accounts:
+            # Same shape and cost as a wrong PIN: do not confirm which numbers exist.
+            _pin_note_failure(mobile)
+            return {"success": False, "error": "Wrong PIN"}
 
-    account = accounts[0]
-    stored = frappe.db.get_value("Customer Account", account["name"], "pin")
-    ok, needs_upgrade = _verify_pin(pin, stored)
-    if not ok:
-        _pin_note_failure(mobile)
-        return {"success": False, "error": "Wrong PIN"}
-    if needs_upgrade:
-        frappe.db.set_value("Customer Account", account["name"], "pin", _hash_pin(pin))
-    frappe.cache().delete_value(_pin_attempts_key(mobile))
+        account = accounts[0]
+        stored = frappe.db.get_value("Customer Account", account["name"], "pin")
+        ok, needs_upgrade = _verify_pin(pin, stored)
+        if not ok:
+            _pin_note_failure(mobile)
+            return {"success": False, "error": "Wrong PIN"}
+        if needs_upgrade:
+            frappe.db.set_value("Customer Account", account["name"], "pin", _hash_pin(pin))
+        frappe.cache().delete_value(_pin_attempts_key(mobile))
 
-    # Update last login
-    frappe.db.set_value("Customer Account", account["name"], "last_login", now_datetime())
+        # Update last login
+        frappe.db.set_value("Customer Account", account["name"], "last_login", now_datetime())
 
-    token = _get_or_create_customer_token(mobile)
-    return {"success": True, "token": token, "name": account["customer_name"]}
+        token = _get_or_create_customer_token(mobile)
+        return {"success": True, "token": token, "name": account["customer_name"]}
 @frappe.whitelist(allow_guest=True)
 def customer_get_orders():
     data = frappe.local.form_dict
@@ -525,7 +639,7 @@ def sms_send_otp():
     return {"sent": True, "channel": channel}
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def sms_verify_otp():
-    """Check the SMS code; marks the mobile verified for 15 minutes.
+    """Check the SMS code and return a caller-held proof valid for 15 minutes.
 
     Every cache read in the OTP flow passes expires=True. Without it a miss is
     remembered in frappe.local.cache while set_value(expires_in_sec=...)
@@ -538,22 +652,31 @@ def sms_verify_otp():
     if not mobile or not code:
         return {"ok": False, "error": "Code required"}
     cache = frappe.cache()
-    tries_key = f"sms_otp_tries:{mobile}"
-    tries = int(cache.get_value(tries_key, expires=True) or 0)
-    if tries >= 5:
-        return {"ok": False, "error": "Too many attempts — request a new code"}
-    real = cache.get_value(f"sms_otp:{mobile}", expires=True)
-    if real is None:
-        return {"ok": False, "error": "Code expired — tap Resend"}
-    real = real.decode() if isinstance(real, bytes) else str(real)
-    if code != real:
-        cache.set_value(tries_key, tries + 1, expires_in_sec=300)
-        return {"ok": False, "error": "Wrong code — check your messages"}
-    cache.delete_value(f"sms_otp:{mobile}")
-    cache.delete_value(f"sms_otp_channel:{mobile}")
-    cache.delete_value(tries_key)
-    cache.set_value(f"sms_verified:{mobile}", 1, expires_in_sec=900)
-    return {"ok": True}
+    with _customer_auth_lock(mobile):
+        tries_key = f"sms_otp_tries:{mobile}"
+        tries = int(cache.get_value(tries_key, expires=True) or 0)
+        if tries >= 5:
+            return {"ok": False, "error": "Too many attempts — request a new code"}
+        real = cache.get_value(f"sms_otp:{mobile}", expires=True)
+        if real is None:
+            return {"ok": False, "error": "Code expired — tap Resend"}
+        real = real.decode() if isinstance(real, bytes) else str(real)
+        if not secrets.compare_digest(code.encode(), real.encode()):
+            cache.set_value(tries_key, tries + 1, expires_in_sec=300)
+            return {"ok": False, "error": "Wrong code — check your messages"}
+        proof = secrets.token_hex(32)
+        cache.set_value(_password_proof_key(mobile), hashlib.sha256(proof.encode()).hexdigest(),
+                        expires_in_sec=PASSWORD_PROOF_SECONDS)
+        cache.delete_value(f"sms_otp:{mobile}")
+        cache.delete_value(f"sms_otp_channel:{mobile}")
+        cache.delete_value(tries_key)
+        # Password callers must not open the old phone-wide PIN-signup gate:
+        # another guest could otherwise claim a new account in this interval.
+        if frappe.local.form_dict.get("purpose") == "password":
+            cache.delete_value(f"sms_verified:{mobile}")
+        else:
+            cache.set_value(f"sms_verified:{mobile}", 1, expires_in_sec=900)
+        return {"ok": True, "verification_token": proof}
 
 
 # Backward-compatible paths for older installed PWAs. Delivery is still SMS-only.
