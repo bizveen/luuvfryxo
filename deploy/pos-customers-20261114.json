@@ -1,0 +1,41 @@
+{
+  "files": {
+    "luuvcrm/customer_phone.py": {
+      "sha256": "af413cd8a37532166902f80054e76bd7e8335a709f7c9e19920cd23a2680dea6",
+      "md5": "e75dcb5de280a377d179feee05c355cc"
+    },
+    "luuvcrm/api/pos_customers.py": {
+      "sha256": "fb04ba5b4503f0386a2191fa91797667b433195d5baa26bda6e691414cd31b67",
+      "md5": "c883ebb093f61ce868afc486491ce392"
+    },
+    "luuvcrm/patches/v1_0/pos_customer_app.py": {
+      "sha256": "011cc8c955c28528ce34b7d732897b319036412a808608d320905ff271386aff",
+      "md5": "d0c00312341460a4e2a30f8237db6c3e"
+    },
+    "luuvcrm/zeloura/doctype/customer_app_contact/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "luuvcrm/zeloura/doctype/customer_app_contact/customer_app_contact.py": {
+      "sha256": "6464915459fc48537fe67bacc3e3b98495b9b20948ee3ef39ff9c1d6a0c726e4",
+      "md5": "64867a8d1291d91a0ea67379eb7a8ace"
+    },
+    "luuvcrm/zeloura/doctype/customer_app_contact/customer_app_contact.json": {
+      "sha256": "4af48cc65fe791a9a57d1ca0cbc1f822db5a4f136be182ac23e89884cc212921",
+      "md5": "490b72e8b58207666fd28b99de8e00b6"
+    }
+  },
+  "phases": [
+    {
+      "phase": "schema and invitation service",
+      "verified_at": "2026-11-14T00:17:45.200Z"
+    }
+  ],
+  "containers": [
+    "frappe_docker-backend-1",
+    "frappe_docker-queue-short-1",
+    "frappe_docker-queue-long-1",
+    "frappe_docker-scheduler-1"
+  ],
+  "database_backup": "{\"stage\": \"dump\", \"expected_tables\": 899}\n{\"result\": \"PASS\", \"path\": \"/home/frappe/frappe-bench/sites/fryxo/private/backups/pos-customers-20261114-20261114T001435Z-992f36.sql.gz\", \"bytes\": 17879652, \"sha256\": \"afe6e079ff3f7966454737e76d9c81c3603a10347f7ff6b6077d1cb254965c29\", \"gzip_crc_verified\": true, \"uncompressed_bytes\": 208340074, \"tables\": 899, \"expected_tables\": 899, \"insert_statements\": 425, \"dump_complete_marker\": true, \"file_mode\": \"0o600\"}"
+}
