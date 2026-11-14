@@ -1,0 +1,20 @@
+{
+  "files": {
+    "luuvcrm/api/pos_customers.py": {
+      "sha256": "4d422c8d534e7ad8176f29067de525a2ee9fe86a4dfb62bacae1d96532077c48",
+      "md5": "f4dcf4951154a56e84f1b9e29760a29a"
+    }
+  },
+  "phases": [
+    {
+      "phase": "automatic SMS only for unregistered customers",
+      "verified_at": "2026-11-14T00:35:33.277Z"
+    }
+  ],
+  "containers": [
+    "frappe_docker-backend-1",
+    "frappe_docker-queue-short-1",
+    "frappe_docker-queue-long-1",
+    "frappe_docker-scheduler-1"
+  ]
+}

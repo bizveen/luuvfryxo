@@ -174,9 +174,9 @@ class CustomerPaymentHooks(unittest.TestCase):
     def place(self, **data):
         return self.h.call("place_order", items=[{"item": "TEST-ITEM", "qty": 1}], **data)
 
-    def test_direct_sale_prepares_phone_before_invoice_and_preserves_invite_choice(self):
+    def test_direct_sale_prepares_phone_and_automatic_invite_before_invoice(self):
         self.h.prepared = {"mobile": "0770000010", "customer_app_invite": 1}
-        result = self.place(pos_customer=1, mobile="+94 77 000 0010", customer_app_action="invite")
+        result = self.place(pos_customer=1, mobile="+94 77 000 0010")
         order = self.h.documents[result["name"]]
         self.assertEqual(result["mobile"], "0770000010")
         self.assertEqual(order.mobile, "0770000010")
@@ -186,10 +186,10 @@ class CustomerPaymentHooks(unittest.TestCase):
         self.h.queue.assert_called_once_with(order.name)
         self.assertEqual(self.h.events[-1], ("queue", order.name))
 
-    def test_manual_installed_choice_reaches_preparer_and_disables_order_invite(self):
+    def test_registered_customer_metadata_disables_order_invite(self):
         self.h.prepared = {"mobile": "0770000010", "customer_app_invite": 0}
-        result = self.place(pos_customer=1, mobile="0770000010", customer_app_action="installed")
-        self.assertEqual(self.h.prepare.call_args.args[0]["customer_app_action"], "installed")
+        result = self.place(pos_customer=1, mobile="0770000010")
+        self.assertNotIn("customer_app_action", self.h.prepare.call_args.args[0])
         self.assertEqual(self.h.documents[result["name"]].customer_app_invite, 0)
 
     def test_legacy_direct_sale_keeps_original_mobile_without_new_fields(self):
@@ -207,7 +207,7 @@ class CustomerPaymentHooks(unittest.TestCase):
         self.h.queue.assert_not_called()
 
     def test_full_payment_locks_order_then_queues_after_completion(self):
-        order = self.h.order()
+        order = self.h.order(customer_app_invite=0)
         self.h.call("process_payment", order_name=order.name)
         self.assertEqual(self.h.reads[0], ("POS Order", order.name, {"for_update": True}))
         self.assertEqual(order.docstatus, 1)
@@ -216,7 +216,7 @@ class CustomerPaymentHooks(unittest.TestCase):
         self.h.prepare.assert_not_called()
 
     def test_partial_split_does_not_queue_and_final_split_does_once(self):
-        order = self.h.order(qty=2)
+        order = self.h.order(qty=2, customer_app_invite=0)
         first = self.h.call("pay_split", order_name=order.name, lines=[{"item": "TEST-ITEM", "qty": 1}])
         self.assertFalse(first["fully_paid"])
         self.h.queue.assert_not_called()

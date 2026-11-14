@@ -59,6 +59,8 @@ class Database:
         if doctype == "Customer Push Token":
             return any(token.mobile in key["mobile"][1]
                        and token.platform in key["platform"][1] for token in self.h.tokens)
+        if doctype == "Customer Account" and isinstance(key, dict):
+            return any(account.mobile in key["mobile"][1] for account in self.h.accounts)
         return key in self.h.rows.get(doctype, {})
 
     def get_value(self, doctype, key, fields, **kwargs):
@@ -95,8 +97,9 @@ class Database:
 class Harness:
     def __init__(self):
         self.rows = {CONTACT: {}, "POS Order": {}, "POS Invoice": {}, "Sales Invoice": {}}
-        self.schema = {CONTACT, "Customer Push Token"}
+        self.schema = {CONTACT, "Customer Push Token", "Customer Account"}
         self.tokens = []
+        self.accounts = []
         self.callbacks = []
         self.events = []
         self.reads = []
@@ -228,16 +231,6 @@ class PhoneAndInstallationTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValidationError):
                 self.h.run("_mobile", value)
 
-    def test_disabled_native_tokens_still_suppress_invites(self):
-        self.h.tokens.append(Record(mobile="94771234567", platform="Android", enabled=0))
-        self.assertTrue(self.h.run("_known_installed", MOBILE))
-
-    def test_web_push_token_alone_does_not_claim_pwa_installation(self):
-        self.h.tokens.append(Record(mobile=MOBILE, platform="Web", enabled=1))
-        self.assertFalse(self.h.run("_known_installed", MOBILE))
-        self.h.run("_mark_installed", MOBILE, "PWA")
-        self.assertTrue(self.h.run("_known_installed", MOBILE))
-
     def test_install_record_requires_valid_customer_session_and_supported_platform(self):
         self.h.resolve_token.return_value = ""
         self.assertFalse(self.h.run("customer_record_app_install", customer_token="bad", platform="Android")["success"])
@@ -263,22 +256,25 @@ class MetadataAndAccessTests(unittest.TestCase):
         self.assertEqual(self.h.run("prepare_pos_customer", {"mobile": "legacy"}), {})
         self.h.require_pos.assert_not_called()
 
-    def test_prepare_requires_pos_role_and_normalizes_invite(self):
-        result = self.h.run("prepare_pos_customer", {"pos_customer": 1, "mobile": "+94771234567", "customer_app_action": "invite"})
+    def test_prepare_requires_pos_role_and_automatically_invites_unregistered_phone(self):
+        result = self.h.run("prepare_pos_customer", {"pos_customer": 1, "mobile": "+94771234567"})
         self.assertEqual(result, {"mobile": MOBILE, "customer_app_invite": 1})
         self.h.require_pos.assert_called_once()
         self.h.require_pos.side_effect = ValidationError("Forbidden")
         with self.assertRaises(ValidationError):
             self.h.run("prepare_pos_customer", {"pos_customer": 1, "mobile": MOBILE})
 
-    def test_staff_installed_evidence_cancels_queued_message(self):
-        self.h.queue()
-        result = self.h.run("prepare_pos_customer", {"pos_customer": 1, "mobile": MOBILE, "customer_app_action": "installed"})
-        self.assertEqual(result["customer_app_invite"], 0)
-        contact = self.h.rows[CONTACT][MOBILE]
-        self.assertEqual(contact.app_platform, "Staff")
-        self.assertEqual(contact.invite_status, "Skipped")
-        self.h.send.assert_not_called()
+    def test_prepare_registered_phone_aliases_suppress_automatic_invitation(self):
+        for alias in [MOBILE, "94771234567", "+94771234567", "771234567"]:
+            with self.subTest(alias=alias):
+                h = Harness()
+                h.accounts.append(Record(mobile=alias))
+                result = h.run("prepare_pos_customer", {"pos_customer": 1, "mobile": MOBILE})
+                self.assertEqual(result, {"mobile": MOBILE, "customer_app_invite": 0})
+
+    def test_blank_optional_phone_never_requests_an_invitation(self):
+        result = self.h.run("prepare_pos_customer", {"pos_customer": 1, "mobile": ""})
+        self.assertEqual(result, {"mobile": "", "customer_app_invite": 0})
 
     def test_order_metadata_rejects_paid_cancelled_or_partly_paid(self):
         for overrides in [dict(docstatus=1), dict(pos_invoice="ALREADY-PAID"),
@@ -307,7 +303,7 @@ class MetadataAndAccessTests(unittest.TestCase):
 
     def test_order_customer_edit_locks_then_persists_normalized_phone(self):
         order = self.h.order(docstatus=0, pos_invoice="", kitchen_status="Pending")
-        result = self.h.run("pos_set_order_customer", form={"order_name": order.name, "mobile": "+94771234567", "app_action": "invite"})
+        result = self.h.run("pos_set_order_customer", form={"order_name": order.name, "mobile": "+94771234567"})
         self.assertTrue(result["success"])
         self.assertEqual(order.mobile, MOBILE)
         self.assertEqual(order.customer_app_invite, 1)
@@ -374,6 +370,18 @@ class MetadataAndAccessTests(unittest.TestCase):
         self.assertEqual(result["purchase_total"], 2000)
         self.assertEqual({row["name"] for row in result["purchases"]}, {"PAID-POS", "PAID-SALES"})
 
+    def test_history_reports_registration_without_replaying_old_paid_sales(self):
+        order = self.h.order(docstatus=0, customer_app_invite=0, creation="2025-01-01 10:00:00")
+        form = {"mobile": MOBILE, "order_name": order.name}
+        result = self.h.run("pos_customer_history", form=form)
+        self.assertFalse(result["registered"])
+        self.h.accounts.append(Record(mobile="94771234567"))
+        result = self.h.run("pos_customer_history", form=form)
+        self.assertTrue(result["registered"])
+        self.assertEqual(self.h.callbacks, [])
+        self.h.enqueue.assert_not_called()
+        self.h.send.assert_not_called()
+
 
 class InvitationLifecycleTests(unittest.TestCase):
     def setUp(self):
@@ -396,7 +404,7 @@ class InvitationLifecycleTests(unittest.TestCase):
         self.h.send.assert_not_called()
 
     def test_ineligible_order_or_missing_provider_does_not_queue(self):
-        for overrides in [dict(customer_app_invite=0), dict(mobile="bad"),
+        for overrides in [dict(mobile="bad"),
                           dict(order_source="Online"), dict(pos_invoice=""),
                           dict(docstatus=2), dict(kitchen_status="Cancelled")]:
             with self.subTest(overrides=overrides):
@@ -413,15 +421,34 @@ class InvitationLifecycleTests(unittest.TestCase):
         order = self.h.order(docstatus=0, kitchen_status="Pending")
         self.assertTrue(self.h.run("queue_install_invite", order.name))
 
-    def test_queue_known_native_install_is_suppressed(self):
-        order = self.h.order()
-        self.h.tokens.append(Record(mobile="94771234567", platform="iOS", enabled=0))
-        self.assertFalse(self.h.run("queue_install_invite", order.name))
-        self.assertEqual(self.h.callbacks, [])
+    def test_registered_phone_aliases_never_queue_sms(self):
+        for alias in [MOBILE, "94771234567", "+94771234567", "771234567"]:
+            with self.subTest(alias=alias):
+                h = Harness()
+                order = h.order(customer_app_invite=1)
+                h.accounts.append(Record(mobile=alias))
+                self.assertFalse(h.run("queue_install_invite", order.name))
+                self.assertEqual(h.callbacks, [])
+                h.enqueue.assert_not_called()
+                h.send.assert_not_called()
 
-    def test_worker_rechecks_installation_after_queuing(self):
+    def test_unregistered_phone_automatically_sends_despite_old_installed_evidence(self):
+        for platform in ["Staff", "PWA", "Android", "iOS", "Web"]:
+            with self.subTest(platform=platform):
+                h = Harness()
+                h.rows[CONTACT][MOBILE] = Record(name=MOBILE, mobile=MOBILE, app_installed=1,
+                                                app_platform=platform, invite_status="")
+                h.tokens.append(Record(mobile="94771234567", platform=platform, enabled=0))
+                prepared = h.run("prepare_pos_customer", {"pos_customer": 1, "mobile": MOBILE})
+                self.assertEqual(prepared["customer_app_invite"], 1)
+                # Existing open POS tickets may still have the obsolete choice set to zero.
+                order = h.queue(h.order(customer_app_invite=0))
+                self.assertTrue(h.run("send_install_invite", MOBILE, order.name)["sent"])
+                h.send.assert_called_once()
+
+    def test_worker_rechecks_registration_after_queuing(self):
         order = self.h.queue()
-        self.h.tokens.append(Record(mobile=MOBILE, platform="Android", enabled=1))
+        self.h.accounts.append(Record(mobile="+94771234567"))
         result = self.h.run("send_install_invite", MOBILE, order.name)
         self.assertFalse(result["sent"])
         self.assertEqual(self.h.rows[CONTACT][MOBILE].invite_status, "Skipped")
@@ -443,6 +470,25 @@ class InvitationLifecycleTests(unittest.TestCase):
         self.assertEqual(self.h.send.call_args.args[0], "94771234567")
         self.assertIn("https://luuvgrand.com/cus?install=1", self.h.send.call_args.args[1])
 
+    def test_past_dispatch_states_suppress_new_purchases_for_the_same_phone(self):
+        for state in ["Queued", "Sending", "Sent", "Failed"]:
+            with self.subTest(state=state):
+                h = Harness()
+                h.rows[CONTACT][MOBILE] = Record(name=MOBILE, mobile=MOBILE,
+                                                invite_status=state, invite_order="OLD-ORDER")
+                order = h.order(name="NEW-ORDER", customer_app_invite=0)
+                self.assertFalse(h.run("queue_install_invite", order.name))
+                self.assertEqual(h.rows[CONTACT][MOBILE].invite_order, "OLD-ORDER")
+                self.assertEqual(h.callbacks, [])
+                h.send.assert_not_called()
+
+    def test_previously_skipped_installed_evidence_does_not_block_a_new_paid_sale(self):
+        self.h.rows[CONTACT][MOBILE] = Record(name=MOBILE, mobile=MOBILE, app_installed=1,
+            app_platform="Staff", invite_status="Skipped", invite_order="OLD-ORDER")
+        order = self.h.queue(self.h.order(name="NEW-ORDER", customer_app_invite=0))
+        self.assertTrue(self.h.run("send_install_invite", MOBILE, order.name)["sent"])
+        self.h.send.assert_called_once()
+
     def test_provider_rejection_or_ambiguous_exception_is_never_auto_retried(self):
         for failure in [False, TimeoutError("network result unknown")]:
             with self.subTest(failure=type(failure).__name__):
@@ -456,15 +502,19 @@ class InvitationLifecycleTests(unittest.TestCase):
                 h.send.assert_called_once()
                 self.assertFalse(h.run("queue_install_invite", order.name))
 
-    def test_worker_rejects_revoked_consent_or_changed_phone(self):
-        for values in [dict(customer_app_invite=0), dict(mobile="0770000001")]:
-            with self.subTest(values=values):
-                h = Harness()
-                order = h.queue()
-                order.update(values)
-                self.assertFalse(h.run("send_install_invite", MOBILE, order.name)["sent"])
-                self.assertEqual(h.rows[CONTACT][MOBILE].invite_status, "Skipped")
-                h.send.assert_not_called()
+    def test_worker_rejects_changed_phone(self):
+        order = self.h.queue()
+        order.mobile = "0770000001"
+        self.assertFalse(self.h.run("send_install_invite", MOBILE, order.name)["sent"])
+        self.assertEqual(self.h.rows[CONTACT][MOBILE].invite_status, "Skipped")
+        self.h.send.assert_not_called()
+
+    def test_worker_ignores_old_invite_flag_and_install_telemetry(self):
+        order = self.h.queue()
+        order.customer_app_invite = 0
+        self.h.run("_mark_installed", MOBILE, "Android")
+        self.assertTrue(self.h.run("send_install_invite", MOBILE, order.name)["sent"])
+        self.h.send.assert_called_once()
 
     def test_worker_rejects_invalid_paid_invoice(self):
         for state in ["draft", "cancelled", "return", "missing"]:

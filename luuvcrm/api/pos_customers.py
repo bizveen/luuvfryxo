@@ -44,23 +44,18 @@ def _contact(mobile, lock=False):
         ["app_installed", "app_platform", "invite_status", "invite_order"], as_dict=True) or frappe._dict()
 
 
-def _known_installed(mobile, contact=None):
-    contact = contact if contact is not None else _contact(mobile)
-    if contact.get("app_installed"):
-        return True
-    # Disabled tokens can mean logout, not uninstall. A browser Web token does
-    # not prove that the PWA is installed, so only native evidence counts here.
-    return bool(frappe.db.exists("DocType", "Customer Push Token") and
-        frappe.db.exists("Customer Push Token", {
-            "mobile": ["in", phone_variants(mobile)], "platform": ["in", ["Android", "iOS"]],
-        }))
+def _registered_customer(mobile):
+    """Registration, across stored phone aliases, is the SMS suppression rule."""
+    return bool(mobile and frappe.db.exists("Customer Account", {
+        "mobile": ["in", phone_variants(mobile)],
+    }))
 
 
 def _mark_installed(mobile, platform):
     contact = _contact(mobile, lock=True)
     values = {"app_installed": 1, "app_platform": platform, "app_last_seen": now_datetime()}
-    if contact.get("invite_status") == "Queued":
-        values.update(invite_status="Skipped", invite_note="App installation recorded before SMS dispatch")
+    if contact.get("invite_status") == "Queued" and _registered_customer(mobile):
+        values.update(invite_status="Skipped", invite_note="Customer registered before SMS dispatch")
     frappe.db.set_value(CONTACT, mobile, values)
 
 
@@ -86,21 +81,10 @@ def prepare_pos_customer(data):
         return {}
     _pos_branch()
     mobile = _mobile(data.get("mobile"), optional=True)
-    action = str(data.get("customer_app_action") or "unknown")
-    if action not in {"unknown", "installed", "invite"}:
-        frappe.throw(_("Choose a valid customer app status."))
-    if action != "unknown" and not mobile:
-        frappe.throw(_("Enter the customer's phone number first."))
     if not frappe.db.has_column("POS Order", INVITE_FIELD):
         frappe.throw(_("Customer app setup is not installed."))
-    if action == "installed":
-        _mark_installed(mobile, "Staff")
-    installed = _known_installed(mobile) if mobile else False
-    return {"mobile": mobile, INVITE_FIELD: int(bool(mobile) and action == "invite" and not installed)}
-
-
-def _app_action(mobile, invite=False):
-    return "installed" if mobile and _known_installed(mobile) else "invite" if invite else "unknown"
+    # Ignore app-status choices from cached older POS pages. The server decides.
+    return {"mobile": mobile, INVITE_FIELD: int(bool(mobile) and not _registered_customer(mobile))}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -125,11 +109,11 @@ def pos_set_order_customer():
         or float(order.get("offer_discount_amount") or 0) > 0)
     if locked_identity and mobile != normalize_mobile(order.get("mobile")):
         frappe.throw(_("Keep the customer phone attached to this app/reward order."))
-    values = prepare_pos_customer({"pos_customer": 1, "mobile": mobile,
-        "customer_app_action": data.get("app_action") or "unknown"})
+    values = prepare_pos_customer({"pos_customer": 1, "mobile": mobile})
     frappe.db.set_value("POS Order", name, values)
-    action = _app_action(mobile, values[INVITE_FIELD])
-    return {"success": True, "mobile": mobile, "app_action": action, "app_installed": action == "installed"}
+    contact = _contact(mobile) if mobile else {}
+    return {"success": True, "mobile": mobile, "registered": _registered_customer(mobile),
+        "invite_status": contact.get("invite_status") or ""}
 
 
 @frappe.whitelist()
@@ -164,19 +148,13 @@ def pos_customer_history():
         "items": [{"item_name": line.item_name or line.item,
             "qty": line.qty, "rate": line.rate} for line in lines.get(order.name, [])]}
         for order in orders]
-    invite = False
     if data.get("order_name"):
         branch.require_access("POS Order", data.order_name)
-        order = frappe.get_doc("POS Order", data.order_name)
-        if normalize_mobile(order.mobile) == mobile:
-            invite = bool(order.get(INVITE_FIELD))
     contact = _contact(mobile)
-    action = _app_action(mobile, invite)
     customer_name = next((order.customer_name for order in orders
         if order.customer_name and order.customer_name != "Walk-in"), "")
     return {"success": True, "mobile": mobile, "customer_name": customer_name,
-        "app_installed": action == "installed", "app_status": "installed" if action == "installed" else "unknown",
-        "app_action": action, "invite_status": contact.get("invite_status") or "",
+        "registered": _registered_customer(mobile), "invite_status": contact.get("invite_status") or "",
         "purchases": purchases, "purchase_count": int(totals.get("purchase_count") or 0),
         "purchase_total": float(totals.get("purchase_total") or 0)}
 
@@ -204,15 +182,14 @@ def queue_install_invite(order_name):
         frappe.db.savepoint(savepoint)
         order = frappe.get_doc("POS Order", order_name)
         mobile = normalize_mobile(order.get("mobile"))
-        if (not mobile or not order.get(INVITE_FIELD)
-                or order.order_source not in ("Walk-in", "Waiter") or not _paid_order(order)):
+        if (not mobile or order.order_source not in ("Walk-in", "Waiter") or not _paid_order(order)):
             return False
         from luuvcrm.api.sms import textlk_configured
 
         if not textlk_configured():
             return False
         contact = _contact(mobile, lock=True)
-        if _known_installed(mobile, contact) or contact.get("invite_status") not in (None, "", "Skipped"):
+        if _registered_customer(mobile) or contact.get("invite_status") not in (None, "", "Skipped"):
             return False
         frappe.db.set_value(CONTACT, mobile, {"invite_status": "Queued", "invite_order": order_name,
             "invite_queued_at": now_datetime(), "invite_note": ""})
@@ -254,9 +231,9 @@ def send_install_invite(mobile, order_name):
     contact = _contact(mobile, lock=True)
     if contact.get("invite_status") != "Queued" or contact.get("invite_order") != order_name:
         return {"sent": False, "reason": "already handled"}
-    if (_known_installed(mobile, contact) or normalize_mobile(order.mobile) != mobile
-            or not order.get(INVITE_FIELD) or not _paid_order(order)):
-        frappe.db.set_value(CONTACT, mobile, {"invite_status": "Skipped", "invite_note": "App installed or purchase no longer eligible"})
+    if (_registered_customer(mobile) or normalize_mobile(order.mobile) != mobile
+            or order.order_source not in ("Walk-in", "Waiter") or not _paid_order(order)):
+        frappe.db.set_value(CONTACT, mobile, {"invite_status": "Skipped", "invite_note": "Customer registered or purchase no longer eligible"})
         frappe.db.commit()
         return {"sent": False, "reason": "not eligible"}
     url = str(frappe.conf.get("customer_app_install_url") or "").strip()
