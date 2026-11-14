@@ -1057,7 +1057,8 @@ def update_order():
         frappe.throw(_("At least one item is required"))
 
     branch.require_access("POS Order", order_name)
-    pos_order = frappe.get_doc("POS Order", order_name)
+    # Serialize item autosaves with the separate customer/phone save and payment.
+    pos_order = frappe.get_doc("POS Order", order_name, for_update=True)
     if pos_order.docstatus != 0:
         frappe.throw(_("Only draft orders can be edited"))
 

@@ -25,8 +25,8 @@
       "md5": "490b72e8b58207666fd28b99de8e00b6"
     },
     "luuvcrm/api/orders.py": {
-      "sha256": "ee102773deb05db8d46045cf3427268d3299f6436cb65c5353ba0126a98cc2e6",
-      "md5": "5eb361ef495832e98c5b93e5cdcb7f56"
+      "sha256": "123852de87bee0eaaac8a55a8ce963336fcd2aa2073628d84effd664ddb89456",
+      "md5": "9fd7cfdcbeb1f6faf2346f7eeb56cefb"
     },
     "luuvcrm/api/payments.py": {
       "sha256": "702ce39259dd8598978b36075d4331f0a8c52784c3a0b58c603cc4eba3565ef7",
@@ -53,6 +53,10 @@
     {
       "phase": "order and payment APIs",
       "verified_at": "2026-11-14T00:20:40.445Z"
+    },
+    {
+      "phase": "serialize item and customer saves",
+      "verified_at": "2026-11-14T00:21:16.691Z"
     }
   ],
   "containers": [
