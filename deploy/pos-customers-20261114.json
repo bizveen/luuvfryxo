@@ -43,6 +43,14 @@
     "luuvcrm/setup_doctype.py": {
       "sha256": "82e1b2b58b258cd9b31bda48a11e74681fa880fb096ed360527a9acdd0c11ab7",
       "md5": "a9d17cd60b435d227e68af82af7944f1"
+    },
+    "luuvcrm/www/pos.html": {
+      "sha256": "050ad14d5247022eed8da26d5a6108cf65c89f42705da7732d02444184a76f83",
+      "md5": "0af30971e4944ed775a63782cd86d146"
+    },
+    "luuvcrm/www/cus.html": {
+      "sha256": "b543614ac9ed6b548a20cb2b0144dce0a36334fe126dd788dc29182e359bcc6b",
+      "md5": "2e3f038961ebf7cc20219e64faa68dc1"
     }
   },
   "phases": [
@@ -57,6 +65,10 @@
     {
       "phase": "serialize item and customer saves",
       "verified_at": "2026-11-14T00:21:16.691Z"
+    },
+    {
+      "phase": "POS phone/history and customer app pages",
+      "verified_at": "2026-11-14T00:23:41.634Z"
     }
   ],
   "containers": [

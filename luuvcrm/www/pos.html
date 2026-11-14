@@ -204,6 +204,20 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
 .field label{display:block;font-size:13px;font-weight:700;color:var(--text-strong);margin-bottom:6px;}
 .field input,.field select{width:100%;border:1.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 13px;font-size:15px;color:var(--text-strong);background:var(--white);outline:none;}
 .field input:focus,.field select:focus{border-color:var(--color-primary);box-shadow:var(--focus-ring);}
+.pos-customer{margin-top:14px;padding:12px;background:var(--gray-50);border:1px solid var(--border-subtle);border-radius:var(--radius-md);}
+.pos-customer label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;}
+.pos-customer-row{display:flex;align-items:center;gap:7px;}
+.pos-customer input,.pos-customer select{width:100%;min-width:0;border:1px solid var(--border-default);border-radius:8px;background:var(--surface-card);padding:9px;font:inherit;font-size:13px;color:var(--text-strong);}
+.pos-customer input{flex:1;font-family:var(--font-mono);}
+.pos-customer select{margin-top:8px;}
+.pos-customer button{flex:none;border:0;background:transparent;color:var(--color-primary);font-size:12px;font-weight:700;cursor:pointer;padding:9px 2px;}
+.pos-customer button:disabled{color:var(--text-faint);cursor:default;}
+.pos-customer-note{font-size:11.5px;line-height:1.4;color:var(--text-muted);margin-top:6px;}
+.pos-customer-note.error{color:var(--color-danger);}
+.customer-purchase{padding:12px 0;border-bottom:1px solid var(--border-subtle);}
+.customer-purchase:last-child{border-bottom:0;}
+.customer-purchase-head{display:flex;justify-content:space-between;gap:10px;font-size:14px;font-weight:700;}
+.customer-purchase-meta,.customer-purchase-items{font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:4px;}
 .msum{background:var(--gray-50);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:16px;}
 .msum .r{display:flex;justify-content:space-between;font-size:14px;color:var(--text-muted);padding:3px 0;}
 .msum .r.tot{font-size:17px;font-weight:800;color:var(--text-strong);font-family:var(--font-display);margin-top:6px;padding-top:8px;border-top:1px solid var(--border-subtle);}
@@ -327,6 +341,19 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
             </label>
           </div>
 
+          <div class="pos-customer">
+            <label for="customerPhone">Customer phone <span style="font-weight:400;">(optional)</span></label>
+            <div class="pos-customer-row">
+              <input id="customerPhone" type="tel" inputmode="tel" maxlength="18" placeholder="07X XXX XXXX" autocomplete="off" oninput="customerPhoneChanged()" onblur="customerPhoneBlur()">
+              <button id="customerHistoryBtn" onclick="viewCustomerPurchases()" disabled>View purchases</button>
+            </div>
+            <select id="customerAppAction" aria-label="Customer app status" onchange="customerAppChanged()" disabled>
+              <option value="unknown">Choose app status</option>
+              <option value="installed">Already has app</option>
+              <option value="invite">Needs app — send SMS</option>
+            </select>
+            <div id="customerNote" class="pos-customer-note" aria-live="polite">Link this bill to the customer's purchases.</div>
+          </div>
           <div id="cartItems" style="display:flex;flex-direction:column;gap:14px;padding-top:14px;border-top:1px solid var(--border-subtle);margin-top:18px;"></div>
         </div>
 
@@ -374,6 +401,12 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
 
   </main>
 </div>
+
+<div class="lf-dialog__overlay" id="customerHistoryModal"><div class="lf-dialog">
+  <div class="lf-dialog__head"><h3 class="lf-dialog__title">Customer purchases</h3><p class="lf-dialog__desc" id="customerHistoryTitle"></p></div>
+  <div class="lf-dialog__body" style="max-height:55vh;overflow-y:auto;"><div id="customerHistorySummary" class="msum"></div><div id="customerHistoryRows"></div></div>
+  <div class="lf-dialog__foot"><button class="lf-btn lf-btn--secondary lf-btn--md" onclick="hide('customerHistoryModal')">Close</button></div>
+</div></div>
 
 <!-- Shift open dialog -->
 <div class="lf-dialog__overlay" id="shiftOpenModal"><div class="lf-dialog">
@@ -683,6 +716,138 @@ function lfPoll(fn, ms){
     return _api(url,{method:'POST',body:fd});
   }
 
+  // Customer details belong to a ticket, never to the next table selected.
+  // Every asynchronous write captures its state/order; item saves stay separate.
+  const customerStates=new Map();
+  let ticketCustomer=emptyTicketCustomer();
+  function emptyTicketCustomer(){ return {order:null,mobile:'',action:'unknown',installed:false,dirty:false,rev:0,loaded:false,history:null,error:'',saving:null,lookup:null,timer:null,locked:false,actionLocked:false}; }
+  function localCustomerPhone(value){ const digits=String(value||'').replace(/\D/g,''); return /^94\d{9}$/.test(digits)?'0'+digits.slice(2):digits; }
+  function validCustomerPhone(value){ return /^07\d{8}$/.test(localCustomerPhone(value)); }
+  function customerAction(state){ return state.installed?'installed':(['installed','invite'].includes(state.action)?state.action:'unknown'); }
+  function customerCreationFields(state){ return {pos_customer:1,mobile:localCustomerPhone(state.mobile),customer_app_action:customerAction(state)}; }
+  function customerInputValid(state,notify){
+    if(!state.mobile||validCustomerPhone(state.mobile)) return true;
+    state.error='Enter a valid 10-digit mobile number, or leave it blank.'; renderTicketCustomer(state);
+    if(notify) toast(state.error); return false;
+  }
+  function renderTicketCustomer(state){
+    state=state||ticketCustomer; if(state!==ticketCustomer) return;
+    const phone=document.getElementById('customerPhone'), action=document.getElementById('customerAppAction'), note=document.getElementById('customerNote');
+    if(document.activeElement!==phone) phone.value=state.mobile;
+    phone.disabled=state.locked||!!state.paying;
+    document.getElementById('customerHistoryBtn').disabled=!validCustomerPhone(state.mobile);
+    action.value=customerAction(state); action.disabled=!validCustomerPhone(state.mobile)||state.installed||state.actionLocked||!!state.paying;
+    const name=state.history&&state.history.customer_name;
+    const inviteStatus=state.history&&state.history.invite_status;
+    const inviteNote={Queued:'App link SMS is queued.',Sending:'App link SMS is being sent.',Sent:'App link SMS already sent.',Failed:'App link SMS could not be confirmed.'}[inviteStatus]||'';
+    let text=state.mobile?(name?name+' · ':'')+(state.installed?'App use confirmed. No install SMS needed.':state.action==='installed'?'Already has the app. No install SMS.':inviteNote||(state.action==='invite'?'App link will be sent after full payment.':'Choose an app status if the customer tells you.')):'Link this bill to the customer\'s purchases.';
+    if(state.locked) text+=' Phone is fixed for this order.';
+    if(state.saving) text='Saving customer details…';
+    if(state.error) text=state.error;
+    note.textContent=text; note.classList.toggle('error',!!state.error);
+  }
+  function loadTicketCustomer(order){
+    hide('customerHistoryModal');
+    if(order&&order.name){
+      let state=customerStates.get(order.name);
+      if(!state){ state=emptyTicketCustomer(); state.order=order.name; state.mobile=validCustomerPhone(order.mobile)?localCustomerPhone(order.mobile):String(order.mobile||''); customerStates.set(order.name,state); }
+      const paid=Number(order.docstatus||0)===1||orderLines(order).some(i=>Number(i.paid_qty||0)>0);
+      state.locked=paid||orderChannel(order)==='CUS'; state.actionLocked=paid;
+      ticketCustomer=state;
+      if(state.mobile&&!state.loaded&&!state.lookup) lookupTicketCustomer(state);
+    }else ticketCustomer=emptyTicketCustomer();
+    document.getElementById('customerPhone').value=ticketCustomer.mobile; renderTicketCustomer();
+  }
+  function queueCustomerSave(state){
+    clearTimeout(state.timer);
+    state.timer=setTimeout(()=>{ state.timer=null; if(state.order&&customerInputValid(state,false)) saveTicketCustomer(state); },400);
+  }
+  function customerPhoneChanged(){
+    const state=ticketCustomer; state.mobile=document.getElementById('customerPhone').value;
+    state.action='unknown'; state.installed=false; state.history=null; state.loaded=false; state.error=''; state.rev++; state.dirty=true;
+    renderTicketCustomer(state); queueCustomerSave(state);
+  }
+  function customerPhoneBlur(){
+    const state=ticketCustomer;
+    if(state.order&&!state.dirty&&!validCustomerPhone(state.mobile)) return;
+    if(customerInputValid(state,false)){ state.mobile=localCustomerPhone(state.mobile); document.getElementById('customerPhone').value=state.mobile; if(state.mobile) lookupTicketCustomer(state); }
+  }
+  function customerAppChanged(){
+    const state=ticketCustomer; state.action=document.getElementById('customerAppAction').value; state.rev++; state.dirty=true; state.error='';
+    renderTicketCustomer(state); queueCustomerSave(state);
+  }
+  async function lookupTicketCustomer(state){
+    if(!validCustomerPhone(state.mobile)) return null;
+    const mobile=localCustomerPhone(state.mobile), rev=state.rev, order=state.order;
+    const params=new URLSearchParams({mobile,pos_channel:INVENTORY_POS?'inventory':'legacy'}); if(order) params.set('order_name',order);
+    const pending=(async()=>{
+      try{
+        const r=await _api('/api/method/luuvcrm.api.pos_customers.pos_customer_history?'+params.toString());
+        if(!r) throw new Error('Could not load purchases. Try again.');
+        const d=await r.json(), result=d.message||{};
+        if(!r.ok||!result.success) throw new Error(result.error||_smsg(d,'Could not load purchases'));
+        if(state.rev!==rev||localCustomerPhone(state.mobile)!==mobile) return null;
+        state.history=result; state.installed=!!result.app_installed;
+        if(!state.loaded&&!state.dirty&&order) state.action=['installed','invite'].includes(result.app_action)?result.app_action:'unknown';
+        state.loaded=true; state.error=''; renderTicketCustomer(state); return result;
+      }catch(e){ if(state.rev===rev){state.error=e.message||'Could not load purchases';renderTicketCustomer(state);} return null; }
+    })();
+    state.lookup=pending; const result=await pending; if(state.lookup===pending) state.lookup=null; return result;
+  }
+  async function saveTicketCustomer(state,notify){
+    state=state||ticketCustomer; clearTimeout(state.timer); state.timer=null;
+    // Legacy/waiter bills may have an overseas phone. An untouched identity
+    // must not prevent charging that bill; only new or edited phones are strict.
+    if(state.order&&!state.dirty&&!state.saving) return true;
+    if(!customerInputValid(state,notify)) return false;
+    if(state.saving){ const ok=await state.saving; if(!ok) return false; return state.dirty?saveTicketCustomer(state,notify):true; }
+    if(!state.order||!state.dirty) return true;
+    const pending=(async()=>{
+      while(state.dirty){
+        if(!state.order) return true;
+        if(!customerInputValid(state,notify)) return false;
+        const rev=state.rev, mobile=localCustomerPhone(state.mobile), action=customerAction(state), order=state.order;
+        try{
+          const r=await _post('/api/method/luuvcrm.api.pos_customers.pos_set_order_customer',{order_name:order,mobile,app_action:action});
+          if(!r) throw new Error('Customer details were not saved. Check the connection and try again.');
+          const d=await r.json(), result=d.message||{};
+          if(state.order!==order) return true;
+          if(!r.ok||!result.success) throw new Error(result.error||_smsg(d,'Customer details could not be saved'));
+          for(const o of (_openOrders||[]).concat(tableOrders||[])){ if(o.name===order) o.mobile=result.mobile||''; }
+          if(state.rev===rev){ state.mobile=result.mobile||''; state.action=result.app_action||action; state.installed=!!result.app_installed; state.dirty=false; state.loaded=true; state.error=''; }
+        }catch(e){ state.error=e.message||'Customer details could not be saved'; if(notify&&state===ticketCustomer) toast(state.error); return false; }
+      }
+      return true;
+    })();
+    state.saving=pending; renderTicketCustomer(state);
+    const ok=await pending; if(state.saving===pending) state.saving=null; renderTicketCustomer(state); return ok;
+  }
+  function customerOrderCreated(state,name,rev){
+    state.order=name; customerStates.set(name,state);
+    if(state.rev===rev) state.dirty=false;
+    else if(state.dirty) saveTicketCustomer(state);
+  }
+  async function viewCustomerPurchases(){
+    const state=ticketCustomer, rev=state.rev;
+    if(!customerInputValid(state,true)||!state.mobile) return;
+    const result=await lookupTicketCustomer(state);
+    if(!result||state!==ticketCustomer||state.rev!==rev) return;
+    document.getElementById('customerHistoryTitle').textContent=(result.customer_name?result.customer_name+' · ':'')+result.mobile;
+    document.getElementById('customerHistorySummary').textContent=Number(result.purchase_count||0)+' paid purchases · '+fmt(Number(result.purchase_total||0));
+    const rows=document.getElementById('customerHistoryRows'); rows.innerHTML='';
+    if(!(result.purchases||[]).length){ rows.textContent='No paid purchases found for this number at this outlet.'; }
+    for(const purchase of result.purchases||[]){
+      const row=document.createElement('div'); row.className='customer-purchase';
+      const head=document.createElement('div'); head.className='customer-purchase-head';
+      const label=document.createElement('span'); label.textContent='#'+shortNo(purchase.name);
+      const amount=document.createElement('span'); amount.textContent=fmt(Number(purchase.grand_total||0)); head.appendChild(label);head.appendChild(amount);row.appendChild(head);
+      const meta=document.createElement('div'); meta.className='customer-purchase-meta';meta.textContent=String(purchase.placed_at||'').slice(0,16)+(purchase.restaurant?' · '+purchase.restaurant:'');row.appendChild(meta);
+      const items=document.createElement('div');items.className='customer-purchase-items';items.textContent=(purchase.items||[]).map(i=>i.qty+' × '+i.item_name).join(', ');row.appendChild(items);rows.appendChild(row);
+    }
+    if(sheetTier()) cartSheet(false);
+    show('customerHistoryModal');
+  }
+
   // ── nav: switch SPA screens ──
   function setNav(n){ document.querySelectorAll('.navp').forEach(b=>b.classList.toggle('active',b.dataset.nav===n));
     const screens={sale:'screenSale',tables:'screenTables',orders:'screenOrders'};
@@ -917,22 +1082,24 @@ function lfPoll(fn, ms){
     if(orderType==='Dine In' && !table) return;   // need a table first; onTableChange retries
     const codes=Object.keys(cart);
     const ep=_saveEpoch;   // ticket/table switched while this save was in flight → the response is stale
+    const customer=ticketCustomer, customerRev=customer.rev;
+    if(codes.length&&!currentOrder&&!customerInputValid(customer,false)) return;
     _saving=true;
     try{
       if(!codes.length){
         // emptied with nothing fired → drop the draft
         if(currentOrder && !Object.values(firedBaseline).some(q=>q>0)){
           await _post('/api/method/luuvcrm.api.delete_draft_order',{order_name:currentOrder});
-          if(ep===_saveEpoch){ currentOrder=null; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); }
+          if(ep===_saveEpoch){ customerStates.delete(currentOrder); customer.order=null; currentOrder=null; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); }
         }
       } else if(!currentOrder){
-        const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'', draft:1 };
+        const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'', draft:1, ...customerCreationFields(customer) };
         const r=await _post('/api/method/luuvcrm.api.send_to_kitchen',body);
         // Stale response must NOT stomp currentOrder — that's how table A's order got table B's items.
-        if(r && ep===_saveEpoch){ const d=await r.json(); if(d.message&&d.message.name){ currentOrder=d.message.name; editBaseline={}; if(table){ await refreshTableTabs(table); } else { renderOrderTabs(); } } }
+        if(r){ const d=await r.json(); if(r.ok&&d.message&&d.message.name){ customerOrderCreated(customer,d.message.name,customerRev); if(ep===_saveEpoch){ currentOrder=d.message.name; editBaseline={}; if(table){ await refreshTableTabs(table); } else { renderOrderTabs(); } } } }
       } else {
         const r=await _post('/api/method/luuvcrm.api.update_order',{ order_name:currentOrder, items:JSON.stringify(cartItemsPayload()), expected_table:(orderType==='Dine In'?table:'') });
-        if(r && !r.ok && ep===_saveEpoch){ const t=await r.text().catch(()=>''); if(t.includes('order-table-mismatch')){ toast('Order moved — refreshing table'); currentOrder=null; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); renderCart(); } }
+        if(r && !r.ok && ep===_saveEpoch){ const t=await r.text().catch(()=>''); if(t.includes('order-table-mismatch')){ toast('Order moved — refreshing table'); currentOrder=null; loadTicketCustomer(); cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); renderCart(); } }
         else if(r && r.ok && ep===_saveEpoch && table) await refreshTableTabs(table);
       }
     }catch(e){}
@@ -957,7 +1124,12 @@ function lfPoll(fn, ms){
       if(r.ok && d.message && d.message.ok){ toast('Removal sent to manager 📱'); pollEdit(d.message.name,removalOrder,table); }
       else toast('Error: '+_smsg(d,'could not request')); }catch(e){ toast('Connection error'); } }
   function newTakeaway(){ setOrderType('Take Away'); }
-  async function setOrderType(t){ orderType=t; document.getElementById('segDine').classList.toggle('active',t==='Dine In'); document.getElementById('segTake').classList.toggle('active',t==='Take Away');
+  async function setOrderType(t){
+    const customer=ticketCustomer;
+    if(t==='Take Away'&&!customerInputValid(customer,true)) return;
+    if(t==='Take Away'&&!(await saveTicketCustomer(customer,true))) return;
+    if(customer!==ticketCustomer) return;
+    orderType=t; document.getElementById('segDine').classList.toggle('active',t==='Dine In'); document.getElementById('segTake').classList.toggle('active',t==='Take Away');
     if(t==='Take Away'){
       // Convert a not-yet-fired dine-in ticket into ONE takeaway order. Previously this only set
       // currentOrder=null, which orphaned the dine-in draft on its table while firing then created a
@@ -971,6 +1143,7 @@ function lfPoll(fn, ms){
       // Flush any pending/in-flight autosave so currentOrder is resolved before we drop the draft —
       // otherwise a fast switch (draft still being created) leaves it orphaned → a second order/bill.
       clearTimeout(_saveTimer); let g=0; while(_saving && g++<60){ await new Promise(r=>setTimeout(r,40)); }
+      if(customer!==ticketCustomer) return;
       const tbl=document.getElementById('tableSel').value;
       let wasPrinted=false;
       if(currentOrder){
@@ -980,6 +1153,7 @@ function lfPoll(fn, ms){
         await _post('/api/method/luuvcrm.api.delete_draft_order',{order_name:currentOrder}).catch(()=>{});
       }
       _saveEpoch++;   // converting to takeaway — drop any in-flight dine-in autosave response
+      customerStates.delete(currentOrder); customer.order=null; customer.rev++;
       currentOrder=null; firedBaseline={}; firedTABaseline={}; editBaseline={};
       document.getElementById('tableSel').value=''; _prevTable='';
       if(tbl) refreshTableTabs(tbl);
@@ -998,6 +1172,7 @@ function lfPoll(fn, ms){
   function updateTabsVisibility(){ const tableVal=document.getElementById('tableSel').value; const wrap=document.getElementById('orderTabsWrap');
     wrap.style.display=(orderType==='Dine In' && tableVal)?'block':'none'; }
   async function onTableChange(){ const tableVal=document.getElementById('tableSel').value;
+    const previousTable=_prevTable;
     // Flush guard (same as setOrderType/placeOrder): a pending or in-flight autosave still
     // belongs to the PREVIOUS table/ticket — without this the debounced save fires against
     // the newly selected table and the order "moves" between tables.
@@ -1011,7 +1186,8 @@ function lfPoll(fn, ms){
     _prevTable=tableVal;
     // Keep the in-progress cart when assigning a table to a NEW ticket (so items added
     // before picking the table aren't lost). Only clear when leaving a resumed order.
-    if(currentOrder){ cart={}; cartTA={}; cartNotes={}; }
+    if(currentOrder){ cart={}; cartTA={}; cartNotes={}; loadTicketCustomer(); }
+    else if(previousTable&&previousTable!==tableVal&&!Object.keys(cart).length) loadTicketCustomer();
     currentOrder=null; firedBaseline={}; firedTABaseline={};
     if(orderType==='Dine In' && tableVal){
       await refreshTableTabs(tableVal);
@@ -1054,11 +1230,12 @@ function lfPoll(fn, ms){
   function selectOrderTab(name){ const o=tableOrders.find(x=>x.name===name); if(!o) return;
     _saveEpoch++;   // switching tickets — drop any in-flight autosave response
     currentOrder=name; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; (o.items||[]).forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.takeaway) cartTA[i.item]=(cartTA[i.item]||0)+i.qty; if(i.sent_qty){ firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; if(i.takeaway) firedTABaseline[i.item]=(firedTABaseline[i.item]||0)+i.sent_qty; } addCartNote(i.item,i.notes); });
+    loadTicketCustomer(o);
     currentDiscount=(o.discount_amount>0)?{amount:o.discount_amount,note:o.discount_note||''}:null;
     editBaseline={...firedBaseline};   // only items already fired to the kitchen need approval to remove
     orderType='Dine In'; document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active');
     renderOrderTabs(); renderCart(); }
-  function newTicketForTable(){ _saveEpoch++; currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; renderOrderTabs(); renderCart(); }
+  function newTicketForTable(){ _saveEpoch++; currentOrder=null; loadTicketCustomer(); cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; renderOrderTabs(); renderCart(); }
   async function resumeOrder(name,table){ setNav('sale'); const sel=document.getElementById('tableSel'); if(table){ sel.value=table; _prevTable=table; }
     orderType='Dine In'; document.getElementById('segDine').classList.add('active'); document.getElementById('segTake').classList.remove('active');
     await refreshTableTabs(table); selectOrderTab(name); }
@@ -1178,13 +1355,17 @@ function lfPoll(fn, ms){
     const table=document.getElementById('tableSel').value;
     if(orderType==='Dine In' && !table){ toast('Select a table'); return; }
     if(!shiftOpen){ openShiftModal(); toast('Open a shift first'); return; }
+    const customer=ticketCustomer, customerRev=customer.rev;
+    if(!(await saveTicketCustomer(customer,true))||customer!==ticketCustomer) return;
     // Flush any pending/in-flight autosave so currentOrder is resolved (avoid a duplicate order).
     clearTimeout(_saveTimer); let _g=0; while(_saving && _g++<60){ await new Promise(r=>setTimeout(r,40)); }
+    if(customer!==ticketCustomer) return;
     const selectedOrder=currentOrderInfo()||{}, selectedChannel=orderChannel(selectedOrder);
     const waitForOnlineKot=['CUS','Kiosk'].includes(selectedChannel);
     if(pay){
       if(currentOrder){
         await autosaveTicket();   // flush any just-added items onto the order before charging
+        if(customer!==ticketCustomer) return;
         // Dine-in: payment is only taken after the guest check has been printed for the customer.
         // Take Away is charged at the counter, so it skips the guest-check gate.
         if(GUEST_CHECK_ENABLED && orderType!=='Take Away'){
@@ -1212,10 +1393,10 @@ function lfPoll(fn, ms){
     try{
       let res;
       if(currentOrder){ res=await _post('/api/method/luuvcrm.api.update_order',{ order_name:currentOrder, items:JSON.stringify(cartItemsPayload()), expected_table:(orderType==='Dine In'?table:'') }); }
-      else { const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'' };
+      else { const body={ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':table), order_type:orderType, order_source:'Walk-in', customer_name:'', ...customerCreationFields(customer) };
         res=await _post('/api/method/luuvcrm.api.send_to_kitchen',body); }
       if(!res) return; const data=await res.json();
-      if(res.ok && data.message && data.message.name){ const nm=data.message.name; currentOrder=nm;
+      if(res.ok && data.message && data.message.name){ const nm=data.message.name; if(!customer.order) customerOrderCreated(customer,nm,customerRev); if(customer!==ticketCustomer) return; currentOrder=nm;
         if(INVENTORY_POS){ if(!(await printKOT(nm))) return; toast('Sent to kitchen #'+nm); }
         else if(waitForOnlineKot){ if(!(await printKOT(nm))) return; toast('Sent to kitchen #'+nm); }
         else { toast('Sent to kitchen #'+nm); printKOT(nm); }
@@ -1223,7 +1404,7 @@ function lfPoll(fn, ms){
         firedBaseline={...cart}; editBaseline={...cart};
         firedTABaseline={}; Object.keys(cart).forEach(c=>{ const n=(orderType==='Take Away')?cart[c]:Math.min(cartTA[c]||0,cart[c]); if(n>0) firedTABaseline[c]=n; });
         const t=(orderType==='Take Away')?'':table; if(t){ await refreshTableTabs(t); } loadOpenOrders(); }
-      else if(JSON.stringify(data).includes('order-table-mismatch')){ toast('Order moved — refreshing table'); _saveEpoch++; currentOrder=null; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); renderCart(); }
+      else if(JSON.stringify(data).includes('order-table-mismatch')){ toast('Order moved — refreshing table'); _saveEpoch++; currentOrder=null; loadTicketCustomer(); cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={}; editBaseline={}; if(table) await refreshTableTabs(table); renderCart(); }
       else toast('Error: '+_smsg(data,'could not send'));
     }catch(e){ toast('Connection error'); }
   }
@@ -1273,8 +1454,8 @@ function lfPoll(fn, ms){
     superseded:()=>{ toast('Edit request expired or was replaced. Refresh the bill before requesting approval again'); }
   }); }
   // clearTicket: reset the active ticket but keep the table selected (so its tabs stay)
-  function clearTicket(){ currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; renderCart(); renderOrderTabs(); }
-  function clearCart(){ currentOrder=null; cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; document.getElementById('tableSel').value=''; tableOrders=[]; updateTabsVisibility(); renderCart(); }
+  function clearTicket(){ currentOrder=null; loadTicketCustomer(); cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; renderCart(); renderOrderTabs(); }
+  function clearCart(){ currentOrder=null; loadTicketCustomer(); cart={}; cartTA={}; cartNotes={}; editBaseline={}; firedBaseline={}; firedTABaseline={}; currentDiscount=null; document.getElementById('tableSel').value=''; tableOrders=[]; updateTabsVisibility(); renderCart(); }
 
   // ── duplicate / zombie bill guards (the 00932/00933 incident) ──
   // A re-rung bill leaves the original open on its table for hours. Surface open bills
@@ -1415,12 +1596,12 @@ function lfPoll(fn, ms){
 
   // ── payment ──
   function openPayForCart(){ const t=cartTotals(); const table=document.getElementById('tableSel').value;
-    payCtx={ kind:'new', total:t.gt, table:table };
+    payCtx={ kind:'new', total:t.gt, table:table, customer:ticketCustomer };
     document.getElementById('pmItems').textContent=Object.values(cart).reduce((a,b)=>a+b,0);
     document.getElementById('pmCtx').textContent=orderType==='Take Away'?'Order':'Table';
     document.getElementById('pmTable').textContent=orderType==='Take Away'?'Take Away':(table||'—');
     document.getElementById('pmTotal').textContent=fmt(t.gt); renderPayModes(); mErr('payErr',''); gdReset(); refreshTour(['pmTour']); show('payModal'); }
-  function openPayForOrder(name,total,itemsCount,table){ payCtx={ kind:'existing', orderName:name, total:total, table:table };
+  function openPayForOrder(name,total,itemsCount,table){ payCtx={ kind:'existing', orderName:name, total:total, table:table, customer:customerStates.get(name)||null, ticket:ticketCustomer };
     document.getElementById('pmItems').textContent=itemsCount; document.getElementById('pmCtx').textContent='Table';
     document.getElementById('pmTable').textContent=table||'—'; document.getElementById('pmTotal').textContent=fmt(total);
     renderPayModes(); mErr('payErr',''); gdReset(); refreshTour(['pmTour']); show('payModal'); }
@@ -1458,6 +1639,12 @@ function lfPoll(fn, ms){
     else { tf.style.display='none'; cc.style.display='none'; } }
   function calcChange(){ const ch=(parseFloat(document.getElementById('tendered').value)||0)-effTotal(); document.getElementById('changeDue').textContent=fmt(ch>0?ch:0); }
   async function confirmPay(){
+    const btn=document.getElementById('payConfirm'); if(btn.disabled) return; btn.disabled=true;
+    const context=payCtx;
+    try{
+    if(context.customer&&!(await saveTicketCustomer(context.customer,true))){ mErr('payErr',context.customer.error||'Save the customer details before payment.'); return; }
+    if(payCtx!==context) return;
+    if(context.kind==='new'&&(context.customer!==ticketCustomer||context.customer.order)){ mErr('payErr','The bill changed. Close payment and tap Charge again.'); return; }
     const body={ payment_mode:payMode };
     if(payGuides.length) body.guides=JSON.stringify(payGuides.map(g=>g.name));
     if(payRedeem&&payRedeem.amount>0) body.guide_redeem=JSON.stringify({guide:payRedeem.name,amount:payRedeem.amount});
@@ -1465,20 +1652,22 @@ function lfPoll(fn, ms){
     if(payMode==='Cash'){ body.tendered=parseFloat(document.getElementById('tendered').value)||0; }
     if(payMode==='Cash+Card'){ const c=parseFloat(document.getElementById('ccCash').value)||0, k=parseFloat(document.getElementById('ccCard').value)||0;
       if(Math.abs((c+k)-effTotal())>1){ mErr('payErr','Cash + Card must equal '+fmt(effTotal())); return; } body.cash_amount=c; body.card_amount=k; }
-    const btn=document.getElementById('payConfirm'); btn.disabled=true; mErr('payErr','');
+    if(context.customer){ context.customer.paying=true; renderTicketCustomer(context.customer); }
+    mErr('payErr','');
     try{ let res;
-      if(payCtx.kind==='new'){ Object.assign(body,{ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':payCtx.table), order_type:orderType, order_source:'Walk-in', customer_name:'' }); res=await _post('/api/method/luuvcrm.api.place_order',body); }
-      else { body.order_name=payCtx.orderName; res=await _post('/api/method/luuvcrm.api.process_payment',body); }
+      if(context.kind==='new'){ Object.assign(body,{ items:JSON.stringify(cartItemsPayload()), table:(orderType==='Take Away'?'':context.table), order_type:orderType, order_source:'Walk-in', customer_name:'', ...customerCreationFields(context.customer) }); res=await _post('/api/method/luuvcrm.api.place_order',body); }
+      else { body.order_name=context.orderName; res=await _post('/api/method/luuvcrm.api.process_payment',body); }
       if(!res){ btn.disabled=false; return; } const data=await res.json();
       if(res.ok && data.message && data.message.name){ toast('Charged #'+data.message.name);
         if(payMode==='Cash'||payMode==='Cash+Card') LFPrint.openDrawer();
-        printReceipt(data.message.name); hide('payModal');
-        const tbl=payCtx.table; const paidCodes=payCtx.itemCodes||Object.keys(cart);
-        if(payCtx.kind==='new') clearCart(); else if(!payCtx.preserveTicket || currentOrder===payCtx.orderName){ clearTicket(); }
+        printReceipt(data.message.name); if(payCtx===context) hide('payModal');
+        const tbl=context.table; const paidCodes=context.itemCodes||Object.keys(cart);
+        if(context.kind==='new'){ if(ticketCustomer===context.customer) clearCart(); }
+        else if(currentOrder===context.orderName||(!context.preserveTicket&&ticketCustomer===context.ticket)){ clearTicket(); }
         if(tbl){ await refreshTableTabs(tbl); maybeWarnZombies(tbl,paidCodes); } loadOpenOrders(); loadShift(); }
       else mErr('payErr', _smsg(data,'payment failed'));
     }catch(e){ mErr('payErr','Connection error'); }
-    btn.disabled=false;
+    }finally{ btn.disabled=false; if(context.customer){context.customer.paying=false;renderTicketCustomer(context.customer);} }
   }
 
   // ── tour guide cashback (optional block inside payModal) ──
@@ -1569,6 +1758,7 @@ function lfPoll(fn, ms){
     document.getElementById('tableSel').value=''; _prevTable='';
     _saveEpoch++;   // switching tickets — drop any in-flight autosave response
     currentOrder=name; cart={}; cartTA={}; cartNotes={}; firedBaseline={}; firedTABaseline={};
+    loadTicketCustomer(o);
     let items=[]; try{ items=JSON.parse(o.items_json||'[]'); }catch(e){}
     items.forEach(i=>{ cart[i.item]=(cart[i.item]||0)+i.qty; if(i.sent_qty){ firedBaseline[i.item]=(firedBaseline[i.item]||0)+i.sent_qty; if(i.takeaway) firedTABaseline[i.item]=(firedTABaseline[i.item]||0)+i.sent_qty; } addCartNote(i.item,i.notes); });
     currentDiscount=(o.discount_amount>0)?{amount:o.discount_amount,note:o.discount_note||''}:null;
@@ -1783,9 +1973,13 @@ function lfPoll(fn, ms){
   }catch(e){ toast('Connection error'); } }
 
   // Split bill (and "split takeaway" — bills only the takeaway items, no service charge)
-  let splitMode='Cash', splitData=[], splitFilter='all';
+  let splitMode='Cash', splitData=[], splitFilter='all', splitOrderName=null, splitCustomer=null;
   async function openSplit(mode){ splitFilter=mode||'all';
-    try{ const r=await _post('/api/method/luuvcrm.api.get_order_items',{order_name:currentOrder}); if(!r) return; const d=await r.json();
+    const order=currentOrder, customer=ticketCustomer;
+    if(!(await saveTicketCustomer(customer,true))||currentOrder!==order||ticketCustomer!==customer) return;
+    splitOrderName=order; splitCustomer=customer;
+    try{ const r=await _post('/api/method/luuvcrm.api.get_order_items',{order_name:order}); if(!r) return; const d=await r.json();
+    if(currentOrder!==order||ticketCustomer!==customer) return;
     let items=((d.message&&d.message.items)||[]).filter(i=>(i.remaining||0)>0);
     if(splitFilter==='takeaway') items=items.filter(i=>i.takeaway);
     splitData=items.map(i=>({item:i.item,name:i.item_name||i.item,rate:i.rate,remaining:i.remaining,takeaway:!!i.takeaway,sel:splitFilter==='takeaway'?i.remaining:0}));
@@ -1800,16 +1994,23 @@ function lfPoll(fn, ms){
   function splitStep(idx,d){ const l=splitData[idx]; l.sel=Math.max(0,Math.min(l.remaining,l.sel+d)); renderSplit(); }
   function setSplitMode(m){ splitMode=m; document.querySelectorAll('#splitModes .pmode').forEach(p=>p.classList.toggle('active',p.dataset.m===m)); }
   async function confirmSplit(){ const lines=splitData.filter(l=>l.sel>0).map(l=>({item:l.item,qty:l.sel}));
+    const btn=document.getElementById('splitConfirm'); if(btn.disabled) return; btn.disabled=true;
+    const customer=splitCustomer, order=splitOrderName;
+    try{
     if(!lines.length){ mErr('splitErr','Select at least one item'); return; }
-    const btn=document.getElementById('splitConfirm'); btn.disabled=true; mErr('splitErr','');
-    try{ const r=await _post('/api/method/luuvcrm.api.pay_split',{order_name:currentOrder,lines:JSON.stringify(lines),payment_mode:splitMode,tour_company:tourPicked('splitTour')}); if(!r){ btn.disabled=false; return; } const d=await r.json();
+    if(currentOrder!==splitOrderName||ticketCustomer!==splitCustomer){ mErr('splitErr','The bill changed. Close this window and try again.'); return; }
+    if(!(await saveTicketCustomer(splitCustomer,true))){ mErr('splitErr',splitCustomer.error||'Save the customer details before payment.'); return; }
+    if(currentOrder!==splitOrderName||ticketCustomer!==splitCustomer) return;
+    customer.paying=true; renderTicketCustomer(customer); mErr('splitErr','');
+    try{ const r=await _post('/api/method/luuvcrm.api.pay_split',{order_name:order,lines:JSON.stringify(lines),payment_mode:splitMode,tour_company:tourPicked('splitTour')}); if(!r){ btn.disabled=false; return; } const d=await r.json();
       if(r.ok && d.message && d.message.name){ toast('Split charged #'+d.message.name);
         if(splitMode==='Cash'||splitMode==='Cash+Card') LFPrint.openDrawer();
-        printReceipt(d.message.name); hide('splitModal');
+        printReceipt(d.message.name); if(splitOrderName!==order||ticketCustomer!==customer){loadOpenOrders();loadShift();return;} hide('splitModal');
         const t=document.getElementById('tableSel').value;
-        if(d.message.fully_paid){ clearTicket(); if(t) await refreshTableTabs(t); } else { await openSplit(); }
+        if(d.message.fully_paid){ clearTicket(); if(t) await refreshTableTabs(t); } else { splitCustomer.locked=true; splitCustomer.actionLocked=true; renderTicketCustomer(splitCustomer); await openSplit(); }
         loadOpenOrders(); loadShift(); }
-      else mErr('splitErr', _smsg(d,'split failed')); }catch(e){ mErr('splitErr','Connection error'); } btn.disabled=false; }
+      else mErr('splitErr', _smsg(d,'split failed')); }catch(e){ mErr('splitErr','Connection error'); }
+    }finally{btn.disabled=false;if(customer){customer.paying=false;renderTicketCustomer(customer);}} }
 
   // Activity log
   async function openLog(){ try{ const r=await _post('/api/method/luuvcrm.api.get_order_changelog',{order_name:currentOrder}); if(!r) return; const d=await r.json();

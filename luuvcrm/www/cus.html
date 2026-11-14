@@ -1138,13 +1138,57 @@ async function _post(method, args){
 /* ─────────── browser PWA install + Web Push ─────────── */
 let _pwaInstallPrompt=null, _pwaBannerMode='', _cusSwRegistration=null;
 let _firebaseWebPromise=null, _webMessaging=null, _webMessageBound=false;
+const INSTALL_INVITE = new URLSearchParams(window.location.search).get('install')==='1';
+const _appInstallRequests = new Map();
+let _pwaInstalledThisPage=false;
 function isNativeCustomerApp(){
-  return document.documentElement.classList.contains('native-shell')||typeof LuuvGuestOrder!=='undefined';
+  return document.documentElement.classList.contains('native-shell')||typeof LuuvGuestOrder!=='undefined'||typeof LuuvSession!=='undefined'||typeof LuuvNavigation!=='undefined';
 }
 function isStandalonePwa(){
   return !!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
 }
 function isIosBrowser(){ return /iphone|ipad|ipod/i.test(navigator.userAgent||''); }
+function customerAppPlatform(){
+  if(isNativeCustomerApp()){
+    return isIosBrowser()||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)?'iOS':'Android';
+  }
+  return isStandalonePwa()||_pwaInstalledThisPage?'PWA':'';
+}
+async function recordCustomerAppInstall(retryFailed){
+  const platform=customerAppPlatform(), customerToken=_token;
+  if(!platform||!customerToken||isDevSession()) return;
+  const key=customerToken+'|'+platform, previous=_appInstallRequests.get(key);
+  if(previous==='pending'||previous==='success'||(previous==='failed'&&!retryFailed)) return;
+  _appInstallRequests.set(key,'pending');
+  try{
+    const response=await _post('luuvcrm.api.pos_customers.customer_record_app_install',{
+      customer_token:customerToken,platform
+    });
+    _appInstallRequests.set(key,response&&response.message&&response.message.success===true?'success':'failed');
+  }catch(_e){ _appInstallRequests.set(key,'failed'); }
+}
+function setupCustomerAppObservation(){
+  recordCustomerAppInstall(false);
+  if(isNativeCustomerApp()){ hidePwaBanner(); return; }
+  // Older Flutter shells add their class after this page's scripts finish.
+  // Observe that one attribute briefly; no request polling is needed.
+  if(typeof MutationObserver!=='undefined'){
+    let stopTimer;
+    const observer=new MutationObserver(()=>{
+      if(!isNativeCustomerApp()) return;
+      hidePwaBanner(); recordCustomerAppInstall(false);
+      observer.disconnect(); clearTimeout(stopTimer);
+    });
+    observer.observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+    stopTimer=setTimeout(()=>observer.disconnect(),60000);
+  }
+  const standalone=window.matchMedia&&window.matchMedia('(display-mode: standalone)');
+  if(standalone&&standalone.addEventListener){
+    standalone.addEventListener('change',event=>{
+      if(event.matches){ hidePwaBanner(); recordCustomerAppInstall(false); }
+    });
+  }
+}
 function pwaDismissed(mode){
   try{ return Date.now()-Number(localStorage.getItem('lf_pwa_'+mode+'_dismissed')||0)<7*24*60*60*1000; }
   catch(_e){ return false; }
@@ -1285,10 +1329,11 @@ function setupPwaExperience(){
   if(isNativeCustomerApp()) return;
   window.addEventListener('beforeinstallprompt',event=>{
     event.preventDefault(); _pwaInstallPrompt=event;
-    if(!isStandalonePwa()) showPwaBanner('install');
+    if(!isStandalonePwa()) showPwaBanner('install',INSTALL_INVITE);
   });
   window.addEventListener('appinstalled',()=>{
     _pwaInstallPrompt=null; hidePwaBanner();
+    _pwaInstalledThisPage=true; recordCustomerAppInstall(false);
     try{ localStorage.setItem('lf_pwa_installed','1'); }catch(_e){}
   });
   if('serviceWorker' in navigator){
@@ -1301,7 +1346,7 @@ function setupPwaExperience(){
     if(isStandalonePwa()){
       if('Notification' in window&&Notification.permission==='default') showPwaBanner('notify');
       else syncWebPushIfGranted();
-    }else showPwaBanner('install');
+    }else if(!_pwaInstalledThisPage) showPwaBanner('install',INSTALL_INVITE);
   },1600);
 }
 
@@ -2441,6 +2486,7 @@ async function saveSession(token,mobile,name,stayInCheckout){
   _token=token; _mobile=mobile; _name=name||'';
   _profile=null; _profilePromise=null; _loy=null; _loyPromise=null; _accountSummary=null; _accountSummaryPromise=null;
   localStorage.setItem('lf_token',_token); localStorage.setItem('lf_mobile',_mobile); localStorage.setItem('lf_name',_name);
+  recordCustomerAppInstall(true);
   // Attach now so the relationship survives, but keep the code until checkout:
   // kiosk_place_order is the server-authoritative first-order discount path.
   if(_ref){ try{ await _post('luuvcrm.api.loyalty_apply_referral',{token:_token,ref_code:_ref}); }catch(e){} }
@@ -2639,6 +2685,7 @@ promoLanding();
 loadCustomerProfile(false).then(()=>{ if(tab==='account'&&isAuthed()) renderAccount(); });
 guestLoginPrompt();
 icons();
+setupCustomerAppObservation();
 setupPwaExperience();
 </script>
 {%- else %}
