@@ -207,9 +207,8 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
 .pos-customer{margin-top:14px;padding:12px;background:var(--gray-50);border:1px solid var(--border-subtle);border-radius:var(--radius-md);}
 .pos-customer label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;}
 .pos-customer-row{display:flex;align-items:center;gap:7px;}
-.pos-customer input,.pos-customer select{width:100%;min-width:0;border:1px solid var(--border-default);border-radius:8px;background:var(--surface-card);padding:9px;font:inherit;font-size:13px;color:var(--text-strong);}
+.pos-customer input{width:100%;min-width:0;border:1px solid var(--border-default);border-radius:8px;background:var(--surface-card);padding:9px;font:inherit;font-size:13px;color:var(--text-strong);}
 .pos-customer input{flex:1;font-family:var(--font-mono);}
-.pos-customer select{margin-top:8px;}
 .pos-customer button{flex:none;border:0;background:transparent;color:var(--color-primary);font-size:12px;font-weight:700;cursor:pointer;padding:9px 2px;}
 .pos-customer button:disabled{color:var(--text-faint);cursor:default;}
 .pos-customer-note{font-size:11.5px;line-height:1.4;color:var(--text-muted);margin-top:6px;}
@@ -347,11 +346,6 @@ button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--focus-ring);}
               <input id="customerPhone" type="tel" inputmode="tel" maxlength="18" placeholder="07X XXX XXXX" autocomplete="off" oninput="customerPhoneChanged()" onblur="customerPhoneBlur()">
               <button id="customerHistoryBtn" onclick="viewCustomerPurchases()" disabled>View purchases</button>
             </div>
-            <select id="customerAppAction" aria-label="Customer app status" onchange="customerAppChanged()" disabled>
-              <option value="unknown">Choose app status</option>
-              <option value="installed">Already has app</option>
-              <option value="invite">Needs app — send SMS</option>
-            </select>
             <div id="customerNote" class="pos-customer-note" aria-live="polite">Link this bill to the customer's purchases.</div>
           </div>
           <div id="cartItems" style="display:flex;flex-direction:column;gap:14px;padding-top:14px;border-top:1px solid var(--border-subtle);margin-top:18px;"></div>
@@ -720,11 +714,10 @@ function lfPoll(fn, ms){
   // Every asynchronous write captures its state/order; item saves stay separate.
   const customerStates=new Map();
   let ticketCustomer=emptyTicketCustomer();
-  function emptyTicketCustomer(){ return {order:null,mobile:'',action:'unknown',installed:false,dirty:false,rev:0,loaded:false,history:null,error:'',saving:null,lookup:null,timer:null,locked:false,actionLocked:false}; }
+  function emptyTicketCustomer(){ return {order:null,mobile:'',registered:null,inviteStatus:'',dirty:false,rev:0,loaded:false,history:null,error:'',saving:null,lookup:null,timer:null,locked:false}; }
   function localCustomerPhone(value){ const digits=String(value||'').replace(/\D/g,''); return /^94\d{9}$/.test(digits)?'0'+digits.slice(2):digits; }
   function validCustomerPhone(value){ return /^07\d{8}$/.test(localCustomerPhone(value)); }
-  function customerAction(state){ return state.installed?'installed':(['installed','invite'].includes(state.action)?state.action:'unknown'); }
-  function customerCreationFields(state){ return {pos_customer:1,mobile:localCustomerPhone(state.mobile),customer_app_action:customerAction(state)}; }
+  function customerCreationFields(state){ return {pos_customer:1,mobile:localCustomerPhone(state.mobile)}; }
   function customerInputValid(state,notify){
     if(!state.mobile||validCustomerPhone(state.mobile)) return true;
     state.error='Enter a valid 10-digit mobile number, or leave it blank.'; renderTicketCustomer(state);
@@ -732,15 +725,14 @@ function lfPoll(fn, ms){
   }
   function renderTicketCustomer(state){
     state=state||ticketCustomer; if(state!==ticketCustomer) return;
-    const phone=document.getElementById('customerPhone'), action=document.getElementById('customerAppAction'), note=document.getElementById('customerNote');
+    const phone=document.getElementById('customerPhone'), note=document.getElementById('customerNote');
     if(document.activeElement!==phone) phone.value=state.mobile;
     phone.disabled=state.locked||!!state.paying;
     document.getElementById('customerHistoryBtn').disabled=!validCustomerPhone(state.mobile);
-    action.value=customerAction(state); action.disabled=!validCustomerPhone(state.mobile)||state.installed||state.actionLocked||!!state.paying;
     const name=state.history&&state.history.customer_name;
-    const inviteStatus=state.history&&state.history.invite_status;
+    const inviteStatus=state.inviteStatus;
     const inviteNote={Queued:'App link SMS is queued.',Sending:'App link SMS is being sent.',Sent:'App link SMS already sent.',Failed:'App link SMS could not be confirmed.'}[inviteStatus]||'';
-    let text=state.mobile?(name?name+' · ':'')+(state.installed?'App use confirmed. No install SMS needed.':state.action==='installed'?'Already has the app. No install SMS.':inviteNote||(state.action==='invite'?'App link will be sent after full payment.':'Choose an app status if the customer tells you.')):'Link this bill to the customer\'s purchases.';
+    let text=state.mobile?(name?name+' · ':'')+(state.registered===true?'Registered customer. No install SMS.':inviteNote||(state.registered===false?'Install link will be sent after full payment.':'Registration is checked before sending an install link.')):'Link this bill to the customer\'s purchases.';
     if(state.locked) text+=' Phone is fixed for this order.';
     if(state.saving) text='Saving customer details…';
     if(state.error) text=state.error;
@@ -752,7 +744,7 @@ function lfPoll(fn, ms){
       let state=customerStates.get(order.name);
       if(!state){ state=emptyTicketCustomer(); state.order=order.name; state.mobile=validCustomerPhone(order.mobile)?localCustomerPhone(order.mobile):String(order.mobile||''); customerStates.set(order.name,state); }
       const paid=Number(order.docstatus||0)===1||orderLines(order).some(i=>Number(i.paid_qty||0)>0);
-      state.locked=paid||orderChannel(order)==='CUS'; state.actionLocked=paid;
+      state.locked=paid||orderChannel(order)==='CUS';
       ticketCustomer=state;
       if(state.mobile&&!state.loaded&&!state.lookup) lookupTicketCustomer(state);
     }else ticketCustomer=emptyTicketCustomer();
@@ -764,17 +756,13 @@ function lfPoll(fn, ms){
   }
   function customerPhoneChanged(){
     const state=ticketCustomer; state.mobile=document.getElementById('customerPhone').value;
-    state.action='unknown'; state.installed=false; state.history=null; state.loaded=false; state.error=''; state.rev++; state.dirty=true;
+    state.registered=null; state.inviteStatus=''; state.history=null; state.loaded=false; state.error=''; state.rev++; state.dirty=true;
     renderTicketCustomer(state); queueCustomerSave(state);
   }
   function customerPhoneBlur(){
     const state=ticketCustomer;
     if(state.order&&!state.dirty&&!validCustomerPhone(state.mobile)) return;
     if(customerInputValid(state,false)){ state.mobile=localCustomerPhone(state.mobile); document.getElementById('customerPhone').value=state.mobile; if(state.mobile) lookupTicketCustomer(state); }
-  }
-  function customerAppChanged(){
-    const state=ticketCustomer; state.action=document.getElementById('customerAppAction').value; state.rev++; state.dirty=true; state.error='';
-    renderTicketCustomer(state); queueCustomerSave(state);
   }
   async function lookupTicketCustomer(state){
     if(!validCustomerPhone(state.mobile)) return null;
@@ -787,8 +775,7 @@ function lfPoll(fn, ms){
         const d=await r.json(), result=d.message||{};
         if(!r.ok||!result.success) throw new Error(result.error||_smsg(d,'Could not load purchases'));
         if(state.rev!==rev||localCustomerPhone(state.mobile)!==mobile) return null;
-        state.history=result; state.installed=!!result.app_installed;
-        if(!state.loaded&&!state.dirty&&order) state.action=['installed','invite'].includes(result.app_action)?result.app_action:'unknown';
+        state.history=result; state.registered=!!result.registered; state.inviteStatus=result.invite_status||'';
         state.loaded=true; state.error=''; renderTicketCustomer(state); return result;
       }catch(e){ if(state.rev===rev){state.error=e.message||'Could not load purchases';renderTicketCustomer(state);} return null; }
     })();
@@ -806,15 +793,15 @@ function lfPoll(fn, ms){
       while(state.dirty){
         if(!state.order) return true;
         if(!customerInputValid(state,notify)) return false;
-        const rev=state.rev, mobile=localCustomerPhone(state.mobile), action=customerAction(state), order=state.order;
+        const rev=state.rev, mobile=localCustomerPhone(state.mobile), order=state.order;
         try{
-          const r=await _post('/api/method/luuvcrm.api.pos_customers.pos_set_order_customer',{order_name:order,mobile,app_action:action});
+          const r=await _post('/api/method/luuvcrm.api.pos_customers.pos_set_order_customer',{order_name:order,mobile});
           if(!r) throw new Error('Customer details were not saved. Check the connection and try again.');
           const d=await r.json(), result=d.message||{};
           if(state.order!==order) return true;
           if(!r.ok||!result.success) throw new Error(result.error||_smsg(d,'Customer details could not be saved'));
           for(const o of (_openOrders||[]).concat(tableOrders||[])){ if(o.name===order) o.mobile=result.mobile||''; }
-          if(state.rev===rev){ state.mobile=result.mobile||''; state.action=result.app_action||action; state.installed=!!result.app_installed; state.dirty=false; state.loaded=true; state.error=''; }
+          if(state.rev===rev){ state.mobile=result.mobile||''; state.registered=!!result.registered; state.inviteStatus=result.invite_status||''; state.dirty=false; state.loaded=true; state.error=''; }
         }catch(e){ state.error=e.message||'Customer details could not be saved'; if(notify&&state===ticketCustomer) toast(state.error); return false; }
       }
       return true;
@@ -2007,7 +1994,7 @@ function lfPoll(fn, ms){
         if(splitMode==='Cash'||splitMode==='Cash+Card') LFPrint.openDrawer();
         printReceipt(d.message.name); if(splitOrderName!==order||ticketCustomer!==customer){loadOpenOrders();loadShift();return;} hide('splitModal');
         const t=document.getElementById('tableSel').value;
-        if(d.message.fully_paid){ clearTicket(); if(t) await refreshTableTabs(t); } else { splitCustomer.locked=true; splitCustomer.actionLocked=true; renderTicketCustomer(splitCustomer); await openSplit(); }
+        if(d.message.fully_paid){ clearTicket(); if(t) await refreshTableTabs(t); } else { splitCustomer.locked=true; renderTicketCustomer(splitCustomer); await openSplit(); }
         loadOpenOrders(); loadShift(); }
       else mErr('splitErr', _smsg(d,'split failed')); }catch(e){ mErr('splitErr','Connection error'); }
     }finally{btn.disabled=false;if(customer){customer.paying=false;renderTicketCustomer(customer);}} }

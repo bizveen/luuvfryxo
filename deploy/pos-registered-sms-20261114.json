@@ -3,12 +3,20 @@
     "luuvcrm/api/pos_customers.py": {
       "sha256": "4d422c8d534e7ad8176f29067de525a2ee9fe86a4dfb62bacae1d96532077c48",
       "md5": "f4dcf4951154a56e84f1b9e29760a29a"
+    },
+    "luuvcrm/www/pos.html": {
+      "sha256": "1637260bfc63c630c9f2a103b28d63b3eee4c772de382873dcc46d84648d22d2",
+      "md5": "51a6f19b760b6f8569f540d45339958d"
     }
   },
   "phases": [
     {
       "phase": "automatic SMS only for unregistered customers",
       "verified_at": "2026-11-14T00:35:33.277Z"
+    },
+    {
+      "phase": "phone-only POS customer capture",
+      "verified_at": "2026-11-14T00:36:50.942Z"
     }
   ],
   "containers": [
